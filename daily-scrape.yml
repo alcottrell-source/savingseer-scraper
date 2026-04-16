@@ -1,0 +1,71 @@
+name: Savingseer daily scrape
+
+on:
+  # Run every day at 06:00 UTC (07:00 BST / 06:00 GMT)
+  # Catches overnight sale launches before shoppers are up
+  schedule:
+    - cron: '0 6 * * *'
+
+  # Also allow manual trigger from the Actions tab (useful for testing)
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    name: Scrape 71 brands
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # hard ceiling — kills the job if something hangs
+
+    env:
+      SHEET_ID:           ${{ secrets.SHEET_ID }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      NODE_ENV:           production
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # ── 2. Node setup ────────────────────────────────────────────────────
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # ── 3. Install dependencies ──────────────────────────────────────────
+      - name: Install npm packages
+        run: npm ci
+
+      # ── 4. Install Playwright browser (Chromium only — saves ~200MB) ─────
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      # ── 5. Run scraper ───────────────────────────────────────────────────
+      - name: Run scraper
+        run: node --experimental-vm-modules scraper.js
+
+      # ── 6. Upload results as artifact (30-day retention) ─────────────────
+      #    Useful for debugging and historical spot-checks
+      - name: Upload results artifact
+        uses: actions/upload-artifact@v4
+        if: always()  # upload even if scraper had partial failures
+        with:
+          name: scores-${{ github.run_id }}
+          path: results/scores.json
+          retention-days: 30
+
+      # ── 7. Fail loudly if too many brands errored ─────────────────────────
+      #    Threshold: >10% failure rate triggers a failed run → GitHub email alert
+      - name: Check error rate
+        run: |
+          node -e "
+            const r = JSON.parse(require('fs').readFileSync('./results/scores.json'));
+            const errors = r.filter(x => x.error).length;
+            const total  = r.length;
+            const rate   = errors / total;
+            console.log(\`Errors: \${errors}/\${total} (\${(rate*100).toFixed(1)}%)\`);
+            if (rate > 0.10) {
+              console.error('ERROR RATE ABOVE 10% — investigate');
+              process.exit(1);
+            }
+          "

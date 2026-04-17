@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Savingseer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream:   #FAF7F2;
+    --bark:    #2C1810;
+    --leaf:    #3D6B35;
+    --leaf-lt: #EEF4EC;
+    --amber:   #C17A2B;
+    --amber-lt:#FBF2E4;
+    --red:     #B84C3A;
+    --red-lt:  #FAEAE7;
+    --stone:   #8C8070;
+    --stone-lt:#F2EFE9;
+    --border:  rgba(44,24,16,0.10);
+  }
+
+  html { font-size: 16px; }
+
+  body {
+    background: var(--cream);
+    color: var(--bark);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: var(--cream);
+    z-index: 100;
+  }
+
+  .wordmark {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--bark);
+  }
+
+  .wordmark span {
+    color: var(--leaf);
+  }
+
+  .tagline {
+    font-size: 12px;
+    color: var(--stone);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* ── Centre picker ── */
+  .picker-section {
+    padding: 32px 24px 0;
+  }
+
+  .picker-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--stone);
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .centre-select {
+    width: 100%;
+    appearance: none;
+    background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238C8070' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 16px center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 44px 14px 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--bark);
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .centre-select:focus {
+    outline: none;
+    border-color: var(--leaf);
+  }
+
+  /* ── Score card ── */
+  .score-section {
+    padding: 24px 24px 0;
+  }
+
+  .score-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 24px;
+    position: relative;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+
+  .score-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .score-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: var(--phase-color, var(--leaf));
+    border-radius: 16px 16px 0 0;
+  }
+
+  .score-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .score-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 72px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--phase-color, var(--leaf));
+  }
+
+  .score-right {
+    text-align: right;
+  }
+
+  .phase-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: var(--phase-bg, var(--leaf-lt));
+    color: var(--phase-color, var(--leaf));
+    margin-bottom: 8px;
+  }
+
+  .centre-name-display {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    color: var(--bark);
+    font-style: italic;
+  }
+
+  .score-message {
+    font-size: 14px;
+    color: var(--stone);
+    line-height: 1.6;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Ripeness bar ── */
+  .ripeness-section {
+    margin-top: 20px;
+  }
+
+  .ripeness-label {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--stone);
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .ripeness-track {
+    height: 6px;
+    background: var(--stone-lt);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .ripeness-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--phase-color, var(--leaf));
+    transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .ripeness-phases {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--stone);
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Brand list ── */
+  .brands-section {
+    padding: 24px 24px 0;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.4s ease 0.15s, transform 0.4s ease 0.15s;
+  }
+
+  .brands-section.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .section-heading {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--stone);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .on-sale-count {
+    background: var(--leaf-lt);
+    color: var(--leaf);
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+
+  .brand-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .brand-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--bark);
+    transition: border-color 0.2s;
+  }
+
+  .brand-chip.on-sale {
+    border-color: rgba(61,107,53,0.25);
+    background: var(--leaf-lt);
+  }
+
+  .brand-chip.on-sale .brand-name {
+    font-weight: 500;
+    color: var(--bark);
+  }
+
+  .sale-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--leaf);
+    flex-shrink: 0;
+  }
+
+  .no-sale-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--stone-lt);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  /* ── No centre selected ── */
+  .empty-state {
+    padding: 60px 24px;
+    text-align: center;
+  }
+
+  .empty-apple {
+    font-size: 48px;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .empty-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    color: var(--bark);
+    margin-bottom: 8px;
+  }
+
+  .empty-sub {
+    font-size: 14px;
+    color: var(--stone);
+    line-height: 1.6;
+    max-width: 260px;
+    margin: 0 auto;
+  }
+
+  /* ── Footer ── */
+  footer {
+    padding: 32px 24px;
+    margin-top: 40px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--stone);
+    text-align: center;
+    letter-spacing: 0.04em;
+  }
+
+  .updated-at {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--stone);
+  }
+
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--leaf);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ── Cluster dividers ── */
+  .cluster-label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--stone);
+    padding: 12px 0 6px;
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+
+  .cluster-label:first-child {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Savings<span>eer</span></div>
+  <div class="tagline">Know when to go</div>
+</header>
+
+<div class="picker-section">
+  <span class="picker-label">Choose your shopping centre</span>
+  <select class="centre-select" id="centre-select" onchange="renderCentre(this.value)">
+    <option value="">— Select a centre —</option>
+    <option value="C01">Festival Place, Basingstoke</option>
+    <option value="C02">Westquay, Southampton</option>
+    <option value="C03">Westfield London</option>
+    <option value="C04">Westfield Stratford</option>
+    <option value="C05">Trafford Centre, Manchester</option>
+    <option value="C06">Metrocentre, Gateshead</option>
+    <option value="C07">Bluewater, Kent</option>
+    <option value="C08">Meadowhall, Sheffield</option>
+    <option value="C09">Bullring & Grand Central, Birmingham</option>
+    <option value="C10">Lakeside, Essex</option>
+    <option value="C11">Liverpool ONE</option>
+    <option value="C12">St David's, Cardiff</option>
+    <option value="C13">Cabot Circus, Bristol</option>
+    <option value="C14">Arndale Centre, Manchester</option>
+    <option value="C15">Brent Cross, London</option>
+    <option value="C16">Victoria Leeds</option>
+    <option value="C17">Eldon Square, Newcastle</option>
+    <option value="C18">The Oracle, Reading</option>
+    <option value="C19">The Lexicon, Bracknell</option>
+    <option value="C20">Friars Walk, Newport</option>
+    <option value="C21">Queensgate, Peterborough</option>
+    <option value="C22">Broadmead, Bristol</option>
+    <option value="C23">Highcross, Leicester</option>
+    <option value="C24">Touchwood, Solihull</option>
+    <option value="C25">The Bentall Centre, Kingston</option>
+    <option value="C26">White Rose, Leeds</option>
+    <option value="C27">Cribbs Causeway, Bristol</option>
+    <option value="C28">Braehead, Glasgow</option>
+    <option value="C29">Silverburn, Glasgow</option>
+    <option value="C30">St James Quarter, Edinburgh</option>
+  </select>
+</div>
+
+<div id="main-content">
+  <div class="empty-state">
+    <span class="empty-apple">🍎</span>
+    <p class="empty-title">Is the moment ripe?</p>
+    <p class="empty-sub">Pick a shopping centre to see today's Seer Score and which brands are on sale right now.</p>
+  </div>
+</div>
+
+<footer>
+  Savingseer &nbsp;·&nbsp; Updated daily at 07:00
+  <div class="updated-at">
+    <span class="live-dot"></span>
+    Live sale data · <span id="today-date"></span>
+  </div>
+</footer>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────────
+// Sale status from today's scrape (TRUE = on sale, FALSE = not on sale, null = not scraped)
+// Replace these with real data from your Google Sheet via a fetch() call once hosted
+
+const SALE_STATUS = {
+  B001: false, B002: null,  B003: null,  B004: false, B005: true,
+  B006: false, B007: false, B008: true,  B009: false, B010: true,
+  B011: true,  B012: null,  B013: null,  B014: false, B015: true,
+  B016: null,  B017: true,  B018: null,  B019: true,  B020: true,
+  B021: true,  B022: true,  B023: false, B024: true,  B025: false,
+  B026: false, B027: true,  B028: true,  B029: true,  B030: true,
+  B031: true,  B032: false, B033: true,  B034: false, B035: true,
+  B036: true,  B037: true,  B038: true,  B039: false, B040: false,
+  B041: true,  B042: false, B043: true,  B044: false, B045: true,
+  B046: true,  B047: false, B048: true,  B049: true,  B050: false,
+  B051: false, B052: true,  B053: true,  B054: false, B055: false,
+  B056: true,  B057: true,  B058: true,  B059: false, B060: true,
+  B061: false, B062: false, B063: true,  B064: true,  B065: true,
+  B066: true,  B067: false, B068: true,  B069: true,  B070: true,
+  B071: false, B072: true,  B073: false, B074: false, B075: false,
+  B076: true,
+};
+
+// Days each sale has been running (from date_first_detected)
+// 0 = no sale. Update daily or derive from sheet.
+const DAYS_RUNNING = {
+  B005: 30, B008: 30, B010: 30, B011: 30, B015: 30, B017: 30,
+  B019: 28, B020: 28, B021: 28, B022: 28, B024: 28, B027: 5,
+  B028: 28, B029: 28, B030: 28, B031: 5,  B033: 7,  B035: 28,
+  B036: 28, B037: 7,  B038: 7,  B041: 7,  B043: 28, B045: 3,
+  B046: 3,  B048: 28, B049: 3,  B052: 28, B053: 14, B056: 28,
+  B057: 3,  B058: 28, B060: 7,  B063: 28, B064: 28, B065: 7,
+  B066: 28, B068: 28, B069: 5,  B070: 28, B072: 5,  B076: 3,
+};
+
+const BRANDS = [
+  { id:'B001', name:'Marks & Spencer',     cluster:'High Street'    },
+  { id:'B002', name:'Next',                cluster:'High Street'    },
+  { id:'B003', name:'H&M',                 cluster:'High Street'    },
+  { id:'B004', name:'Primark',             cluster:'High Street'    },
+  { id:'B005', name:'River Island',        cluster:'High Street'    },
+  { id:'B006', name:'New Look',            cluster:'High Street'    },
+  { id:'B007', name:'Dorothy Perkins',     cluster:'High Street'    },
+  { id:'B008', name:'Burton',              cluster:'High Street'    },
+  { id:'B009', name:'Wallis',              cluster:'High Street'    },
+  { id:'B010', name:'Oasis',               cluster:'High Street'    },
+  { id:'B011', name:'Warehouse',           cluster:'High Street'    },
+  { id:'B012', name:'Miss Selfridge',      cluster:'High Street'    },
+  { id:'B013', name:'Zara',               cluster:'Contemporary'   },
+  { id:'B014', name:'Mango',              cluster:'Contemporary'   },
+  { id:'B015', name:'& Other Stories',    cluster:'Contemporary'   },
+  { id:'B016', name:'COS',               cluster:'Contemporary'   },
+  { id:'B017', name:'Arket',             cluster:'Contemporary'   },
+  { id:'B018', name:'Hollister',         cluster:'Contemporary'   },
+  { id:'B019', name:'Abercrombie',       cluster:'Contemporary'   },
+  { id:'B020', name:'White Stuff',       cluster:'Contemporary'   },
+  { id:'B021', name:'Superdry',          cluster:'Contemporary'   },
+  { id:'B022', name:'Jack & Jones',      cluster:'Contemporary'   },
+  { id:'B023', name:'Uniqlo',            cluster:'Contemporary'   },
+  { id:'B024', name:'Boden',             cluster:'Contemporary'   },
+  { id:'B025', name:'Fat Face',          cluster:'Classic British' },
+  { id:'B026', name:'The White Company', cluster:'Classic British' },
+  { id:'B027', name:'Joules',            cluster:'Classic British' },
+  { id:'B028', name:'Barbour',           cluster:'Classic British' },
+  { id:'B029', name:'Seasalt Cornwall',  cluster:'Classic British' },
+  { id:'B030', name:'Crew Clothing',     cluster:'Classic British' },
+  { id:'B031', name:'Jack Wills',        cluster:'Classic British' },
+  { id:'B032', name:'Bravissimo',        cluster:'Classic British' },
+  { id:'B033', name:'Reiss',             cluster:'Smart/Occasion'  },
+  { id:'B034', name:'Ted Baker',         cluster:'Smart/Occasion'  },
+  { id:'B035', name:'Phase Eight',       cluster:'Smart/Occasion'  },
+  { id:'B036', name:'Hobbs',             cluster:'Smart/Occasion'  },
+  { id:'B037', name:'LK Bennett',        cluster:'Smart/Occasion'  },
+  { id:'B038', name:'Karen Millen',      cluster:'Smart/Occasion'  },
+  { id:'B039', name:'French Connection', cluster:'Smart/Occasion'  },
+  { id:'B040', name:'Jigsaw',            cluster:'Smart/Occasion'  },
+  { id:'B041', name:'Jaeger',            cluster:'Smart/Occasion'  },
+  { id:'B042', name:'Mint Velvet',       cluster:'Smart/Occasion'  },
+  { id:'B043', name:'Whistles',          cluster:'Smart/Occasion'  },
+  { id:'B044', name:'Polo Ralph Lauren', cluster:'Premium Casual'  },
+  { id:'B045', name:'Tommy Hilfiger',    cluster:'Premium Casual'  },
+  { id:'B046', name:'Hugo Boss',         cluster:'Premium Casual'  },
+  { id:'B047', name:'Gant',              cluster:'Premium Casual'  },
+  { id:'B048', name:'Hackett London',    cluster:'Premium Casual'  },
+  { id:'B049', name:'Calvin Klein',      cluster:'Premium Casual'  },
+  { id:'B050', name:'Lacoste',           cluster:'Premium Casual'  },
+  { id:'B051', name:'FLANNELS',          cluster:'Premium Casual'  },
+  { id:'B052', name:'AllSaints',         cluster:'Premium Casual'  },
+  { id:'B053', name:'Nike',              cluster:'Active'          },
+  { id:'B054', name:'Adidas',            cluster:'Active'          },
+  { id:'B055', name:'The North Face',    cluster:'Active'          },
+  { id:'B056', name:'Sweaty Betty',      cluster:'Active'          },
+  { id:'B057', name:'Lululemon',         cluster:'Active'          },
+  { id:'B058', name:'Regatta',           cluster:'Active'          },
+  { id:'B059', name:'Berghaus',          cluster:'Active'          },
+  { id:'B060', name:'Columbia',          cluster:'Active'          },
+  { id:'B061', name:'Schuh',             cluster:'Footwear'        },
+  { id:'B062', name:'Clarks',            cluster:'Footwear'        },
+  { id:'B063', name:'Dune London',       cluster:'Footwear'        },
+  { id:'B064', name:'Office',            cluster:'Footwear'        },
+  { id:'B065', name:'Kurt Geiger',       cluster:'Footwear'        },
+  { id:'B066', name:'Foot Locker',       cluster:'Footwear'        },
+  { id:'B067', name:'Accessorize',       cluster:'Accessories'     },
+  { id:'B068', name:'Boux Avenue',       cluster:'Accessories'     },
+  { id:'B069', name:'Ann Summers',       cluster:'Accessories'     },
+  { id:'B070', name:'Pandora',           cluster:'Accessories'     },
+  { id:'B071', name:'Swarovski',         cluster:'Accessories'     },
+  { id:'B072', name:'Monsoon',           cluster:'Classic British' },
+  { id:'B073', name:"Levi's",            cluster:'Contemporary'   },
+  { id:'B074', name:'Skechers',          cluster:'Footwear'        },
+  { id:'B075', name:'Timberland',        cluster:'Active'          },
+  { id:'B076', name:'Flying Tiger',      cluster:'Accessories'     },
+];
+
+// Centre presence matrix (1 = brand at centre, 0 = not)
+// Columns: C01–C30. Full matrix from your data.
+const PRESENCE = {
+  B001:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B002:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B003:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B004:[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B005:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B006:[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B007:[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1],
+  B008:[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1],
+  B009:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,0,1,1,1,1,1,1],
+  B010:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,0,1,1,1,1,1,1],
+  B011:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,1,0,1,1,1,1,1,1],
+  B012:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,1,0,1,1,1,1,1,1],
+  B013:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B014:[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B015:[0,0,1,1,0,0,0,0,1,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  B016:[0,0,1,1,1,0,0,0,1,0,1,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  B017:[0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  B018:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1],
+  B019:[0,0,1,1,1,0,1,0,1,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,1],
+  B020:[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B021:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B022:[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B023:[0,0,1,1,1,0,0,0,1,0,1,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  B024:[0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  B025:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B026:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B027:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B028:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1],
+  B029:[0,0,1,1,0,0,1,0,0,1,0,0,1,0,1,0,0,1,0,0,0,1,0,0,1,0,1,0,0,0],
+  B030:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B031:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B032:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,0,1,1,0,1,0,0,0],
+  B033:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B034:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B035:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B036:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1],
+  B037:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1],
+  B038:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1],
+  B039:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B040:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1],
+  B041:[0,0,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0,0,1],
+  B042:[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B043:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,0,1,0,0,1],
+  B044:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,0,1,1,0,0,0,0,1],
+  B045:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,0,1,1,0,0,0,0,1],
+  B046:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,0,1,1,0,0,0,0,1],
+  B047:[0,0,1,1,1,0,1,0,1,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,1],
+  B048:[0,0,1,1,1,0,1,0,1,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0],
+  B049:[0,0,1,1,1,0,1,0,1,0,1,0,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,0,1],
+  B050:[0,0,1,1,1,0,1,0,1,0,1,0,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0],
+  B051:[0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,1,1],
+  B052:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1],
+  B053:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,1,1],
+  B054:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,1,1],
+  B055:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1],
+  B056:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1],
+  B057:[0,0,1,1,1,0,1,0,1,0,1,0,1,0,1,1,0,0,0,0,0,1,0,1,1,0,0,0,0,1],
+  B058:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B059:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1],
+  B060:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,0],
+  B061:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B062:[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B063:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B064:[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B065:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1],
+  B066:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1],
+  B067:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B068:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B069:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1],
+  B070:[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B071:[0,0,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,1,1,1,1,0,1,0,0,1],
+  B072:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B073:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+  B074:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  B075:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1],
+  B076:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+};
+
+const CENTRE_NAMES = [
+  'Festival Place','Westquay','Westfield London','Westfield Stratford',
+  'Trafford Centre','Metrocentre','Bluewater','Meadowhall',
+  'Bullring','Lakeside','Liverpool ONE','St David\'s',
+  'Cabot Circus','Arndale','Brent Cross','Victoria Leeds',
+  'Eldon Square','The Oracle','The Lexicon','Friars Walk',
+  'Queensgate','Broadmead','Highcross','Touchwood',
+  'Bentall Centre','White Rose','Cribbs Causeway','Braehead',
+  'Silverburn','St James Quarter'
+];
+
+// ── Scoring ───────────────────────────────────────────────────────────────────
+function ripenessScore(days) {
+  if (!days || days === 0) return 0;
+  if (days <= 4)  return Math.round(10 + (days - 1) * 11.7);
+  if (days <= 7)  return Math.round(46 + (days - 4) * 9);
+  if (days <= 10) return 100;
+  if (days <= 18) return Math.max(0, Math.round(100 - (days - 10) * 11.3));
+  return 0;
+}
+
+function phaseForDays(days) {
+  if (!days || days === 0) return 'gone';
+  if (days <= 4)  return 'bud';
+  if (days <= 7)  return 'ripening';
+  if (days <= 10) return 'peak';
+  if (days <= 18) return 'bowl';
+  return 'gone';
+}
+
+function phaseStyle(phase) {
+  const styles = {
+    bud:      { label: 'Bud', color: '#3D6B35', bg: '#EEF4EC', msg: 'Sales are just starting to appear. Worth watching — come back in a few days.' },
+    ripening: { label: 'Ripening', color: '#3D6B35', bg: '#EEF4EC', msg: 'Sales are building nicely. Start planning your visit — the best moment is coming.' },
+    peak:     { label: 'Pick now', color: '#C17A2B', bg: '#FBF2E4', msg: 'Peak ripeness. Maximum reductions, good stock. Today is the day to go.' },
+    bowl:     { label: 'In the bowl', color: '#B84C3A', bg: '#FAEAE7', msg: 'Sales are running but stock is going fast. Go today or miss your chance.' },
+    gone:     { label: 'Nothing on', color: '#8C8070', bg: '#F2EFE9', msg: 'No meaningful sales at this centre right now. Check back soon.' },
+  };
+  return styles[phase] || styles.gone;
+}
+
+function calcCentreScore(centreIdx) {
+  const brandsAtCentre = BRANDS.filter(b => (PRESENCE[b.id] || [])[centreIdx] === 1);
+  if (brandsAtCentre.length === 0) return { score: 0, phase: 'gone', onSale: [] };
+
+  let totalRipeness = 0;
+  const onSale = [];
+
+  for (const brand of brandsAtCentre) {
+    const sale = SALE_STATUS[brand.id];
+    const days = DAYS_RUNNING[brand.id] || 0;
+    if (sale === true && days > 0) {
+      const r = ripenessScore(days);
+      totalRipeness += r;
+      onSale.push({ ...brand, days, ripeness: r, phase: phaseForDays(days) });
+    }
+  }
+
+  const score = Math.round(totalRipeness / brandsAtCentre.length);
+
+  // Determine overall phase from score
+  let phase;
+  if (score === 0)      phase = 'gone';
+  else if (score < 20) phase = 'bud';
+  else if (score < 45) phase = 'ripening';
+  else if (score < 70) phase = 'peak';
+  else                 phase = 'bowl';
+
+  return { score, phase, onSale, total: brandsAtCentre.length };
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderCentre(centreId) {
+  const content = document.getElementById('main-content');
+  if (!centreId) {
+    content.innerHTML = `<div class="empty-state">
+      <span class="empty-apple">🍎</span>
+      <p class="empty-title">Is the moment ripe?</p>
+      <p class="empty-sub">Pick a shopping centre to see today's Seer Score and which brands are on sale right now.</p>
+    </div>`;
+    return;
+  }
+
+  const centreIdx = parseInt(centreId.replace('C', '')) - 1;
+  const centreName = CENTRE_NAMES[centreIdx];
+  const { score, phase, onSale, total } = calcCentreScore(centreIdx);
+  const style = phaseStyle(phase);
+
+  // Group brands by cluster for display
+  const allBrandsAtCentre = BRANDS.filter(b => (PRESENCE[b.id] || [])[centreIdx] === 1);
+  const clusters = {};
+  for (const b of allBrandsAtCentre) {
+    if (!clusters[b.cluster]) clusters[b.cluster] = [];
+    const isOnSale = SALE_STATUS[b.id] === true;
+    clusters[b.cluster].push({ ...b, isOnSale });
+  }
+
+  const clusterOrder = ['High Street','Contemporary','Classic British','Smart/Occasion','Premium Casual','Active','Footwear','Accessories'];
+
+  let brandHTML = '';
+  for (const cluster of clusterOrder) {
+    const brands = clusters[cluster];
+    if (!brands || brands.length === 0) continue;
+    brandHTML += `<div class="cluster-label">${cluster}</div>`;
+    for (const b of brands) {
+      brandHTML += `<div class="brand-chip ${b.isOnSale ? 'on-sale' : ''}">
+        <span class="brand-name">${b.name}</span>
+        ${b.isOnSale ? '<span class="sale-dot"></span>' : '<span class="no-sale-dot"></span>'}
+      </div>`;
+    }
+  }
+
+  content.innerHTML = `
+    <div class="score-section">
+      <div class="score-card" id="score-card" style="--phase-color: ${style.color}; --phase-bg: ${style.bg}">
+        <div class="score-top">
+          <div class="score-number">${score}</div>
+          <div class="score-right">
+            <div class="phase-badge">${style.label}</div>
+            <div class="centre-name-display">${centreName}</div>
+          </div>
+        </div>
+        <div class="ripeness-section">
+          <span class="ripeness-label">Ripeness</span>
+          <div class="ripeness-track">
+            <div class="ripeness-fill" id="rip-fill" style="width: 0%; background: ${style.color}"></div>
+          </div>
+          <div class="ripeness-phases">
+            <span>Bud</span><span>Ripening</span><span>Pick now</span><span>In the bowl</span><span>Gone</span>
+          </div>
+        </div>
+        <div class="score-message">${style.msg}</div>
+      </div>
+    </div>
+
+    <div class="brands-section" id="brands-section">
+      <div class="section-heading">
+        Brands at this centre
+        <span class="on-sale-count">${onSale.length} on sale today</span>
+      </div>
+      <div class="brand-grid">${brandHTML}</div>
+    </div>
+  `;
+
+  // Animate in
+  requestAnimationFrame(() => {
+    document.getElementById('score-card').classList.add('visible');
+    document.getElementById('brands-section').classList.add('visible');
+    setTimeout(() => {
+      document.getElementById('rip-fill').style.width = score + '%';
+    }, 100);
+  });
+}
+
+// Set today's date
+document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+</script>
+</body>
+</html>

@@ -1,19 +1,16 @@
 {
   "name": "savingseer-scraper",
-  "version": "1.0.0",
-  "description": "",
+  "version": "2.0.0",
+  "description": "Savingseer Phase 2 — daily brand scraper and Apple Model scorer",
   "type": "module",
   "scripts": {
     "scrape": "node scraper.js",
-    "test": "node scraper.js 2>&1 | head -80"
+    "score": "node score.js",
+    "run-all": "node scraper.js && node score.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "cheerio": "^1.2.0",
-    "crawlee": "^3.16.0",
-    "googleapis": "^171.4.0",
-    "playwright": "^1.59.1"
+    "@supabase/supabase-js": "^2.39.0",
+    "crawlee": "^3.9.0",
+    "playwright": "^1.42.0"
   }
 }

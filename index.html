@@ -435,40 +435,42 @@
 </footer>
 
 <script>
-// ── Data ──────────────────────────────────────────────────────────────────────
-// Sale status from today's scrape (TRUE = on sale, FALSE = not on sale, null = not scraped)
-// Replace these with real data from your Google Sheet via a fetch() call once hosted
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
+let SALE_STATUS = {};
+let DAYS_RUNNING = {};
 
-const SALE_STATUS = {
-  B001: false, B002: null,  B003: null,  B004: false, B005: true,
-  B006: false, B007: false, B008: true,  B009: false, B010: true,
-  B011: true,  B012: null,  B013: null,  B014: false, B015: true,
-  B016: null,  B017: true,  B018: null,  B019: true,  B020: true,
-  B021: true,  B022: true,  B023: false, B024: true,  B025: false,
-  B026: false, B027: true,  B028: true,  B029: true,  B030: true,
-  B031: true,  B032: false, B033: true,  B034: false, B035: true,
-  B036: true,  B037: true,  B038: true,  B039: false, B040: false,
-  B041: true,  B042: false, B043: true,  B044: false, B045: true,
-  B046: true,  B047: false, B048: true,  B049: true,  B050: false,
-  B051: false, B052: true,  B053: true,  B054: false, B055: false,
-  B056: true,  B057: true,  B058: true,  B059: false, B060: true,
-  B061: false, B062: false, B063: true,  B064: true,  B065: true,
-  B066: true,  B067: false, B068: true,  B069: true,  B070: true,
-  B071: false, B072: true,  B073: false, B074: false, B075: false,
-  B076: true,
-};
-
-// Days each sale has been running (from date_first_detected)
-// 0 = no sale. Update daily or derive from sheet.
-const DAYS_RUNNING = {
-  B005: 30, B008: 30, B010: 30, B011: 30, B015: 30, B017: 30,
-  B019: 28, B020: 28, B021: 28, B022: 28, B024: 28, B027: 5,
-  B028: 28, B029: 28, B030: 28, B031: 5,  B033: 7,  B035: 28,
-  B036: 28, B037: 7,  B038: 7,  B041: 7,  B043: 28, B045: 3,
-  B046: 3,  B048: 28, B049: 3,  B052: 28, B053: 14, B056: 28,
-  B057: 3,  B058: 28, B060: 7,  B063: 28, B064: 28, B065: 7,
-  B066: 28, B068: 28, B069: 5,  B070: 28, B072: 5,  B076: 3,
-};
+async function loadSheetData() {
+  try {
+    const res = await fetch(SHEET_CSV_URL);
+    const text = await res.text();
+    const rows = text.trim().split('\n').map(r => r.split(','));
+    const headers = rows[0];
+    let latestColIdx = -1, latestDate = '';
+    for (let i = 2; i < headers.length; i++) {
+      const h = headers[i].trim().replace(/"/g, '');
+      if (/^\d{4}-\d{2}-\d{2}$/.test(h) && h > latestDate) { latestDate = h; latestColIdx = i; }
+    }
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      const id = row[0]?.trim().replace(/"/g, '');
+      if (!id || !id.startsWith('B')) continue;
+      const v = latestColIdx >= 0 ? row[latestColIdx]?.trim().replace(/"/g, '') : '';
+      SALE_STATUS[id] = v === 'TRUE' ? true : v === 'FALSE' ? false : null;
+      if (SALE_STATUS[id] === true) {
+        let days = 0;
+        for (let c = latestColIdx; c >= 2; c--) {
+          if (rows[r][c]?.trim().replace(/"/g,'') === 'TRUE') days++; else break;
+        }
+        DAYS_RUNNING[id] = Math.max(days, 1);
+      } else { DAYS_RUNNING[id] = 0; }
+    }
+    document.getElementById('today-date').textContent = latestDate
+      ? new Date(latestDate + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+      : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const sel = document.getElementById('centre-select');
+    if (sel.value) renderCentre(sel.value);
+  } catch(e) { console.warn('Sheet load failed:', e); }
+}
 
 const BRANDS = [
   { id:'B001', name:'Marks & Spencer',     cluster:'High Street'    },
@@ -785,7 +787,7 @@ function renderCentre(centreId) {
 }
 
 // Set today's date
-document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+loadSheetData();
 </script>
 </body>
 </html>

@@ -1,550 +1,492 @@
-/**
- * Savingseer — 71 brands
- * Built from brand master data + centre presence matrix.
- *
- * renderMode: 'browser' = known JS-rendered SPA, skip Cheerio entirely
- * selectors: CSS hints that confirm an active sale (supplement the generic heuristic)
- *
- * Sale URL strategy:
- *   - Use the dedicated /sale page where one exists (faster, denser signals)
- *   - Fall back to homepage where no sale page exists (detection via banner heuristic)
- *   - Brands with no known /sale page and no sale history are homepage-only;
- *     the scraper will detect opportunistic sale banners if they appear
- */
+// brands.js
+// 75 brand configurations for Savingseer scraper
+// renderMode: 'static' = CheerioCrawler (fast), 'browser' = PlaywrightCrawler (JS-heavy)
+// saleSelectors: CSS selectors that confirm an active sale exists on the page
 
-export const BRANDS = [
-
-  // ── High Street Value ────────────────────────────────────────────────────
-
+export const brands = [
+  // ── HIGH STREET VALUE ──────────────────────────────────────────
   {
-    id: 'B001',
-    name: 'Marks & Spencer',
+    id: 'B001', name: 'Next', renderMode: 'static',
+    url: 'https://www.next.co.uk/sale',
+    saleSelectors: ['.sale', '[data-testid="sale"]', 'h1'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B002', name: 'M&S', renderMode: 'static',
     url: 'https://www.marksandspencer.com/l/sale',
-    selectors: ['.sale-badge', '[class*="offer-badge"]'],
+    saleSelectors: ['h1', '.page-title', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B002',
-    name: 'Next',
-    // No static /sale page — Next renders sale via JS filters
-    url: 'https://www.next.co.uk/shop/gender-women-productaffiliation-sale',
-    selectors: ['[data-testid*="sale"]', '.sale-header'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B003',
-    name: 'H&M',
-    url: 'https://www2.hm.com/en_gb/sale.html',
-    selectors: ['.sale-badge', '[class*="sale-header"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B004',
-    name: 'Primark',
-    // Primark has no e-commerce; homepage is the only signal source
-    url: 'https://www.primark.com/en-gb',
-    selectors: ['[class*="sale"]', '[class*="promo"]', '[class*="offer"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B005',
-    name: 'River Island',
+    id: 'B003', name: 'River Island', renderMode: 'static',
     url: 'https://www.riverisland.com/sale',
-    selectors: ['[class*="sale-badge"]', '[class*="promo-banner"]'],
-    renderMode: 'browser',
+    saleSelectors: ['h1', '[class*="sale"]', '[class*="promotion"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B006',
-    name: 'New Look',
-    url: 'https://www.newlook.com/uk/womens/sale',
-    selectors: ['.sale-badge', '[class*="promo"]'],
+    id: 'B004', name: 'New Look', renderMode: 'static',
+    url: 'https://www.newlook.com/uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B007',
-    name: 'Dorothy Perkins',
+    id: 'B005', name: 'Dorothy Perkins', renderMode: 'static',
     url: 'https://www.dorothyperkins.com/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-    renderMode: 'browser',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B008',
-    name: 'Burton',
-    url: 'https://www.burton.co.uk/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B009',
-    name: 'Wallis',
+    id: 'B006', name: 'Wallis', renderMode: 'static',
     url: 'https://www.wallis.co.uk/sale',
-    selectors: ['[class*="sale"]'],
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B010',
-    name: 'Oasis',
-    url: 'https://www.oasis-stores.com/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-    renderMode: 'browser',
+    id: 'B007', name: 'Evans', renderMode: 'static',
+    url: 'https://www.evans.co.uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B011',
-    name: 'Warehouse',
-    url: 'https://www.warehouse.co.uk/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-    renderMode: 'browser',
+    id: 'B008', name: 'Bonmarche', renderMode: 'static',
+    url: 'https://www.bonmarche.co.uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B012',
-    name: 'Miss Selfridge',
-    url: 'https://www.missselfridge.com/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
+    id: 'B009', name: 'Peacocks', renderMode: 'static',
+    url: 'https://www.peacocks.co.uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B010', name: 'F&F at Tesco', renderMode: 'static',
+    url: 'https://www.clothingattesco.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
 
-  // ── Contemporary ─────────────────────────────────────────────────────────
-
+  // ── CONTEMPORARY ───────────────────────────────────────────────
   {
-    id: 'B013',
-    name: 'Zara',
-    url: 'https://www.zara.com/gb/en/sale.html',
-    selectors: ['[class*="sale"]', '[data-testid*="sale"]'],
-    renderMode: 'browser',
+    id: 'B011', name: 'Zara', renderMode: 'browser',
+    url: 'https://www.zara.com/uk/en/sale-l1141.html',
+    saleSelectors: ['h1', '[class*="sale"]', '[data-qa-label]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true, // Cloudflare protected
   },
   {
-    id: 'B014',
-    name: 'Mango',
-    url: 'https://shop.mango.com/gb/women/outlet_c14584823',
-    selectors: ['[class*="sale"]', '[class*="outlet"]'],
-    renderMode: 'browser',
+    id: 'B012', name: 'H&M', renderMode: 'browser',
+    url: 'https://www2.hm.com/en_gb/sale.html',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
   },
   {
-    id: 'B015',
-    name: '& Other Stories',
-    url: 'https://www.stories.com/en_gbp/sale.html',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
+    id: 'B013', name: 'Mango', renderMode: 'static',
+    url: 'https://shop.mango.com/gb/women/outlet',
+    saleSelectors: ['h1', '[class*="outlet"]', '[class*="sale"]'],
+    confirmText: ['outlet', 'sale', 'up to', '% off'],
   },
   {
-    id: 'B016',
-    name: 'COS',
+    id: 'B014', name: 'COS', renderMode: 'browser',
     url: 'https://www.cos.com/en_gbp/sale.html',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
   },
   {
-    id: 'B017',
-    name: 'Arket',
+    id: 'B015', name: 'Arket', renderMode: 'browser',
     url: 'https://www.arket.com/en_gbp/sale.html',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
   },
   {
-    id: 'B018',
-    name: 'Hollister',
-    // Runs permanent "sale" section — signal is active event banners, not a /sale page
-    url: 'https://www.hollisterco.com/shop/uk',
-    selectors: ['[class*="sale-event"]', '[class*="promo-banner"]', '[class*="global-promo"]'],
-    renderMode: 'browser',
+    id: 'B016', name: '& Other Stories', renderMode: 'browser',
+    url: 'https://www.stories.com/en_gbp/sale.html',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
   },
   {
-    id: 'B019',
-    name: 'Abercrombie & Fitch',
+    id: 'B017', name: 'Weekday', renderMode: 'browser',
+    url: 'https://www.weekday.com/en_gbp/sale.html',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B018', name: 'Monki', renderMode: 'browser',
+    url: 'https://www.monki.com/en_gbp/sale.html',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B019', name: 'Hollister', renderMode: 'browser',
+    url: 'https://www.hollisterco.com/shop/uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
+  },
+  {
+    id: 'B020', name: 'Abercrombie', renderMode: 'browser',
     url: 'https://www.abercrombie.com/shop/uk/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-    renderMode: 'browser',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
+  },
+
+  // ── CLASSIC BRITISH ────────────────────────────────────────────
+  {
+    id: 'B021', name: 'Fat Face', renderMode: 'static',
+    url: 'https://www.fatface.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]', '[class*="promo"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B020',
-    name: 'White Stuff',
+    id: 'B022', name: 'Joules', renderMode: 'static',
+    url: 'https://www.joules.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B023', name: 'White Stuff', renderMode: 'static',
     url: 'https://www.whitestuff.com/sale',
-    selectors: ['.sale-banner', '[class*="sale-header"]'],
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B021',
-    name: 'Superdry',
-    url: 'https://www.superdry.com/sale',
-    selectors: ['[class*="sale-badge"]', '[class*="sale-banner"]'],
-  },
-  {
-    id: 'B022',
-    name: 'Jack & Jones',
-    url: 'https://www.jackjones.com/gb/en/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B023',
-    name: 'Uniqlo',
-    url: 'https://www.uniqlo.com/uk/en/sale',
-    selectors: ['[class*="sale"]', '[class*="special-offer"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B024',
-    name: 'Boden',
-    url: 'https://www.boden.co.uk/en-gb/sale',
-    selectors: ['.sale-badge', '[class*="sale-header"]'],
-  },
-
-  // ── Classic British ───────────────────────────────────────────────────────
-
-  {
-    id: 'B025',
-    name: 'Fat Face',
-    url: 'https://www.fatface.com/women/sale/',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-  },
-  {
-    id: 'B026',
-    name: 'The White Company',
-    url: 'https://www.thewhitecompany.com/uk/sale',
-    selectors: ['[class*="sale"]'],
-  },
-  {
-    id: 'B027',
-    name: 'Joules',
-    url: 'https://www.joules.com/collections/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B028',
-    name: 'Barbour',
-    url: 'https://www.barbour.com/uk/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-  },
-  {
-    id: 'B029',
-    name: 'Seasalt Cornwall',
+    id: 'B024', name: 'Seasalt Cornwall', renderMode: 'static',
     url: 'https://www.seasaltcornwall.co.uk/sale',
-    selectors: ['[class*="sale"]', '.promo-banner'],
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B030',
-    name: 'Crew Clothing',
+    id: 'B025', name: 'Crew Clothing', renderMode: 'static',
     url: 'https://www.crewclothing.co.uk/sale',
-    selectors: ['[class*="sale"]'],
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B031',
-    name: 'Jack Wills',
-    url: 'https://www.jackwills.com/collections/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
+    id: 'B026', name: 'Boden', renderMode: 'static',
+    url: 'https://www.boden.co.uk/en-gb/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B032',
-    name: 'Bravissimo',
-    url: 'https://www.bravissimo.com/sale',
-    selectors: ['[class*="sale"]'],
-  },
-
-  // ── Smart / Occasion ──────────────────────────────────────────────────────
-
-  {
-    id: 'B033',
-    name: 'Reiss',
-    url: 'https://www.reiss.com/gb/sale',
-    selectors: ['[class*="sale"]', '[class*="markdown"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B034',
-    name: 'Ted Baker',
-    url: 'https://www.tedbaker.com/uk/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B035',
-    name: 'Phase Eight',
-    url: 'https://www.phase-eight.com/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-  },
-  {
-    id: 'B036',
-    name: 'Hobbs',
+    id: 'B027', name: 'Hobbs', renderMode: 'static',
     url: 'https://www.hobbs.co.uk/sale',
-    selectors: ['[class*="sale"]'],
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B037',
-    name: 'LK Bennett',
-    url: 'https://www.lkbennett.com/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
+    id: 'B028', name: 'The White Company', renderMode: 'static',
+    url: 'https://www.thewhitecompany.com/uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B038',
-    name: 'Karen Millen',
-    url: 'https://www.karenmillen.com/gb/womens/sale/',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
+    id: 'B029', name: 'Barbour', renderMode: 'static',
+    url: 'https://www.barbour.com/uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B039',
-    name: 'French Connection',
-    url: 'https://www.frenchconnection.com/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
+    id: 'B030', name: 'Cath Kidston', renderMode: 'static',
+    url: 'https://www.cathkidston.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+
+  // ── SMART/OCCASION ─────────────────────────────────────────────
+  {
+    id: 'B031', name: 'Phase Eight', renderMode: 'static',
+    url: 'https://www.phase-eight.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B040',
-    name: 'Jigsaw',
-    url: 'https://www.jigsaw-online.com/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B041',
-    name: 'Jaeger',
-    url: 'https://www.jaeger.co.uk/sale',
-    selectors: ['[class*="sale"]'],
-  },
-  {
-    id: 'B042',
-    name: 'Mint Velvet',
-    url: 'https://www.mintvelvet.co.uk/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-  },
-  {
-    id: 'B043',
-    name: 'Whistles',
+    id: 'B032', name: 'Whistles', renderMode: 'static',
     url: 'https://www.whistles.com/sale',
-    selectors: ['[class*="sale"]'],
-  },
-
-  // ── Premium Casual ────────────────────────────────────────────────────────
-
-  {
-    id: 'B044',
-    name: 'Polo Ralph Lauren',
-    url: 'https://www.ralphlauren.co.uk/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-    renderMode: 'browser',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B045',
-    name: 'Tommy Hilfiger',
-    // No persistent UK /sale page — sale events appear as homepage banners
-    url: 'https://uk.tommy.com',
-    selectors: ['[class*="sale"]', '[class*="promo-bar"]', '[class*="banner"]'],
-    renderMode: 'browser',
+    id: 'B033', name: 'Reiss', renderMode: 'static',
+    url: 'https://www.reiss.com/gb/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B046',
-    name: 'Hugo Boss',
-    url: 'https://www.hugoboss.com/uk/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-    renderMode: 'browser',
+    id: 'B034', name: 'Ted Baker', renderMode: 'static',
+    url: 'https://www.tedbaker.com/uk/Sale',
+    saleSelectors: ['h1', '[class*="sale"]', '[class*="Sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B047',
-    name: 'Gant',
-    url: 'https://www.gant.co.uk/sale',
-    selectors: ['[class*="sale"]'],
+    id: 'B035', name: 'Karen Millen', renderMode: 'static',
+    url: 'https://www.karenmillen.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B048',
-    name: 'Hackett London',
-    url: 'https://www.hackett.com/gb/sale',
-    selectors: ['[class*="sale"]'],
+    id: 'B036', name: 'Coast', renderMode: 'static',
+    url: 'https://www.coast-stores.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B049',
-    name: 'Calvin Klein',
-    // CK runs flash sales via homepage banner — no persistent /sale page
-    url: 'https://www.calvinklein.co.uk',
-    selectors: ['[class*="sale"]', '[class*="promo-banner"]', '[class*="offer"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B050',
-    name: 'Lacoste',
-    url: 'https://www.lacoste.com/gb/sale',
-    selectors: ['[class*="sale"]', '[class*="outlet"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B051',
-    name: 'FLANNELS',
-    url: 'https://www.flannels.com/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B052',
-    name: 'AllSaints',
-    url: 'https://www.allsaints.com/sale',
-    selectors: ['[class*="sale"]', '[class*="markdown"]'],
-    renderMode: 'browser',
-  },
-
-  // ── Outdoorsy / Active ────────────────────────────────────────────────────
-
-  {
-    id: 'B053',
-    name: 'Nike',
-    url: 'https://www.nike.com/gb/w/sale-3yaep',
-    selectors: ['[class*="sale"]', '[data-testid*="sale"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B054',
-    name: 'Adidas',
-    // No persistent /sale — sale events surface as homepage banners
-    url: 'https://www.adidas.co.uk',
-    selectors: ['[class*="sale"]', '[class*="promo"]', '[class*="campaign-header"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B055',
-    name: 'The North Face',
-    url: 'https://www.thenorthface.co.uk/en-gb/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B056',
-    name: 'Sweaty Betty',
-    url: 'https://www.sweatybetty.com/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B057',
-    name: 'Lululemon',
-    url: 'https://www.lululemon.co.uk/sale',
-    selectors: ['[class*="sale"]', '[class*="we-made-too-much"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B058',
-    name: 'Regatta',
-    url: 'https://www.regatta.com/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-  },
-  {
-    id: 'B059',
-    name: 'Berghaus',
-    url: 'https://www.berghaus.com/sale',
-    selectors: ['[class*="sale"]'],
-  },
-  {
-    id: 'B060',
-    name: 'Columbia',
-    url: 'https://www.columbia.com/gb/en/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
-  },
-
-  // ── Footwear ──────────────────────────────────────────────────────────────
-
-  {
-    id: 'B061',
-    name: 'Schuh',
-    url: 'https://www.schuh.co.uk/sale/',
-    selectors: ['[class*="sale"]', '.sale-banner'],
-  },
-  {
-    id: 'B062',
-    name: 'Clarks',
-    url: 'https://www.clarks.co.uk/sale',
-    selectors: ['[class*="sale"]'],
-  },
-  {
-    id: 'B063',
-    name: 'Dune London',
-    url: 'https://www.dunelondon.com/sale',
-    selectors: ['[class*="sale"]'],
-  },
-  {
-    id: 'B064',
-    name: 'Office',
-    url: 'https://www.office.co.uk/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-  },
-  {
-    id: 'B065',
-    name: 'Kurt Geiger',
-    url: 'https://www.kurtgeiger.com/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B066',
-    name: 'Foot Locker',
-    url: 'https://www.footlocker.co.uk/en/category/sale/',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-    renderMode: 'browser',
-  },
-
-  // ── Accessories ───────────────────────────────────────────────────────────
-
-  {
-    id: 'B067',
-    name: 'Accessorize',
-    url: 'https://uk.accessorize.com/view/category/sale',
-    selectors: ['[class*="sale"]'],
-  },
-  {
-    id: 'B068',
-    name: 'Boux Avenue',
-    url: 'https://www.bouxavenue.com/collections/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B069',
-    name: 'Ann Summers',
-    url: 'https://www.annsummers.com/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-  },
-  {
-    id: 'B070',
-    name: 'Pandora',
-    url: 'https://uk.pandora.net/en/sale',
-    selectors: ['[class*="sale"]', '[class*="promotion"]'],
-    renderMode: 'browser',
-  },
-  {
-    id: 'B071',
-    name: 'Swarovski',
-    url: 'https://www.swarovski.com/en-gb/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
-  },
-
-  // ── Additional brands (commonly found across the 30 centres) ─────────────
-
-  {
-    id: 'B072',
-    name: 'Monsoon',
+    id: 'B037', name: 'Monsoon', renderMode: 'static',
     url: 'https://www.monsoon.co.uk/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B073',
-    name: "Levi's",
+    id: 'B038', name: 'Accessorize', renderMode: 'static',
+    url: 'https://www.accessorize.com/uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B039', name: 'Oasis', renderMode: 'static',
+    url: 'https://www.oasis-stores.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B040', name: 'Warehouse', renderMode: 'static',
+    url: 'https://www.warehouse.co.uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+
+  // ── PREMIUM CASUAL ─────────────────────────────────────────────
+  {
+    id: 'B041', name: 'Sweaty Betty', renderMode: 'static',
+    url: 'https://www.sweatybetty.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B042', name: 'Lululemon', renderMode: 'browser',
+    url: 'https://www.lululemon.co.uk/en-gb/c/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B043', name: 'Superdry', renderMode: 'static',
+    url: 'https://www.superdry.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B044', name: 'Jack Wills', renderMode: 'static',
+    url: 'https://www.jackwills.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B045', name: 'Hackett', renderMode: 'static',
+    url: 'https://www.hackett.com/gb/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B046', name: 'Ralph Lauren', renderMode: 'browser',
+    url: 'https://www.ralphlauren.co.uk/en/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B047', name: 'Tommy Hilfiger', renderMode: 'static',
+    url: 'https://uk.tommy.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B048', name: 'Lacoste', renderMode: 'browser',
+    url: 'https://www.lacoste.com/gb/sale/',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
+  },
+  {
+    id: 'B049', name: 'Hugo Boss', renderMode: 'browser',
+    url: 'https://www.hugoboss.com/uk/sale/',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
+  },
+  {
+    id: 'B050', name: 'Levis', renderMode: 'static',
     url: 'https://www.levi.com/GB/en_GB/sale',
-    selectors: ['[class*="sale"]', '[class*="promo"]'],
-    renderMode: 'browser',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+
+  // ── OUTDOORSY/ACTIVE ───────────────────────────────────────────
+  {
+    id: 'B051', name: 'Nike', renderMode: 'browser',
+    url: 'https://www.nike.com/gb/w/sale-3yaep',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
   },
   {
-    id: 'B074',
-    name: 'Skechers',
-    url: 'https://www.skechers.com/en-gb/sale/',
-    selectors: ['[class*="sale"]', '[class*="clearance"]'],
+    id: 'B052', name: 'Adidas', renderMode: 'browser',
+    url: 'https://www.adidas.co.uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
   },
   {
-    id: 'B075',
-    name: 'Timberland',
-    url: 'https://www.timberland.co.uk/en-gb/sale',
-    selectors: ['[class*="sale"]'],
-    renderMode: 'browser',
+    id: 'B053', name: 'The North Face', renderMode: 'browser',
+    url: 'https://www.thenorthface.com/en-gb/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
   },
   {
-    id: 'B076',
-    name: 'Flying Tiger Copenhagen',
-    // No e-commerce sale page — homepage banner is the only signal
-    url: 'https://flyingtiger.com/en-gb',
-    selectors: ['[class*="sale"]', '[class*="promo"]', '[class*="offer"]'],
+    id: 'B054', name: 'Berghaus', renderMode: 'static',
+    url: 'https://www.berghaus.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B055', name: 'Columbia', renderMode: 'static',
+    url: 'https://www.columbiasportswear.co.uk/c/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B056', name: 'Patagonia', renderMode: 'static',
+    url: 'https://www.patagonia.com/shop/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B057', name: 'Timberland', renderMode: 'static',
+    url: 'https://www.timberland.co.uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B058', name: 'Craghoppers', renderMode: 'static',
+    url: 'https://www.craghoppers.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B059', name: 'Regatta', renderMode: 'static',
+    url: 'https://www.regatta.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B060', name: 'Mountain Warehouse', renderMode: 'static',
+    url: 'https://www.mountainwarehouse.com/sale/',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+
+  // ── FOOTWEAR ───────────────────────────────────────────────────
+  {
+    id: 'B061', name: 'Schuh', renderMode: 'static',
+    url: 'https://www.schuh.co.uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B062', name: 'Dune London', renderMode: 'static',
+    url: 'https://www.dunelondon.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B063', name: 'Office', renderMode: 'static',
+    url: 'https://www.office.co.uk/view/category/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B064', name: 'Clarks', renderMode: 'static',
+    url: 'https://www.clarks.co.uk/c/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B065', name: 'Kurt Geiger', renderMode: 'static',
+    url: 'https://www.kurtgeiger.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B066', name: 'Skechers', renderMode: 'static',
+    url: 'https://www.skechers.co.uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B067', name: 'UGG', renderMode: 'static',
+    url: 'https://www.ugg.com/uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B069', name: 'New Balance', renderMode: 'static',
+    url: 'https://www.newbalance.co.uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B070', name: 'FLANNELS', renderMode: 'browser',
+    url: 'https://www.flannels.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
+  },
+
+  // ── ACCESSORIES ────────────────────────────────────────────────
+  {
+    id: 'B071', name: 'Pandora', renderMode: 'browser',
+    url: 'https://uk.pandora.net/en/sale/',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+    manualCheck: true,
+  },
+  {
+    id: 'B072', name: 'Fossil', renderMode: 'static',
+    url: 'https://www.fossil.com/en-gb/sale/',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B073', name: 'Swarovski', renderMode: 'static',
+    url: 'https://www.swarovski.com/en-GB/s-sale/',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B074', name: 'Radley', renderMode: 'static',
+    url: 'https://www.radley.co.uk/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B075', name: 'Flying Tiger', renderMode: 'static',
+    url: 'https://flyingtiger.com/en-gb/collections/sale',
+    saleSelectors: ['h1', '[class*="sale"]', '[class*="collection"]'],
+    confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B076', name: 'Lush', renderMode: 'static',
+    url: 'https://www.lush.com/uk/en/c/sale',
+    saleSelectors: ['h1', '[class*="sale"]'],
+    confirmText: ['sale', 'up to', '% off'],
   },
 ];
+
+// Brands that require manual weekly check (bot-protected)
+export const manualCheckBrands = brands.filter(b => b.manualCheck);
+
+// Brands eligible for automated scraping
+export const autoBrands = brands.filter(b => !b.manualCheck);

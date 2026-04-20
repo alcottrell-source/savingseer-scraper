@@ -100,7 +100,7 @@ async function runCheerioCrawler() {
 
 // ── PASS 2: PLAYWRIGHT (browser brands) ────────────────────────
 async function runPlaywrightCrawler() {
-  const browserBrands = autoBrands.filter(b => b.renderMode === 'browser');
+  const browserBrands = autoBrands.filter(b => b.render_mode === 'browser');
   console.log(`\nPass 2 (Playwright): ${browserBrands.length} brands`);
 
   if (browserBrands.length === 0) return;

@@ -107,7 +107,6 @@ async function runPlaywrightCrawler() {
 
   const brandMap = new Map(browserBrands.map(b => [b.url, b]));
 
-  await purgeDefaultStorages();
   const crawler = new PlaywrightCrawler({
     maxRequestsPerCrawl: browserBrands.length * 4,
     requestHandlerTimeoutSecs: 60,
@@ -149,8 +148,8 @@ async function runPlaywrightCrawler() {
   } catch (err) {
     console.error('Playwright crawler crashed:', err);
     browserBrands.forEach(b => {
-      if (!results.find(r => r.url === b.url)) {
-        results.push({ url: b.url, onSale: false, error: 'playwright_crash' });
+      if (!results.has(b.id)) {
+        results.set(b.id, { saleStatus: false, maxDiscountPct: null, error: true });
       }
     });
   }

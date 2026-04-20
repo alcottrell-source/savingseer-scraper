@@ -4,7 +4,7 @@
 // Writes results to Supabase brand_sale_events table
 // Runs via GitHub Actions daily at 06:00 UTC
 
-import { CheerioCrawler, PlaywrightCrawler, log } from 'crawlee';
+import { CheerioCrawler, PlaywrightCrawler, log, purgeDefaultStorages } from 'crawlee';
 import { createClient } from '@supabase/supabase-js';
 import { brands, autoBrands, manualCheckBrands } from './brands.js';
 
@@ -107,8 +107,9 @@ async function runPlaywrightCrawler() {
 
   const brandMap = new Map(browserBrands.map(b => [b.url, b]));
 
+  await purgeDefaultStorages();
   const crawler = new PlaywrightCrawler({
-    maxRequestsPerCrawl: browserBrands.length,
+    maxRequestsPerCrawl: browserBrands.length * 4,
     requestHandlerTimeoutSecs: 60,
     maxConcurrency: 2, // Keep low — memory pressure on Actions runner
     launchContext: {
@@ -143,7 +144,16 @@ async function runPlaywrightCrawler() {
     },
   });
 
-  await crawler.run(browserBrands.map(b => ({ url: b.url })));
+  try {
+    await crawler.run(browserBrands.map(b => ({ url: b.url })));
+  } catch (err) {
+    console.error('Playwright crawler crashed:', err);
+    browserBrands.forEach(b => {
+      if (!results.find(r => r.url === b.url)) {
+        results.push({ url: b.url, onSale: false, error: 'playwright_crash' });
+      }
+    });
+  }
 }
 
 // ── WRITE TO SUPABASE ───────────────────────────────────────────

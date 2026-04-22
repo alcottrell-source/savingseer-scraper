@@ -1,17 +1,27 @@
 // score.js
-// Savingseer Phase 2 — Apple Model scoring engine
+// Tide — 6-stage Tide Model scoring engine
 // Runs after scraper.js completes (08:00 UTC via GitHub Actions)
-// Reads brand_sale_events → calculates centre scores → writes to:
-//   - centre_seer_scores (daily row per centre)
-//   - peak_density_log (cycle state per centre)
-//   - notification_log (queued notifications for Make/Zapier → OneSignal)
+// Reads brand_sale_events → calculates brand ripeness scores → writes to centre_seer_scores
+//
+// SCHEMA NOTE: This version writes new columns to centre_seer_scores:
+//   tide_score (numeric), stage (text), verdict (text), bluf (text),
+//   brands_on_sale (int), total_brands (int)
+// Run this SQL in Supabase before deploying:
+//   ALTER TABLE centre_seer_scores
+//     ADD COLUMN IF NOT EXISTS tide_score numeric,
+//     ADD COLUMN IF NOT EXISTS stage text,
+//     ADD COLUMN IF NOT EXISTS bluf text,
+//     ADD COLUMN IF NOT EXISTS brands_on_sale int,
+//     ADD COLUMN IF NOT EXISTS total_brands int;
+// Also update v_today_scores to expose these columns.
 
 import { createClient } from '@supabase/supabase-js';
+import { brands } from './brands.js';
 
-// ── CONFIG ──────────────────────────────────────────────────────
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const TODAY = new Date().toISOString().split('T')[0];
+const YESTERDAY = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars');
@@ -19,324 +29,160 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const brandNameLookup = Object.fromEntries(brands.map(b => [b.id, b.name]));
 
-// ── APPLE MODEL CONSTANTS ───────────────────────────────────────
-const PHASE1_TO_PHASE2_THRESHOLD = 45; // % density to enter Phase 2
-const PICKED_OVER_DAYS = 26;           // days after peak before cycle resets
-const DORMANT_RESET_THRESHOLD = 20;   // % density below which cycle fully resets
+// ── TIDE MODEL ──────────────────────────────────────────────────
 
-const VERDICTS = {
-  // Phase 1
-  DORMANT:        'Dormant',
-  RIPENING:       'Ripening',
-  ALMOST_READY:   'Almost Ready',
-  // Phase 2
-  PEAK_HARVEST:   'Peak Harvest',
-  PRIME_PICKING:  'Prime Picking',
-  GOING_FAST:     'Going Fast',
-  LAST_OF_CROP:   'Last of the Crop',
-  FALLING_FAST:   'Falling Fast',
-  PICKED_OVER:    'Picked Over',
-};
-
-// ── APPLE MODEL LOGIC ───────────────────────────────────────────
-
-function getPhase1Verdict(densityPct) {
-  if (densityPct < 20) return VERDICTS.DORMANT;
-  if (densityPct < 35) return VERDICTS.RIPENING;
-  return VERDICTS.ALMOST_READY; // 35-44%
+// Brand ripeness score (0–100) based on days the sale has been running.
+// Curve rises through days 1–10, peaks at days 8–10 (score 100), then decays to 0 at day 19.
+function brandRipenessScore(daysRunning) {
+  if (daysRunning <= 0) return 0;
+  if (daysRunning <= 4)  return 10 + (daysRunning - 1) * 11.7;
+  if (daysRunning <= 7)  return 46 + (daysRunning - 4) * 9;
+  if (daysRunning <= 10) return 100;
+  if (daysRunning <= 18) return Math.max(0, 100 - (daysRunning - 10) * 11.3);
+  return 0;
 }
 
-function getPhase2Verdict(daysSincePeak, densityPct, peakDensityPct) {
-  const densityDrop = peakDensityPct - densityPct;
-  const isDroppingFast = densityDrop >= 10;
-
-  if (daysSincePeak >= PICKED_OVER_DAYS) return VERDICTS.PICKED_OVER;
-
-  if (daysSincePeak <= 3) return VERDICTS.PEAK_HARVEST;
-
-  if (daysSincePeak <= 14) {
-    return isDroppingFast ? VERDICTS.GOING_FAST : VERDICTS.PRIME_PICKING;
+// 6-stage Tide Model.
+// At scores 75+, trajectory disambiguates: rising = still High Tide, otherwise Falling/Low.
+function getTideStage(score, trajectory) {
+  if (score === 0) {
+    return { stage: 'Flat', verdict: 'Nothing on', bluf: 'No meaningful sales at this centre right now.' };
   }
-
-  // Day 15-25
-  return isDroppingFast ? VERDICTS.FALLING_FAST : VERDICTS.LAST_OF_CROP;
-}
-
-function getTrajectory(currentDensity, previousDensity) {
-  if (previousDensity === null || previousDensity === undefined) return 'HOLDING';
-  const diff = currentDensity - previousDensity;
-  if (diff >= 3) return 'RISING';
-  if (diff <= -3) return 'DROPPING';
-  return 'HOLDING';
-}
-
-function buildTopBrandsString(saleBrands) {
-  // saleBrands: array of { name, maxDiscountPct } sorted by discount desc
-  // Returns e.g. "Phase Eight 60%, White Stuff 50%, Seasalt Cornwall 60%"
-  return saleBrands
-    .filter(b => b.maxDiscountPct !== null)
-    .sort((a, b) => b.maxDiscountPct - a.maxDiscountPct)
-    .slice(0, 5)
-    .map(b => `${b.name} ${b.maxDiscountPct}%`)
-    .join(', ');
-}
-
-function buildNotificationCopy(type, centreName, storesInSale, totalStores, topBrands, daysSincePeak) {
-  if (type === 'PROACTIVE') {
-    return `${centreName}. Peak conditions. ${storesInSale} of ${totalStores} stores in sale.${topBrands ? ` ${topBrands}.` : ''} Get there this weekend.`;
+  if (score < 25) {
+    return { stage: 'Turning', verdict: 'Starting to build', bluf: 'A few brands are breaking into sale. Worth watching.' };
   }
-  if (type === 'REACTIVE_GOING_FAST') {
-    return `${centreName}. Going fast. Stores ending their sales.${topBrands ? ` ${topBrands} still on.` : ''} Last chance this weekend.`;
+  if (score < 50) {
+    return { stage: 'Rising', verdict: 'Worth watching', bluf: 'Sales building and fresh. Plan your visit soon.' };
   }
-  if (type === 'REACTIVE_FALLING_FAST') {
-    return `${centreName}. Falling fast. Sale cycle ending.${topBrands ? ` ${topBrands} still on.` : ''} Go this weekend or wait for next cycle.`;
+  if (score < 75) {
+    return { stage: 'High Tide', verdict: 'Go now', bluf: 'Maximum density, maximum freshness. This is the moment.' };
   }
-  return '';
+  if (trajectory === 'rising') {
+    return { stage: 'High Tide', verdict: 'Go now', bluf: 'Maximum density, maximum freshness. This is the moment.' };
+  }
+  if (score < 90) {
+    return { stage: 'Falling', verdict: 'Last chance', bluf: 'Tide going out. Go now or miss out.' };
+  }
+  return { stage: 'Low', verdict: "It's over", bluf: 'Cycle ended. Check back when brands start their next sale.' };
 }
 
-// ── MAIN SCORING FUNCTION ───────────────────────────────────────
+function getTrajectory(todayScore, yesterdayScore) {
+  if (yesterdayScore === null || yesterdayScore === undefined) return 'flat';
+  const diff = todayScore - yesterdayScore;
+  if (diff >= 2)  return 'rising';
+  if (diff <= -2) return 'falling';
+  return 'flat';
+}
+
+// ── MAIN ────────────────────────────────────────────────────────
 
 async function calculateAllCentreScores() {
   console.log('═══════════════════════════════════════════════');
-  console.log(`  Savingseer Scorer — ${TODAY}`);
+  console.log(`  Tide Scorer — ${TODAY}`);
   console.log('═══════════════════════════════════════════════');
 
-  // 1. Load all data we need
-  const [centresRes, centreBrandsRes, brandSaleRes, peakDensityRes] = await Promise.all([
+  const [centresRes, centreBrandsRes, brandSaleRes, yesterdayRes] = await Promise.all([
     supabase.from('centres').select('*').eq('active', true),
     supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
-    supabase.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct'),
-    supabase.from('peak_density_log').select('*'),
+    supabase.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error'),
+    supabase.from('centre_seer_scores').select('centre_id, tide_score').eq('score_date', YESTERDAY),
   ]);
 
-  if (centresRes.error || centreBrandsRes.error || brandSaleRes.error || peakDensityRes.error) {
-    console.error('Data load failed:', centresRes.error || centreBrandsRes.error || brandSaleRes.error || peakDensityRes.error);
+  if (centresRes.error || centreBrandsRes.error || brandSaleRes.error) {
+    console.error('Data load failed:', centresRes.error || centreBrandsRes.error || brandSaleRes.error);
     process.exit(1);
   }
 
-  const centres = centresRes.data;
-  const centreBrands = centreBrandsRes.data;
   const brandSaleMap = new Map(brandSaleRes.data.map(b => [b.brand_id, b]));
-  const peakDensityMap = new Map(peakDensityRes.data.map(p => [p.centre_id, p]));
+  const yesterdayScoreMap = new Map((yesterdayRes.data || []).map(r => [r.centre_id, r.tide_score]));
 
-  // Build centre → brands lookup
   const centreBrandMap = new Map();
-  for (const { centre_id, brand_id } of centreBrands) {
+  for (const { centre_id, brand_id } of centreBrandsRes.data) {
     if (!centreBrandMap.has(centre_id)) centreBrandMap.set(centre_id, []);
     centreBrandMap.get(centre_id).push(brand_id);
   }
 
   const scoreRows = [];
-  const peakDensityUpdates = [];
-  const notificationRows = [];
 
-  // 2. Score each centre
-  for (const centre of centres) {
+  for (const centre of centresRes.data) {
     const brandIds = centreBrandMap.get(centre.id) || [];
-    const totalStores = brandIds.length;
+    const totalBrands = brandIds.length;
 
-    if (totalStores === 0) {
+    if (totalBrands === 0) {
       console.log(`  ⚠ ${centre.name}: no brands configured, skipping`);
       continue;
     }
 
-    // Which brands are on sale at this centre?
-    const saleBrands = brandIds
-      .map(id => brandSaleMap.get(id))
-      .filter(b => b && b.sale_status)
-      .map(b => ({
-        brandId: b.brand_id,
-        name: brands_name_lookup[b.brand_id] || b.brand_id,
-        maxDiscountPct: b.max_discount_pct,
-        dateFirstDetected: b.date_first_detected,
-      }));
+    let totalRipeness = 0;
+    let brandsOnSale = 0;
+    const saleDetails = [];
 
-    const storesInSale = saleBrands.length;
-    const densityPct = totalStores > 0 ? (storesInSale / totalStores) * 100 : 0;
-    const avgDiscountPct = saleBrands.filter(b => b.maxDiscountPct).length > 0
-      ? saleBrands.filter(b => b.maxDiscountPct).reduce((sum, b) => sum + b.maxDiscountPct, 0) / saleBrands.filter(b => b.maxDiscountPct).length
+    for (const brandId of brandIds) {
+      const sale = brandSaleMap.get(brandId);
+
+      // Scraper errors and missing data contribute 0 — never treated as "not on sale"
+      if (!sale || sale.scraper_error || !sale.sale_status) continue;
+
+      const daysRunning = sale.date_first_detected
+        ? Math.floor((new Date(TODAY) - new Date(sale.date_first_detected)) / 86400000) + 1
+        : 1;
+
+      const ripeness = brandRipenessScore(daysRunning);
+      totalRipeness += ripeness;
+      brandsOnSale++;
+      saleDetails.push({ name: brandNameLookup[brandId] || brandId, ripeness, maxDiscountPct: sale.max_discount_pct });
+    }
+
+    const tideScore = Math.round((totalRipeness / totalBrands) * 10) / 10;
+    const trajectory = getTrajectory(tideScore, yesterdayScoreMap.get(centre.id) ?? null);
+    const { stage, verdict, bluf } = getTideStage(tideScore, trajectory);
+
+    // Top brands: highest ripeness first, max 5
+    const topBrands = saleDetails
+      .sort((a, b) => b.ripeness - a.ripeness)
+      .slice(0, 5)
+      .map(b => b.name)
+      .join(', ') || null;
+
+    const discountBrands = saleDetails.filter(b => b.maxDiscountPct);
+    const avgDiscountPct = discountBrands.length > 0
+      ? Math.round(discountBrands.reduce((s, b) => s + b.maxDiscountPct, 0) / discountBrands.length)
       : null;
 
-    const topBrands = buildTopBrandsString(saleBrands);
-
-    // Get current cycle state
-    const peakState = peakDensityMap.get(centre.id) || {
-      peak_date: null,
-      peak_density_pct: null,
-      last_density_pct: null,
-      proactive_sent: false,
-      reactive_sent: false,
-    };
-
-    const trajectory = getTrajectory(densityPct, peakState.last_density_pct);
-
-    let phase, verdict, daysSincePeak;
-    let shouldFireProactive = false;
-    let shouldFireReactive = false;
-    let reactiveType = null;
-
-    // ── PHASE DETERMINATION ──────────────────────────────────────
-    if (peakState.peak_date) {
-      // We're in Phase 2 (already crossed 45% threshold)
-      phase = 2;
-      daysSincePeak = Math.floor((new Date(TODAY) - new Date(peakState.peak_date)) / (1000 * 60 * 60 * 24));
-      verdict = getPhase2Verdict(daysSincePeak, densityPct, peakState.peak_density_pct);
-
-      // Reactive notification: fires once if density drops 10%+ OR day 4+
-      if (!peakState.reactive_sent) {
-        if (verdict === VERDICTS.GOING_FAST || verdict === VERDICTS.FALLING_FAST) {
-          shouldFireReactive = true;
-          reactiveType = verdict === VERDICTS.FALLING_FAST ? 'REACTIVE_FALLING_FAST' : 'REACTIVE_GOING_FAST';
-        } else if (daysSincePeak >= 4) {
-          shouldFireReactive = true;
-          reactiveType = 'REACTIVE_GOING_FAST';
-        }
-      }
-
-      // Cycle reset: Picked Over + density drops below reset threshold
-      if (verdict === VERDICTS.PICKED_OVER && densityPct < DORMANT_RESET_THRESHOLD) {
-        console.log(`  ↩ ${centre.name}: cycle ended (Picked Over + density ${densityPct.toFixed(1)}% < ${DORMANT_RESET_THRESHOLD}%)`);
-        peakDensityUpdates.push({
-          centre_id: centre.id,
-          peak_date: null,
-          peak_density_pct: null,
-          last_density_pct: densityPct,
-          proactive_sent: false,
-          reactive_sent: false,
-          cycle_started_at: null,
-          updated_at: new Date().toISOString(),
-        });
-        // Override verdict for today's score row
-        verdict = VERDICTS.DORMANT;
-        phase = 1;
-        daysSincePeak = null;
-      }
-
-    } else {
-      // Phase 1 — watching density build
-      phase = 1;
-      daysSincePeak = null;
-      verdict = getPhase1Verdict(densityPct);
-
-      // Cross the threshold → enter Phase 2
-      if (densityPct >= PHASE1_TO_PHASE2_THRESHOLD) {
-        phase = 2;
-        daysSincePeak = 0;
-        verdict = VERDICTS.PEAK_HARVEST;
-
-        // Record peak date
-        peakDensityUpdates.push({
-          centre_id: centre.id,
-          peak_date: TODAY,
-          peak_density_pct: densityPct,
-          last_density_pct: densityPct,
-          proactive_sent: true, // Will be sent below
-          reactive_sent: false,
-          cycle_started_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-
-        shouldFireProactive = true;
-      }
-    }
-
-    // ── UPDATE PEAK DENSITY LOG (if not already queued above) ────
-    if (!peakDensityUpdates.find(u => u.centre_id === centre.id)) {
-      peakDensityUpdates.push({
-        centre_id: centre.id,
-        peak_date: peakState.peak_date,
-        peak_density_pct: peakState.peak_density_pct,
-        last_density_pct: densityPct, // Always update last seen density
-        proactive_sent: shouldFireProactive ? true : peakState.proactive_sent,
-        reactive_sent: shouldFireReactive ? true : peakState.reactive_sent,
-        cycle_started_at: peakState.cycle_started_at,
-        updated_at: new Date().toISOString(),
-      });
-    }
-
-    // ── BUILD SCORE ROW ──────────────────────────────────────────
     scoreRows.push({
       centre_id: centre.id,
       score_date: TODAY,
-      phase,
+      tide_score: tideScore,
+      stage,
       verdict,
-      density_pct: Math.round(densityPct * 100) / 100,
-      stores_in_sale: storesInSale,
-      total_stores: totalStores,
-      days_since_peak: daysSincePeak,
+      bluf,
       trajectory,
-      avg_discount_pct: avgDiscountPct ? Math.round(avgDiscountPct * 100) / 100 : null,
-      top_brands: topBrands || null,
+      brands_on_sale: brandsOnSale,
+      total_brands: totalBrands,
+      top_brands: topBrands,
+      avg_discount_pct: avgDiscountPct,
     });
 
-    // ── QUEUE NOTIFICATIONS ──────────────────────────────────────
-    if (shouldFireProactive) {
-      notificationRows.push({
-        centre_id: centre.id,
-        notification_type: 'PROACTIVE',
-        verdict: VERDICTS.PEAK_HARVEST,
-        message_text: buildNotificationCopy('PROACTIVE', centre.name, storesInSale, totalStores, topBrands, 0),
-        density_pct: densityPct,
-        top_brands: topBrands || null,
-        processed: false,
-      });
-    }
-
-    if (shouldFireReactive) {
-      notificationRows.push({
-        centre_id: centre.id,
-        notification_type: 'REACTIVE',
-        verdict,
-        message_text: buildNotificationCopy(reactiveType, centre.name, storesInSale, totalStores, topBrands, daysSincePeak),
-        density_pct: densityPct,
-        top_brands: topBrands || null,
-        processed: false,
-      });
-    }
-
-    const icon = phase === 2 ? '🍎' : '🌱';
-    console.log(`  ${icon} ${centre.name}: ${verdict} | ${storesInSale}/${totalStores} stores (${densityPct.toFixed(1)}%) | ${trajectory}`);
+    const icons = { Flat: '⬜', Turning: '🔵', Rising: '📈', 'High Tide': '⭐', Falling: '⚠️', Low: '⬛' };
+    console.log(`  ${icons[stage]} ${centre.name}: ${stage} (${tideScore}) | ${brandsOnSale}/${totalBrands} brands | ${trajectory}`);
   }
 
-  // 3. Write everything to Supabase
   console.log('\nWriting scores...');
 
-  // Upsert score rows
-  const { error: scoreError } = await supabase
+  const { error } = await supabase
     .from('centre_seer_scores')
     .upsert(scoreRows, { onConflict: 'centre_id,score_date' });
 
-  if (scoreError) console.error('Score write error:', scoreError);
-  else console.log(`  ✓ ${scoreRows.length} centre scores written`);
-
-  // Upsert peak density log
-  const { error: peakError } = await supabase
-    .from('peak_density_log')
-    .upsert(peakDensityUpdates, { onConflict: 'centre_id' });
-
-  if (peakError) console.error('Peak density write error:', peakError);
-  else console.log(`  ✓ ${peakDensityUpdates.length} peak density rows updated`);
-
-  // Insert notification rows
-  if (notificationRows.length > 0) {
-    const { error: notifError } = await supabase
-      .from('notification_log')
-      .insert(notificationRows);
-
-    if (notifError) console.error('Notification write error:', notifError);
-    else console.log(`  ✓ ${notificationRows.length} notifications queued`);
-  } else {
-    console.log('  – No notifications to queue today');
+  if (error) {
+    console.error('Score write error:', error);
+    process.exit(1);
   }
 
+  console.log(`  ✓ ${scoreRows.length} centre scores written`);
   console.log('\n✅ Scoring complete');
 }
-
-// Brand name lookup — populated from brands.js data
-// (imported here to avoid circular deps)
-import { brands } from './brands.js';
-const brands_name_lookup = Object.fromEntries(brands.map(b => [b.id, b.name]));
 
 calculateAllCentreScores().catch(err => {
   console.error('❌ Scorer failed:', err);

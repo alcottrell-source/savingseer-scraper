@@ -72,14 +72,12 @@ export const brands = [
     url: 'https://www.zara.com/uk/en/sale-l1141.html',
     saleSelectors: ['h1', '[class*="sale"]', '[data-qa-label]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true, // Cloudflare protected
   },
   {
     id: 'B012', name: 'H&M', renderMode: 'browser',
     url: 'https://www2.hm.com/en_gb/sale.html',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
   {
     id: 'B013', name: 'Mango', renderMode: 'static',
@@ -92,21 +90,18 @@ export const brands = [
     url: 'https://www.cos.com/en_gbp/sale.html',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
   {
     id: 'B015', name: 'Arket', renderMode: 'browser',
     url: 'https://www.arket.com/en_gbp/sale.html',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
   {
     id: 'B016', name: '& Other Stories', renderMode: 'browser',
     url: 'https://www.stories.com/en_gbp/sale.html',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
   {
     id: 'B017', name: 'Weekday', renderMode: 'browser',
@@ -125,14 +120,12 @@ export const brands = [
     url: 'https://www.hollisterco.com/shop/uk/sale',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
   {
     id: 'B020', name: 'Abercrombie', renderMode: 'browser',
     url: 'https://www.abercrombie.com/shop/uk/sale',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
 
   // ── CLASSIC BRITISH ────────────────────────────────────────────
@@ -307,14 +300,12 @@ export const brands = [
     url: 'https://www.lacoste.com/gb/sale/',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
   {
     id: 'B049', name: 'Hugo Boss', renderMode: 'browser',
     url: 'https://www.hugoboss.com/uk/sale/',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
   {
     id: 'B050', name: 'Levis', renderMode: 'static',
@@ -329,21 +320,18 @@ export const brands = [
     url: 'https://www.nike.com/gb/w/sale-3yaep',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
   {
     id: 'B052', name: 'Adidas', renderMode: 'browser',
     url: 'https://www.adidas.co.uk/sale',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
   {
     id: 'B053', name: 'The North Face', renderMode: 'browser',
     url: 'https://www.thenorthface.com/en-gb/sale',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
   {
     id: 'B054', name: 'Berghaus', renderMode: 'static',
@@ -442,7 +430,6 @@ export const brands = [
     url: 'https://www.flannels.com/sale',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
 
   // ── ACCESSORIES ────────────────────────────────────────────────
@@ -451,7 +438,6 @@ export const brands = [
     url: 'https://uk.pandora.net/en/sale/',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
-    manualCheck: true,
   },
   {
     id: 'B072', name: 'Fossil', renderMode: 'static',

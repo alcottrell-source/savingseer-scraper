@@ -59,12 +59,7 @@ export const brands = [
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
   },
-  {
-    id: 'B010', name: 'F&F at Tesco', renderMode: 'static',
-    url: 'https://www.clothingattesco.com/sale',
-    saleSelectors: ['h1', '[class*="sale"]'],
-    confirmText: ['sale', 'up to', '% off'],
-  },
+
 
   // ── CONTEMPORARY ───────────────────────────────────────────────
   {
@@ -80,7 +75,7 @@ export const brands = [
     confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B013', name: 'Mango', renderMode: 'static',
+    id: 'B013', name: 'Mango', renderMode: 'browser',
     url: 'https://shop.mango.com/gb/women/outlet',
     saleSelectors: ['h1', '[class*="outlet"]', '[class*="sale"]'],
     confirmText: ['outlet', 'sale', 'up to', '% off'],
@@ -414,13 +409,13 @@ export const brands = [
     confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B067', name: 'UGG', renderMode: 'static',
+    id: 'B067', name: 'UGG', renderMode: 'browser',
     url: 'https://www.ugg.com/uk/sale',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B069', name: 'New Balance', renderMode: 'static',
+    id: 'B069', name: 'New Balance', renderMode: 'browser',
     url: 'https://www.newbalance.co.uk/sale',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],

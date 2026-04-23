@@ -111,4 +111,55 @@ async function calculateAllCentreScores() {
       saleDetails.push({ name: brandNameLookup[brandId] || brandId, ripeness, maxDiscountPct: sale.max_discount_pct });
     }
 
-    const tideScore = Math.round((totalRipeness / totalBrands) * 10) /
+    const tideScore = Math.round((totalRipeness / totalBrands) * 10) / 10;
+    const trajectory = getTrajectory(tideScore, yesterdayScoreMap.get(centre.id) ?? null);
+    const { stage, verdict, bluf } = getTideStage(tideScore, trajectory);
+
+    const topBrands = saleDetails
+      .sort((a, b) => b.ripeness - a.ripeness)
+      .slice(0, 5)
+      .map(b => b.name)
+      .join(', ') || null;
+
+    const discountBrands = saleDetails.filter(b => b.maxDiscountPct);
+    const avgDiscountPct = discountBrands.length > 0
+      ? Math.round(discountBrands.reduce((s, b) => s + b.maxDiscountPct, 0) / discountBrands.length)
+      : null;
+
+    scoreRows.push({
+      centre_id: centre.id,
+      score_date: TODAY,
+      tide_score: tideScore,
+      phase: PHASE_NUMBER[stage],
+      verdict,
+      bluf,
+      trajectory,
+      brands_on_sale: brandsOnSale,
+      total_brands: totalBrands,
+      top_brands: topBrands,
+      avg_discount_pct: avgDiscountPct,
+    });
+
+    const icons = { Flat: '⬜', Turning: '🔵', Rising: '📈', 'High Tide': '⭐', Falling: '⚠️', Low: '⬛' };
+    console.log(`  ${icons[stage]} ${centre.name}: ${stage} (${tideScore}) | ${brandsOnSale}/${totalBrands} brands | ${trajectory}`);
+  }
+
+  console.log('\nWriting scores...');
+
+  const { error } = await supabase
+    .from('centre_seer_scores')
+    .upsert(scoreRows, { onConflict: 'centre_id,score_date' });
+
+  if (error) {
+    console.error('Score write error:', error);
+    process.exit(1);
+  }
+
+  console.log(`  ✓ ${scoreRows.length} centre scores written`);
+  console.log('\n✅ Scoring complete');
+}
+
+calculateAllCentreScores().catch(err => {
+  console.error('❌ Scorer failed:', err);
+  process.exit(1);
+});

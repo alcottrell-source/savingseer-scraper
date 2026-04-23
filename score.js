@@ -14,7 +14,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const brandNameLookup = Object.fromEntries(brands.map(b => [b.id, b.name]));
 
-const PHASE_NUMBER = { Flat: 1, Turning: 2, Rising: 3, 'High Tide': 4, Falling: 5, Low: 6 };
+const PHASE_NUMBER = { Flat: 1, Turning: 1, Rising: 2, 'High Tide': 2, Falling: 2, Low: 1 };
 
 function brandRipenessScore(daysRunning) {
   if (daysRunning <= 0) return 0;

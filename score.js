@@ -1,20 +1,3 @@
-// score.js
-// Tide — 6-stage Tide Model scoring engine
-// Runs after scraper.js completes (08:00 UTC via GitHub Actions)
-// Reads brand_sale_events → calculates brand ripeness scores → writes to centre_seer_scores
-//
-// SCHEMA NOTE: This version writes new columns to centre_seer_scores:
-//   tide_score (numeric), stage (text), verdict (text), bluf (text),
-//   brands_on_sale (int), total_brands (int)
-// Run this SQL in Supabase before deploying:
-//   ALTER TABLE centre_seer_scores
-//     ADD COLUMN IF NOT EXISTS tide_score numeric,
-//     ADD COLUMN IF NOT EXISTS stage text,
-//     ADD COLUMN IF NOT EXISTS bluf text,
-//     ADD COLUMN IF NOT EXISTS brands_on_sale int,
-//     ADD COLUMN IF NOT EXISTS total_brands int;
-// Also update v_today_scores to expose these columns.
-
 import { createClient } from '@supabase/supabase-js';
 import { brands } from './brands.js';
 
@@ -31,7 +14,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const brandNameLookup = Object.fromEntries(brands.map(b => [b.id, b.name]));
 
-// ── TIDE MODEL ──────────────────────────────────────────────────
+const PHASE_NUMBER = { Flat: 1, Turning: 2, Rising: 3, 'High Tide': 4, Falling: 5, Low: 6 };
 
 function brandRipenessScore(daysRunning) {
   if (daysRunning <= 0) return 0;
@@ -71,8 +54,6 @@ function getTrajectory(todayScore, yesterdayScore) {
   if (diff <= -2) return 'falling';
   return 'flat';
 }
-
-// ── MAIN ────────────────────────────────────────────────────────
 
 async function calculateAllCentreScores() {
   console.log('═══════════════════════════════════════════════');
@@ -149,7 +130,7 @@ async function calculateAllCentreScores() {
       centre_id: centre.id,
       score_date: TODAY,
       tide_score: tideScore,
-      phase: stage,
+      phase: PHASE_NUMBER[stage],
       verdict,
       bluf,
       trajectory,

@@ -137,7 +137,7 @@ async function calculateAllCentreScores() {
 
     const tideScore = Math.round((totalRipeness / totalBrands) * 10) / 10;
     const trajectory = getTrajectory(tideScore, yesterdayScoreMap.get(centre.id) ?? null);
-    const { stage, verdict, bluf } = getTideStage(tideScore, trajectory);
+    const { phase: stage, verdict, bluf } = getTideStage(tideScore, trajectory);
 
     // Top brands: highest ripeness first, max 5
     const topBrands = saleDetails

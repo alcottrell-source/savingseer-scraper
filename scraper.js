@@ -4,7 +4,7 @@
 // Writes results to Supabase brand_sale_events table
 // Runs via GitHub Actions daily at 06:00 UTC
 
-import { CheerioCrawler, PlaywrightCrawler, log, purgeDefaultStorages } from 'crawlee';
+import { CheerioCrawler, PlaywrightCrawler, purgeDefaultStorages, log } from 'crawlee';
 import { createClient } from '@supabase/supabase-js';
 import { brands, autoBrands, manualCheckBrands } from './brands.js';
 
@@ -106,7 +106,8 @@ async function runPlaywrightCrawler() {
   if (browserBrands.length === 0) return;
 
   const brandMap = new Map(browserBrands.map(b => [b.url, b]));
-
+// Clears the Cheerio queue state so Playwright gets a clean queue
+await purgeDefaultStorages();
   const crawler = new PlaywrightCrawler({
     maxRequestsPerCrawl: browserBrands.length * 4,
     requestHandlerTimeoutSecs: 60,
@@ -144,7 +145,17 @@ async function runPlaywrightCrawler() {
   });
 
   try {
-    await crawler.run(browserBrands.map(b => ({ url: b.url })));
+    try {
+  await crawler.run(browserBrands.map(b => ({ url: b.url })));
+} catch (err) {
+  console.error('  ✗ Playwright crawler crashed:', err);
+  for (const brand of browserBrands) {
+    const r = results.get(brand.id);
+    if (!r.error && !r.saleStatus && r.maxDiscountPct === null) {
+      results.set(brand.id, { saleStatus: false, maxDiscountPct: null, error: true, playwright_crash: true });
+    }
+  }
+}
   } catch (err) {
     console.error('Playwright crawler crashed:', err);
     browserBrands.forEach(b => {

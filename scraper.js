@@ -10,8 +10,8 @@ import { brands, autoBrands, manualCheckBrands } from './brands.js';
 
 // ── CONFIG ──────────────────────────────────────────────────────
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY; // service key for server-side writes
-const TODAY = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const TODAY = new Date().toISOString().split('T')[0];
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars');
@@ -21,33 +21,27 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── RESULT STORE ────────────────────────────────────────────────
-// Map of brandId → { saleStatus, maxDiscountPct, error }
 const results = new Map();
 
-// Initialise all brands as not-yet-checked
 for (const brand of brands) {
   results.set(brand.id, { saleStatus: false, maxDiscountPct: null, error: false });
 }
 
 // ── SALE DETECTION ──────────────────────────────────────────────
-// Returns { onSale: boolean, discountPct: number|null }
 function detectSale(html, $, brand) {
   const bodyText = (html || '').toLowerCase();
 
-  // Check confirm text — any of these appearing = sale is on
   const hasConfirmText = brand.confirmText.some(t => bodyText.includes(t.toLowerCase()));
 
-  // Extract discount percentage — look for patterns like "up to 60% off", "50% off"
   let discountPct = null;
   const discountMatch = bodyText.match(/up to (\d+)%\s*off/i) ||
                         bodyText.match(/(\d+)%\s*off/i) ||
                         bodyText.match(/save up to (\d+)%/i);
   if (discountMatch) {
     const pct = parseInt(discountMatch[1], 10);
-    if (pct > 0 && pct <= 95) discountPct = pct; // sanity check
+    if (pct > 0 && pct <= 95) discountPct = pct;
   }
 
-  // Also check selectors exist and have content
   let selectorFound = false;
   if ($) {
     for (const selector of brand.saleSelectors) {
@@ -63,7 +57,7 @@ function detectSale(html, $, brand) {
   return { onSale, discountPct };
 }
 
-// ── PASS 1: CHEERIO (static brands) ────────────────────────────
+// ── PASS 1: CHEERIO ─────────────────────────────────────────────
 async function runCheerioCrawler() {
   const staticBrands = autoBrands.filter(b => b.renderMode === 'static');
   console.log(`\nPass 1 (Cheerio): ${staticBrands.length} brands`);
@@ -98,7 +92,7 @@ async function runCheerioCrawler() {
   await crawler.run(staticBrands.map(b => ({ url: b.url })));
 }
 
-// ── PASS 2: PLAYWRIGHT (browser brands) ────────────────────────
+// ── PASS 2: PLAYWRIGHT ──────────────────────────────────────────
 async function runPlaywrightCrawler() {
   const browserBrands = autoBrands.filter(b => b.renderMode === 'browser');
   console.log(`\nPass 2 (Playwright): ${browserBrands.length} brands`);
@@ -106,12 +100,14 @@ async function runPlaywrightCrawler() {
   if (browserBrands.length === 0) return;
 
   const brandMap = new Map(browserBrands.map(b => [b.url, b]));
-// Clears the Cheerio queue state so Playwright gets a clean queue
-await purgeDefaultStorages();
+
+  await purgeDefaultStorages();
+
   const crawler = new PlaywrightCrawler({
     maxRequestsPerCrawl: browserBrands.length * 4,
     requestHandlerTimeoutSecs: 60,
-    maxConcurrency: 2, // Keep low — memory pressure on Actions runner
+    maxConcurrency: 2,
+    useSessionPool: false,
     launchContext: {
       launchOptions: {
         headless: true,
@@ -123,12 +119,9 @@ await purgeDefaultStorages();
       const brand = brandMap.get(request.url) || brandMap.get(page.url());
       if (!brand) return;
 
-      // Wait for page to settle
       await page.waitForLoadState('domcontentloaded', { timeout: 30000 }).catch(() => {});
 
       const html = await page.content();
-      const bodyText = html.toLowerCase();
-
       const { onSale, discountPct } = detectSale(html, null, brand);
 
       results.set(brand.id, { saleStatus: onSale, maxDiscountPct: discountPct, error: false });
@@ -145,24 +138,15 @@ await purgeDefaultStorages();
   });
 
   try {
-    try {
-  await crawler.run(browserBrands.map(b => ({ url: b.url })));
-} catch (err) {
-  console.error('  ✗ Playwright crawler crashed:', err);
-  for (const brand of browserBrands) {
-    const r = results.get(brand.id);
-    if (!r.error && !r.saleStatus && r.maxDiscountPct === null) {
-      results.set(brand.id, { saleStatus: false, maxDiscountPct: null, error: true, playwright_crash: true });
-    }
-  }
-}
+    await crawler.run(browserBrands.map(b => ({ url: b.url })));
   } catch (err) {
-    console.error('Playwright crawler crashed:', err);
-    browserBrands.forEach(b => {
-      if (!results.has(b.id)) {
-        results.set(b.id, { saleStatus: false, maxDiscountPct: null, error: true });
+    console.error('  ✗ Playwright crawler crashed:', err);
+    for (const brand of browserBrands) {
+      const r = results.get(brand.id);
+      if (!r.error && !r.saleStatus && r.maxDiscountPct === null) {
+        results.set(brand.id, { saleStatus: false, maxDiscountPct: null, error: true });
       }
-    });
+    }
   }
 }
 
@@ -170,7 +154,6 @@ await purgeDefaultStorages();
 async function writeToSupabase() {
   console.log('\nWriting results to Supabase...');
 
-  // Fetch current state of all brands from Supabase
   const { data: currentState, error: fetchError } = await supabase
     .from('brand_sale_events')
     .select('brand_id, sale_status, date_first_detected');
@@ -186,7 +169,6 @@ async function writeToSupabase() {
   let errors = 0;
 
   for (const [brandId, result] of results) {
-    // Skip manual check brands — they're updated directly in Supabase
     const brand = brands.find(b => b.id === brandId);
     if (brand?.manualCheck) continue;
 
@@ -194,7 +176,6 @@ async function writeToSupabase() {
     const wasOnSale = current?.sale_status || false;
     const hadDateFirstDetected = current?.date_first_detected;
 
-    // Build update payload
     const updatePayload = {
       sale_status: result.saleStatus,
       max_discount_pct: result.maxDiscountPct,
@@ -203,16 +184,10 @@ async function writeToSupabase() {
       updated_at: new Date().toISOString(),
     };
 
-    // Set date_first_detected ONLY if:
-    // - Sale just started (was false, now true)
-    // - AND it hasn't been set before (write-once rule)
-    // The DB trigger also enforces this, but we respect it here too
     if (result.saleStatus && !wasOnSale && !hadDateFirstDetected) {
       updatePayload.date_first_detected = TODAY;
     }
 
-    // If sale ended (was true, now false), reset the cycle
-    // We call the DB function rather than directly clearing date_first_detected
     if (!result.saleStatus && wasOnSale && hadDateFirstDetected) {
       console.log(`  ↩ ${brand?.name || brandId}: sale ended — resetting cycle`);
       const { error: resetError } = await supabase.rpc('reset_brand_sale_cycle', {
@@ -222,7 +197,7 @@ async function writeToSupabase() {
         console.error(`  ✗ Reset failed for ${brandId}:`, resetError);
         errors++;
       }
-      continue; // Skip the normal update below
+      continue;
     }
 
     const { error: updateError } = await supabase
@@ -259,7 +234,7 @@ function printSummary() {
 
 // ── MAIN ────────────────────────────────────────────────────────
 async function main() {
-  log.setLevel(log.LEVELS.WARNING); // Suppress Crawlee verbose logging
+  log.setLevel(log.LEVELS.WARNING);
 
   console.log('═══════════════════════════════════════════════');
   console.log(`  Savingseer Scraper — ${TODAY}`);

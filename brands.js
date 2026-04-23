@@ -6,7 +6,7 @@
 export const brands = [
   // ── HIGH STREET VALUE ──────────────────────────────────────────
   {
-    id: 'B001', name: 'Next', renderMode: 'static',
+    id: 'B001', name: 'Next', renderMode: 'browser',
     url: 'https://www.next.co.uk/sale',
     saleSelectors: ['.sale', '[data-testid="sale"]', 'h1'],
     confirmText: ['sale', 'up to', '% off'],

@@ -33,8 +33,6 @@ const brandNameLookup = Object.fromEntries(brands.map(b => [b.id, b.name]));
 
 // ── TIDE MODEL ──────────────────────────────────────────────────
 
-// Brand ripeness score (0–100) based on days the sale has been running.
-// Curve rises through days 1–10, peaks at days 8–10 (score 100), then decays to 0 at day 19.
 function brandRipenessScore(daysRunning) {
   if (daysRunning <= 0) return 0;
   if (daysRunning <= 4)  return 10 + (daysRunning - 1) * 11.7;
@@ -44,8 +42,6 @@ function brandRipenessScore(daysRunning) {
   return 0;
 }
 
-// 6-stage Tide Model.
-// At scores 75+, trajectory disambiguates: rising = still High Tide, otherwise Falling/Low.
 function getTideStage(score, trajectory) {
   if (score === 0) {
     return { stage: 'Flat', verdict: 'Nothing on', bluf: 'No meaningful sales at this centre right now.' };
@@ -122,7 +118,6 @@ async function calculateAllCentreScores() {
     for (const brandId of brandIds) {
       const sale = brandSaleMap.get(brandId);
 
-      // Scraper errors and missing data contribute 0 — never treated as "not on sale"
       if (!sale || sale.scraper_error || !sale.sale_status) continue;
 
       const daysRunning = sale.date_first_detected
@@ -137,9 +132,8 @@ async function calculateAllCentreScores() {
 
     const tideScore = Math.round((totalRipeness / totalBrands) * 10) / 10;
     const trajectory = getTrajectory(tideScore, yesterdayScoreMap.get(centre.id) ?? null);
-    const { phase: stage, verdict, bluf } = getTideStage(tideScore, trajectory);
+    const { stage, verdict, bluf } = getTideStage(tideScore, trajectory);
 
-    // Top brands: highest ripeness first, max 5
     const topBrands = saleDetails
       .sort((a, b) => b.ripeness - a.ripeness)
       .slice(0, 5)
@@ -155,7 +149,7 @@ async function calculateAllCentreScores() {
       centre_id: centre.id,
       score_date: TODAY,
       tide_score: tideScore,
-      stage,
+      phase: stage,
       verdict,
       bluf,
       trajectory,

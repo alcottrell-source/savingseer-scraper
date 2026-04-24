@@ -6,6 +6,9 @@ on:
     - cron: '0 8 * * *'   # 08:00 UTC — scorer runs (after scraper completes)
   workflow_dispatch:       # Manual trigger from GitHub UI
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  
 jobs:
   scrape:
     name: Scrape brand sale status

@@ -156,6 +156,34 @@ async function calculateAllCentreScores() {
   }
 
   console.log(`  ✓ ${scoreRows.length} centre scores written`);
+
+  // Build tide history (up to 60 days) for each centre
+  const SIXTY_DAYS_AGO = new Date(Date.now() - 60 * 86400000).toISOString().split('T')[0];
+
+  const { data: historyData, error: historyError } = await supabase
+    .from('centre_seer_scores')
+    .select('centre_id, score_date, tide_score')
+    .gte('score_date', SIXTY_DAYS_AGO)
+    .order('score_date', { ascending: true });
+
+  if (historyError) {
+    console.error('History fetch error:', historyError);
+  } else {
+    const historyByCentre = new Map();
+    for (const row of historyData) {
+      if (!historyByCentre.has(row.centre_id)) historyByCentre.set(row.centre_id, []);
+      historyByCentre.get(row.centre_id).push({ date: row.score_date, score: row.tide_score });
+    }
+
+    await Promise.all(
+      [...historyByCentre.entries()].map(([centreId, history]) =>
+        supabase.from('centres').update({ tide_history: history }).eq('id', centreId)
+      )
+    );
+
+    console.log(`  ✓ tide_history updated for ${historyByCentre.size} centres`);
+  }
+
   console.log('\n✅ Scoring complete');
 }
 

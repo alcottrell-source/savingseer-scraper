@@ -164,6 +164,7 @@ async function calculateAllCentreScores() {
     .from('centre_seer_scores')
     .select('centre_id, score_date, tide_score')
     .gte('score_date', SIXTY_DAYS_AGO)
+    .not('tide_score', 'is', null)
     .order('score_date', { ascending: true });
 
   if (historyError) {

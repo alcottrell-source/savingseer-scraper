@@ -1,4 +1,4 @@
-# Savingseer scraper
+# Tide scraper
 
 Daily sale-signal scraper for 71 UK retail brands. Runs free on GitHub Actions.
 

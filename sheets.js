@@ -1,5 +1,5 @@
 /**
- * Savingseer → Google Sheets writer
+ * Tide → Google Sheets writer
  *
  * Writes today's scrape results into the "SeerScores" tab of your Google Sheet.
  * Each run upserts one column: today's date as the header, with a sale signal

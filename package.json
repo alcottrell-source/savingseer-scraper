@@ -1,7 +1,7 @@
 {
-  "name": "savingseer-scraper",
+  "name": "tide-scraper",
   "version": "2.0.0",
-  "description": "Savingseer Phase 2 — daily brand scraper and Apple Model scorer",
+  "description": "Tide — daily brand scraper and Tide scorer",
   "type": "module",
   "scripts": {
     "scrape": "node scraper.js",

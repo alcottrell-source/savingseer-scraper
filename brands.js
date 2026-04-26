@@ -1,5 +1,5 @@
 // brands.js
-// 75 brand configurations for Savingseer scraper
+// 74 brand configurations for Tide scraper
 // renderMode: 'static' = CheerioCrawler (fast), 'browser' = PlaywrightCrawler (JS-heavy)
 // saleSelectors: CSS selectors that confirm an active sale exists on the page
 

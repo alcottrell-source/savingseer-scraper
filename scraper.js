@@ -1,5 +1,5 @@
 // scraper.js
-// Savingseer Phase 2 — daily brand scraper
+// Tide — daily brand scraper
 // Dual-pass: CheerioCrawler (static) → PlaywrightCrawler (browser)
 // Writes results to Supabase brand_sale_events table
 // Runs via GitHub Actions daily at 06:00 UTC
@@ -237,7 +237,7 @@ async function main() {
   log.setLevel(log.LEVELS.WARNING);
 
   console.log('═══════════════════════════════════════════════');
-  console.log(`  Savingseer Scraper — ${TODAY}`);
+  console.log(`  Tide Scraper — ${TODAY}`);
   console.log('═══════════════════════════════════════════════');
 
   try {

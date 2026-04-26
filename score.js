@@ -3,8 +3,9 @@ import { brands } from './brands.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
-const TODAY = new Date().toISOString().split('T')[0];
-const YESTERDAY = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+const TODAY         = new Date().toISOString().split('T')[0];
+const YESTERDAY     = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+const SIXTY_DAYS_AGO = new Date(Date.now() - 60 * 86400000).toISOString().split('T')[0];
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars');
@@ -16,12 +17,23 @@ const brandNameLookup = Object.fromEntries(brands.map(b => [b.id, b.name]));
 
 const PHASE_NUMBER = { Flat: 1, Turning: 1, Rising: 2, 'High Tide': 2, Falling: 2, Low: 1 };
 
+// Ripeness curve: ramps 0→100 over 10 days then decays to zero by day 18
+const RIPENESS_DAY_EARLY_END = 4;
+const RIPENESS_DAY_MID_END   = 7;
+const RIPENESS_DAY_PEAK_END  = 10;
+const RIPENESS_DAY_ZERO      = 18;
+const RIPENESS_EARLY_BASE    = 10;
+const RIPENESS_EARLY_RATE    = 11.7;
+const RIPENESS_MID_BASE      = 46;
+const RIPENESS_MID_RATE      = 9;
+const RIPENESS_DECAY_RATE    = 11.3;
+
 function brandRipenessScore(daysRunning) {
-  if (daysRunning <= 0) return 0;
-  if (daysRunning <= 4)  return 10 + (daysRunning - 1) * 11.7;
-  if (daysRunning <= 7)  return 46 + (daysRunning - 4) * 9;
-  if (daysRunning <= 10) return 100;
-  if (daysRunning <= 18) return Math.max(0, 100 - (daysRunning - 10) * 11.3);
+  if (daysRunning <= 0)                      return 0;
+  if (daysRunning <= RIPENESS_DAY_EARLY_END) return RIPENESS_EARLY_BASE + (daysRunning - 1) * RIPENESS_EARLY_RATE;
+  if (daysRunning <= RIPENESS_DAY_MID_END)   return RIPENESS_MID_BASE + (daysRunning - RIPENESS_DAY_EARLY_END) * RIPENESS_MID_RATE;
+  if (daysRunning <= RIPENESS_DAY_PEAK_END)  return 100;
+  if (daysRunning <= RIPENESS_DAY_ZERO)      return Math.max(0, 100 - (daysRunning - RIPENESS_DAY_PEAK_END) * RIPENESS_DECAY_RATE);
   return 0;
 }
 
@@ -35,10 +47,7 @@ function getTideStage(score, trajectory) {
   if (score < 50) {
     return { stage: 'Rising', verdict: 'Worth watching', bluf: 'Sales building and fresh. Plan your visit soon.' };
   }
-  if (score < 75) {
-    return { stage: 'High Tide', verdict: 'Go now', bluf: 'Maximum density, maximum freshness. This is the moment.' };
-  }
-  if (trajectory === 'RISING') {
+  if (score < 75 || trajectory === 'RISING') {
     return { stage: 'High Tide', verdict: 'Go now', bluf: 'Maximum density, maximum freshness. This is the moment.' };
   }
   if (score < 90) {
@@ -157,9 +166,7 @@ async function calculateAllCentreScores() {
 
   console.log(`  ✓ ${scoreRows.length} centre scores written`);
 
-  // Build tide history (up to 60 days) for each centre
-  const SIXTY_DAYS_AGO = new Date(Date.now() - 60 * 86400000).toISOString().split('T')[0];
-
+  // Build tide history (up to 60 days) for each centre and cache on centres table
   const { data: historyData, error: historyError } = await supabase
     .from('centre_seer_scores')
     .select('centre_id, score_date, tide_score')
@@ -176,13 +183,23 @@ async function calculateAllCentreScores() {
       historyByCentre.get(row.centre_id).push({ date: row.score_date, score: row.tide_score });
     }
 
-    await Promise.all(
+    const noHistory = centresRes.data.filter(c => !historyByCentre.has(c.id));
+    if (noHistory.length > 0) {
+      console.log(`  ⚠ No history yet for: ${noHistory.map(c => c.name).join(', ')}`);
+    }
+
+    const results = await Promise.all(
       [...historyByCentre.entries()].map(([centreId, history]) =>
         supabase.from('centres').update({ tide_history: history }).eq('id', centreId)
       )
     );
 
-    console.log(`  ✓ tide_history updated for ${historyByCentre.size} centres`);
+    const failures = results.filter(r => r.error);
+    if (failures.length > 0) {
+      console.error(`  ✗ tide_history failed for ${failures.length} centres:`, failures.map(f => f.error));
+    } else {
+      console.log(`  ✓ tide_history updated for ${historyByCentre.size} centres`);
+    }
   }
 
   console.log('\n✅ Scoring complete');

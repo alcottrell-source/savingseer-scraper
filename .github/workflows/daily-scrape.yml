@@ -38,7 +38,7 @@ jobs:
         run: node scraper.js
 
   score:
-    name: Calculate Apple Model scores
+    name: Calculate Tide scores
     runs-on: ubuntu-latest
     if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
 

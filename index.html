@@ -729,7 +729,7 @@ function calcCentreScore(centreIdx) {
 function computeHistoricalScores(centreIdx) {
   const brandsAtCentre = BRANDS.filter(b => (PRESENCE[b.id] || [])[centreIdx] === 1);
   if (!brandsAtCentre.length || !SHEET_DATE_COLS.length) return [];
-  return SHEET_DATE_COLS.slice(-30).map(({ idx, date }) => {
+  return SHEET_DATE_COLS.slice(-60).map(({ idx, date }) => {
     let totalRipeness = 0;
     for (const brand of brandsAtCentre) {
       const row = SHEET_ROWS[brand.id];
@@ -745,34 +745,70 @@ function computeHistoricalScores(centreIdx) {
   });
 }
 
+function smoothCurvePath(pts) {
+  if (pts.length < 2) return '';
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(i - 1, 0)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(i + 2, pts.length - 1)];
+    const cp1x = +(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1);
+    const cp1y = +(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1);
+    const cp2x = +(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1);
+    const cp2y = +(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1);
+    d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2[0]},${p2[1]}`;
+  }
+  return d;
+}
+
 function renderHistoryChart(history, color) {
   if (history.length < 2) return '';
-  const W = 360, H = 44, PL = 4, PT = 8, PB = 18;
+  const W = 380, H = 62, PL = 4, PT = 28, PB = 22;
   const n = history.length;
   const pts = history.map((d, i) => [
     +(PL + (i / (n - 1)) * W).toFixed(1),
     +(PT + (1 - d.score / 100) * H).toFixed(1),
   ]);
-  const lineD = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ');
+  const lineD = smoothCurvePath(pts);
   const areaD = `${lineD} L${pts[n-1][0]},${PT+H} L${pts[0][0]},${PT+H}Z`;
   const [lx, ly] = pts[n - 1];
-  const fmtDate = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+  const diff = history[n-1].score - history[n-2].score;
+  const [trajArrow, trajText, trajColor] =
+    diff >= 2  ? ['↑', 'Rising',   color] :
+    diff <= -2 ? ['↓', 'Dropping', color] :
+                 ['→', 'Holding',  '#8C8070'];
+
+  const gridLines = [25, 50, 75].map(pct => {
+    const gy = +(PT + (1 - pct / 100) * H).toFixed(1);
+    return `<line x1="${PL}" y1="${gy}" x2="${PL+W}" y2="${gy}" stroke="#E8E3DC" stroke-width="0.5"/>`;
+  }).join('');
+
+  const midIdx = Math.round((n - 1) / 2);
+  const daysBack = idx => n - 1 - idx;
+  const xLabels = [[0, 'start'], [midIdx, 'middle'], [n - 1, 'end']].map(([idx, pos]) => {
+    const label = daysBack(idx) === 0 ? 'Today' : `${daysBack(idx)}d ago`;
+    const anchor = pos === 'start' ? 'start' : pos === 'end' ? 'end' : 'middle';
+    return `<text x="${pts[idx][0]}" y="${PT+H+16}" font-family="DM Sans,sans-serif" font-size="9.5" fill="#8C8070" text-anchor="${anchor}">${label}</text>`;
+  }).join('');
+
   return `<div class="history-section" id="history-section">
-    <div class="section-heading">Score over time <span class="on-sale-count">${history.length} days</span></div>
+    <div class="section-heading">Tide over ${n} days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:${trajColor}">${trajArrow} ${trajText}</span></div>
     <div class="history-card">
-      <svg viewBox="0 0 ${W+PL+32} ${H+PT+PB}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible">
+      <svg viewBox="0 0 ${W+PL+8} ${H+PT+PB}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible">
         <defs>
           <linearGradient id="hg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="${color}" stop-opacity="0.18"/>
+            <stop offset="0%" stop-color="${color}" stop-opacity="0.12"/>
             <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
           </linearGradient>
         </defs>
+        ${gridLines}
         <path d="${areaD}" fill="url(#hg)"/>
-        <path d="${lineD}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
-        <circle cx="${lx}" cy="${ly}" r="3.5" fill="${color}"/>
-        <text x="${lx + 7}" y="${ly + 4}" font-family="DM Sans,sans-serif" font-size="9.5" fill="${color}" font-weight="500">${history[n-1].score}</text>
-        <text x="${pts[0][0]}" y="${PT+H+14}" font-family="DM Sans,sans-serif" font-size="9" fill="#8C8070">${fmtDate(history[0].date)}</text>
-        <text x="${pts[n-1][0]}" y="${PT+H+14}" font-family="DM Sans,sans-serif" font-size="9" fill="#8C8070" text-anchor="end">${fmtDate(history[n-1].date)}</text>
+        <path d="${lineD}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+        <text x="${lx}" y="${(ly - 9).toFixed(1)}" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="${color}" font-weight="500">today</text>
+        <circle cx="${lx}" cy="${ly}" r="4.5" fill="white" stroke="${color}" stroke-width="1.8"/>
+        ${xLabels}
       </svg>
     </div>
   </div>`;

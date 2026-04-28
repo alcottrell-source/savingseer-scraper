@@ -372,12 +372,27 @@
     padding-top: 0;
     margin-top: 0;
   }
+
+  /* ── History chart ── */
+  .history-section {
+    padding: 16px 24px 0;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.4s ease 0.08s, transform 0.4s ease 0.08s;
+  }
+  .history-section.visible { opacity: 1; transform: translateY(0); }
+  .history-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 16px 10px;
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="wordmark">Savings<span>eer</span></div>
+  <div class="wordmark">Ti<span>de</span></div>
   <div class="tagline">Know when to go</div>
 </header>
 
@@ -422,7 +437,7 @@
   <div class="empty-state">
     <span class="empty-apple">🍎</span>
     <p class="empty-title">Is the moment ripe?</p>
-    <p class="empty-sub">Pick a shopping centre to see today's Seer Score and which brands are on sale right now.</p>
+    <p class="empty-sub">Pick a shopping centre to see today's Tide Score and which brands are on sale right now.</p>
   </div>
 </div>
 
@@ -438,6 +453,8 @@
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
 let SALE_STATUS = {};
 let DAYS_RUNNING = {};
+let SHEET_ROWS = {};
+let SHEET_DATE_COLS = [];
 
 async function loadSheetData() {
   try {
@@ -445,15 +462,21 @@ async function loadSheetData() {
     const text = await res.text();
     const rows = text.trim().split('\n').map(r => r.split(','));
     const headers = rows[0];
+    SHEET_DATE_COLS = [];
     let latestColIdx = -1, latestDate = '';
     for (let i = 2; i < headers.length; i++) {
       const h = headers[i].trim().replace(/"/g, '');
-      if (/^\d{4}-\d{2}-\d{2}$/.test(h) && h > latestDate) { latestDate = h; latestColIdx = i; }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(h)) {
+        SHEET_DATE_COLS.push({ idx: i, date: h });
+        if (h > latestDate) { latestDate = h; latestColIdx = i; }
+      }
     }
+    SHEET_DATE_COLS.sort((a, b) => a.date.localeCompare(b.date));
     for (let r = 1; r < rows.length; r++) {
       const row = rows[r];
       const id = row[0]?.trim().replace(/"/g, '');
       if (!id || !id.startsWith('B')) continue;
+      SHEET_ROWS[id] = row;
       const v = latestColIdx >= 0 ? row[latestColIdx]?.trim().replace(/"/g, '') : '';
       SALE_STATUS[id] = v === 'TRUE' ? true : v === 'FALSE' ? false : null;
       if (SALE_STATUS[id] === true) {
@@ -703,6 +726,58 @@ function calcCentreScore(centreIdx) {
   return { score, phase, onSale, total: brandsAtCentre.length };
 }
 
+function computeHistoricalScores(centreIdx) {
+  const brandsAtCentre = BRANDS.filter(b => (PRESENCE[b.id] || [])[centreIdx] === 1);
+  if (!brandsAtCentre.length || !SHEET_DATE_COLS.length) return [];
+  return SHEET_DATE_COLS.slice(-30).map(({ idx, date }) => {
+    let totalRipeness = 0;
+    for (const brand of brandsAtCentre) {
+      const row = SHEET_ROWS[brand.id];
+      if (!row) continue;
+      if (row[idx]?.trim().replace(/"/g, '') !== 'TRUE') continue;
+      let days = 0;
+      for (let c = idx; c >= 2; c--) {
+        if (row[c]?.trim().replace(/"/g, '') === 'TRUE') days++; else break;
+      }
+      totalRipeness += ripenessScore(Math.max(days, 1));
+    }
+    return { date, score: Math.round(totalRipeness / brandsAtCentre.length) };
+  });
+}
+
+function renderHistoryChart(history, color) {
+  if (history.length < 2) return '';
+  const W = 360, H = 44, PL = 4, PT = 8, PB = 18;
+  const n = history.length;
+  const pts = history.map((d, i) => [
+    +(PL + (i / (n - 1)) * W).toFixed(1),
+    +(PT + (1 - d.score / 100) * H).toFixed(1),
+  ]);
+  const lineD = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ');
+  const areaD = `${lineD} L${pts[n-1][0]},${PT+H} L${pts[0][0]},${PT+H}Z`;
+  const [lx, ly] = pts[n - 1];
+  const fmtDate = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return `<div class="history-section" id="history-section">
+    <div class="section-heading">Score over time <span class="on-sale-count">${history.length} days</span></div>
+    <div class="history-card">
+      <svg viewBox="0 0 ${W+PL+32} ${H+PT+PB}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible">
+        <defs>
+          <linearGradient id="hg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${color}" stop-opacity="0.18"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="${areaD}" fill="url(#hg)"/>
+        <path d="${lineD}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="${lx}" cy="${ly}" r="3.5" fill="${color}"/>
+        <text x="${lx + 7}" y="${ly + 4}" font-family="DM Sans,sans-serif" font-size="9.5" fill="${color}" font-weight="500">${history[n-1].score}</text>
+        <text x="${pts[0][0]}" y="${PT+H+14}" font-family="DM Sans,sans-serif" font-size="9" fill="#8C8070">${fmtDate(history[0].date)}</text>
+        <text x="${pts[n-1][0]}" y="${PT+H+14}" font-family="DM Sans,sans-serif" font-size="9" fill="#8C8070" text-anchor="end">${fmtDate(history[n-1].date)}</text>
+      </svg>
+    </div>
+  </div>`;
+}
+
 // ── Render ────────────────────────────────────────────────────────────────────
 function renderCentre(centreId) {
   const content = document.getElementById('main-content');
@@ -710,7 +785,7 @@ function renderCentre(centreId) {
     content.innerHTML = `<div class="empty-state">
       <span class="empty-apple">🍎</span>
       <p class="empty-title">Is the moment ripe?</p>
-      <p class="empty-sub">Pick a shopping centre to see today's Seer Score and which brands are on sale right now.</p>
+      <p class="empty-sub">Pick a shopping centre to see today's Tide Score and which brands are on sale right now.</p>
     </div>`;
     return;
   }
@@ -767,6 +842,8 @@ function renderCentre(centreId) {
       </div>
     </div>
 
+    ${renderHistoryChart(computeHistoricalScores(centreIdx), style.color)}
+
     <div class="brands-section" id="brands-section">
       <div class="section-heading">
         Brands at this centre
@@ -779,6 +856,8 @@ function renderCentre(centreId) {
   // Animate in
   requestAnimationFrame(() => {
     document.getElementById('score-card').classList.add('visible');
+    const hist = document.getElementById('history-section');
+    if (hist) hist.classList.add('visible');
     document.getElementById('brands-section').classList.add('visible');
     setTimeout(() => {
       document.getElementById('rip-fill').style.width = score + '%';

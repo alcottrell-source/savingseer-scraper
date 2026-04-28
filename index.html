@@ -790,9 +790,21 @@ function renderHistoryChart(history, color, isDemo = false) {
   if (history.length < 2) return '';
   const W = 380, H = 62, PL = 4, PT = 28, PB = 22;
   const n = history.length;
-  const pts = history.map((d, i) => [
-    +(PL + (i / (n - 1)) * W).toFixed(1),
-    +(PT + (1 - d.score / 100) * H).toFixed(1),
+  // Triangular weighted moving average (window ±5) so bezier works with
+  // gradually-changing floats rather than integer steps at 6px intervals
+  const k = 5;
+  const scores = history.map((_, i) => {
+    let sum = 0, w = 0;
+    for (let j = Math.max(0, i - k); j <= Math.min(n - 1, i + k); j++) {
+      const wt = k + 1 - Math.abs(i - j);
+      sum += history[j].score * wt;
+      w += wt;
+    }
+    return sum / w;
+  });
+  const pts = scores.map((score, i) => [
+    +(PL + (i / (n - 1)) * W).toFixed(2),
+    +(PT + (1 - score / 100) * H).toFixed(2),
   ]);
   const lineD = smoothCurvePath(pts);
   const areaD = `${lineD} L${pts[n-1][0]},${PT+H} L${pts[0][0]},${PT+H}Z`;

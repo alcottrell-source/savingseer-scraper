@@ -179,41 +179,11 @@
     border-top: 1px solid var(--border);
   }
 
-  /* ── Ripeness bar ── */
-  .ripeness-section {
-    margin-top: 20px;
-  }
-
-  .ripeness-label {
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--stone);
-    margin-bottom: 8px;
+  /* ── Tide arc widget ── */
+  .arc-widget {
     display: block;
-  }
-
-  .ripeness-track {
-    height: 6px;
-    background: var(--stone-lt);
-    border-radius: 3px;
-    overflow: hidden;
-    margin-bottom: 6px;
-  }
-
-  .ripeness-fill {
-    height: 100%;
-    border-radius: 3px;
-    background: var(--phase-color, var(--leaf));
-    transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-
-  .ripeness-phases {
-    display: flex;
-    justify-content: space-between;
-    font-size: 10px;
-    color: var(--stone);
-    letter-spacing: 0.04em;
+    width: 100%;
+    margin-top: 16px;
   }
 
   /* ── Brand list ── */
@@ -771,6 +741,51 @@ function computeHistoricalScores(centreIdx) {
   });
 }
 
+// ── Arc / gauge widget (tide stage indicator) ─────────────────────────────
+function renderArcWidget(stage, color) {
+  // Arc: cx=180, cy=165, r=150  →  M 46,98 A 150 150 0 0 0 314,98
+  // Stage positions computed from equal angular spacing (126.8° / 5 segments)
+  const DOT = {
+    'Flat':      { x: 46,  y: 98 },
+    'Turning':   { x: 88,  y: 47 },
+    'Rising':    { x: 147, y: 19 },
+    'High Tide': { x: 213, y: 19 },
+    'Falling':   { x: 272, y: 47 },
+    'Low':       { x: 314, y: 98 },
+  };
+  const LABEL_Y = { 'Flat': 112, 'Turning': 63, 'Rising': 34, 'High Tide': 34, 'Falling': 63, 'Low': 112 };
+  const LABEL   = { 'Flat': 'FLAT', 'Turning': 'TURNING', 'Rising': 'RISING', 'High Tide': 'GO NOW ★', 'Falling': 'FALLING', 'Low': 'LOW' };
+
+  const dot = DOT[stage] || DOT['Flat'];
+  const uid = stage.replace(/\s/g, '-');
+
+  const labels = Object.keys(DOT).map(s => {
+    const p = DOT[s];
+    const active = s === stage;
+    return `<text x="${p.x}" y="${LABEL_Y[s]}" text-anchor="middle"
+      font-size="7.5" font-family="inherit" letter-spacing="0.05em"
+      fill="${active ? color : '#B0A898'}"
+      font-weight="${active ? '700' : '400'}">${LABEL[s]}</text>`;
+  }).join('');
+
+  return `<svg class="arc-widget" viewBox="0 0 360 118" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="arcg-${uid}" x1="46" y1="0" x2="314" y2="0" gradientUnits="userSpaceOnUse">
+        <stop offset="0%"   stop-color="#B0A898"/>
+        <stop offset="17%"  stop-color="#6BA86E"/>
+        <stop offset="35%"  stop-color="#A8C43A"/>
+        <stop offset="50%"  stop-color="#D4A030"/>
+        <stop offset="67%"  stop-color="#D06020"/>
+        <stop offset="100%" stop-color="#A04040"/>
+      </linearGradient>
+    </defs>
+    <path d="M 46,98 A 150 150 0 0 0 314,98" fill="none" stroke="#EAE6DF" stroke-width="8" stroke-linecap="round"/>
+    <path d="M 46,98 A 150 150 0 0 0 314,98" fill="none" stroke="url(#arcg-${uid})" stroke-width="8" stroke-linecap="round" opacity="0.85"/>
+    ${labels}
+    <circle cx="${dot.x}" cy="${dot.y}" r="7.5" fill="white" stroke="${color}" stroke-width="2.5"/>
+  </svg>`;
+}
+
 function generateMockHistory(centreIdx) {
   const n = 60;
   const now = Date.now();
@@ -923,15 +938,7 @@ function renderCentre(centreId) {
             <div class="centre-name-display">${centreName}</div>
           </div>
         </div>
-        <div class="ripeness-section">
-          <span class="ripeness-label">Ripeness</span>
-          <div class="ripeness-track">
-            <div class="ripeness-fill" id="rip-fill" style="width: 0%; background: ${style.color}"></div>
-          </div>
-          <div class="ripeness-phases">
-            <span>Flat</span><span>Turning</span><span>Rising</span><span>High Tide</span>
-          </div>
-        </div>
+        ${renderArcWidget(stage, style.color)}
         <div class="score-message">${style.msg}</div>
       </div>
     </div>
@@ -953,9 +960,6 @@ function renderCentre(centreId) {
     const hist = document.getElementById('history-section');
     if (hist) hist.classList.add('visible');
     document.getElementById('brands-section').classList.add('visible');
-    setTimeout(() => {
-      document.getElementById('rip-fill').style.width = score + '%';
-    }, 100);
   });
 }
 

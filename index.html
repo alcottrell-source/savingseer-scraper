@@ -742,45 +742,54 @@ function computeHistoricalScores(centreIdx) {
 }
 
 // ── Arc / gauge widget (tide stage indicator) ─────────────────────────────
+// Arc geometry: center (180, 205), r=190  →  M 25,95 A 190 190 0 0 1 335,95
+// sweep=1 gives the upward arc peaking at (180, 15).
+// Stage positions evenly spaced over the 109° arc span.
 function renderArcWidget(stage, color) {
-  // Arc: cx=180, cy=165, r=150  →  M 46,98 A 150 150 0 0 0 314,98
-  // Stage positions computed from equal angular spacing (126.8° / 5 segments)
   const DOT = {
-    'Flat':      { x: 46,  y: 98 },
-    'Turning':   { x: 88,  y: 47 },
-    'Rising':    { x: 147, y: 19 },
-    'High Tide': { x: 213, y: 19 },
-    'Falling':   { x: 272, y: 47 },
-    'Low':       { x: 314, y: 98 },
+    'Flat':      { x: 25,  y: 95 },
+    'Turning':   { x: 77,  y: 45 },
+    'Rising':    { x: 144, y: 18 },
+    'High Tide': { x: 216, y: 18 },
+    'Falling':   { x: 283, y: 45 },
+    'Low':       { x: 335, y: 95 },
   };
-  const LABEL_Y = { 'Flat': 112, 'Turning': 63, 'Rising': 34, 'High Tide': 34, 'Falling': 63, 'Low': 112 };
-  const LABEL   = { 'Flat': 'FLAT', 'Turning': 'TURNING', 'Rising': 'RISING', 'High Tide': 'GO NOW ★', 'Falling': 'FALLING', 'Low': 'LOW' };
+  // Labels sit inside (below) the arc, offset toward centre
+  const LABEL = {
+    'Flat':      { x: 25,  y: 110, text: 'FLAT'     },
+    'Turning':   { x: 72,  y: 62,  text: 'TURNING'  },
+    'Rising':    { x: 144, y: 34,  text: 'RISING'   },
+    'High Tide': { x: 216, y: 34,  text: 'GO NOW ★' },
+    'Falling':   { x: 288, y: 62,  text: 'FALLING'  },
+    'Low':       { x: 335, y: 110, text: 'LOW'      },
+  };
 
   const dot = DOT[stage] || DOT['Flat'];
   const uid = stage.replace(/\s/g, '-');
 
   const labels = Object.keys(DOT).map(s => {
-    const p = DOT[s];
+    const l = LABEL[s];
     const active = s === stage;
-    return `<text x="${p.x}" y="${LABEL_Y[s]}" text-anchor="middle"
+    return `<text x="${l.x}" y="${l.y}" text-anchor="middle"
       font-size="7.5" font-family="inherit" letter-spacing="0.05em"
       fill="${active ? color : '#B0A898'}"
-      font-weight="${active ? '700' : '400'}">${LABEL[s]}</text>`;
+      font-weight="${active ? '700' : '400'}">${l.text}</text>`;
   }).join('');
 
-  return `<svg class="arc-widget" viewBox="0 0 360 118" xmlns="http://www.w3.org/2000/svg">
+  return `<svg class="arc-widget" viewBox="0 0 360 120" xmlns="http://www.w3.org/2000/svg">
     <defs>
-      <linearGradient id="arcg-${uid}" x1="46" y1="0" x2="314" y2="0" gradientUnits="userSpaceOnUse">
+      <linearGradient id="arcg-${uid}" x1="25" y1="0" x2="335" y2="0" gradientUnits="userSpaceOnUse">
         <stop offset="0%"   stop-color="#B0A898"/>
         <stop offset="17%"  stop-color="#6BA86E"/>
-        <stop offset="35%"  stop-color="#A8C43A"/>
+        <stop offset="38%"  stop-color="#A8C43A"/>
         <stop offset="50%"  stop-color="#D4A030"/>
-        <stop offset="67%"  stop-color="#D06020"/>
-        <stop offset="100%" stop-color="#A04040"/>
+        <stop offset="62%"  stop-color="#D06020"/>
+        <stop offset="83%"  stop-color="#C04040"/>
+        <stop offset="100%" stop-color="#907070"/>
       </linearGradient>
     </defs>
-    <path d="M 46,98 A 150 150 0 0 0 314,98" fill="none" stroke="#EAE6DF" stroke-width="8" stroke-linecap="round"/>
-    <path d="M 46,98 A 150 150 0 0 0 314,98" fill="none" stroke="url(#arcg-${uid})" stroke-width="8" stroke-linecap="round" opacity="0.85"/>
+    <path d="M 25,95 A 190 190 0 0 1 335,95" fill="none" stroke="#EAE6DF" stroke-width="8" stroke-linecap="round"/>
+    <path d="M 25,95 A 190 190 0 0 1 335,95" fill="none" stroke="url(#arcg-${uid})" stroke-width="8" stroke-linecap="round" opacity="0.9"/>
     ${labels}
     <circle cx="${dot.x}" cy="${dot.y}" r="7.5" fill="white" stroke="${color}" stroke-width="2.5"/>
   </svg>`;

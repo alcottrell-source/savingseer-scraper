@@ -764,8 +764,7 @@ function generateMockHistory(centreIdx) {
     const t = i / (n - 1);
     const s = 50
       + Math.sin(t * Math.PI * 3.2 + phase) * 38
-      + Math.sin(t * Math.PI * 1.5 + phase * 0.6) * 16
-      + Math.sin(i * 5.7 + phase) * 4;
+      + Math.sin(t * Math.PI * 1.5 + phase * 0.6) * 16;
     return { date, score: Math.max(0, Math.min(100, Math.round(s))) };
   });
 }

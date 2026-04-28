@@ -387,6 +387,15 @@
     border-radius: 12px;
     padding: 16px 16px 10px;
   }
+  .demo-badge {
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--stone);
+    text-align: right;
+    margin-top: 6px;
+    opacity: 0.7;
+  }
 </style>
 </head>
 <body>
@@ -745,6 +754,22 @@ function computeHistoricalScores(centreIdx) {
   });
 }
 
+function generateMockHistory(centreIdx) {
+  const n = 60;
+  const now = Date.now();
+  const phase = centreIdx * 1.1;
+  return Array.from({ length: n }, (_, i) => {
+    const daysAgo = n - 1 - i;
+    const date = new Date(now - daysAgo * 86400000).toISOString().split('T')[0];
+    const t = i / (n - 1);
+    const s = 50
+      + Math.sin(t * Math.PI * 3.2 + phase) * 38
+      + Math.sin(t * Math.PI * 1.5 + phase * 0.6) * 16
+      + Math.sin(i * 5.7 + phase) * 4;
+    return { date, score: Math.max(0, Math.min(100, Math.round(s))) };
+  });
+}
+
 function smoothCurvePath(pts) {
   if (pts.length < 2) return '';
   let d = `M${pts[0][0]},${pts[0][1]}`;
@@ -762,7 +787,7 @@ function smoothCurvePath(pts) {
   return d;
 }
 
-function renderHistoryChart(history, color) {
+function renderHistoryChart(history, color, isDemo = false) {
   if (history.length < 2) return '';
   const W = 380, H = 62, PL = 4, PT = 28, PB = 22;
   const n = history.length;
@@ -810,6 +835,7 @@ function renderHistoryChart(history, color) {
         <circle cx="${lx}" cy="${ly}" r="4.5" fill="white" stroke="${color}" stroke-width="1.8"/>
         ${xLabels}
       </svg>
+      ${isDemo ? '<div class="demo-badge">Preview — no live data yet</div>' : ''}
     </div>
   </div>`;
 }
@@ -878,7 +904,7 @@ function renderCentre(centreId) {
       </div>
     </div>
 
-    ${renderHistoryChart(computeHistoricalScores(centreIdx), style.color)}
+    ${(() => { const h = computeHistoricalScores(centreIdx); const isDemo = h.length < 2; return renderHistoryChart(isDemo ? generateMockHistory(centreIdx) : h, style.color, isDemo); })()}
 
     <div class="brands-section" id="brands-section">
       <div class="section-heading">

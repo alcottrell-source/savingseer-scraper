@@ -387,6 +387,13 @@
     border-radius: 12px;
     padding: 16px 16px 10px;
   }
+  .traj-indicator {
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 3px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
   .demo-badge {
     font-size: 9px;
     letter-spacing: 0.06em;
@@ -675,71 +682,78 @@ const CENTRE_NAMES = [
   'Silverburn','St James Quarter'
 ];
 
-// ── Scoring ───────────────────────────────────────────────────────────────────
-function ripenessScore(days) {
-  if (!days || days === 0) return 0;
-  if (days <= 4)  return Math.round(10 + (days - 1) * 11.7);
-  if (days <= 7)  return Math.round(46 + (days - 4) * 9);
-  if (days <= 10) return 100;
-  if (days <= 18) return Math.max(0, Math.round(100 - (days - 10) * 11.3));
+// ── Scoring — spec v2.0 ──────────────────────────────────────────────────────
+const DECAY_MAX            = 42;
+const ANCHOR_MULTIPLIER    = 1.5;
+const TRAJECTORY_FLAT_BAND = 1.5;
+const ANCHOR_BRAND_IDS     = new Set(['B001','B002','B003','B005','B013','B023']);
+
+function brandFreshnessScore(days) {
+  if (!days || days <= 0)   return 0;
+  if (days <= 7)             return 1.0;
+  if (days <= 21)            return 1.0 - ((days - 7)  * (0.5 / 14));
+  if (days <= DECAY_MAX)     return 0.5 - ((days - 21) * (0.4 / (DECAY_MAX - 21)));
   return 0;
 }
 
-function phaseForDays(days) {
-  if (!days || days === 0) return 'gone';
-  if (days <= 4)  return 'bud';
-  if (days <= 7)  return 'ripening';
-  if (days <= 10) return 'peak';
-  if (days <= 18) return 'bowl';
-  return 'gone';
+function getTideStage(score, trajectory) {
+  if (score === 0) return 'Flat';
+  if (trajectory === 'FALLING') return score < 25 ? 'Low' : 'Falling';
+  if (score >= 50) return 'High Tide';
+  if (score >= 25) return 'Rising';
+  return 'Turning';
 }
 
-function phaseStyle(phase) {
-  const styles = {
-    bud:      { label: 'Bud', color: '#3D6B35', bg: '#EEF4EC', msg: 'Sales are just starting to appear. Worth watching — come back in a few days.' },
-    ripening: { label: 'Ripening', color: '#3D6B35', bg: '#EEF4EC', msg: 'Sales are building nicely. Start planning your visit — the best moment is coming.' },
-    peak:     { label: 'Pick now', color: '#C17A2B', bg: '#FBF2E4', msg: 'Peak ripeness. Maximum reductions, good stock. Today is the day to go.' },
-    bowl:     { label: 'In the bowl', color: '#B84C3A', bg: '#FAEAE7', msg: 'Sales are running but stock is going fast. Go today or miss your chance.' },
-    gone:     { label: 'Nothing on', color: '#8C8070', bg: '#F2EFE9', msg: 'No meaningful sales at this centre right now. Check back soon.' },
+function stageStyle(stage) {
+  const s = {
+    'Flat':      { label: 'Nothing on',        color: '#8C8070', bg: '#F2EFE9', msg: 'No meaningful sales at this centre right now. Check back soon.' },
+    'Turning':   { label: 'Starting to build', color: '#3D6B35', bg: '#EEF4EC', msg: 'A few brands are breaking into sale. Worth watching.' },
+    'Rising':    { label: 'Worth watching',    color: '#3D6B35', bg: '#EEF4EC', msg: 'Sales building and fresh. Plan your visit soon.' },
+    'High Tide': { label: 'Go now',            color: '#C17A2B', bg: '#FBF2E4', msg: 'Maximum density, maximum freshness. This is the moment.' },
+    'Falling':   { label: 'Last chance',       color: '#B84C3A', bg: '#FAEAE7', msg: 'Tide going out. Go now or miss out.' },
+    'Low':       { label: "It's over",         color: '#8C8070', bg: '#F2EFE9', msg: 'Cycle ended. Check back when brands start their next sale.' },
   };
-  return styles[phase] || styles.gone;
+  return s[stage] || s['Flat'];
+}
+
+function computeTrajectory(score, history) {
+  const n = history.length;
+  if (n < 4) return 'RISING';
+  const avg = (history[n-2].score + history[n-3].score + history[n-4].score) / 3;
+  const diff = score - avg;
+  if (diff >  TRAJECTORY_FLAT_BAND) return 'RISING';
+  if (diff < -TRAJECTORY_FLAT_BAND) return 'FALLING';
+  return 'FLAT';
 }
 
 function calcCentreScore(centreIdx) {
   const brandsAtCentre = BRANDS.filter(b => (PRESENCE[b.id] || [])[centreIdx] === 1);
-  if (brandsAtCentre.length === 0) return { score: 0, phase: 'gone', onSale: [] };
+  if (brandsAtCentre.length === 0) return { score: 0, onSale: [], total: 0 };
 
-  let totalRipeness = 0;
+  let totalFreshness = 0;
   const onSale = [];
 
   for (const brand of brandsAtCentre) {
     const sale = SALE_STATUS[brand.id];
     const days = DAYS_RUNNING[brand.id] || 0;
     if (sale === true && days > 0) {
-      const r = ripenessScore(days);
-      totalRipeness += r;
-      onSale.push({ ...brand, days, ripeness: r, phase: phaseForDays(days) });
+      const freshness = brandFreshnessScore(days);
+      if (freshness === 0) continue;
+      const weight = ANCHOR_BRAND_IDS.has(brand.id) ? ANCHOR_MULTIPLIER : 1.0;
+      totalFreshness += freshness * weight;
+      onSale.push({ ...brand, days, freshness });
     }
   }
 
-  const score = Math.round(totalRipeness / brandsAtCentre.length);
-
-  // Determine overall phase from score
-  let phase;
-  if (score === 0)      phase = 'gone';
-  else if (score < 20) phase = 'bud';
-  else if (score < 45) phase = 'ripening';
-  else if (score < 70) phase = 'peak';
-  else                 phase = 'bowl';
-
-  return { score, phase, onSale, total: brandsAtCentre.length };
+  const score = Math.round((totalFreshness / brandsAtCentre.length) * 100);
+  return { score, onSale, total: brandsAtCentre.length };
 }
 
 function computeHistoricalScores(centreIdx) {
   const brandsAtCentre = BRANDS.filter(b => (PRESENCE[b.id] || [])[centreIdx] === 1);
   if (!brandsAtCentre.length || !SHEET_DATE_COLS.length) return [];
   return SHEET_DATE_COLS.slice(-60).map(({ idx, date }) => {
-    let totalRipeness = 0;
+    let totalFreshness = 0;
     for (const brand of brandsAtCentre) {
       const row = SHEET_ROWS[brand.id];
       if (!row) continue;
@@ -748,9 +762,12 @@ function computeHistoricalScores(centreIdx) {
       for (let c = idx; c >= 2; c--) {
         if (row[c]?.trim().replace(/"/g, '') === 'TRUE') days++; else break;
       }
-      totalRipeness += ripenessScore(Math.max(days, 1));
+      const freshness = brandFreshnessScore(Math.max(days, 1));
+      if (freshness === 0) continue;
+      const weight = ANCHOR_BRAND_IDS.has(brand.id) ? ANCHOR_MULTIPLIER : 1.0;
+      totalFreshness += freshness * weight;
     }
-    return { date, score: Math.round(totalRipeness / brandsAtCentre.length) };
+    return { date, score: Math.round((totalFreshness / brandsAtCentre.length) * 100) };
   });
 }
 
@@ -810,11 +827,11 @@ function renderHistoryChart(history, color, isDemo = false) {
   const areaD = `${lineD} L${pts[n-1][0]},${PT+H} L${pts[0][0]},${PT+H}Z`;
   const [lx, ly] = pts[n - 1];
 
-  const diff = history[n-1].score - history[n-2].score;
+  const traj = computeTrajectory(history[n-1].score, history);
   const [trajArrow, trajText, trajColor] =
-    diff >= 2  ? ['↑', 'Rising',   color] :
-    diff <= -2 ? ['↓', 'Dropping', color] :
-                 ['→', 'Holding',  '#8C8070'];
+    traj === 'RISING'  ? ['↑', 'Rising',  color] :
+    traj === 'FALLING' ? ['↓', 'Falling', color] :
+                         ['→', 'Flat',    '#8C8070'];
 
   const gridLines = [25, 50, 75].map(pct => {
     const gy = +(PT + (1 - pct / 100) * H).toFixed(1);
@@ -865,8 +882,11 @@ function renderCentre(centreId) {
 
   const centreIdx = parseInt(centreId.replace('C', '')) - 1;
   const centreName = CENTRE_NAMES[centreIdx];
-  const { score, phase, onSale, total } = calcCentreScore(centreIdx);
-  const style = phaseStyle(phase);
+  const history = computeHistoricalScores(centreIdx);
+  const { score, onSale, total } = calcCentreScore(centreIdx);
+  const trajectory = computeTrajectory(score, history);
+  const stage = getTideStage(score, trajectory);
+  const style = stageStyle(stage);
 
   // Group brands by cluster for display
   const allBrandsAtCentre = BRANDS.filter(b => (PRESENCE[b.id] || [])[centreIdx] === 1);
@@ -899,6 +919,7 @@ function renderCentre(centreId) {
           <div class="score-number">${score}</div>
           <div class="score-right">
             <div class="phase-badge">${style.label}</div>
+            <div class="traj-indicator" style="color:${style.color}">${trajectory === 'RISING' ? '↑ Rising' : trajectory === 'FALLING' ? '↓ Falling' : '→ Flat'}</div>
             <div class="centre-name-display">${centreName}</div>
           </div>
         </div>
@@ -908,14 +929,14 @@ function renderCentre(centreId) {
             <div class="ripeness-fill" id="rip-fill" style="width: 0%; background: ${style.color}"></div>
           </div>
           <div class="ripeness-phases">
-            <span>Bud</span><span>Ripening</span><span>Pick now</span><span>In the bowl</span><span>Gone</span>
+            <span>Flat</span><span>Turning</span><span>Rising</span><span>High Tide</span>
           </div>
         </div>
         <div class="score-message">${style.msg}</div>
       </div>
     </div>
 
-    ${(() => { const h = computeHistoricalScores(centreIdx); const isDemo = h.length < 2; return renderHistoryChart(isDemo ? generateMockHistory(centreIdx) : h, style.color, isDemo); })()}
+    ${(() => { const isDemo = history.length < 2; return renderHistoryChart(isDemo ? generateMockHistory(centreIdx) : history, style.color, isDemo); })()}
 
     <div class="brands-section" id="brands-section">
       <div class="section-heading">

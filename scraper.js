@@ -108,12 +108,20 @@ async function runPlaywrightCrawler() {
     requestHandlerTimeoutSecs: 60,
     maxConcurrency: 2,
     useSessionPool: false,
+    browserPoolOptions: {
+      useFingerprints: true,
+    },
     launchContext: {
       launchOptions: {
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
       },
     },
+    preNavigationHooks: [
+      async ({ page }) => {
+        await page.setExtraHTTPHeaders({ 'accept-language': 'en-GB,en;q=0.9' });
+      },
+    ],
 
     async requestHandler({ request, page }) {
       const brand = brandMap.get(request.url) || brandMap.get(page.url());

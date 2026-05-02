@@ -217,7 +217,118 @@ async function calculateAllCentreScores() {
   console.log('\n✅ Scoring complete');
 }
 
-calculateAllCentreScores().catch(err => {
+// ── Personal score helpers ─────────────────────────────────────────────────────
+
+function brandMatchesPrefs(brand, prefs) {
+  const genderMatch =
+    (prefs.womenswear    && brand.womenswear)    ||
+    (prefs.menswear      && brand.menswear)      ||
+    (prefs.childrenswear && brand.childrenswear);
+  if (!genderMatch) return false;
+  if (prefs.style_clusters && prefs.style_clusters.length > 0) {
+    if (!prefs.style_clusters.includes(brand.cluster)) return false;
+  }
+  return true;
+}
+
+async function calculatePersonalScores() {
+  console.log('\nCalculating personal scores...');
+
+  const [centresRes, centreBrandsRes, brandSaleRes, prefsRes] = await Promise.all([
+    supabase.from('centres').select('id, name').eq('active', true),
+    supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
+    supabase.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, scraper_error'),
+    supabase.from('user_preferences').select('*'),
+  ]);
+
+  if (centresRes.error || centreBrandsRes.error || brandSaleRes.error) {
+    throw new Error(
+      `Personal scores data load failed: ${(centresRes.error || centreBrandsRes.error || brandSaleRes.error).message}`
+    );
+  }
+
+  if (!prefsRes.data || prefsRes.data.length === 0) {
+    console.log('  No user preferences found, skipping personal scores');
+    return;
+  }
+
+  const brandSaleMap = new Map(brandSaleRes.data.map(b => [b.brand_id, b]));
+
+  const centreBrandMap = new Map();
+  for (const { centre_id, brand_id } of centreBrandsRes.data) {
+    if (!centreBrandMap.has(centre_id)) centreBrandMap.set(centre_id, []);
+    centreBrandMap.get(centre_id).push(brand_id);
+  }
+
+  const scoreRows = [];
+
+  for (const pref of prefsRes.data) {
+    for (const centre of centresRes.data) {
+      const brandIds = centreBrandMap.get(centre.id) || [];
+
+      const matchingBrandIds = brandIds.filter(brandId => {
+        const brand = brands.find(b => b.id === brandId);
+        return brand && brandMatchesPrefs(brand, pref);
+      });
+
+      if (matchingBrandIds.length === 0) continue;
+
+      let totalRipeness  = 0;
+      let matchingOnSale = 0;
+
+      for (const brandId of matchingBrandIds) {
+        const sale = brandSaleMap.get(brandId);
+        if (!sale || sale.scraper_error || !sale.sale_status) continue;
+
+        const daysRunning = sale.date_first_detected
+          ? Math.floor((new Date(TODAY) - new Date(sale.date_first_detected)) / 86400000) + 1
+          : 1;
+
+        totalRipeness += brandRipenessScore(daysRunning);
+        matchingOnSale++;
+      }
+
+      const personalScore = Math.round((totalRipeness / matchingBrandIds.length) * 10) / 10;
+      const { verdict } = getTideStage(personalScore, 'HOLDING');
+
+      scoreRows.push({
+        user_id:             pref.user_id,
+        centre_id:           centre.id,
+        score_date:          TODAY,
+        personal_tide_score: personalScore,
+        matching_brands:     matchingBrandIds.length,
+        matching_on_sale:    matchingOnSale,
+        verdict,
+      });
+    }
+  }
+
+  if (scoreRows.length === 0) {
+    console.log('  No personal scores to write');
+    return;
+  }
+
+  const { error } = await supabase
+    .from('personal_tide_scores')
+    .upsert(scoreRows, { onConflict: 'user_id,centre_id,score_date' });
+
+  if (error) throw new Error(`Personal score write failed: ${error.message}`);
+
+  console.log(`  ✓ ${scoreRows.length} personal scores written for ${prefsRes.data.length} user(s)`);
+}
+
+// ── Main ───────────────────────────────────────────────────────────────────────
+
+async function main() {
+  await calculateAllCentreScores();
+  try {
+    await calculatePersonalScores();
+  } catch (err) {
+    console.error('⚠ Personal scores failed (centre scores unaffected):', err.message);
+  }
+}
+
+main().catch(err => {
   console.error('❌ Scorer failed:', err);
   process.exit(1);
 });

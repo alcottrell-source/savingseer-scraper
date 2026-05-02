@@ -7,670 +7,121 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
-    --cream:   #FAF7F2;
-    --bark:    #2C1810;
-    --leaf:    #3D6B35;
-    --leaf-lt: #EEF4EC;
-    --amber:   #C17A2B;
-    --amber-lt:#FBF2E4;
-    --red:     #B84C3A;
-    --red-lt:  #FAEAE7;
-    --stone:   #8C8070;
-    --stone-lt:#F2EFE9;
-    --border:  rgba(44,24,16,0.10);
+    --cream:   #FAF7F2; --bark: #2C1810; --leaf: #3D6B35; --leaf-lt: #EEF4EC;
+    --amber: #C17A2B; --amber-lt: #FBF2E4; --red: #B84C3A; --red-lt: #FAEAE7;
+    --stone: #8C8070; --stone-lt: #F2EFE9; --border: rgba(44,24,16,0.10);
   }
-
   html { font-size: 16px; }
-
-  body {
-    background: var(--cream);
-    color: var(--bark);
-    font-family: 'DM Sans', sans-serif;
-    font-weight: 300;
-    min-height: 100vh;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  /* ── Header ── */
-  header {
-    padding: 28px 24px 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    background: var(--cream);
-    z-index: 100;
-  }
-
-  .wordmark {
-    font-family: 'Playfair Display', serif;
-    font-size: 22px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    color: var(--bark);
-  }
-
+  body { background: var(--cream); color: var(--bark); font-family: 'DM Sans', sans-serif; font-weight: 300; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--cream); z-index: 100; }
+  .wordmark { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--bark); }
   .wordmark span { color: var(--leaf); }
-
-  .tagline {
-    font-size: 12px;
-    color: var(--stone);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
-  /* ── Centre picker ── */
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .tagline { font-size: 12px; color: var(--stone); letter-spacing: 0.06em; text-transform: uppercase; }
+  .auth-btn { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: var(--leaf); background: var(--leaf-lt); border: 1px solid rgba(61,107,53,0.2); border-radius: 20px; padding: 6px 14px; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
+  .auth-btn:hover { background: rgba(61,107,53,0.12); }
   .picker-section { padding: 32px 24px 0; }
-
-  .picker-label {
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--stone);
-    margin-bottom: 10px;
-    display: block;
-  }
-
-  .centre-select {
-    width: 100%;
-    appearance: none;
-    background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238C8070' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 16px center;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 44px 14px 16px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 15px;
-    font-weight: 400;
-    color: var(--bark);
-    cursor: pointer;
-    transition: border-color 0.2s;
-  }
-
+  .picker-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 10px; display: block; }
+  .centre-select { width: 100%; appearance: none; background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238C8070' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 16px center; border: 1px solid var(--border); border-radius: 8px; padding: 14px 44px 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 400; color: var(--bark); cursor: pointer; transition: border-color 0.2s; }
   .centre-select:focus { outline: none; border-color: var(--leaf); }
-
-  /* ── Score card ── */
   .score-section { padding: 24px 24px 0; }
-
-  .score-card {
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 28px 24px;
-    position: relative;
-    overflow: hidden;
-    opacity: 0;
-    transform: translateY(12px);
-    transition: opacity 0.4s ease, transform 0.4s ease;
-  }
-
+  .score-card { background: white; border: 1px solid var(--border); border-radius: 16px; padding: 24px 24px 20px; position: relative; overflow: hidden; opacity: 0; transform: translateY(12px); transition: opacity 0.4s ease, transform 0.4s ease; }
   .score-card.visible { opacity: 1; transform: translateY(0); }
-
-  .score-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 4px;
-    background: var(--phase-color, var(--leaf));
-    border-radius: 16px 16px 0 0;
-  }
-
-  .score-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-bottom: 20px;
-  }
-
-  .score-number {
-    font-family: 'Playfair Display', serif;
-    font-size: 72px;
-    font-weight: 600;
-    line-height: 1;
-    color: var(--phase-color, var(--leaf));
-  }
-
+  .score-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--phase-color, var(--leaf)); border-radius: 16px 16px 0 0; }
+  .score-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .score-numbers { display: flex; align-items: baseline; gap: 14px; }
+  .score-number { font-family: 'Playfair Display', serif; font-size: 72px; font-weight: 600; line-height: 1; color: var(--phase-color, var(--leaf)); }
+  .personal-score-badge { font-family: 'Playfair Display', serif; font-size: 36px; font-weight: 400; line-height: 1; color: var(--amber); display: flex; flex-direction: column; align-items: flex-start; }
+  .personal-score-label { font-family: 'DM Sans', sans-serif; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); font-weight: 400; margin-bottom: 2px; }
   .score-right { text-align: right; }
-
-  .phase-badge {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    padding: 5px 12px;
-    border-radius: 20px;
-    background: var(--phase-bg, var(--leaf-lt));
-    color: var(--phase-color, var(--leaf));
-    margin-bottom: 8px;
-  }
-
-  .centre-name-display {
-    font-family: 'Playfair Display', serif;
-    font-size: 18px;
-    color: var(--bark);
-    font-style: italic;
-  }
-
-  .score-message {
-    font-size: 14px;
-    color: var(--stone);
-    line-height: 1.6;
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-  }
-
-  /* ── Personal verdict lines ── */
-  .personal-verdict {
-    font-size: 14px;
-    color: var(--amber);
-    font-weight: 500;
-    margin-top: 6px;
-  }
-
-  .personal-support {
-    font-size: 13px;
-    color: var(--stone);
-    margin-top: 4px;
-  }
-
-  /* ── Ripeness bar ── */
-  .ripeness-section { margin-top: 20px; }
-
-  .ripeness-label {
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--stone);
-    margin-bottom: 8px;
-    display: block;
-  }
-
-  .ripeness-track {
-    height: 6px;
-    background: var(--stone-lt);
-    border-radius: 3px;
-    margin-bottom: 6px;
-    position: relative;
-  }
-
-  .ripeness-fill {
-    height: 100%;
-    border-radius: 3px;
-    background: var(--phase-color, var(--leaf));
-    transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-
-  /* Dual-arc mode: overflow visible so markers don't clip */
-  .ripeness-track.dual-arc { overflow: visible; }
-
-  .arc-marker {
-    position: absolute;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    transition: left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-
-  .centre-marker {
-    width: 12px;
-    height: 12px;
-    background: var(--stone);
-    z-index: 1;
-  }
-
-  .personal-marker {
-    width: 16px;
-    height: 16px;
-    background: var(--amber);
-    box-shadow: 0 0 0 2px white, 0 0 0 3.5px var(--amber);
-    z-index: 2;
-  }
-
-  .arc-legend {
-    display: flex;
-    gap: 16px;
-    margin-top: 10px;
-    font-size: 11px;
-    color: var(--stone);
-  }
-
+  .phase-badge { display: inline-block; font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; padding: 5px 12px; border-radius: 20px; background: var(--phase-bg, var(--leaf-lt)); color: var(--phase-color, var(--leaf)); margin-bottom: 8px; }
+  .centre-name-display { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--bark); font-style: italic; }
+  .arc-wrap { margin: 16px 0 8px; }
+  .arc-svg { width: 100%; max-width: 320px; display: block; margin: 0 auto; }
+  .arc-legend { display: flex; justify-content: center; gap: 20px; margin-top: 8px; font-size: 11px; color: var(--stone); letter-spacing: 0.04em; }
   .arc-legend-item { display: flex; align-items: center; gap: 5px; }
-
-  .legend-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .legend-dot.centre-dot  { background: var(--stone); }
-  .legend-dot.personal-dot { background: var(--amber); }
-
-  .ripeness-phases {
-    display: flex;
-    justify-content: space-between;
-    font-size: 10px;
-    color: var(--stone);
-    letter-spacing: 0.04em;
-    margin-top: 4px;
-  }
-
-  /* ── Nudge card ── */
-  .nudge-card {
-    margin: 16px 24px 0;
-    background: var(--amber-lt);
-    border: 1px solid rgba(193,122,43,0.2);
-    border-radius: 12px;
-    padding: 16px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .nudge-text {
-    font-size: 13px;
-    color: var(--bark);
-    line-height: 1.5;
-  }
-
-  .nudge-text strong { font-weight: 500; display: block; margin-bottom: 2px; }
-
-  .btn-nudge {
-    flex-shrink: 0;
-    background: var(--amber);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 18px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: opacity 0.15s;
-  }
-
-  .btn-nudge:hover { opacity: 0.88; }
-
-  /* ── Brand list ── */
-  .brands-section {
-    padding: 24px 24px 0;
-    opacity: 0;
-    transform: translateY(8px);
-    transition: opacity 0.4s ease 0.15s, transform 0.4s ease 0.15s;
-  }
-
+  .arc-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .evidence-strip { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin: 12px 0 10px; font-size: 12px; color: var(--stone); gap: 8px; flex-wrap: wrap; }
+  .evidence-item { display: flex; align-items: center; gap: 5px; }
+  .evidence-num { font-weight: 500; color: var(--bark); }
+  .personal-no-match { font-size: 12px; color: var(--stone); font-style: italic; padding: 8px 0 4px; border-top: 1px solid var(--border); }
+  .personal-verdict-line { font-size: 13px; color: var(--amber); padding: 6px 0 2px; font-weight: 400; }
+  .score-message { font-size: 14px; color: var(--stone); line-height: 1.6; padding-top: 10px; border-top: 1px solid var(--border); }
+  .arc-widget { display: block; width: 100%; height: auto; margin-top: 16px; overflow: visible; }
+  .brands-section { padding: 24px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.15s, transform 0.4s ease 0.15s; }
   .brands-section.visible { opacity: 1; transform: translateY(0); }
-
-  .section-heading {
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--stone);
-    margin-bottom: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .on-sale-count {
-    background: var(--leaf-lt);
-    color: var(--leaf);
-    font-size: 10px;
-    font-weight: 500;
-    padding: 2px 8px;
-    border-radius: 10px;
-  }
-
-  .brand-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
-  .brand-chip {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 14px;
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    font-size: 13px;
-    color: var(--bark);
-    transition: border-color 0.2s;
-  }
-
-  .brand-chip.on-sale {
-    border-color: rgba(61,107,53,0.25);
-    background: var(--leaf-lt);
-  }
-
+  .section-heading { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+  .on-sale-count { background: var(--leaf-lt); color: var(--leaf); font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
+  .brand-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .brand-chip { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--bark); transition: border-color 0.2s; }
+  .brand-chip.on-sale { border-color: rgba(61,107,53,0.25); background: var(--leaf-lt); }
   .brand-chip.on-sale .brand-name { font-weight: 500; color: var(--bark); }
-
-  .sale-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--leaf);
-    flex-shrink: 0;
-  }
-
-  .no-sale-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--stone-lt);
-    border: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-
-  /* ── Empty state ── */
+  .sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); flex-shrink: 0; }
+  .no-sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--stone-lt); border: 1px solid var(--border); flex-shrink: 0; }
   .empty-state { padding: 60px 24px; text-align: center; }
-
-  .empty-apple { font-size: 48px; margin-bottom: 16px; display: block; }
-
-  .empty-title {
-    font-family: 'Playfair Display', serif;
-    font-size: 22px;
-    color: var(--bark);
-    margin-bottom: 8px;
-  }
-
-  .empty-sub {
-    font-size: 14px;
-    color: var(--stone);
-    line-height: 1.6;
-    max-width: 260px;
-    margin: 0 auto;
-  }
-
-  /* ── Cluster dividers ── */
-  .cluster-label {
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--stone);
-    padding: 12px 0 6px;
-    grid-column: 1 / -1;
-    border-top: 1px solid var(--border);
-    margin-top: 4px;
-  }
-
-  .cluster-label:first-child { border-top: none; padding-top: 0; margin-top: 0; }
-
-  /* ── Footer ── */
-  footer {
-    padding: 32px 24px;
-    margin-top: 40px;
-    border-top: 1px solid var(--border);
-    font-size: 11px;
-    color: var(--stone);
-    text-align: center;
-    letter-spacing: 0.04em;
-  }
-
-  .updated-at {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 6px;
-    font-size: 11px;
-    color: var(--stone);
-  }
-
-  .live-dot {
-    width: 6px; height: 6px;
-    background: var(--leaf);
-    border-radius: 50%;
-    animation: pulse 2s ease-in-out infinite;
-  }
-
+  .empty-icon { font-size: 48px; margin-bottom: 16px; display: block; }
+  .empty-title { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--bark); margin-bottom: 8px; }
+  .empty-sub { font-size: 14px; color: var(--stone); line-height: 1.6; max-width: 260px; margin: 0 auto; }
+  footer { padding: 32px 24px; margin-top: 40px; border-top: 1px solid var(--border); font-size: 11px; color: var(--stone); text-align: center; letter-spacing: 0.04em; }
+  .updated-at { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11px; color: var(--stone); }
+  .live-dot { width: 6px; height: 6px; background: var(--leaf); border-radius: 50%; animation: pulse 2s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-  /* ══════════════════════════════════════════════════════════
-     REGISTRATION MODAL
-  ══════════════════════════════════════════════════════════ */
-
-  .modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(44,24,16,0.45);
-    z-index: 500;
-    align-items: flex-end;
-    justify-content: center;
-    padding: 0;
-  }
-
-  @media (min-width: 480px) {
-    .modal-overlay { align-items: center; padding: 24px; }
-  }
-
-  .modal {
-    background: var(--cream);
-    border-radius: 20px 20px 0 0;
-    width: 100%;
-    max-width: 480px;
-    padding: 0 0 env(safe-area-inset-bottom, 0);
-    max-height: 92vh;
-    overflow-y: auto;
-  }
-
-  @media (min-width: 480px) {
-    .modal { border-radius: 20px; }
-  }
-
-  .modal-handle {
-    width: 36px;
-    height: 4px;
-    background: var(--border);
-    border-radius: 2px;
-    margin: 12px auto 0;
-  }
-
-  .modal-screen { padding: 28px 28px 32px; }
-  .modal-screen.hidden { display: none; }
-
-  .modal-step {
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--stone);
-    margin-bottom: 10px;
-  }
-
-  .modal-title {
-    font-family: 'Playfair Display', serif;
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--bark);
-    margin-bottom: 6px;
-    line-height: 1.2;
-  }
-
-  .modal-sub {
-    font-size: 14px;
-    color: var(--stone);
-    line-height: 1.5;
-    margin-bottom: 24px;
-  }
-
-  /* Auth form */
-  .form-field { margin-bottom: 14px; }
-
-  .form-label {
-    display: block;
-    font-size: 12px;
-    letter-spacing: 0.04em;
-    color: var(--stone);
-    margin-bottom: 6px;
-  }
-
-  .form-input {
-    width: 100%;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 13px 16px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 15px;
-    font-weight: 400;
-    color: var(--bark);
-    background: white;
-    transition: border-color 0.2s;
-  }
-
-  .form-input:focus { outline: none; border-color: var(--leaf); }
-
-  .field-error {
-    font-size: 13px;
-    color: var(--red);
-    margin-top: 8px;
-    min-height: 18px;
-    line-height: 1.4;
-  }
-
-  .switch-link {
-    font-size: 13px;
-    color: var(--stone);
-    text-align: center;
-    margin-top: 14px;
-  }
-
-  .link-btn {
-    color: var(--leaf);
-    cursor: pointer;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-
-  /* Preference chips */
-  .pref-options {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 28px;
-  }
-
-  .pref-chip {
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px 20px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 400;
-    color: var(--bark);
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-    flex-grow: 1;
-    text-align: center;
-  }
-
-  .pref-chip:hover { border-color: var(--amber); }
-
-  .pref-chip.selected {
-    background: var(--amber-lt);
-    border-color: var(--amber);
-    color: var(--bark);
-    font-weight: 500;
-  }
-
-  /* Centre list (Screen 3) */
-  .centre-search-input {
-    width: 100%;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 16px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    color: var(--bark);
-    background: white;
-    margin-bottom: 10px;
-  }
-
-  .centre-search-input:focus { outline: none; border-color: var(--leaf); }
-
-  .centre-list {
-    max-height: 240px;
-    overflow-y: auto;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    margin-bottom: 20px;
-    background: white;
-  }
-
-  .centre-option {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--border);
-    transition: background 0.12s;
-  }
-
-  .centre-option:last-child { border-bottom: none; }
-  .centre-option:hover { background: var(--stone-lt); }
-
-  .centre-option.selected { background: var(--amber-lt); }
-
-  .centre-opt-name { font-size: 14px; color: var(--bark); font-weight: 400; }
-  .centre-opt-town { font-size: 12px; color: var(--stone); }
-
-  /* Buttons */
-  .btn-primary {
-    width: 100%;
-    background: var(--leaf);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    padding: 15px 24px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: opacity 0.15s;
-  }
-
-  .btn-primary:hover { opacity: 0.88; }
-  .btn-primary:disabled { opacity: 0.4; cursor: default; }
-
-  .btn-ghost {
-    width: 100%;
-    background: transparent;
-    color: var(--stone);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 13px 24px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 400;
-    cursor: pointer;
-    margin-top: 10px;
-    transition: border-color 0.15s;
-  }
-
-  .btn-ghost:hover { border-color: var(--stone); }
+  .cluster-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); padding: 12px 0 6px; grid-column: 1 / -1; border-top: 1px solid var(--border); margin-top: 4px; }
+  .cluster-label:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(44,24,16,0.45); display: flex; align-items: center; justify-content: center; z-index: 500; padding: 20px; }
+  .modal { background: white; border-radius: 20px; padding: 32px 28px 28px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; position: relative; }
+  .modal-close { position: absolute; top: 16px; right: 18px; background: none; border: none; font-size: 22px; color: var(--stone); cursor: pointer; line-height: 1; padding: 2px 6px; }
+  .modal-close:hover { color: var(--bark); }
+  .modal-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; color: var(--bark); margin-bottom: 6px; }
+  .modal-subtitle { font-size: 13px; color: var(--stone); margin-bottom: 24px; line-height: 1.5; }
+  .modal-step-indicator { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); margin-bottom: 20px; }
+  .auth-input { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-family: 'DM Sans', sans-serif; font-size: 15px; color: var(--bark); background: white; margin-bottom: 10px; transition: border-color 0.2s; }
+  .auth-input:focus { outline: none; border-color: var(--leaf); }
+  .auth-error { background: var(--red-lt); color: var(--red); border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
+  .btn { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; border-radius: 8px; padding: 12px 20px; cursor: pointer; border: none; transition: background 0.2s, opacity 0.2s; width: 100%; margin-top: 8px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--leaf); color: white; }
+  .btn-primary:hover:not(:disabled) { background: #2f5428; }
+  .btn-secondary { background: var(--stone-lt); color: var(--bark); }
+  .btn-secondary:hover:not(:disabled) { background: #e8e4de; }
+  .btn-text { background: none; color: var(--stone); font-size: 13px; padding: 8px; margin-top: 4px; }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row .btn { flex: 1; }
+  .pref-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 24px; }
+  .pref-pill { font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 400; padding: 8px 16px; border: 1px solid var(--border); border-radius: 20px; background: white; color: var(--bark); cursor: pointer; transition: all 0.15s; }
+  .pref-pill:hover { border-color: var(--leaf); color: var(--leaf); }
+  .pref-pill.active { background: var(--leaf-lt); border-color: var(--leaf); color: var(--leaf); font-weight: 500; }
+  .preview-card { background: var(--stone-lt); border-radius: 12px; padding: 18px 20px; margin: 16px 0 24px; }
+  .preview-score { font-family: 'Playfair Display', serif; font-size: 48px; font-weight: 600; color: var(--amber); line-height: 1; margin-bottom: 4px; }
+  .preview-label { font-size: 12px; color: var(--stone); letter-spacing: 0.04em; }
+  .preview-meta { font-size: 13px; color: var(--stone); margin-top: 10px; line-height: 1.5; }
+  .preview-empty { font-size: 13px; color: var(--stone); font-style: italic; margin: 16px 0 24px; line-height: 1.6; }
+  .signout-link { font-size: 12px; color: var(--stone); background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0; margin-top: 16px; display: block; text-align: center; }
+  .history-section { padding: 16px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.08s, transform 0.4s ease 0.08s; }
+  .history-section.visible { opacity: 1; transform: translateY(0); }
+  .history-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 10px; }
+  .traj-indicator { font-size: 12px; font-weight: 500; margin-top: 3px; letter-spacing: 0; text-transform: none; }
+  .demo-badge { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); text-align: right; margin-top: 6px; opacity: 0.7; }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="wordmark"><span>T</span>ide</div>
-  <div class="tagline">Know when to go</div>
+  <div class="wordmark">Ti<span>de</span></div>
+  <div class="header-right">
+    <div class="tagline">Know when to go</div>
+    <button class="auth-btn" id="auth-btn" onclick="onAuthBtnClick()">Sign in</button>
+  </div>
 </header>
 
 <div class="picker-section">
   <span class="picker-label">Choose your shopping centre</span>
   <select class="centre-select" id="centre-select" onchange="renderCentre(this.value)">
-    <option value="">— Select a centre —</option>
+    <option value="">-- Select a centre --</option>
     <option value="C01">Festival Place, Basingstoke</option>
     <option value="C02">Westquay, Southampton</option>
     <option value="C03">Westfield London</option>
@@ -679,7 +130,7 @@
     <option value="C06">Metrocentre, Gateshead</option>
     <option value="C07">Bluewater, Kent</option>
     <option value="C08">Meadowhall, Sheffield</option>
-    <option value="C09">Bullring & Grand Central, Birmingham</option>
+    <option value="C09">Bullring &amp; Grand Central, Birmingham</option>
     <option value="C10">Lakeside, Essex</option>
     <option value="C11">Liverpool ONE</option>
     <option value="C12">St David's, Cardiff</option>
@@ -706,226 +157,352 @@
 
 <div id="main-content">
   <div class="empty-state">
-    <span class="empty-apple">🌊</span>
-    <p class="empty-title">Is it High Tide?</p>
+    <span class="empty-icon">&#127754;</span>
+    <p class="empty-title">When does the tide come in?</p>
     <p class="empty-sub">Pick a shopping centre to see today's Tide Score and which brands are on sale right now.</p>
   </div>
 </div>
 
-<!-- Nudge card — shown after centre selected, for unregistered users -->
-<div class="nudge-card" id="nudge-card" style="display:none">
-  <div class="nudge-text">
-    <strong>See your personal Tide Score</strong>
-    Filter to your brands — women's, men's, or children's — and see if your moment is different.
-  </div>
-  <button class="btn-nudge" onclick="openModal()">Save →</button>
-</div>
-
 <footer>
-  Tide &nbsp;·&nbsp; Updated daily at 08:00
+  Tide &nbsp;&middot;&nbsp; Updated daily at 07:00
   <div class="updated-at">
     <span class="live-dot"></span>
-    Live sale data · <span id="today-date"></span>
+    Live sale data &middot; <span id="today-date"></span>
   </div>
 </footer>
 
-<!-- ══════════════════════════════════════════════════════════
-     REGISTRATION MODAL
-══════════════════════════════════════════════════════════ -->
-<div class="modal-overlay" id="modal-overlay" onclick="overlayClick(event)">
-  <div class="modal" id="modal-box">
-    <div class="modal-handle"></div>
-
-    <!-- ── Auth screen (step 0 — always first) ── -->
-    <div class="modal-screen" id="screen-auth">
-      <p class="modal-step">Create your account</p>
-      <h2 class="modal-title" id="auth-title">Create your account</h2>
-      <p class="modal-sub">Takes under 90 seconds. Free forever.</p>
-
-      <div class="form-field">
-        <label class="form-label" for="auth-email">Email address</label>
-        <input class="form-input" type="email" id="auth-email" placeholder="you@example.com" autocomplete="email">
-      </div>
-      <div class="form-field">
-        <label class="form-label" for="auth-password">Password</label>
-        <input class="form-input" type="password" id="auth-password" placeholder="Minimum 8 characters" autocomplete="new-password">
-      </div>
-      <p class="field-error" id="auth-error"></p>
-
-      <button class="btn-primary" id="btn-auth" onclick="handleAuth()">Create account</button>
-
-      <p class="switch-link" id="auth-switch-text">
-        Already have an account?
-        <span class="link-btn" onclick="switchToSignIn()">Sign in</span>
-      </p>
+<div id="auth-modal" class="modal-overlay" style="display:none" onclick="closeAuthModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeAuthModal()">&times;</button>
+    <h2 class="modal-title">Sign in to Tide</h2>
+    <p class="modal-subtitle">See your personal Tide Score based on the brands you love.</p>
+    <div id="auth-error" class="auth-error" style="display:none"></div>
+    <input class="auth-input" id="auth-email" type="email" placeholder="Email address" autocomplete="email">
+    <input class="auth-input" id="auth-password" type="password" placeholder="Password" autocomplete="current-password">
+    <div class="btn-row" style="margin-top:4px">
+      <button class="btn btn-primary" id="btn-signin" onclick="signIn()">Sign in</button>
+      <button class="btn btn-secondary" id="btn-signup" onclick="signUp()">Create account</button>
     </div>
+  </div>
+</div>
 
-    <!-- ── Screen 1: Who are you shopping for? ── -->
-    <div class="modal-screen hidden" id="screen-1">
-      <p class="modal-step">Step 1 of 3</p>
-      <h2 class="modal-title">Who are you shopping for?</h2>
-      <p class="modal-sub">Select all that apply. Your score only counts brands that match.</p>
-
-      <div class="pref-options">
-        <button class="pref-chip" data-value="women"    onclick="toggleGender(this)">Women</button>
-        <button class="pref-chip" data-value="men"      onclick="toggleGender(this)">Men</button>
-        <button class="pref-chip" data-value="children" onclick="toggleGender(this)">Children</button>
+<div id="prefs-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <button class="modal-close" onclick="closePrefsModal()">&times;</button>
+    <div id="pref-step-1">
+      <div class="modal-step-indicator">Step 1 of 3</div>
+      <h2 class="modal-title">What do you mainly shop for?</h2>
+      <p class="modal-subtitle">Select all that apply -- we'll filter your personal score to brands that match.</p>
+      <div class="pref-grid" id="gender-pills">
+        <button class="pref-pill" data-key="womenswear" onclick="togglePrefPill(this)">Women's</button>
+        <button class="pref-pill" data-key="menswear" onclick="togglePrefPill(this)">Men's</button>
+        <button class="pref-pill" data-key="childrenswear" onclick="togglePrefPill(this)">Children's</button>
       </div>
-
-      <button class="btn-primary" id="btn-next-1" onclick="showScreen(2)" disabled>Next →</button>
+      <button class="btn btn-primary" onclick="prefsNextStep(2)">Next</button>
     </div>
-
-    <!-- ── Screen 2: Style clusters ── -->
-    <div class="modal-screen hidden" id="screen-2">
-      <p class="modal-step">Step 2 of 3</p>
-      <h2 class="modal-title">What do you love shopping?</h2>
-      <p class="modal-sub">Optional — skip if you want all brands included.</p>
-
-      <div class="pref-options">
-        <button class="pref-chip" data-value="high_street"     onclick="toggleCluster(this)">High Street</button>
-        <button class="pref-chip" data-value="premium_casual"  onclick="toggleCluster(this)">Premium</button>
-        <button class="pref-chip" data-value="active"          onclick="toggleCluster(this)">Active</button>
-        <button class="pref-chip" data-value="classic_british" onclick="toggleCluster(this)">Classic British</button>
+    <div id="pref-step-2" style="display:none">
+      <div class="modal-step-indicator">Step 2 of 3</div>
+      <h2 class="modal-title">What's your style?</h2>
+      <p class="modal-subtitle">Choose your favourite shopping zones. Leave all unselected to include all clusters.</p>
+      <div class="pref-grid" id="cluster-pills">
+        <button class="pref-pill" data-key="High Street" onclick="togglePrefPill(this)">High Street</button>
+        <button class="pref-pill" data-key="Contemporary" onclick="togglePrefPill(this)">Contemporary</button>
+        <button class="pref-pill" data-key="Classic British" onclick="togglePrefPill(this)">Classic British</button>
+        <button class="pref-pill" data-key="Smart/Occasion" onclick="togglePrefPill(this)">Smart / Occasion</button>
+        <button class="pref-pill" data-key="Premium Casual" onclick="togglePrefPill(this)">Premium Casual</button>
+        <button class="pref-pill" data-key="Active" onclick="togglePrefPill(this)">Active / Outdoorsy</button>
+        <button class="pref-pill" data-key="Footwear" onclick="togglePrefPill(this)">Footwear</button>
+        <button class="pref-pill" data-key="Accessories" onclick="togglePrefPill(this)">Accessories</button>
       </div>
-
-      <button class="btn-primary" onclick="nextToScreen3()">Next →</button>
-      <button class="btn-ghost"   onclick="skipClusters()">Skip — include all styles</button>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="prefsNextStep(1)">Back</button>
+        <button class="btn btn-primary" onclick="prefsNextStep(3)">Next</button>
+      </div>
     </div>
-
-    <!-- ── Screen 3: Preferred centre ── -->
-    <div class="modal-screen hidden" id="screen-3">
-      <p class="modal-step">Step 3 of 3</p>
-      <h2 class="modal-title">Your go-to centre?</h2>
-      <p class="modal-sub">This becomes your home screen default.</p>
-
-      <input class="centre-search-input" type="text" id="centre-search"
-             placeholder="Search centres…" oninput="filterCentres()" autocomplete="off">
-      <div class="centre-list" id="centre-list"></div>
-
-      <button class="btn-primary" id="btn-save" onclick="savePreferences()" disabled>Show my score →</button>
+    <div id="pref-step-3" style="display:none">
+      <div class="modal-step-indicator">Step 3 of 3</div>
+      <h2 class="modal-title">Your personal Tide Score</h2>
+      <p class="modal-subtitle">Based on your preferences, here's how today looks.</p>
+      <div id="pref-preview-content"></div>
+      <button class="btn btn-primary" onclick="savePreferences()">Save &amp; see my score</button>
+      <button class="btn btn-text" onclick="prefsNextStep(2)">Back</button>
+      <button class="signout-link" onclick="signOut()">Sign out</button>
     </div>
   </div>
 </div>
 
 <script>
-// ── Supabase ─────────────────────────────────────────────────────────────────
-// Replace these two values with your project URL and anon key before deploying.
-const SUPABASE_URL  = 'https://vrezzwadwzrmumjpdgge.supabase.co';
-const SUPABASE_ANON = 'sb_publishable_qid8Ej6biCOmKLjLIY5DfA_nzJXmc9G';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const SUPABASE_URL      = 'https://vrezzwadwzrmumjpdgge.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_qid8Ej6biCOmKLjLIY5DfA_nzJXmc9G';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
 let userPrefs   = null;
 
-// ── Sale data (from today's scrape) ──────────────────────────────────────────
-// Replace with a fetch() call to Supabase v_today_scores once deployed.
-const SALE_STATUS = {
-  B001: false, B002: null,  B003: null,  B004: false, B005: true,
-  B006: false, B007: false, B008: true,  B009: false, B010: true,
-  B011: true,  B012: null,  B013: null,  B014: false, B015: true,
-  B016: null,  B017: true,  B018: null,  B019: true,  B020: true,
-  B021: true,  B022: true,  B023: false, B024: true,  B025: false,
-  B026: false, B027: true,  B028: true,  B029: true,  B030: true,
-  B031: true,  B032: false, B033: true,  B034: false, B035: true,
-  B036: true,  B037: true,  B038: true,  B039: false, B040: false,
-  B041: true,  B042: false, B043: true,  B044: false, B045: true,
-  B046: true,  B047: false, B048: true,  B049: true,  B050: false,
-  B051: false, B052: true,  B053: true,  B054: false, B055: false,
-  B056: true,  B057: true,  B058: true,  B059: false, B060: true,
-  B061: false, B062: false, B063: true,  B064: true,  B065: true,
-  B066: true,  B067: false, B068: true,  B069: true,  B070: true,
-  B071: false, B072: true,  B073: false, B074: false, B075: false,
-  B076: true,
-};
+sb.auth.onAuthStateChange(async (event, session) => {
+  currentUser = session?.user ?? null;
+  if (currentUser) {
+    await loadUserPrefs();
+    document.getElementById('auth-btn').textContent = 'My Tide';
+    if (event === 'SIGNED_IN' && !userPrefs) openPrefsModal();
+  } else {
+    userPrefs = null;
+    document.getElementById('auth-btn').textContent = 'Sign in';
+  }
+  const sel = document.getElementById('centre-select');
+  if (sel.value) renderCentre(sel.value);
+});
 
-const DAYS_RUNNING = {
-  B005: 30, B008: 30, B010: 30, B011: 30, B015: 30, B017: 30,
-  B019: 28, B020: 28, B021: 28, B022: 28, B024: 28, B027: 5,
-  B028: 28, B029: 28, B030: 28, B031: 5,  B033: 7,  B035: 28,
-  B036: 28, B037: 7,  B038: 7,  B041: 7,  B043: 28, B045: 3,
-  B046: 3,  B048: 28, B049: 3,  B052: 28, B053: 14, B056: 28,
-  B057: 3,  B058: 28, B060: 7,  B063: 28, B064: 28, B065: 7,
-  B066: 28, B068: 28, B069: 5,  B070: 28, B072: 5,  B076: 3,
-};
+async function loadUserPrefs() {
+  if (!currentUser) return;
+  const { data } = await sb.from('user_preferences').select('*').eq('user_id', currentUser.id).maybeSingle();
+  userPrefs = data;
+}
 
-// Gender tags added for personalisation (Task 1)
+function onAuthBtnClick() {
+  if (currentUser) openPrefsModal(); else openAuthModal();
+}
+
+function openAuthModal() {
+  clearAuthError();
+  document.getElementById('auth-modal').style.display = 'flex';
+  document.getElementById('auth-email').focus();
+}
+
+function closeAuthModal(e) {
+  if (e && e.target !== document.getElementById('auth-modal')) return;
+  document.getElementById('auth-modal').style.display = 'none';
+}
+
+function clearAuthError() {
+  const el = document.getElementById('auth-error');
+  el.style.display = 'none'; el.textContent = '';
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function setAuthBusy(busy) {
+  document.getElementById('btn-signin').disabled = busy;
+  document.getElementById('btn-signup').disabled = busy;
+}
+
+async function signIn() {
+  clearAuthError(); setAuthBusy(true);
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  setAuthBusy(false);
+  if (error) { showAuthError(error.message); return; }
+  document.getElementById('auth-modal').style.display = 'none';
+}
+
+async function signUp() {
+  clearAuthError(); setAuthBusy(true);
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  if (password.length < 6) { showAuthError('Password must be at least 6 characters.'); setAuthBusy(false); return; }
+  const { error } = await sb.auth.signUp({ email, password });
+  setAuthBusy(false);
+  if (error) { showAuthError(error.message); return; }
+  document.getElementById('auth-modal').style.display = 'none';
+}
+
+async function signOut() { await sb.auth.signOut(); closePrefsModal(); }
+
+const pendingPrefs = { womenswear: false, menswear: false, childrenswear: false, style_clusters: [] };
+
+function openPrefsModal() {
+  if (userPrefs) {
+    Object.assign(pendingPrefs, {
+      womenswear: userPrefs.womenswear || false,
+      menswear: userPrefs.menswear || false,
+      childrenswear: userPrefs.childrenswear || false,
+      style_clusters: userPrefs.style_clusters || [],
+    });
+  } else {
+    pendingPrefs.womenswear = false; pendingPrefs.menswear = false;
+    pendingPrefs.childrenswear = false; pendingPrefs.style_clusters = [];
+  }
+  document.querySelectorAll('#gender-pills .pref-pill').forEach(p => p.classList.toggle('active', !!pendingPrefs[p.dataset.key]));
+  document.querySelectorAll('#cluster-pills .pref-pill').forEach(p => p.classList.toggle('active', pendingPrefs.style_clusters.includes(p.dataset.key)));
+  prefsShowStep(1);
+  document.getElementById('prefs-modal').style.display = 'flex';
+}
+
+function closePrefsModal() { document.getElementById('prefs-modal').style.display = 'none'; }
+
+function prefsShowStep(n) {
+  [1,2,3].forEach(i => { document.getElementById('pref-step-'+i).style.display = i===n ? '' : 'none'; });
+  if (n === 3) renderPrefsPreview();
+}
+
+function prefsNextStep(n) {
+  if (n === 2) {
+    if (!pendingPrefs.womenswear && !pendingPrefs.menswear && !pendingPrefs.childrenswear) {
+      alert('Please select at least one shopping preference.'); return;
+    }
+  }
+  prefsShowStep(n);
+}
+
+function togglePrefPill(pill) {
+  const key = pill.dataset.key;
+  if (pill.closest('#cluster-pills')) {
+    const idx = pendingPrefs.style_clusters.indexOf(key);
+    if (idx >= 0) { pendingPrefs.style_clusters.splice(idx,1); pill.classList.remove('active'); }
+    else { pendingPrefs.style_clusters.push(key); pill.classList.add('active'); }
+  } else {
+    pendingPrefs[key] = !pendingPrefs[key];
+    pill.classList.toggle('active', pendingPrefs[key]);
+  }
+}
+
+function renderPrefsPreview() {
+  const container = document.getElementById('pref-preview-content');
+  const centreId = document.getElementById('centre-select').value;
+  if (!centreId) { container.innerHTML = '<p class="preview-empty">Select a centre from the main screen to see your live score preview here.</p>'; return; }
+  const result = calcPersonalScore(centreId, pendingPrefs);
+  const centreName = CENTRE_NAMES[parseInt(centreId.replace('C',''))-1];
+  if (!result) { container.innerHTML = '<p class="preview-empty">We don\'t track brands matching your preferences at '+centreName+' yet.</p>'; return; }
+  container.innerHTML = '<div class="preview-card"><div class="preview-score">'+result.score+'</div><div class="preview-label">Personal Tide Score</div><div class="preview-meta">'+result.matchingBrands+' of your brands at '+centreName+' -- '+result.onSale+' on sale today</div></div>';
+}
+
+async function savePreferences() {
+  if (!currentUser) return;
+  const { error } = await sb.from('user_preferences').upsert({
+    user_id: currentUser.id, womenswear: pendingPrefs.womenswear,
+    menswear: pendingPrefs.menswear, childrenswear: pendingPrefs.childrenswear,
+    style_clusters: pendingPrefs.style_clusters,
+  }, { onConflict: 'user_id' });
+  if (error) { alert('Could not save preferences: ' + error.message); return; }
+  userPrefs = { ...pendingPrefs, user_id: currentUser.id };
+  closePrefsModal();
+  const sel = document.getElementById('centre-select');
+  if (sel.value) renderCentre(sel.value);
+}
+
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
+let SALE_STATUS = {}, DAYS_RUNNING = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
+
+async function loadSheetData() {
+  try {
+    const res = await fetch(SHEET_CSV_URL);
+    const text = await res.text();
+    const rows = text.trim().split('\n').map(r => r.split(','));
+    const headers = rows[0];
+    SHEET_DATE_COLS = [];
+    let latestColIdx = -1, latestDate = '';
+    for (let i = 2; i < headers.length; i++) {
+      const h = headers[i].trim().replace(/"/g,'');
+      if (/^\d{4}-\d{2}-\d{2}$/.test(h)) {
+        SHEET_DATE_COLS.push({ idx: i, date: h });
+        if (h > latestDate) { latestDate = h; latestColIdx = i; }
+      }
+    }
+    SHEET_DATE_COLS.sort((a,b) => a.date.localeCompare(b.date));
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      const id = row[0]?.trim().replace(/"/g,'');
+      if (!id || !id.startsWith('B')) continue;
+      SHEET_ROWS[id] = row;
+      const v = latestColIdx >= 0 ? row[latestColIdx]?.trim().replace(/"/g,'') : '';
+      SALE_STATUS[id] = v === 'TRUE' ? true : v === 'FALSE' ? false : null;
+      if (SALE_STATUS[id] === true) {
+        let days = 0;
+        for (let c = latestColIdx; c >= 2; c--) {
+          if (rows[r][c]?.trim().replace(/"/g,'') === 'TRUE') days++; else break;
+        }
+        DAYS_RUNNING[id] = Math.max(days, 1);
+      } else { DAYS_RUNNING[id] = 0; }
+    }
+    document.getElementById('today-date').textContent = latestDate
+      ? new Date(latestDate+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})
+      : new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+    const sel = document.getElementById('centre-select');
+    if (sel.value) renderCentre(sel.value);
+  } catch(e) { console.warn('Sheet load failed:', e); }
+}
+
 const BRANDS = [
-  { id:'B001', name:'Marks & Spencer',  cluster:'High Street',    womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B002', name:'Next',             cluster:'High Street',    womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B003', name:'H&M',             cluster:'High Street',    womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B004', name:'Primark',          cluster:'High Street',    womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B005', name:'River Island',     cluster:'High Street',    womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B006', name:'New Look',         cluster:'High Street',    womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B007', name:'Dorothy Perkins',  cluster:'High Street',    womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B008', name:'Burton',           cluster:'High Street',    womenswear:false, menswear:true,  childrenswear:false },
-  { id:'B009', name:'Wallis',           cluster:'High Street',    womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B010', name:'Oasis',            cluster:'High Street',    womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B011', name:'Warehouse',        cluster:'High Street',    womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B012', name:'Miss Selfridge',   cluster:'High Street',    womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B013', name:'Zara',            cluster:'Contemporary',   womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B014', name:'Mango',           cluster:'Contemporary',   womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B015', name:'& Other Stories', cluster:'Contemporary',   womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B016', name:'COS',            cluster:'Contemporary',   womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B017', name:'Arket',          cluster:'Contemporary',   womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B018', name:'Hollister',      cluster:'Contemporary',   womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B019', name:'Abercrombie',    cluster:'Contemporary',   womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B020', name:'White Stuff',    cluster:'Contemporary',   womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B021', name:'Superdry',       cluster:'Contemporary',   womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B022', name:'Jack & Jones',   cluster:'Contemporary',   womenswear:false, menswear:true,  childrenswear:false },
-  { id:'B023', name:'Uniqlo',         cluster:'Contemporary',   womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B024', name:'Boden',          cluster:'Contemporary',   womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B025', name:'Fat Face',       cluster:'Classic British', womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B026', name:'The White Company', cluster:'Classic British', womenswear:true, menswear:false, childrenswear:true },
-  { id:'B027', name:'Joules',         cluster:'Classic British', womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B028', name:'Barbour',        cluster:'Classic British', womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B029', name:'Seasalt Cornwall', cluster:'Classic British', womenswear:true, menswear:false, childrenswear:false },
-  { id:'B030', name:'Crew Clothing',  cluster:'Classic British', womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B031', name:'Jack Wills',     cluster:'Classic British', womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B032', name:'Bravissimo',     cluster:'Classic British', womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B033', name:'Reiss',          cluster:'Smart/Occasion', womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B034', name:'Ted Baker',      cluster:'Smart/Occasion', womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B035', name:'Phase Eight',    cluster:'Smart/Occasion', womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B036', name:'Hobbs',          cluster:'Smart/Occasion', womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B037', name:'LK Bennett',     cluster:'Smart/Occasion', womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B038', name:'Karen Millen',   cluster:'Smart/Occasion', womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B039', name:'French Connection', cluster:'Smart/Occasion', womenswear:true, menswear:false, childrenswear:false },
-  { id:'B040', name:'Jigsaw',         cluster:'Smart/Occasion', womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B041', name:'Jaeger',         cluster:'Smart/Occasion', womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B042', name:'Mint Velvet',    cluster:'Smart/Occasion', womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B043', name:'Whistles',       cluster:'Smart/Occasion', womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B044', name:'Polo Ralph Lauren', cluster:'Premium Casual', womenswear:true, menswear:true, childrenswear:true },
-  { id:'B045', name:'Tommy Hilfiger', cluster:'Premium Casual', womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B046', name:'Hugo Boss',      cluster:'Premium Casual', womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B047', name:'Gant',           cluster:'Premium Casual', womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B048', name:'Hackett London', cluster:'Premium Casual', womenswear:false, menswear:true,  childrenswear:false },
-  { id:'B049', name:'Calvin Klein',   cluster:'Premium Casual', womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B050', name:'Lacoste',        cluster:'Premium Casual', womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B051', name:'FLANNELS',       cluster:'Premium Casual', womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B052', name:'AllSaints',      cluster:'Premium Casual', womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B053', name:'Nike',           cluster:'Active',         womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B054', name:'Adidas',         cluster:'Active',         womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B055', name:'The North Face', cluster:'Active',         womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B056', name:'Sweaty Betty',   cluster:'Active',         womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B057', name:'Lululemon',      cluster:'Active',         womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B058', name:'Regatta',        cluster:'Active',         womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B059', name:'Berghaus',       cluster:'Active',         womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B060', name:'Columbia',       cluster:'Active',         womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B061', name:'Schuh',          cluster:'Footwear',       womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B062', name:'Clarks',         cluster:'Footwear',       womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B063', name:'Dune London',    cluster:'Footwear',       womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B064', name:'Office',         cluster:'Footwear',       womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B065', name:'Kurt Geiger',    cluster:'Footwear',       womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B066', name:'Foot Locker',    cluster:'Footwear',       womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B067', name:'Accessorize',    cluster:'Accessories',    womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B068', name:'Boux Avenue',    cluster:'Accessories',    womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B069', name:'Ann Summers',    cluster:'Accessories',    womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B070', name:'Pandora',        cluster:'Accessories',    womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B071', name:'Swarovski',      cluster:'Accessories',    womenswear:true,  menswear:false, childrenswear:false },
-  { id:'B072', name:'Monsoon',        cluster:'Classic British', womenswear:true, menswear:false, childrenswear:true  },
-  { id:'B073', name:"Levi's",        cluster:'Contemporary',   womenswear:true,  menswear:true,  childrenswear:false },
-  { id:'B074', name:'Skechers',       cluster:'Footwear',       womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B075', name:'Timberland',     cluster:'Active',         womenswear:true,  menswear:true,  childrenswear:true  },
-  { id:'B076', name:'Flying Tiger',   cluster:'Accessories',    womenswear:true,  menswear:false, childrenswear:true  },
+  {id:'B001',name:'Marks & Spencer',cluster:'High Street',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B002',name:'Next',cluster:'High Street',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B003',name:'H&M',cluster:'High Street',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B004',name:'Primark',cluster:'High Street',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B005',name:'River Island',cluster:'High Street',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B006',name:'New Look',cluster:'High Street',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B007',name:'Dorothy Perkins',cluster:'High Street',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B008',name:'Burton',cluster:'High Street',womenswear:false,menswear:true,childrenswear:false},
+  {id:'B009',name:'Wallis',cluster:'High Street',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B010',name:'Oasis',cluster:'High Street',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B011',name:'Warehouse',cluster:'High Street',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B012',name:'Miss Selfridge',cluster:'High Street',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B013',name:'Zara',cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B014',name:'Mango',cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B015',name:'& Other Stories',cluster:'Contemporary',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B016',name:'COS',cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B017',name:'Arket',cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B018',name:'Hollister',cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B019',name:'Abercrombie',cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B020',name:'White Stuff',cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B021',name:'Superdry',cluster:'Premium Casual',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B022',name:'Jack & Jones',cluster:'Contemporary',womenswear:false,menswear:true,childrenswear:false},
+  {id:'B023',name:'Uniqlo',cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B024',name:'Boden',cluster:'Classic British',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B025',name:'Fat Face',cluster:'Classic British',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B026',name:'The White Company',cluster:'Classic British',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B027',name:'Joules',cluster:'Classic British',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B028',name:'Barbour',cluster:'Classic British',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B029',name:'Seasalt Cornwall',cluster:'Classic British',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B030',name:'Crew Clothing',cluster:'Classic British',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B031',name:'Jack Wills',cluster:'Premium Casual',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B032',name:'Bravissimo',cluster:'Classic British',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B033',name:'Reiss',cluster:'Smart/Occasion',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B034',name:'Ted Baker',cluster:'Smart/Occasion',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B035',name:'Phase Eight',cluster:'Smart/Occasion',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B036',name:'Hobbs',cluster:'Smart/Occasion',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B037',name:'LK Bennett',cluster:'Smart/Occasion',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B038',name:'Karen Millen',cluster:'Smart/Occasion',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B039',name:'French Connection',cluster:'Smart/Occasion',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B040',name:'Jigsaw',cluster:'Smart/Occasion',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B041',name:'Jaeger',cluster:'Smart/Occasion',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B042',name:'Mint Velvet',cluster:'Smart/Occasion',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B043',name:'Whistles',cluster:'Smart/Occasion',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B044',name:'Polo Ralph Lauren',cluster:'Premium Casual',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B045',name:'Tommy Hilfiger',cluster:'Premium Casual',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B046',name:'Hugo Boss',cluster:'Premium Casual',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B047',name:'Gant',cluster:'Premium Casual',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B048',name:'Hackett London',cluster:'Premium Casual',womenswear:false,menswear:true,childrenswear:false},
+  {id:'B049',name:'Calvin Klein',cluster:'Premium Casual',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B050',name:'Lacoste',cluster:'Premium Casual',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B051',name:'FLANNELS',cluster:'Premium Casual',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B052',name:'AllSaints',cluster:'Premium Casual',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B053',name:'Nike',cluster:'Active',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B054',name:'Adidas',cluster:'Active',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B055',name:'The North Face',cluster:'Active',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B056',name:'Sweaty Betty',cluster:'Active',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B057',name:'Lululemon',cluster:'Active',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B058',name:'Regatta',cluster:'Active',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B059',name:'Berghaus',cluster:'Active',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B060',name:'Columbia',cluster:'Active',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B061',name:'Schuh',cluster:'Footwear',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B062',name:'Clarks',cluster:'Footwear',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B063',name:'Dune London',cluster:'Footwear',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B064',name:'Office',cluster:'Footwear',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B065',name:'Kurt Geiger',cluster:'Footwear',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B066',name:'Foot Locker',cluster:'Footwear',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B067',name:'Accessorize',cluster:'Accessories',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B068',name:'Boux Avenue',cluster:'Accessories',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B069',name:'Ann Summers',cluster:'Accessories',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B070',name:'Pandora',cluster:'Accessories',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B071',name:'Swarovski',cluster:'Accessories',womenswear:true,menswear:false,childrenswear:false},
+  {id:'B072',name:'Monsoon',cluster:'Smart/Occasion',womenswear:true,menswear:false,childrenswear:true},
+  {id:'B073',name:"Levi's",cluster:'Premium Casual',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B074',name:'Skechers',cluster:'Footwear',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B075',name:'Timberland',cluster:'Active',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B076',name:'Flying Tiger',cluster:'Accessories',womenswear:true,menswear:true,childrenswear:true},
 ];
 
 const PRESENCE = {
@@ -1018,553 +595,285 @@ const CENTRE_NAMES = [
   'Silverburn','St James Quarter'
 ];
 
-// ── Cluster → preference key mapping (client-side filtering) ─────────────────
-const CLUSTER_PREF_MAP = {
-  'High Street':    'high_street',
-  'Contemporary':   'high_street',
-  'Classic British':'classic_british',
-  'Smart/Occasion': 'smart_occasion',
-  'Premium Casual': 'premium_casual',
-  'Active':         'active',
-  'Footwear':       null,
-  'Accessories':    null,
-};
+const DECAY_MAX=42, ANCHOR_MULTIPLIER=1.5, TRAJECTORY_FLAT_BAND=1.5;
+const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B005','B013','B023']);
 
-// ── Scoring ───────────────────────────────────────────────────────────────────
-function ripenessScore(days) {
-  if (!days || days === 0) return 0;
-  if (days <= 4)  return Math.round(10 + (days - 1) * 11.7);
-  if (days <= 7)  return Math.round(46 + (days - 4) * 9);
-  if (days <= 10) return 100;
-  if (days <= 18) return Math.max(0, Math.round(100 - (days - 10) * 11.3));
+function brandFreshnessScore(days) {
+  if (!days||days<=0) return 0;
+  if (days<=7) return 1.0;
+  if (days<=21) return 1.0-((days-7)*(0.5/14));
+  if (days<=DECAY_MAX) return 0.5-((days-21)*(0.4/(DECAY_MAX-21)));
   return 0;
 }
 
-function phaseForDays(days) {
-  if (!days || days === 0) return 'gone';
-  if (days <= 4)  return 'bud';
-  if (days <= 7)  return 'ripening';
-  if (days <= 10) return 'peak';
-  if (days <= 18) return 'bowl';
-  return 'gone';
+function getTideStage(score, trajectory) {
+  if (score===0) return 'Flat';
+  if (trajectory==='FALLING') return score<25 ? 'Low' : 'Falling';
+  if (score>=50) return 'High Tide';
+  if (score>=25) return 'Rising';
+  return 'Turning';
 }
 
-function phaseForScore(score) {
-  if (score === 0)    return 'gone';
-  if (score < 20)     return 'bud';
-  if (score < 45)     return 'ripening';
-  if (score < 70)     return 'peak';
-  return 'bowl';
-}
-
-function phaseStyle(phase) {
-  const styles = {
-    bud:      { label: 'Turning',     color: '#3D6B35', bg: '#EEF4EC', msg: 'The tide is just starting to turn. Worth watching — come back in a few days.' },
-    ripening: { label: 'Rising',      color: '#3D6B35', bg: '#EEF4EC', msg: 'The tide is rising. Start planning your visit — High Tide is coming.' },
-    peak:     { label: 'High Tide',   color: '#C17A2B', bg: '#FBF2E4', msg: 'High Tide. Maximum reductions, good stock. Today is the day to go.' },
-    bowl:     { label: 'Turning Out', color: '#B84C3A', bg: '#FAEAE7', msg: 'The tide is turning out — sales running but stock going fast. Go today.' },
-    gone:     { label: 'Low Tide',    color: '#8C8070', bg: '#F2EFE9', msg: 'Low Tide at this centre right now. Check back when the tide turns.' },
+function stageStyle(stage) {
+  const s = {
+    'Flat':      {label:'Nothing on',        color:'#8C8070',bg:'#F2EFE9',msg:'No meaningful sales at this centre right now. Check back soon.'},
+    'Turning':   {label:'Starting to build', color:'#3D6B35',bg:'#EEF4EC',msg:'A few brands are breaking into sale. Worth watching.'},
+    'Rising':    {label:'Worth watching',    color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building and fresh. Plan your visit soon.'},
+    'High Tide': {label:'Go now',            color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum density, maximum freshness. This is the moment.'},
+    'Falling':   {label:'Last chance',       color:'#B84C3A',bg:'#FAEAE7',msg:'Tide going out. Go now or miss out.'},
+    'Low':       {label:"It's over",         color:'#8C8070',bg:'#F2EFE9',msg:'Cycle ended. Check back when brands start their next sale.'},
   };
-  return styles[phase] || styles.gone;
+  return s[stage]||s['Flat'];
+}
+
+function computeTrajectory(score, history) {
+  const n = history.length;
+  if (n<4) return 'RISING';
+  const avg = (history[n-2].score+history[n-3].score+history[n-4].score)/3;
+  const diff = score-avg;
+  if (diff>TRAJECTORY_FLAT_BAND) return 'RISING';
+  if (diff<-TRAJECTORY_FLAT_BAND) return 'FALLING';
+  return 'FLAT';
 }
 
 function calcCentreScore(centreIdx) {
-  const brandsAtCentre = BRANDS.filter(b => (PRESENCE[b.id] || [])[centreIdx] === 1);
-  if (brandsAtCentre.length === 0) return { score: 0, phase: 'gone', onSale: [] };
-
-  let totalRipeness = 0;
-  const onSale = [];
-
+  const brandsAtCentre = BRANDS.filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1);
+  if (!brandsAtCentre.length) return {score:0,onSale:[],total:0};
+  let totalFreshness=0; const onSale=[];
   for (const brand of brandsAtCentre) {
-    const sale = SALE_STATUS[brand.id];
-    const days = DAYS_RUNNING[brand.id] || 0;
-    if (sale === true && days > 0) {
-      const r = ripenessScore(days);
-      totalRipeness += r;
-      onSale.push({ ...brand, days, ripeness: r, phase: phaseForDays(days) });
+    const days = DAYS_RUNNING[brand.id]||0;
+    if (SALE_STATUS[brand.id]===true && days>0) {
+      const freshness = brandFreshnessScore(days);
+      if (freshness===0) continue;
+      const weight = ANCHOR_BRAND_IDS.has(brand.id) ? ANCHOR_MULTIPLIER : 1.0;
+      totalFreshness += freshness*weight;
+      onSale.push({...brand,days,freshness});
     }
   }
-
-  const score = Math.round(totalRipeness / brandsAtCentre.length);
-
-  let phase;
-  if (score === 0)      phase = 'gone';
-  else if (score < 20) phase = 'bud';
-  else if (score < 45) phase = 'ripening';
-  else if (score < 70) phase = 'peak';
-  else                 phase = 'bowl';
-
-  return { score, phase, onSale, total: brandsAtCentre.length };
+  const score = Math.round((totalFreshness/brandsAtCentre.length)*100);
+  return {score,onSale,total:brandsAtCentre.length};
 }
 
-// Personal score: same Gravity Engine formula, filtered to user's preferences.
-// Denominator is matching brands only — womenswear shoppers are not penalised
-// by men's brands not being on sale.
-function calcPersonalScore(centreIdx, prefs) {
-  const allAtCentre = BRANDS.filter(b => (PRESENCE[b.id] || [])[centreIdx] === 1);
-
-  const matching = allAtCentre.filter(b => {
-    const genderOk =
-      (prefs.shop_women    && b.womenswear)    ||
-      (prefs.shop_men      && b.menswear)      ||
-      (prefs.shop_children && b.childrenswear);
-    if (!genderOk) return false;
-
-    if (prefs.style_clusters && prefs.style_clusters.length > 0) {
-      const mapped = CLUSTER_PREF_MAP[b.cluster];
-      if (!mapped || !prefs.style_clusters.includes(mapped)) return false;
+function computeHistoricalScores(centreIdx) {
+  const brandsAtCentre = BRANDS.filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1);
+  if (!brandsAtCentre.length||!SHEET_DATE_COLS.length) return [];
+  return SHEET_DATE_COLS.slice(-60).map(({idx,date})=>{
+    let totalFreshness=0;
+    for (const brand of brandsAtCentre) {
+      const row = SHEET_ROWS[brand.id];
+      if (!row) continue;
+      if (row[idx]?.trim().replace(/"/g,'')!=='TRUE') continue;
+      let days=0;
+      for (let c=idx;c>=2;c--) { if(row[c]?.trim().replace(/"/g,'') ==='TRUE') days++; else break; }
+      const freshness = brandFreshnessScore(Math.max(days,1));
+      if (freshness===0) continue;
+      const weight = ANCHOR_BRAND_IDS.has(brand.id) ? ANCHOR_MULTIPLIER : 1.0;
+      totalFreshness += freshness*weight;
     }
-    return true;
+    return {date, score:Math.round((totalFreshness/brandsAtCentre.length)*100)};
   });
-
-  if (matching.length === 0) return null;
-
-  let totalRipeness = 0;
-  let onSaleCount   = 0;
-  for (const b of matching) {
-    const sale = SALE_STATUS[b.id];
-    const days = DAYS_RUNNING[b.id] || 0;
-    if (sale === true && days > 0) {
-      totalRipeness += ripenessScore(days);
-      onSaleCount++;
-    }
-  }
-
-  return {
-    score:    Math.round(totalRipeness / matching.length),
-    matching: matching.length,
-    onSale:   onSaleCount,
-  };
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
-function renderCentre(centreId) {
-  const content = document.getElementById('main-content');
-  const nudge   = document.getElementById('nudge-card');
+function renderArcWidget(stage, color) {
+  const DOT = {
+    'Flat':      {x:25, y:95}, 'Turning':{x:77,y:45}, 'Rising':{x:144,y:18},
+    'High Tide': {x:216,y:18}, 'Falling':{x:283,y:45}, 'Low':{x:335,y:95},
+  };
+  const LABEL = {
+    'Flat':      {x:25, y:110,text:'FLAT'},    'Turning':{x:72,y:62,text:'TURNING'},
+    'Rising':    {x:144,y:34, text:'RISING'},  'High Tide':{x:216,y:34,text:'GO NOW'},
+    'Falling':   {x:288,y:62, text:'FALLING'}, 'Low':{x:335,y:110,text:'LOW'},
+  };
+  const dot = DOT[stage]||DOT['Flat'];
+  const uid = stage.replace(/\s/g,'-');
+  const labels = Object.keys(DOT).map(s=>{
+    const l=LABEL[s]; const active=s===stage;
+    return '<text x="'+l.x+'" y="'+l.y+'" text-anchor="middle" font-size="7.5" font-family="inherit" letter-spacing="0.05em" fill="'+(active?color:'#B0A898')+'" font-weight="'+(active?'700':'400')+'">'+l.text+'</text>';
+  }).join('');
+  return '<svg class="arc-widget" viewBox="0 0 360 120" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="arcg-'+uid+'" x1="25" y1="0" x2="335" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#B0A898"/><stop offset="17%" stop-color="#6BA86E"/><stop offset="38%" stop-color="#A8C43A"/><stop offset="50%" stop-color="#D4A030"/><stop offset="62%" stop-color="#D06020"/><stop offset="83%" stop-color="#C04040"/><stop offset="100%" stop-color="#907070"/></linearGradient></defs><path d="M 25,95 A 190 190 0 0 1 335,95" fill="none" stroke="#EAE6DF" stroke-width="8" stroke-linecap="round"/><path d="M 25,95 A 190 190 0 0 1 335,95" fill="none" stroke="url(#arcg-'+uid+')" stroke-width="8" stroke-linecap="round" opacity="0.9"/>'+labels+'<circle cx="'+dot.x+'" cy="'+dot.y+'" r="7.5" fill="white" stroke="'+color+'" stroke-width="2.5"/></svg>';
+}
 
+function generateMockHistory(centreIdx) {
+  const n=60, now=Date.now(), phase=centreIdx*1.1;
+  return Array.from({length:n},(_,i)=>{
+    const daysAgo=n-1-i;
+    const date=new Date(now-daysAgo*86400000).toISOString().split('T')[0];
+    const t=i/(n-1);
+    const s=50+Math.sin(t*Math.PI*3.2+phase)*38+Math.sin(t*Math.PI*1.5+phase*0.6)*16;
+    return {date,score:Math.max(0,Math.min(100,Math.round(s)))};
+  });
+}
+
+function smoothCurvePath(pts) {
+  if (pts.length<2) return '';
+  let d='M'+pts[0][0]+','+pts[0][1];
+  for (let i=0;i<pts.length-1;i++) {
+    const p0=pts[Math.max(i-1,0)],p1=pts[i],p2=pts[i+1],p3=pts[Math.min(i+2,pts.length-1)];
+    const cp1x=+(p1[0]+(p2[0]-p0[0])/6).toFixed(1),cp1y=+(p1[1]+(p2[1]-p0[1])/6).toFixed(1);
+    const cp2x=+(p2[0]-(p3[0]-p1[0])/6).toFixed(1),cp2y=+(p2[1]-(p3[1]-p1[1])/6).toFixed(1);
+    d+=' C'+cp1x+','+cp1y+' '+cp2x+','+cp2y+' '+p2[0]+','+p2[1];
+  }
+  return d;
+}
+
+function renderHistoryChart(history, color, isDemo=false) {
+  if (history.length<2) return '';
+  const W=380,H=62,PL=4,PT=28,PB=22,n=history.length,k=5;
+  const scores=history.map((_,i)=>{
+    let sum=0,w=0;
+    for(let j=Math.max(0,i-k);j<=Math.min(n-1,i+k);j++){const wt=k+1-Math.abs(i-j);sum+=history[j].score*wt;w+=wt;}
+    return sum/w;
+  });
+  const pts=scores.map((score,i)=>[+(PL+(i/(n-1))*W).toFixed(2),+(PT+(1-score/100)*H).toFixed(2)]);
+  const lineD=smoothCurvePath(pts);
+  const areaD=lineD+' L'+pts[n-1][0]+','+(PT+H)+' L'+pts[0][0]+','+(PT+H)+'Z';
+  const [lx,ly]=pts[n-1];
+  const traj=computeTrajectory(history[n-1].score,history);
+  const [trajArrow,trajText,trajColor]=traj==='RISING'?['\u2191','Rising',color]:traj==='FALLING'?['\u2193','Falling',color]:['\u2192','Flat','#8C8070'];
+  const gridLines=[25,50,75].map(pct=>{const gy=+(PT+(1-pct/100)*H).toFixed(1);return '<line x1="'+PL+'" y1="'+gy+'" x2="'+(PL+W)+'" y2="'+gy+'" stroke="#E8E3DC" stroke-width="0.5"/>';}).join('');
+  const midIdx=Math.round((n-1)/2);
+  const daysBack=idx=>n-1-idx;
+  const xLabels=[[0,'start'],[midIdx,'middle'],[n-1,'end']].map(([idx,pos])=>{
+    const label=daysBack(idx)===0?'Today':daysBack(idx)+'d ago';
+    const anchor=pos==='start'?'start':pos==='end'?'end':'middle';
+    return '<text x="'+pts[idx][0]+'" y="'+(PT+H+16)+'" font-family="DM Sans,sans-serif" font-size="9.5" fill="#8C8070" text-anchor="'+anchor+'">'+label+'</text>';
+  }).join('');
+  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.12"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><text x="'+lx+'" y="'+(ly-9).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+color+'" font-weight="500">today</text><circle cx="'+lx+'" cy="'+ly+'" r="4.5" fill="white" stroke="'+color+'" stroke-width="1.8"/>'+xLabels+'</svg>'+(isDemo?'<div class="demo-badge">Preview -- no live data yet</div>':'')+'</div></div>';
+}
+
+function brandMatchesFrontendPrefs(brand, prefs) {
+  const genderMatch=(prefs.womenswear&&brand.womenswear)||(prefs.menswear&&brand.menswear)||(prefs.childrenswear&&brand.childrenswear);
+  if (!genderMatch) return false;
+  if (prefs.style_clusters&&prefs.style_clusters.length>0) { if (!prefs.style_clusters.includes(brand.cluster)) return false; }
+  return true;
+}
+
+function calcPersonalScore(centreId, prefs) {
+  if (!centreId||!prefs) return null;
+  const centreIdx=parseInt(centreId.replace('C',''))-1;
+  const matching=BRANDS.filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1&&brandMatchesFrontendPrefs(b,prefs));
+  if (!matching.length) return null;
+  let totalFreshness=0;
+  const onSale=matching.filter(b=>SALE_STATUS[b.id]===true);
+  for (const brand of onSale) { totalFreshness+=brandFreshnessScore(DAYS_RUNNING[brand.id]||0); }
+  return {score:Math.round((totalFreshness/matching.length)*100),matchingBrands:matching.length,onSale:onSale.length};
+}
+
+function arcPath(cx,cy,r,score) {
+  if (score<=0) return 'M '+(cx-r)+','+cy+' L '+(cx-r+0.01)+','+cy;
+  if (score>=100) return 'M '+(cx-r)+','+cy+' A '+r+','+r+' 0 0,1 '+(cx+r)+','+cy;
+  const angle=(1-score/100)*Math.PI;
+  const ex=(cx+r*Math.cos(angle)).toFixed(2),ey=(cy-r*Math.sin(angle)).toFixed(2);
+  const largeArc=score>50?1:0;
+  return 'M '+(cx-r)+','+cy+' A '+r+','+r+' 0 '+largeArc+',1 '+ex+','+ey;
+}
+
+function buildArcSVG(centreScore, personalScore, centreColor) {
+  const cx=100,cy=100,outerR=82,innerR=62,trackColor='var(--stone-lt)';
+  const showPersonal=personalScore!==null;
+  const scoresEqual=showPersonal&&Math.abs(personalScore-centreScore)<2;
+  let paths='';
+  if (showPersonal&&!scoresEqual) {
+    paths+='<path d="M '+(cx-outerR)+','+cy+' A '+outerR+','+outerR+' 0 0,1 '+(cx+outerR)+','+cy+'" fill="none" stroke="'+trackColor+'" stroke-width="12" stroke-linecap="round"/>';
+    paths+='<path d="'+arcPath(cx,cy,outerR,centreScore)+'" fill="none" stroke="'+centreColor+'" stroke-width="12" stroke-linecap="round"/>';
+    paths+='<path d="M '+(cx-innerR)+','+cy+' A '+innerR+','+innerR+' 0 0,1 '+(cx+innerR)+','+cy+'" fill="none" stroke="'+trackColor+'" stroke-width="9" stroke-linecap="round"/>';
+    paths+='<path d="'+arcPath(cx,cy,innerR,personalScore)+'" fill="none" stroke="var(--amber)" stroke-width="9" stroke-linecap="round"/>';
+  } else if (showPersonal&&scoresEqual) {
+    paths+='<path d="M '+(cx-outerR)+','+cy+' A '+outerR+','+outerR+' 0 0,1 '+(cx+outerR)+','+cy+'" fill="none" stroke="'+trackColor+'" stroke-width="12" stroke-linecap="round"/>';
+    paths+='<path d="'+arcPath(cx,cy,outerR,personalScore)+'" fill="none" stroke="var(--amber)" stroke-width="12" stroke-linecap="round"/>';
+  } else {
+    paths+='<path d="M '+(cx-outerR)+','+cy+' A '+outerR+','+outerR+' 0 0,1 '+(cx+outerR)+','+cy+'" fill="none" stroke="'+trackColor+'" stroke-width="12" stroke-linecap="round"/>';
+    paths+='<path d="'+arcPath(cx,cy,outerR,centreScore)+'" fill="none" stroke="'+centreColor+'" stroke-width="12" stroke-linecap="round"/>';
+  }
+  return '<svg viewBox="0 0 200 105" class="arc-svg" aria-hidden="true">'+paths+'</svg>';
+}
+
+async function renderCentre(centreId) {
+  const content=document.getElementById('main-content');
   if (!centreId) {
-    content.innerHTML = `<div class="empty-state">
-      <span class="empty-apple">🌊</span>
-      <p class="empty-title">Is it High Tide?</p>
-      <p class="empty-sub">Pick a shopping centre to see today's Tide Score and which brands are on sale right now.</p>
-    </div>`;
-    if (nudge) nudge.style.display = 'none';
+    content.innerHTML='<div class="empty-state"><span class="empty-icon">&#127754;</span><p class="empty-title">When does the tide come in?</p><p class="empty-sub">Pick a shopping centre to see today\'s Tide Score and which brands are on sale right now.</p></div>';
     return;
   }
+  const centreIdx=parseInt(centreId.replace('C',''))-1;
+  const centreName=CENTRE_NAMES[centreIdx];
+  const history=computeHistoricalScores(centreIdx);
+  const {score:centreScore,onSale,total}=calcCentreScore(centreIdx);
+  const trajectory=computeTrajectory(centreScore,history);
+  const stage=getTideStage(centreScore,trajectory);
+  const style=stageStyle(stage);
 
-  const centreIdx  = parseInt(centreId.replace('C', '')) - 1;
-  const centreName = CENTRE_NAMES[centreIdx];
-  const { score, phase, onSale, total } = calcCentreScore(centreIdx);
-  const style = phaseStyle(phase);
+  let personalResult=null;
+  if (userPrefs) {
+    const anyGender=userPrefs.womenswear||userPrefs.menswear||userPrefs.childrenswear;
+    if (anyGender) personalResult=calcPersonalScore(centreId,userPrefs);
+  }
+  const personalScore=personalResult?personalResult.score:null;
+  const scoresEqual=personalScore!==null&&Math.abs(personalScore-centreScore)<2;
 
-  // Personal score (null if not logged in or no matching brands)
-  const personal = userPrefs ? calcPersonalScore(centreIdx, userPrefs) : null;
-
-  // ── Ripeness / dual-arc section ──
-  let ripenessHTML;
-  if (personal !== null && Math.abs(personal.score - score) > 2) {
-    // Both arcs visible — scores diverge meaningfully
-    ripenessHTML = `
-      <span class="ripeness-label">Ripeness</span>
-      <div class="ripeness-track dual-arc">
-        <div class="arc-marker centre-marker"  id="centre-marker"   style="left:0%"></div>
-        <div class="arc-marker personal-marker" id="personal-marker" style="left:0%"></div>
-      </div>
-      <div class="ripeness-phases">
-        <span>Bud</span><span>Ripening</span><span>Pick now</span><span>In the bowl</span><span>Gone</span>
-      </div>
-      <div class="arc-legend">
-        <span class="arc-legend-item"><span class="legend-dot centre-dot"></span>Centre</span>
-        <span class="arc-legend-item"><span class="legend-dot personal-dot"></span>Your brands</span>
-      </div>`;
-  } else if (personal !== null) {
-    // Within 2 points — only gold personal marker
-    ripenessHTML = `
-      <span class="ripeness-label">Ripeness</span>
-      <div class="ripeness-track dual-arc">
-        <div class="arc-marker personal-marker" id="personal-marker" style="left:0%"></div>
-      </div>
-      <div class="ripeness-phases">
-        <span>Bud</span><span>Ripening</span><span>Pick now</span><span>In the bowl</span><span>Gone</span>
-      </div>`;
+  let scoreHeader='';
+  if (personalScore!==null&&!scoresEqual) {
+    scoreHeader='<div class="score-numbers"><div class="score-number">'+centreScore+'</div><div class="personal-score-badge"><span class="personal-score-label">Your score</span>'+personalScore+'</div></div>';
+  } else if (personalScore!==null&&scoresEqual) {
+    scoreHeader='<div class="score-numbers"><div class="score-number" style="color:var(--amber)">'+personalScore+'</div></div>';
   } else {
-    // Standard single-fill bar (unregistered users)
-    ripenessHTML = `
-      <span class="ripeness-label">Ripeness</span>
-      <div class="ripeness-track">
-        <div class="ripeness-fill" id="rip-fill" style="width:0%; background:${style.color}"></div>
-      </div>
-      <div class="ripeness-phases">
-        <span>Bud</span><span>Ripening</span><span>Pick now</span><span>In the bowl</span><span>Gone</span>
-      </div>`;
+    scoreHeader='<div class="score-number">'+centreScore+'</div>';
   }
 
-  // ── Personal verdict lines ──
-  let personalHTML = '';
-  if (personal !== null) {
-    const pPhase = phaseForScore(personal.score);
-    const pStyle = phaseStyle(pPhase);
-    if (pStyle.label !== style.label) {
-      personalHTML += `<div class="personal-verdict">Your brands: ${pStyle.label}</div>`;
-    }
-    personalHTML += `<div class="personal-support">${personal.onSale} of ${personal.matching} brands you love on sale</div>`;
+  const arcSVG=buildArcSVG(centreScore,personalScore,style.color);
+  let arcLegend='';
+  if (personalScore!==null&&!scoresEqual) {
+    arcLegend='<div class="arc-legend"><span class="arc-legend-item"><span class="arc-legend-dot" style="background:'+style.color+'"></span> Centre</span><span class="arc-legend-item"><span class="arc-legend-dot" style="background:var(--amber)"></span> Your brands</span></div>';
+  } else if (personalScore!==null&&scoresEqual) {
+    arcLegend='<div class="arc-legend"><span class="arc-legend-item"><span class="arc-legend-dot" style="background:var(--amber)"></span> Your score matches the centre</span></div>';
   }
 
-  // ── Brand grid ──
-  const allBrandsAtCentre = BRANDS.filter(b => (PRESENCE[b.id] || [])[centreIdx] === 1);
-  const clusters = {};
+  let evidenceStrip='';
+  if (personalResult) {
+    evidenceStrip='<div class="evidence-strip"><span class="evidence-item"><span class="evidence-num">'+personalResult.matchingBrands+'</span> brands you shop here</span><span class="evidence-item"><span class="evidence-num">'+personalResult.onSale+'</span> on sale today</span></div>';
+  }
+
+  let noMatchMsg='';
+  if (userPrefs&&(userPrefs.womenswear||userPrefs.menswear||userPrefs.childrenswear)&&!personalResult) {
+    noMatchMsg='<p class="personal-no-match">We don\'t track brands matching your preferences at this centre yet.</p>';
+  }
+
+  let personalVerdictLine='';
+  if (personalScore!==null&&!scoresEqual) {
+    const diff=personalScore-centreScore;
+    personalVerdictLine='<p class="personal-verdict-line">'+(diff>0?'Your brands are particularly well-placed right now -- better than the centre average.':'Your brands are a little quieter than the centre average today.')+'</p>';
+  }
+
+  const allBrandsAtCentre=BRANDS.filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1);
+  const clusters={};
   for (const b of allBrandsAtCentre) {
-    if (!clusters[b.cluster]) clusters[b.cluster] = [];
-    clusters[b.cluster].push({ ...b, isOnSale: SALE_STATUS[b.id] === true });
+    if (!clusters[b.cluster]) clusters[b.cluster]=[];
+    clusters[b.cluster].push({...b,isOnSale:SALE_STATUS[b.id]===true});
   }
-
-  const clusterOrder = ['High Street','Contemporary','Classic British','Smart/Occasion','Premium Casual','Active','Footwear','Accessories'];
-  let brandHTML = '';
+  const clusterOrder=['High Street','Contemporary','Classic British','Smart/Occasion','Premium Casual','Active','Footwear','Accessories'];
+  let brandHTML='';
   for (const cluster of clusterOrder) {
-    const brands = clusters[cluster];
-    if (!brands || brands.length === 0) continue;
-    brandHTML += `<div class="cluster-label">${cluster}</div>`;
-    for (const b of brands) {
-      brandHTML += `<div class="brand-chip ${b.isOnSale ? 'on-sale' : ''}">
-        <span class="brand-name">${b.name}</span>
-        ${b.isOnSale ? '<span class="sale-dot"></span>' : '<span class="no-sale-dot"></span>'}
-      </div>`;
+    const bList=clusters[cluster];
+    if (!bList||!bList.length) continue;
+    brandHTML+='<div class="cluster-label">'+cluster+'</div>';
+    for (const b of bList) {
+      brandHTML+='<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"><span class="brand-name">'+b.name+'</span>'+(b.isOnSale?'<span class="sale-dot"></span>':'<span class="no-sale-dot"></span>')+'</div>';
     }
   }
 
-  content.innerHTML = `
-    <div class="score-section">
-      <div class="score-card" id="score-card" style="--phase-color:${style.color}; --phase-bg:${style.bg}">
-        <div class="score-top">
-          <div class="score-number">${score}</div>
-          <div class="score-right">
-            <div class="phase-badge">${style.label}</div>
-            <div class="centre-name-display">${centreName}</div>
-          </div>
-        </div>
-        <div class="ripeness-section">${ripenessHTML}</div>
-        <div class="score-message">
-          ${style.msg}
-          ${personalHTML}
-        </div>
-      </div>
-    </div>
-    <div class="brands-section" id="brands-section">
-      <div class="section-heading">
-        Brands at this centre
-        <span class="on-sale-count">${onSale.length} on sale today</span>
-      </div>
-      <div class="brand-grid">${brandHTML}</div>
-    </div>
-  `;
+  const trajLabel=trajectory==='RISING'?'\u2191 Rising':trajectory==='FALLING'?'\u2193 Falling':'\u2192 Flat';
+  const isDemo=history.length<2;
 
-  // Show/hide nudge card
-  if (nudge) nudge.style.display = (!currentUser || !userPrefs) ? 'flex' : 'none';
+  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+style.label+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+'<div class="arc-wrap">'+arcSVG+arcLegend+'</div>'+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+style.msg+'</div></div></div>'+renderHistoryChart(isDemo?generateMockHistory(centreIdx):history,style.color,isDemo)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
 
-  // Animate
-  requestAnimationFrame(() => {
-    const card     = document.getElementById('score-card');
-    const brandsEl = document.getElementById('brands-section');
-    if (card)     card.classList.add('visible');
-    if (brandsEl) brandsEl.classList.add('visible');
-
-    setTimeout(() => {
-      const fill = document.getElementById('rip-fill');
-      if (fill) fill.style.width = score + '%';
-
-      const pm = document.getElementById('personal-marker');
-      if (pm) pm.style.left = (personal ? personal.score : score) + '%';
-
-      const cm = document.getElementById('centre-marker');
-      if (cm) cm.style.left = score + '%';
-    }, 100);
+  requestAnimationFrame(()=>{
+    document.getElementById('score-card').classList.add('visible');
+    const hist=document.getElementById('history-section');
+    if (hist) hist.classList.add('visible');
+    document.getElementById('brands-section').classList.add('visible');
   });
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
-let modalMode = 'signup';
-let prefState = { gender: new Set(), clusters: new Set(), centreId: null };
-
-async function initAuth() {
-  const { data: { user } } = await sb.auth.getUser();
-  currentUser = user;
-  if (user) await loadUserPrefs();
-  updateNudge();
-}
-
-async function loadUserPrefs() {
-  const { data } = await sb
-    .from('user_preferences')
-    .select('*')
-    .eq('user_id', currentUser.id)
-    .maybeSingle();
-  userPrefs = data;
-  if (userPrefs?.preferred_centre_id) {
-    const sel = document.getElementById('centre-select');
-    sel.value = userPrefs.preferred_centre_id;
-    renderCentre(userPrefs.preferred_centre_id);
-  }
-}
-
-function updateNudge() {
-  const nudge = document.getElementById('nudge-card');
-  if (!nudge) return;
-  const centreSelected = document.getElementById('centre-select').value;
-  nudge.style.display = centreSelected && (!currentUser || !userPrefs) ? 'flex' : 'none';
-}
-
-// ── Modal ─────────────────────────────────────────────────────────────────────
-function openModal() {
-  document.getElementById('modal-overlay').style.display = 'flex';
-  showScreen('auth');
-}
-
-function closeModal() {
-  document.getElementById('modal-overlay').style.display = 'none';
-}
-
-function overlayClick(e) {
-  if (e.target === document.getElementById('modal-overlay')) closeModal();
-}
-
-function showScreen(name) {
-  document.querySelectorAll('.modal-screen').forEach(s => s.classList.add('hidden'));
-  document.getElementById('screen-' + name).classList.remove('hidden');
-}
-
-// ── Auth screen ───────────────────────────────────────────────────────────────
-async function handleAuth() {
-  const email    = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
-  const errEl    = document.getElementById('auth-error');
-  errEl.textContent = '';
-
-  if (!email) { errEl.textContent = 'Please enter your email address.'; return; }
-  if (!password) { errEl.textContent = 'Please enter a password.'; return; }
-  if (modalMode === 'signup' && password.length < 8) {
-    errEl.textContent = 'Password must be at least 8 characters.';
-    return;
-  }
-
-  const btn = document.getElementById('btn-auth');
-  btn.disabled = true;
-  btn.textContent = modalMode === 'signup' ? 'Creating account…' : 'Signing in…';
-
-  let authData, error;
-  if (modalMode === 'signup') {
-    ({ data: authData, error } = await sb.auth.signUp({ email, password }));
-  } else {
-    ({ data: authData, error } = await sb.auth.signInWithPassword({ email, password }));
-  }
-
-  btn.disabled = false;
-  btn.textContent = modalMode === 'signup' ? 'Create account' : 'Sign in';
-
-  if (error) {
-    if (error.message.toLowerCase().includes('already registered')) {
-      errEl.textContent = 'This email is already registered.';
-      switchToSignIn();
-    } else if (error.message.toLowerCase().includes('invalid login')) {
-      errEl.textContent = 'Incorrect email or password.';
-    } else {
-      errEl.textContent = error.message;
-    }
-    return;
-  }
-
-  currentUser = authData.user;
-
-  // Returning user who already has preferences — skip registration screens
-  const { data: existing } = await sb
-    .from('user_preferences')
-    .select('*')
-    .eq('user_id', currentUser.id)
-    .maybeSingle();
-
-  if (existing) {
-    userPrefs = existing;
-    closeModal();
-    updateNudge();
-    if (userPrefs.preferred_centre_id) {
-      document.getElementById('centre-select').value = userPrefs.preferred_centre_id;
-      renderCentre(userPrefs.preferred_centre_id);
-    }
-    return;
-  }
-
-  // New user — advance to preference screens
-  showScreen(1);
-}
-
-function switchToSignIn() {
-  modalMode = 'signin';
-  document.getElementById('auth-title').textContent = 'Sign in to Tide';
-  document.getElementById('btn-auth').textContent   = 'Sign in';
-  document.getElementById('auth-password').autocomplete = 'current-password';
-  document.getElementById('auth-switch-text').innerHTML =
-    'New to Tide? <span class="link-btn" onclick="switchToSignUp()">Create account</span>';
-}
-
-function switchToSignUp() {
-  modalMode = 'signup';
-  document.getElementById('auth-title').textContent = 'Create your account';
-  document.getElementById('btn-auth').textContent   = 'Create account';
-  document.getElementById('auth-password').autocomplete = 'new-password';
-  document.getElementById('auth-switch-text').innerHTML =
-    'Already have an account? <span class="link-btn" onclick="switchToSignIn()">Sign in</span>';
-}
-
-// ── Screen 1: gender ──────────────────────────────────────────────────────────
-function toggleGender(el) {
-  const val = el.dataset.value;
-  if (prefState.gender.has(val)) {
-    prefState.gender.delete(val);
-    el.classList.remove('selected');
-  } else {
-    prefState.gender.add(val);
-    el.classList.add('selected');
-  }
-  document.getElementById('btn-next-1').disabled = prefState.gender.size === 0;
-}
-
-// ── Screen 2: style clusters ──────────────────────────────────────────────────
-function toggleCluster(el) {
-  const val = el.dataset.value;
-  if (prefState.clusters.has(val)) {
-    prefState.clusters.delete(val);
-    el.classList.remove('selected');
-  } else {
-    prefState.clusters.add(val);
-    el.classList.add('selected');
-  }
-}
-
-function nextToScreen3() {
-  showScreen(3);
-  buildCentreList();
-}
-
-function skipClusters() {
-  prefState.clusters = new Set();
-  showScreen(3);
-  buildCentreList();
-}
-
-// ── Screen 3: preferred centre ────────────────────────────────────────────────
-const CENTRES = [
-  {id:'C01',name:'Festival Place',town:'Basingstoke'},
-  {id:'C02',name:'Westquay',town:'Southampton'},
-  {id:'C03',name:'Westfield London',town:'London'},
-  {id:'C04',name:'Westfield Stratford',town:'London'},
-  {id:'C05',name:'Trafford Centre',town:'Manchester'},
-  {id:'C06',name:'Metrocentre',town:'Gateshead'},
-  {id:'C07',name:'Bluewater',town:'Kent'},
-  {id:'C08',name:'Meadowhall',town:'Sheffield'},
-  {id:'C09',name:'Bullring & Grand Central',town:'Birmingham'},
-  {id:'C10',name:'Lakeside',town:'Essex'},
-  {id:'C11',name:'Liverpool ONE',town:'Liverpool'},
-  {id:'C12',name:"St David's",town:'Cardiff'},
-  {id:'C13',name:'Cabot Circus',town:'Bristol'},
-  {id:'C14',name:'Arndale Centre',town:'Manchester'},
-  {id:'C15',name:'Brent Cross',town:'London'},
-  {id:'C16',name:'Victoria Leeds',town:'Leeds'},
-  {id:'C17',name:'Eldon Square',town:'Newcastle'},
-  {id:'C18',name:'The Oracle',town:'Reading'},
-  {id:'C19',name:'The Lexicon',town:'Bracknell'},
-  {id:'C20',name:'Friars Walk',town:'Newport'},
-  {id:'C21',name:'Queensgate',town:'Peterborough'},
-  {id:'C22',name:'Broadmead',town:'Bristol'},
-  {id:'C23',name:'Highcross',town:'Leicester'},
-  {id:'C24',name:'Touchwood',town:'Solihull'},
-  {id:'C25',name:'The Bentall Centre',town:'Kingston'},
-  {id:'C26',name:'White Rose',town:'Leeds'},
-  {id:'C27',name:'Cribbs Causeway',town:'Bristol'},
-  {id:'C28',name:'Braehead',town:'Glasgow'},
-  {id:'C29',name:'Silverburn',town:'Glasgow'},
-  {id:'C30',name:'St James Quarter',town:'Edinburgh'},
-];
-
-function buildCentreList(filter = '') {
-  const list = document.getElementById('centre-list');
-  const q = filter.toLowerCase();
-  const items = CENTRES.filter(c =>
-    !q || c.name.toLowerCase().includes(q) || c.town.toLowerCase().includes(q)
-  );
-  list.innerHTML = items.map(c => `
-    <div class="centre-option ${prefState.centreId === c.id ? 'selected' : ''}"
-         onclick="selectCentre('${c.id}', this)">
-      <span class="centre-opt-name">${c.name}</span>
-      <span class="centre-opt-town">${c.town}</span>
-    </div>
-  `).join('');
-}
-
-function filterCentres() {
-  buildCentreList(document.getElementById('centre-search').value);
-}
-
-function selectCentre(id, el) {
-  prefState.centreId = id;
-  document.querySelectorAll('.centre-option').forEach(o => o.classList.remove('selected'));
-  el.classList.add('selected');
-  document.getElementById('btn-save').disabled = false;
-}
-
-// ── Save preferences to Supabase ──────────────────────────────────────────────
-async function savePreferences() {
-  if (!currentUser) return;
-
-  const btn = document.getElementById('btn-save');
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
-
-  const record = {
-    user_id:             currentUser.id,
-    shop_women:          prefState.gender.has('women'),
-    shop_men:            prefState.gender.has('men'),
-    shop_children:       prefState.gender.has('children'),
-    style_clusters:      prefState.clusters.size > 0 ? [...prefState.clusters] : null,
-    preferred_centre_id: prefState.centreId,
-    updated_at:          new Date().toISOString(),
-  };
-
-  const { data, error } = await sb
-    .from('user_preferences')
-    .upsert(record, { onConflict: 'user_id' })
-    .select()
-    .single();
-
-  btn.disabled = false;
-  btn.textContent = 'Show my score →';
-
-  if (error) {
-    alert('Could not save preferences. Please try again.');
-    return;
-  }
-
-  userPrefs = data;
-  closeModal();
-  updateNudge();
-
-  if (prefState.centreId) {
-    document.getElementById('centre-select').value = prefState.centreId;
-    renderCentre(prefState.centreId);
-  }
-}
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-document.getElementById('today-date').textContent =
-  new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-
-// Auto-render Westfield London so the score card is visible on first load.
-// initAuth() will override with the user's preferred centre if they're signed in.
-(function () {
-  const sel = document.getElementById('centre-select');
-  sel.value = 'C03';
-  renderCentre('C03');
-})();
-
-initAuth();
+loadSheetData();
 </script>
 </body>
 </html>

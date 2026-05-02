@@ -279,7 +279,7 @@ async function calculatePersonalScores() {
 
       if (matchingBrandIds.length === 0) continue;
 
-      let totalRipeness  = 0;
+      let totalFreshness = 0;
       let matchingOnSale = 0;
 
       for (const brandId of matchingBrandIds) {
@@ -290,11 +290,11 @@ async function calculatePersonalScores() {
           ? Math.floor((new Date(TODAY) - new Date(sale.date_first_detected)) / 86400000) + 1
           : 1;
 
-        totalRipeness += brandRipenessScore(daysRunning);
+        totalFreshness += brandFreshnessScore(daysRunning);
         matchingOnSale++;
       }
 
-      const personalScore = Math.round((totalRipeness / matchingBrandIds.length) * 10) / 10;
+      const personalScore = Math.round((totalFreshness / matchingBrandIds.length) * 10) / 10;
       const { verdict } = getTideStage(personalScore, 'HOLDING');
 
       scoreRows.push({

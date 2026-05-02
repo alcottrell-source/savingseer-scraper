@@ -16,13 +16,14 @@ ALTER TABLE brands
 -- 2c. user_preferences table
 -- ──────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_preferences (
-  user_id        UUID        PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  womenswear     BOOLEAN     NOT NULL DEFAULT false,
-  menswear       BOOLEAN     NOT NULL DEFAULT false,
-  childrenswear  BOOLEAN     NOT NULL DEFAULT false,
-  style_clusters TEXT[]      NOT NULL DEFAULT '{}',
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  user_id              UUID        PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  preferred_centre_id  TEXT,
+  womenswear           BOOLEAN     NOT NULL DEFAULT false,
+  menswear             BOOLEAN     NOT NULL DEFAULT false,
+  childrenswear        BOOLEAN     NOT NULL DEFAULT false,
+  style_clusters       TEXT[]      NOT NULL DEFAULT '{}',
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
@@ -112,5 +113,13 @@ LEFT  JOIN personal_tide_scores pts
   AND pts.user_id    = auth.uid()
 WHERE css.score_date = CURRENT_DATE;
 
--- Grant access to authenticated users
+-- centre_seer_scores is public data; grant read access so the view can join it
+-- under the caller's permissions when security_invoker is set.
+GRANT SELECT ON centre_seer_scores TO authenticated;
+
+-- Run the view as the calling user so Postgres RLS on personal_tide_scores
+-- provides a second layer of defence (requires PostgreSQL 15+, which Supabase supports).
+ALTER VIEW v_personal_scores SET (security_invoker = true);
+
+-- Grant SELECT on the view itself to authenticated users
 GRANT SELECT ON v_personal_scores TO authenticated;

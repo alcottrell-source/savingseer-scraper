@@ -247,11 +247,17 @@ async function calculatePersonalScores() {
     );
   }
 
+  if (prefsRes.error) {
+    console.warn('  Could not load user preferences:', prefsRes.error.message);
+    return;
+  }
+
   if (!prefsRes.data || prefsRes.data.length === 0) {
     console.log('  No user preferences found, skipping personal scores');
     return;
   }
 
+  const brandById    = new Map(brands.map(b => [b.id, b]));
   const brandSaleMap = new Map(brandSaleRes.data.map(b => [b.brand_id, b]));
 
   const centreBrandMap = new Map();
@@ -267,7 +273,7 @@ async function calculatePersonalScores() {
       const brandIds = centreBrandMap.get(centre.id) || [];
 
       const matchingBrandIds = brandIds.filter(brandId => {
-        const brand = brands.find(b => b.id === brandId);
+        const brand = brandById.get(brandId);
         return brand && brandMatchesPrefs(brand, pref);
       });
 

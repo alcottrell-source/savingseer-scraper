@@ -123,6 +123,30 @@
   .history-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 10px; }
   .traj-indicator { font-size: 12px; font-weight: 500; margin-top: 3px; letter-spacing: 0; text-transform: none; }
   .demo-badge { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); text-align: right; margin-top: 6px; opacity: 0.7; }
+
+  /* Add-to-home-screen banner (bottom of screen, after engagement) */
+  .ath-banner { position: fixed; left: 12px; right: 12px; bottom: 12px; background: var(--bark); color: white; border-radius: 14px; padding: 14px 16px; box-shadow: 0 8px 28px rgba(44,24,16,0.22); z-index: 600; display: flex; flex-direction: column; gap: 10px; animation: ath-rise 0.32s ease-out; }
+  .ath-banner-text { display: flex; flex-direction: column; gap: 2px; }
+  .ath-headline { font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; line-height: 1.2; }
+  .ath-body { font-size: 13px; line-height: 1.45; opacity: 0.85; }
+  .ath-banner-actions { display: flex; gap: 8px; }
+  .ath-cta { flex: 1; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; background: var(--leaf); color: white; border: 0; border-radius: 10px; padding: 11px 14px; cursor: pointer; transition: background 0.2s; }
+  .ath-cta:hover { background: #4a7c41; }
+  .ath-dismiss { font-family: 'DM Sans', sans-serif; font-size: 13px; color: rgba(255,255,255,0.65); background: transparent; border: 0; padding: 11px 14px; cursor: pointer; }
+  .ath-dismiss:hover { color: white; }
+  @keyframes ath-rise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Install explainer modal — reuses .modal-overlay / .modal styles */
+  .install-modal-card { padding: 28px 24px 24px; }
+  .install-headline { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; color: var(--bark); margin-bottom: 12px; line-height: 1.2; }
+  .install-body { font-size: 14px; line-height: 1.55; color: var(--stone); margin-bottom: 20px; }
+  .install-benefits { list-style: none; padding: 0; margin: 0 0 20px; display: flex; flex-direction: column; gap: 14px; }
+  .install-benefits li { display: flex; gap: 12px; align-items: flex-start; }
+  .install-benefits .benefit-icon { font-size: 18px; flex-shrink: 0; width: 24px; text-align: center; padding-top: 1px; }
+  .install-benefits strong { display: block; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: var(--bark); margin-bottom: 2px; }
+  .install-benefits p { font-size: 13px; color: var(--stone); line-height: 1.45; }
+  .install-instruction { font-size: 13px; color: var(--stone); line-height: 1.5; padding: 12px 14px; background: var(--leaf-lt); border-radius: 10px; }
+  .install-instruction strong { color: var(--bark); font-weight: 500; }
 </style>
 <script defer data-domain="v0-tide-sale-timing.vercel.app" src="https://plausible.io/js/script.js"></script>
 <script type="text/javascript" src="https://s.skimresources.com/js/302477X1790477.skimlinks.js"></script>
@@ -248,6 +272,31 @@
       <button class="btn btn-text" onclick="prefsNextStep(2)">Back</button>
       <button class="signout-link" onclick="signOut()">Sign out</button>
     </div>
+  </div>
+</div>
+
+<div class="ath-banner" id="ath-banner" hidden>
+  <div class="ath-banner-text">
+    <p class="ath-headline">Never waste a trip.</p>
+    <p class="ath-body">Add Tide to your home screen — check the score before you go, every time.</p>
+  </div>
+  <div class="ath-banner-actions">
+    <button class="ath-cta" id="ath-cta">Add to Home Screen</button>
+    <button class="ath-dismiss" id="ath-dismiss">Not now</button>
+  </div>
+</div>
+
+<div id="install-modal" class="modal-overlay" style="display:none" onclick="closeInstallModal(event)">
+  <div class="modal install-modal-card" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeInstallModal()">&times;</button>
+    <h2 class="install-headline">Your shopping trip, timed right.</h2>
+    <p class="install-body">Tide scores every major shopping centre daily — so you arrive when the best brands are on sale at peak freshness, not a week too late.</p>
+    <ul class="install-benefits">
+      <li><span class="benefit-icon">&#9201;</span><div><strong>Know before you go</strong><p>A live score tells you if today is worth the trip.</p></div></li>
+      <li><span class="benefit-icon">&#128200;</span><div><strong>Catch sales at their best</strong><p>Stocks are fullest in the first week. Tide shows you that window.</p></div></li>
+      <li><span class="benefit-icon">&#128257;</span><div><strong>One tap, every morning</strong><p>On your home screen, it takes two seconds to check.</p></div></li>
+    </ul>
+    <p class="install-instruction">Tap <strong>Share &rarr; Add to Home Screen</strong> in Safari, or <strong>Install App</strong> in Chrome.</p>
   </div>
 </div>
 
@@ -1148,6 +1197,65 @@ async function renderCentre(centreId) {
 }
 
 loadTideData().then(ok => { if (!ok) loadSheetData(); });
+
+// ── Add-to-home-screen prompt ──────────────────────────────────────────────
+// Show only after the user has engaged (selected a centre this session AND
+// it's their 2nd+ visit). Hidden in standalone mode (already installed),
+// dismissible for 7 days, or permanently if "Add to Home Screen" is tapped.
+(function setupATHBanner() {
+  const VISIT_KEY = 'tide_visit_count';
+  const DISMISSED_KEY = 'tide_ath_dismissed_at';
+  const ADDED_KEY = 'tide_ath_added';
+  const SEVEN_DAYS = 7 * 86400 * 1000;
+
+  // Bump visit counter once per page load
+  const visits = (parseInt(localStorage.getItem(VISIT_KEY) || '0', 10) || 0) + 1;
+  try { localStorage.setItem(VISIT_KEY, String(visits)); } catch (e) {}
+
+  function isStandalone() {
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || window.navigator.standalone === true;
+  }
+  function shouldShow() {
+    if (isStandalone()) return false;
+    if (localStorage.getItem(ADDED_KEY)) return false;
+    const dismissed = parseInt(localStorage.getItem(DISMISSED_KEY) || '0', 10);
+    if (dismissed && (Date.now() - dismissed) < SEVEN_DAYS) return false;
+    return visits >= 2;
+  }
+
+  let centreSelectedThisSession = false;
+  // Hook into renderCentre — after a successful render we know the user has
+  // engaged with a score, which is the trigger the brief calls for.
+  const sel = document.getElementById('centre-select');
+  if (sel) {
+    sel.addEventListener('change', () => {
+      if (sel.value && !centreSelectedThisSession) {
+        centreSelectedThisSession = true;
+        if (shouldShow()) {
+          const banner = document.getElementById('ath-banner');
+          if (banner) banner.hidden = false;
+        }
+      }
+    });
+  }
+
+  const cta = document.getElementById('ath-cta');
+  const dismiss = document.getElementById('ath-dismiss');
+  if (cta) cta.addEventListener('click', () => {
+    document.getElementById('install-modal').style.display = 'flex';
+    document.getElementById('ath-banner').hidden = true;
+  });
+  if (dismiss) dismiss.addEventListener('click', () => {
+    document.getElementById('ath-banner').hidden = true;
+    try { localStorage.setItem(DISMISSED_KEY, String(Date.now())); } catch (e) {}
+  });
+})();
+
+function closeInstallModal(e) {
+  if (e && e.target.id !== 'install-modal' && !e.target.classList.contains('modal-close')) return;
+  document.getElementById('install-modal').style.display = 'none';
+}
 </script>
 </body>
 </html>

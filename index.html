@@ -60,6 +60,8 @@
   .brand-chip { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--bark); transition: border-color 0.2s; }
   .brand-chip.on-sale { border-color: rgba(61,107,53,0.25); background: var(--leaf-lt); }
   .brand-chip.on-sale .brand-name { font-weight: 500; color: var(--bark); }
+  .brand-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .brand-days { font-size: 11px; color: var(--leaf); font-weight: 500; letter-spacing: 0.01em; }
   .sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); flex-shrink: 0; }
   .no-sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--stone-lt); border: 1px solid var(--border); flex-shrink: 0; }
   .empty-state { padding: 60px 24px; text-align: center; }
@@ -636,6 +638,18 @@ function computeTrajectory(score, history) {
   return 'FLAT';
 }
 
+function trajectoryDuration(history, currentTraj) {
+  if (currentTraj==='FLAT') return 0;
+  let count = 1;
+  for (let i = history.length-1; i>=3; i--) {
+    const avg = (history[i-1].score+history[i-2].score+history[i-3].score)/3;
+    const diff = history[i].score-avg;
+    const matches = currentTraj==='RISING' ? diff>TRAJECTORY_FLAT_BAND : diff<-TRAJECTORY_FLAT_BAND;
+    if (matches) count++; else break;
+  }
+  return count;
+}
+
 function calcCentreScore(centreIdx) {
   const brandsAtCentre = BRANDS.filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1);
   if (!brandsAtCentre.length) return {score:0,onSale:[],total:0};
@@ -856,12 +870,23 @@ async function renderCentre(centreId) {
     if (!bList||!bList.length) continue;
     brandHTML+='<div class="cluster-label">'+cluster+'</div>';
     for (const b of bList) {
-      brandHTML+='<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"><span class="brand-name">'+b.name+'</span>'+(b.isOnSale?'<span class="sale-dot"></span>':'<span class="no-sale-dot"></span>')+'</div>';
+      const days=b.isOnSale?(DAYS_RUNNING[b.id]||0):0;
+      const daysLabel=days===1?'New today':days>1?days+' days':'';
+      const meta=b.isOnSale
+        ?'<span class="brand-meta">'+(daysLabel?'<span class="brand-days">'+daysLabel+'</span>':'')+'<span class="sale-dot"></span></span>'
+        :'<span class="no-sale-dot"></span>';
+      brandHTML+='<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"><span class="brand-name">'+b.name+'</span>'+meta+'</div>';
     }
   }
 
-  const trajLabel=trajectory==='RISING'?'\u2191 Rising':trajectory==='FALLING'?'\u2193 Falling':'\u2192 Flat';
   const isDemo=history.length<2;
+  const trajHistory = isDemo ? generateMockHistory(centreIdx) : history;
+  const trajDays = trajectoryDuration(trajHistory, trajectory);
+  const trajWord = trajectory==='RISING'?'Rising':trajectory==='FALLING'?'Falling':'Flat';
+  const trajArrow = trajectory==='RISING'?'\u2191':trajectory==='FALLING'?'\u2193':'\u2192';
+  const trajLabel = trajectory==='FLAT' || trajDays<2
+    ? trajArrow+' '+trajWord
+    : trajArrow+' '+trajWord+' for '+trajDays+' days';
 
   content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+style.label+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+'<div class="arc-wrap">'+arcSVG+arcLegend+'</div>'+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+style.msg+'</div></div></div>'+renderHistoryChart(isDemo?generateMockHistory(centreIdx):history,style.color,isDemo)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
 

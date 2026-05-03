@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#FAF7F2">
+<title>Tide · Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --cream: #FAF7F2; --bark: #2C1810; --leaf: #3D6B35; --leaf-lt: #EEF4EC;
+    --amber: #C17A2B; --amber-lt: #FBF2E4; --red: #B84C3A; --red-lt: #FAEAE7;
+    --stone: #8C8070; --stone-lt: #F2EFE9; --border: rgba(44,24,16,0.10);
+  }
+  html { font-size: 16px; }
+  body {
+    background: var(--cream); color: var(--bark);
+    font-family: 'DM Sans', sans-serif; font-weight: 300;
+    min-height: 100vh; padding-bottom: 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Header ──────────────────────────────────────────────────────── */
+  header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; background: var(--cream); z-index: 100;
+  }
+  .wordmark { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; color: var(--bark); }
+  .wordmark span { color: var(--leaf); }
+  .wordmark::after { content: ' admin'; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--stone); margin-left: 6px; }
+  .header-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--stone); }
+  .signout-btn { background: none; border: 1px solid var(--border); color: var(--stone); font-family: inherit; font-size: 12px; padding: 5px 12px; border-radius: 16px; cursor: pointer; }
+  .signout-btn:hover { color: var(--bark); border-color: var(--bark); }
+
+  /* ── Login screen ─────────────────────────────────────────────────── */
+  .login-wrap {
+    min-height: calc(100vh - 60px); display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .login-card {
+    background: white; border: 1px solid var(--border); border-radius: 16px;
+    padding: 28px 24px; max-width: 360px; width: 100%;
+  }
+  .login-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; color: var(--bark); margin-bottom: 6px; }
+  .login-sub { font-size: 13px; color: var(--stone); margin-bottom: 22px; line-height: 1.5; }
+  .input {
+    width: 100%; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; font: inherit; font-size: 15px; color: var(--bark);
+    background: white; margin-bottom: 10px;
+  }
+  .input:focus { outline: none; border-color: var(--leaf); }
+  .btn {
+    font: inherit; font-size: 14px; font-weight: 500;
+    border-radius: 8px; padding: 11px 18px; cursor: pointer; border: none;
+    width: 100%; margin-top: 4px; transition: background 0.15s, opacity 0.15s;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--leaf); color: white; }
+  .btn-primary:hover:not(:disabled) { background: #2f5428; }
+  .err { background: var(--red-lt); color: var(--red); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; line-height: 1.45; }
+
+  /* ── Sections ────────────────────────────────────────────────────── */
+  .section-bar {
+    padding: 18px 20px 8px; display: flex; align-items: baseline; justify-content: space-between;
+    position: sticky; top: 53px; background: var(--cream); z-index: 50;
+  }
+  .section-bar.confirmed { padding-top: 32px; }
+  .section-title { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--stone); }
+  .section-title.urgent { color: var(--bark); font-weight: 500; }
+  .count-pill {
+    font-size: 10px; font-weight: 500; letter-spacing: 0.04em;
+    padding: 2px 8px; border-radius: 10px;
+    background: var(--stone-lt); color: var(--stone);
+  }
+  .count-pill.urgent { background: var(--amber-lt); color: var(--amber); }
+
+  /* ── Brand row card ─────────────────────────────────────────────── */
+  .brand-list { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
+  .brand-card {
+    background: white; border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px 14px 12px; position: relative;
+  }
+  .brand-card.confirmed { opacity: 0.62; }
+  .brand-card.disagrees::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px; background: var(--amber); border-radius: 14px 0 0 14px;
+  }
+
+  .row-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .row-name { font-size: 16px; font-weight: 500; color: var(--bark); line-height: 1.2; }
+  .row-tier {
+    font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 8px; margin-left: 6px;
+    background: var(--stone-lt); color: var(--stone); font-weight: 500;
+    display: inline-block; vertical-align: 2px;
+  }
+  .row-tier.anchor { background: var(--leaf-lt); color: var(--leaf); }
+  .row-link { font-size: 11px; color: var(--stone); text-decoration: none; white-space: nowrap; }
+  .row-link:hover { color: var(--leaf); }
+  .row-link::after { content: ' ↗'; }
+
+  .row-state-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px;
+    font-size: 12px; line-height: 1.4; padding: 8px 0 10px;
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    margin-bottom: 10px;
+  }
+  .row-state-cell .state-label { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); margin-bottom: 1px; }
+  .row-state-cell .state-value { color: var(--bark); }
+  .state-value.on  { color: var(--leaf); font-weight: 500; }
+  .state-value.off { color: var(--stone); }
+  .state-value.err { color: var(--red); }
+  .state-value.dim { color: var(--stone); font-style: italic; }
+  .state-pct { color: var(--amber); font-weight: 500; }
+
+  .row-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .row-actions.with-end { grid-template-columns: 1fr 1fr 1fr; }
+  .action-btn {
+    font: inherit; font-size: 12px; font-weight: 500;
+    border-radius: 8px; padding: 9px 8px; cursor: pointer; border: 1px solid transparent;
+    text-align: center; transition: background 0.12s, border 0.12s;
+    min-height: 38px;
+  }
+  .action-btn.primary { background: var(--leaf); color: white; }
+  .action-btn.primary:hover { background: #2f5428; }
+  .action-btn.danger { background: var(--red-lt); color: var(--red); border-color: rgba(184,76,58,0.18); }
+  .action-btn.danger:hover { background: rgba(184,76,58,0.13); }
+  .action-btn.muted { background: var(--stone-lt); color: var(--bark); border-color: var(--border); }
+  .action-btn.muted:hover { background: #e8e4de; }
+  .action-btn.ghost { background: white; color: var(--stone); border-color: var(--border); }
+  .action-btn.ghost:hover { color: var(--bark); border-color: var(--bark); }
+  .action-btn:disabled { opacity: 0.5; cursor: wait; }
+
+  /* ── Inline confirm-on-sale form ──────────────────────────────────── */
+  .inline-form {
+    background: var(--leaf-lt); border: 1px solid rgba(61,107,53,0.20);
+    border-radius: 10px; padding: 12px; margin-top: 10px;
+    display: grid; gap: 8px;
+  }
+  .inline-form-row { display: flex; gap: 8px; }
+  .inline-form-row label { flex: 1; font-size: 11px; color: var(--stone); }
+  .inline-form-row .input { padding: 8px 10px; font-size: 14px; margin: 4px 0 0; }
+  .inline-form-actions { display: flex; gap: 6px; }
+  .inline-form-actions .btn { width: auto; flex: 1; margin-top: 0; padding: 9px; }
+
+  /* ── Empty / loading / status banner ──────────────────────────────── */
+  .status-banner { padding: 12px 20px; font-size: 13px; color: var(--stone); }
+  .status-banner.error { color: var(--red); background: var(--red-lt); border-bottom: 1px solid rgba(184,76,58,0.15); }
+  .empty-section { padding: 24px 20px; text-align: center; font-size: 13px; color: var(--stone); font-style: italic; }
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--bark); color: white; font-size: 13px;
+    padding: 10px 18px; border-radius: 24px;
+    opacity: 0; transition: opacity 0.2s; z-index: 300; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  @media (min-width: 720px) {
+    .brand-list { max-width: 720px; margin: 0 auto; }
+    .section-bar { max-width: 720px; margin: 0 auto; padding-left: 0; padding-right: 0; }
+    header { padding-left: max(20px, calc((100vw - 720px) / 2)); padding-right: max(20px, calc((100vw - 720px) / 2)); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">TID<span>E</span></div>
+  <div class="header-meta">
+    <span id="who" style="display:none"></span>
+    <button id="signout-btn" class="signout-btn" style="display:none">Sign out</button>
+  </div>
+</header>
+
+<div id="status" class="status-banner" style="display:none"></div>
+
+<!-- Login screen -->
+<div id="login-screen" class="login-wrap" style="display:none">
+  <div class="login-card">
+    <div class="login-title">Admin sign in</div>
+    <div class="login-sub">Sign in with your Tide account to confirm sale cycles.</div>
+    <div id="login-err" class="err" style="display:none"></div>
+    <form id="login-form" autocomplete="on">
+      <input id="login-email" class="input" type="email" placeholder="Email" autocomplete="email" required>
+      <input id="login-pw" class="input" type="password" placeholder="Password" autocomplete="current-password" required>
+      <button id="login-btn" class="btn btn-primary" type="submit">Sign in</button>
+    </form>
+  </div>
+</div>
+
+<!-- Main app -->
+<main id="app" style="display:none">
+  <div class="section-bar">
+    <div class="section-title urgent">Needs review</div>
+    <div class="count-pill urgent" id="needs-count">0</div>
+  </div>
+  <div class="brand-list" id="needs-list"></div>
+  <div id="needs-empty" class="empty-section" style="display:none">All caught up. Nothing to review today.</div>
+
+  <div class="section-bar confirmed">
+    <div class="section-title">Confirmed today</div>
+    <div class="count-pill" id="confirmed-count">0</div>
+  </div>
+  <div class="brand-list" id="confirmed-list"></div>
+  <div id="confirmed-empty" class="empty-section" style="display:none">No actions yet today.</div>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script type="module">
+import { brands as BRAND_DEFS } from './brands.js';
+
+// ── Supabase client (anon key — RLS does the gating) ───────────────────────
+const SUPABASE_URL = 'https://vrezzwadwzrmumjpdgge.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_qid8Ej6biCOmKLjLIY5DfA_nzJXmc9G';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B011','B012']);
+const TODAY = new Date().toISOString().split('T')[0];
+const BRAND_BY_ID = Object.fromEntries(BRAND_DEFS.map(b => [b.id, b]));
+
+// ── DOM helpers ────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function showStatus(msg, isError) {
+  const el = $('status');
+  if (!msg) { el.style.display = 'none'; return; }
+  el.textContent = msg;
+  el.className = 'status-banner' + (isError ? ' error' : '');
+  el.style.display = 'block';
+}
+let toastTimer;
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ── Auth flow ──────────────────────────────────────────────────────────────
+async function start() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { showLogin(); return; }
+  await onSignedIn(session);
+}
+
+function showLogin() {
+  $('app').style.display = 'none';
+  $('login-screen').style.display = 'flex';
+  $('signout-btn').style.display = 'none';
+  $('who').style.display = 'none';
+  showStatus(null);
+}
+
+$('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = $('login-err');
+  errEl.style.display = 'none';
+  $('login-btn').disabled = true;
+  const email = $('login-email').value.trim();
+  const password = $('login-pw').value;
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  $('login-btn').disabled = false;
+  if (error) {
+    errEl.textContent = error.message || 'Sign-in failed.';
+    errEl.style.display = 'block';
+    return;
+  }
+  await onSignedIn(data.session);
+});
+
+$('signout-btn').addEventListener('click', async () => {
+  await sb.auth.signOut();
+  showLogin();
+});
+
+async function onSignedIn(session) {
+  $('login-screen').style.display = 'none';
+  $('signout-btn').style.display = 'inline-block';
+  $('who').style.display = 'inline';
+  $('who').textContent = session.user.email;
+
+  // Probe admin-only table to verify is_admin() returns true for this user.
+  // RLS on admin_review_log restricts SELECT to admin. If we get an empty
+  // result without an error, we're an admin. Errors mean either not-admin
+  // or migration not applied.
+  const probe = await sb.from('admin_review_log').select('id', { count: 'exact', head: true });
+  if (probe.error) {
+    showStatus('This account is not an admin, or the admin migration has not yet been applied. Sign out and use the dashboard instead.', true);
+    return;
+  }
+  $('app').style.display = 'block';
+  await loadAndRender();
+}
+
+// ── Data load ──────────────────────────────────────────────────────────────
+async function loadAndRender() {
+  showStatus('Loading…');
+  const [eventsRes, cyclesRes, reviewsRes] = await Promise.all([
+    sb.from('brand_sale_events')
+      .select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_date, last_verified_status, active_cycle_id'),
+    sb.from('brand_sale_cycles')
+      .select('id, brand_id, start_date, end_date, max_discount_pct')
+      .is('end_date', null),
+    sb.from('admin_review_log')
+      .select('brand_id, action, created_at')
+      .eq('reviewed_date', TODAY),
+  ]);
+
+  if (eventsRes.error || cyclesRes.error || reviewsRes.error) {
+    showStatus('Load failed: ' + (eventsRes.error || cyclesRes.error || reviewsRes.error).message, true);
+    return;
+  }
+  showStatus(null);
+
+  const cycleById = new Map((cyclesRes.data || []).map(c => [c.id, c]));
+  const reviewByBrand = new Map((reviewsRes.data || []).map(r => [r.brand_id, r]));
+
+  const needs = [];
+  const confirmed = [];
+
+  for (const ev of (eventsRes.data || [])) {
+    const def = BRAND_BY_ID[ev.brand_id];
+    if (!def) continue;  // Brand removed from brands.js but row still in DB
+    const cycle = ev.active_cycle_id ? cycleById.get(ev.active_cycle_id) : null;
+    const review = reviewByBrand.get(ev.brand_id);
+    const row = { ev, def, cycle, review };
+    if (review) {
+      confirmed.push(row);
+    } else {
+      needs.push(row);
+    }
+  }
+
+  // Within needs: scraper-disagrees first, then anchors, then alphabetical.
+  needs.sort((a, b) => {
+    const aDis = scraperDisagrees(a.ev) ? 1 : 0;
+    const bDis = scraperDisagrees(b.ev) ? 1 : 0;
+    if (aDis !== bDis) return bDis - aDis;
+    const aAnc = ANCHOR_BRAND_IDS.has(a.ev.brand_id) ? 1 : 0;
+    const bAnc = ANCHOR_BRAND_IDS.has(b.ev.brand_id) ? 1 : 0;
+    if (aAnc !== bAnc) return bAnc - aAnc;
+    return a.def.name.localeCompare(b.def.name);
+  });
+
+  confirmed.sort((a, b) => new Date(b.review.created_at) - new Date(a.review.created_at));
+
+  $('needs-count').textContent = needs.length;
+  $('confirmed-count').textContent = confirmed.length;
+  $('needs-list').innerHTML = needs.map(renderRow).join('');
+  $('confirmed-list').innerHTML = confirmed.map(r => renderRow(r, true)).join('');
+  $('needs-empty').style.display = needs.length ? 'none' : 'block';
+  $('confirmed-empty').style.display = confirmed.length ? 'none' : 'block';
+
+  wireRowActions();
+}
+
+function scraperDisagrees(ev) {
+  if (ev.scraper_error) return false;  // can't disagree with a broken scraper
+  if (ev.last_verified_status === null || ev.last_verified_status === undefined) {
+    // Never verified — treat as disagreement so it surfaces for first review
+    return true;
+  }
+  return ev.sale_status !== ev.last_verified_status;
+}
+
+// ── Row renderer ──────────────────────────────────────────────────────────
+function renderRow({ ev, def, cycle, review }, isConfirmed) {
+  const tier = ANCHOR_BRAND_IDS.has(ev.brand_id) ? 'Anchor' : (def.cluster || '');
+  const tierClass = ANCHOR_BRAND_IDS.has(ev.brand_id) ? ' anchor' : '';
+
+  let scraperHtml;
+  if (ev.scraper_error) {
+    scraperHtml = '<span class="state-value err">Error</span>';
+  } else if (ev.sale_status) {
+    const pct = ev.max_discount_pct ? ' <span class="state-pct">' + ev.max_discount_pct + '%</span>' : '';
+    scraperHtml = '<span class="state-value on">On sale</span>' + pct;
+  } else {
+    scraperHtml = '<span class="state-value off">No sale</span>';
+  }
+
+  let verifiedHtml;
+  if (cycle) {
+    const days = daysSince(cycle.start_date);
+    const pct = cycle.max_discount_pct ? ' · <span class="state-pct">' + cycle.max_discount_pct + '%</span>' : '';
+    verifiedHtml = '<span class="state-value on">On sale</span> · day ' + days + pct;
+  } else if (ev.last_verified_date) {
+    verifiedHtml = (ev.last_verified_status
+        ? '<span class="state-value on">On sale</span>'
+        : '<span class="state-value off">No sale</span>')
+      + ' <span class="state-value dim">· ' + relDate(ev.last_verified_date) + '</span>';
+  } else {
+    verifiedHtml = '<span class="state-value dim">Never verified</span>';
+  }
+
+  const actions = isConfirmed
+    ? renderConfirmedNote(review)
+    : renderActionButtons(ev, cycle);
+
+  const cardClass = 'brand-card'
+    + (isConfirmed ? ' confirmed' : '')
+    + (!isConfirmed && scraperDisagrees(ev) ? ' disagrees' : '');
+
+  return '' +
+    '<div class="' + cardClass + '" data-brand-id="' + esc(ev.brand_id) + '">' +
+      '<div class="row-top">' +
+        '<div class="row-name">' + esc(def.name) +
+          (tier ? '<span class="row-tier' + tierClass + '">' + esc(tier) + '</span>' : '') +
+        '</div>' +
+        (def.url ? '<a class="row-link" href="' + esc(def.url) + '" target="_blank" rel="noopener">view sale</a>' : '') +
+      '</div>' +
+      '<div class="row-state-grid">' +
+        '<div class="row-state-cell"><div class="state-label">Scraper</div>' + scraperHtml + '</div>' +
+        '<div class="row-state-cell"><div class="state-label">Verified</div>' + verifiedHtml + '</div>' +
+      '</div>' +
+      actions +
+      '<div class="inline-form-mount"></div>' +
+    '</div>';
+}
+
+function renderActionButtons(ev, cycle) {
+  // If there's an active cycle, the relevant verbs are: "Confirm ended" or
+  // "Dismiss" (still on, scraper just blipped). "Confirm on sale" is hidden
+  // because we already have a cycle open — editing the existing one would be
+  // a separate flow.
+  if (cycle) {
+    return '<div class="row-actions with-end">' +
+      '<button class="action-btn primary" data-action="confirm_on">Still on</button>' +
+      '<button class="action-btn danger"  data-action="confirm_end">Sale ended</button>' +
+      '<button class="action-btn ghost"   data-action="dismiss">Dismiss</button>' +
+    '</div>';
+  }
+  // No active cycle — choose between starting one or confirming no sale.
+  return '<div class="row-actions with-end">' +
+    '<button class="action-btn primary" data-action="confirm_start">Confirm on sale</button>' +
+    '<button class="action-btn muted"   data-action="confirm_off">No sale</button>' +
+    '<button class="action-btn ghost"   data-action="dismiss">Dismiss</button>' +
+  '</div>';
+}
+
+function renderConfirmedNote(review) {
+  const pretty = {
+    confirmed_start: 'Confirmed sale started',
+    confirmed_end:   'Confirmed sale ended',
+    confirmed_on:    'Confirmed still on sale',
+    confirmed_off:   'Confirmed no sale',
+    dismissed:       'Dismissed',
+    edited:          'Edited',
+  }[review.action] || review.action;
+  const time = new Date(review.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return '<div style="font-size:12px;color:var(--stone);">' + esc(pretty) + ' · ' + esc(time) + '</div>';
+}
+
+// ── Action wiring ─────────────────────────────────────────────────────────
+function wireRowActions() {
+  document.querySelectorAll('.brand-card[data-brand-id]').forEach(card => {
+    card.querySelectorAll('button[data-action]').forEach(btn => {
+      btn.addEventListener('click', () => handleAction(card, btn));
+    });
+  });
+}
+
+async function handleAction(card, btn) {
+  const brandId = card.dataset.brandId;
+  const action = btn.dataset.action;
+  const def = BRAND_BY_ID[brandId];
+  // For "confirm_start" we open the inline form first; the form submit
+  // calls applyAction with the user-supplied date + pct.
+  if (action === 'confirm_start') {
+    openStartForm(card, brandId, def);
+    return;
+  }
+  setRowBusy(card, true);
+  try {
+    await applyAction(brandId, action, {});
+    toast(prettyAction(action) + ' · ' + def.name);
+    await loadAndRender();
+  } catch (err) {
+    showStatus('Action failed: ' + err.message, true);
+    setRowBusy(card, false);
+  }
+}
+
+function prettyAction(a) {
+  return ({
+    confirm_start: 'Sale started',
+    confirm_end:   'Sale ended',
+    confirm_on:    'Still on sale',
+    confirm_off:   'Confirmed off',
+    dismiss:       'Dismissed',
+  })[a] || a;
+}
+
+function setRowBusy(card, busy) {
+  card.querySelectorAll('button').forEach(b => b.disabled = busy);
+}
+
+function openStartForm(card, brandId, def) {
+  const mount = card.querySelector('.inline-form-mount');
+  // Fetch latest scraped pct as the prefill
+  const ev = card.__ev || null;
+  const prefilledPct = (ev && ev.max_discount_pct) || '';
+  mount.innerHTML =
+    '<div class="inline-form">' +
+      '<div class="inline-form-row">' +
+        '<label>Started <input class="input" type="date" id="frm-start" value="' + TODAY + '"></label>' +
+        '<label>Discount % <input class="input" type="number" id="frm-pct" min="1" max="99" placeholder="e.g. 30" value="' + esc(prefilledPct) + '"></label>' +
+      '</div>' +
+      '<div class="inline-form-actions">' +
+        '<button class="btn btn-primary" id="frm-save">Save cycle</button>' +
+        '<button class="btn" id="frm-cancel" style="background:var(--stone-lt);color:var(--bark)">Cancel</button>' +
+      '</div>' +
+    '</div>';
+
+  mount.querySelector('#frm-cancel').addEventListener('click', () => { mount.innerHTML = ''; });
+  mount.querySelector('#frm-save').addEventListener('click', async () => {
+    const startDate = mount.querySelector('#frm-start').value;
+    const pct = mount.querySelector('#frm-pct').value;
+    if (!startDate) { toast('Pick a start date'); return; }
+    setRowBusy(card, true);
+    try {
+      await applyAction(brandId, 'confirm_start', {
+        start_date: startDate,
+        max_discount_pct: pct ? parseInt(pct, 10) : null,
+      });
+      toast('Sale cycle saved · ' + def.name);
+      await loadAndRender();
+    } catch (err) {
+      showStatus('Save failed: ' + err.message, true);
+      setRowBusy(card, false);
+    }
+  });
+}
+
+// ── Mutations ─────────────────────────────────────────────────────────────
+// Each action does (1) the cycle/event mutation, then (2) the review log row.
+async function applyAction(brandId, action, opts) {
+  if (action === 'confirm_start') {
+    const { data: cycle, error: cErr } = await sb
+      .from('brand_sale_cycles')
+      .insert({
+        brand_id: brandId,
+        start_date: opts.start_date,
+        max_discount_pct: opts.max_discount_pct,
+        source: 'admin',
+      })
+      .select('id')
+      .single();
+    if (cErr) throw cErr;
+    const { error: uErr } = await sb
+      .from('brand_sale_events')
+      .update({
+        active_cycle_id: cycle.id,
+        last_verified_status: true,
+        last_verified_date: TODAY,
+      })
+      .eq('brand_id', brandId);
+    if (uErr) throw uErr;
+    await logReview(brandId, 'confirmed_start', cycle.id);
+    return;
+  }
+
+  if (action === 'confirm_end') {
+    // Close the open cycle, clear FK on event, mark verified-off.
+    const { data: openCycle, error: lookupErr } = await sb
+      .from('brand_sale_cycles')
+      .select('id')
+      .eq('brand_id', brandId)
+      .is('end_date', null)
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (lookupErr) throw lookupErr;
+    if (openCycle) {
+      const { error: cErr } = await sb
+        .from('brand_sale_cycles')
+        .update({ end_date: TODAY })
+        .eq('id', openCycle.id);
+      if (cErr) throw cErr;
+    }
+    const { error: uErr } = await sb
+      .from('brand_sale_events')
+      .update({
+        active_cycle_id: null,
+        last_verified_status: false,
+        last_verified_date: TODAY,
+      })
+      .eq('brand_id', brandId);
+    if (uErr) throw uErr;
+    await logReview(brandId, 'confirmed_end', openCycle ? openCycle.id : null);
+    return;
+  }
+
+  if (action === 'confirm_on') {
+    // Re-affirm the existing on-sale state (no cycle change).
+    const { error } = await sb
+      .from('brand_sale_events')
+      .update({ last_verified_status: true, last_verified_date: TODAY })
+      .eq('brand_id', brandId);
+    if (error) throw error;
+    await logReview(brandId, 'confirmed_on', null);
+    return;
+  }
+
+  if (action === 'confirm_off') {
+    const { error } = await sb
+      .from('brand_sale_events')
+      .update({ last_verified_status: false, last_verified_date: TODAY })
+      .eq('brand_id', brandId);
+    if (error) throw error;
+    await logReview(brandId, 'confirmed_off', null);
+    return;
+  }
+
+  if (action === 'dismiss') {
+    // No state change — just log it so the row leaves needs-review for today.
+    await logReview(brandId, 'dismissed', null);
+    return;
+  }
+
+  throw new Error('Unknown action: ' + action);
+}
+
+async function logReview(brandId, action, cycleId) {
+  const { error } = await sb
+    .from('admin_review_log')
+    .upsert(
+      { brand_id: brandId, reviewed_date: TODAY, action, cycle_id: cycleId },
+      { onConflict: 'brand_id,reviewed_date' }
+    );
+  if (error) throw error;
+}
+
+// ── Date helpers ──────────────────────────────────────────────────────────
+function daysSince(dateStr) {
+  if (!dateStr) return '—';
+  return Math.floor((new Date(TODAY) - new Date(dateStr)) / 86400000) + 1;
+}
+function relDate(dateStr) {
+  if (!dateStr) return '';
+  const d = Math.floor((new Date(TODAY) - new Date(dateStr)) / 86400000);
+  if (d === 0) return 'today';
+  if (d === 1) return 'yesterday';
+  return d + ' days ago';
+}
+
+start();
+</script>
+
+</body>
+</html>

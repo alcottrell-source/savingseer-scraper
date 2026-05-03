@@ -80,6 +80,15 @@
   a.brand-chip:hover .brand-arrow { color: var(--leaf); opacity: 1; }
   .sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); flex-shrink: 0; }
   .no-sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--stone-lt); border: 1px solid var(--border); flex-shrink: 0; }
+  .brand-row { display: flex; flex-direction: column; gap: 3px; }
+  .brand-feedback { display: flex; align-items: center; justify-content: flex-end; gap: 5px; padding: 0 6px; min-height: 18px; }
+  .brand-feedback .feedback-prompt { font-size: 10px; color: var(--stone); letter-spacing: 0.04em; margin-right: 4px; opacity: 0.75; }
+  .brand-feedback .thumb { background: white; border: 1px solid var(--border); font-size: 11px; padding: 2px 8px; border-radius: 11px; cursor: pointer; color: var(--stone); line-height: 1.2; transition: background 0.15s, color 0.15s, border-color 0.15s; font-family: inherit; }
+  .brand-feedback .thumb:hover:not(:disabled) { color: var(--bark); border-color: var(--bark); }
+  .brand-feedback .thumb.thumb-up.thumbed { background: var(--leaf-lt); color: var(--leaf); border-color: rgba(61,107,53,0.25); cursor: default; }
+  .brand-feedback .thumb.thumb-down.thumbed { background: var(--red-lt); color: var(--red); border-color: rgba(184,76,58,0.25); cursor: default; }
+  .brand-feedback .thumb:disabled { cursor: default; opacity: 0.5; }
+  .brand-feedback .thanks { font-size: 10px; color: var(--leaf); letter-spacing: 0.04em; }
   .empty-state { padding: 60px 24px; text-align: center; }
   .empty-icon { font-size: 48px; margin-bottom: 16px; display: block; }
   .empty-title { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--bark); margin-bottom: 8px; }
@@ -1188,9 +1197,20 @@ async function renderCentre(centreId) {
     // Always render arrow so the right edge aligns; hide it for unlinked chips.
     const arrow = '<span class="brand-arrow'+(url?'':' invisible')+'" aria-hidden="true">↗</span>';
     const inner = '<span class="brand-left">'+logoImg+'<span class="brand-name">'+b.name+'</span></span>'+meta+arrow;
-    return url
+    const chipHtml = url
       ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'" href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
       : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'">'+inner+'</div>';
+    // Thumbs feedback only for on-sale brands. Counts collected silently;
+    // not surfaced in the UI yet. Buttons stay enabled until clicked, then
+    // are locked for the rest of the day via localStorage.
+    const feedbackHtml = b.isOnSale
+      ? '<div class="brand-feedback" data-brand-id="'+b.id+'">'
+        + '<span class="feedback-prompt">Real?</span>'
+        + '<button class="thumb thumb-up"   type="button" data-thumb="up"   aria-label="Yes, this sale is real">&#128077;</button>'
+        + '<button class="thumb thumb-down" type="button" data-thumb="down" aria-label="This doesn&#39;t look right">&#128078;</button>'
+        + '</div>'
+      : '';
+    return '<div class="brand-row">'+chipHtml+feedbackHtml+'</div>';
   }
 
   let brandHTML='';
@@ -1266,6 +1286,90 @@ loadTideData().then(ok => { if (!ok) loadSheetData(); });
       }
     }, 4000);
   }
+</script>
+
+<script>
+  // ── Brand thumbs: silent community signals ─────────────────────────────
+  // One vote per brand per user per day (client-enforced via localStorage).
+  // Server-side: insert into community_signals + bump counter via RPC.
+  // All errors are swallowed — feedback must never break the dashboard.
+  (function () {
+    const STORE_KEY = 'tide-thumbs';
+    const today = new Date().toISOString().split('T')[0];
+
+    function getUserHash() {
+      let h = localStorage.getItem('tide-uhash');
+      if (!h) {
+        h = (crypto.randomUUID && crypto.randomUUID()) ||
+            (Math.random().toString(36).slice(2) + Date.now().toString(36));
+        localStorage.setItem('tide-uhash', h);
+      }
+      return h;
+    }
+
+    function getThumbedToday() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+        if (raw.date !== today) return {};
+        return raw.brands || {};
+      } catch { return {}; }
+    }
+
+    function markThumbed(brandId, dir) {
+      const current = getThumbedToday();
+      current[brandId] = dir;
+      localStorage.setItem(STORE_KEY, JSON.stringify({ date: today, brands: current }));
+    }
+
+    function paintExisting() {
+      const thumbed = getThumbedToday();
+      document.querySelectorAll('.brand-feedback').forEach(box => {
+        const brandId = box.dataset.brandId;
+        if (!thumbed[brandId]) return;
+        const dir = thumbed[brandId];
+        const btn = box.querySelector('.thumb-' + dir);
+        if (btn) btn.classList.add('thumbed');
+        box.querySelectorAll('.thumb').forEach(b => { b.disabled = true; });
+      });
+    }
+
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.thumb');
+      if (!btn || btn.disabled) return;
+      const box = btn.closest('.brand-feedback');
+      if (!box) return;
+      const brandId = box.dataset.brandId;
+      const dir = btn.dataset.thumb; // 'up' | 'down'
+      if (!brandId || !dir) return;
+
+      // Lock the UI immediately so the user can't double-tap
+      box.querySelectorAll('.thumb').forEach(b => { b.disabled = true; });
+      btn.classList.add('thumbed');
+      markThumbed(brandId, dir);
+
+      try {
+        const userHash = getUserHash();
+        const isUp = dir === 'up';
+        await Promise.all([
+          sb.from('community_signals').insert({
+            brand_id: brandId,
+            signal_type: isUp ? 'confirmed' : 'denied',
+            source: 'user_feedback',
+            user_hash: userHash,
+          }),
+          sb.rpc('record_brand_thumbs', { p_brand_id: brandId, p_is_up: isUp }),
+        ]);
+      } catch {
+        // Swallow — not surfacing failures to the user. Migration may not be
+        // applied yet, or DB is unreachable. The localStorage mark stands so
+        // they don't keep re-tapping.
+      }
+    });
+
+    // Re-paint on every centre render (the brand grid is rebuilt each time)
+    document.addEventListener('centreScoreLoaded', paintExisting);
+    paintExisting();
+  })();
 </script>
 </body>
 </html>

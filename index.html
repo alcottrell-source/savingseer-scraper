@@ -37,8 +37,9 @@
   .score-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--phase-color, var(--leaf)); border-radius: 16px 16px 0 0; }
   .score-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
   .score-numbers { display: flex; align-items: baseline; gap: 14px; }
-  .score-number { font-family: 'Playfair Display', serif; font-size: 72px; font-weight: 600; line-height: 1; color: var(--phase-color, var(--leaf)); }
-  .score-suffix { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 400; color: var(--stone); margin-left: 6px; letter-spacing: 0.02em; }
+  .score-number { display: none; }
+  .score-suffix { display: none; }
+  .score-statement { font-family: 'Playfair Display', serif; font-size: 38px; font-weight: 600; line-height: 1.1; color: var(--phase-color, var(--leaf)); letter-spacing: -0.02em; max-width: 240px; }
   .personal-score-badge { font-family: 'Playfair Display', serif; font-size: 36px; font-weight: 400; line-height: 1; color: var(--amber); display: flex; flex-direction: column; align-items: flex-start; }
   .personal-score-label { font-family: 'DM Sans', sans-serif; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); font-weight: 400; margin-bottom: 2px; }
   .score-right { text-align: right; }
@@ -136,6 +137,15 @@
   .install-benefits p { font-size: 13px; color: var(--stone); line-height: 1.45; }
   .install-instruction { font-size: 13px; color: var(--stone); line-height: 1.5; padding: 12px 14px; background: var(--leaf-lt); border-radius: 10px; }
   .install-instruction strong { color: var(--bark); font-weight: 500; }
+
+  /* ── Survey card ── */
+  .survey-card { margin: 32px 24px; background: var(--amber-lt); border: 1px solid rgba(193,122,43,0.2); border-radius: 16px; padding: 24px 20px 20px; position: relative; display: block; }
+  .survey-card.hidden { display: none; }
+  .survey-dismiss { position: absolute; top: 14px; right: 16px; background: none; border: none; font-size: 14px; color: var(--stone); cursor: pointer; padding: 4px; line-height: 1; }
+  .survey-eyebrow { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); margin-bottom: 6px; }
+  .survey-headline { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--bark); margin-bottom: 6px; }
+  .survey-body { font-size: 13px; color: var(--stone); line-height: 1.5; margin-bottom: 16px; }
+  .survey-cta { display: inline-block; background: var(--amber); color: white; font-size: 13px; font-weight: 500; padding: 10px 20px; border-radius: 8px; text-decoration: none; letter-spacing: 0.02em; }
 </style>
 <script defer data-domain="v0-tide-sale-timing.vercel.app" src="https://plausible.io/js/script.js"></script>
 <script type="text/javascript" src="https://s.skimresources.com/js/302477X1790477.skimlinks.js"></script>
@@ -220,6 +230,15 @@
   <p class="install-instruction"><strong>Never waste a trip.</strong> Tap <strong>Share &rarr; Add to Home Screen</strong> in Safari, or <strong>Install App</strong> in Chrome — and check the score before you go, every time.</p>
 </section>
 
+<!-- ── Survey card ── -->
+<div class="survey-card" id="survey-card">
+  <button class="survey-dismiss" onclick="dismissSurvey()" aria-label="Dismiss">&times;</button>
+  <p class="survey-eyebrow">2 minutes &middot; anonymous</p>
+  <p class="survey-headline">Help shape Tide</p>
+  <p class="survey-body">We're building this for people like you. Tell us what matters.</p>
+  <a class="survey-cta" href="https://forms.gle/83Q2c9mTfC2S5mt4A" target="_blank" rel="noopener">Take the survey &rarr;</a>
+</div>
+
 <footer>
   Tide &nbsp;&middot;&nbsp; Updated daily at 07:00
   <div class="updated-at">
@@ -293,6 +312,20 @@
 const SUPABASE_URL      = 'https://vrezzwadwzrmumjpdgge.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_qid8Ej6biCOmKLjLIY5DfA_nzJXmc9G';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function dismissSurvey() {
+  document.getElementById('survey-card').classList.add('hidden');
+  try { localStorage.setItem('tide_survey_dismissed', '1'); } catch(e) {}
+}
+
+(function() {
+  try {
+    if (localStorage.getItem('tide_survey_dismissed') === '1') {
+      const el = document.getElementById('survey-card');
+      if (el) el.classList.add('hidden');
+    }
+  } catch(e) {}
+})();
 
 let currentUser = null;
 let userPrefs   = null;
@@ -842,11 +875,11 @@ function getTideStage(score, trajectory) {
 
 function stageStyle(stage) {
   const s = {
-    'Turning':   {label:'Turning',   color:'#3D6B35',bg:'#EEF4EC',msg:'A few brands are breaking into sale. Worth watching.'},
-    'Rising':    {label:'Rising',    color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building and fresh. Plan your visit soon.'},
-    'High Tide': {label:'High Tide', color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum density, maximum freshness. This is the moment.'},
-    'Falling':   {label:'Falling',   color:'#B84C3A',bg:'#FAEAE7',msg:'Tide going out. Go now or miss out.'},
-    'Low':       {label:'Low',       color:'#8C8070',bg:'#F2EFE9',msg:'Cycle ended. Check back when brands start their next sale.'},
+    'Turning':   {label:'Turning',   statement:'Sales\nstarting',     color:'#3D6B35',bg:'#EEF4EC',msg:'A few brands are breaking into sale. Worth watching.'},
+    'Rising':    {label:'Rising',    statement:'More sales\nbuilding',color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building and fresh. Plan your visit soon.'},
+    'High Tide': {label:'High Tide', statement:'Go now,\npeak sales', color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum density, maximum freshness. This is the moment.'},
+    'Falling':   {label:'Falling',   statement:'Last\nchance',        color:'#B84C3A',bg:'#FAEAE7',msg:'Tide going out. Go now or miss out.'},
+    'Low':       {label:'Low',       statement:'Check back\nsoon',    color:'#8C8070',bg:'#F2EFE9',msg:'Cycle ended. Check back when brands start their next sale.'},
   };
   return s[stage]||s['Turning'];
 }
@@ -1084,13 +1117,12 @@ async function renderCentre(centreId) {
   const personalScore=personalResult?personalResult.score:null;
   const scoresEqual=personalScore!==null&&Math.abs(personalScore-centreScore)<2;
 
+  const statementHTML='<div class="score-statement">'+style.statement.replace('\n','<br>')+'</div>';
   let scoreHeader='';
   if (personalScore!==null&&!scoresEqual) {
-    scoreHeader='<div class="score-numbers"><div class="score-number">'+centreScore+'<span class="score-suffix">/100</span></div><div class="personal-score-badge"><span class="personal-score-label">Your score</span>'+personalScore+'</div></div>';
-  } else if (personalScore!==null&&scoresEqual) {
-    scoreHeader='<div class="score-numbers"><div class="score-number" style="color:var(--amber)">'+personalScore+'<span class="score-suffix">/100</span></div></div>';
+    scoreHeader='<div class="score-numbers">'+statementHTML+'<div class="personal-score-badge"><span class="personal-score-label">Your score</span>'+personalScore+'</div></div>';
   } else {
-    scoreHeader='<div class="score-number">'+centreScore+'<span class="score-suffix">/100</span></div>';
+    scoreHeader=statementHTML;
   }
 
   const arcSVG=buildArcSVG(centreScore,personalScore,style.color);

@@ -60,9 +60,13 @@
   .section-heading { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
   .on-sale-count { background: var(--leaf-lt); color: var(--leaf); font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
   .brand-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .brand-chip { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--bark); transition: border-color 0.2s, background 0.2s; text-decoration: none; }
+  .brand-chip { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--bark); transition: border-color 0.2s, background 0.2s; text-decoration: none; }
   .brand-chip.on-sale { border-color: rgba(61,107,53,0.25); background: var(--leaf-lt); }
   .brand-chip.on-sale .brand-name { font-weight: 500; color: var(--bark); }
+  .brand-left { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
+  .brand-logo { width: 22px; height: 22px; border-radius: 5px; background: white; flex-shrink: 0; object-fit: contain; border: 1px solid var(--border); }
+  .brand-logo.no-logo { background: var(--stone-lt); }
+  .brand-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   a.brand-chip:hover { border-color: var(--leaf); background: rgba(61,107,53,0.10); }
   a.brand-chip:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
   .brand-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -833,6 +837,19 @@ function renderHistoryChart(history, color, isDemo=false, trajectory=null) {
   return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.12"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><text x="'+lx+'" y="'+(ly-9).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+color+'" font-weight="500">today</text><circle cx="'+lx+'" cy="'+ly+'" r="4.5" fill="white" stroke="'+color+'" stroke-width="1.8"/>'+xLabels+'</svg>'+(isDemo?'<div class="demo-badge">Preview data &mdash; no live history yet</div>':'')+'</div></div>';
 }
 
+function brandDomain(brand) {
+  if (!brand||!brand.url) return null;
+  try { return new URL(brand.url).hostname.replace(/^www\./,''); } catch { return null; }
+}
+
+function brandLogoImg(brand) {
+  const d = brandDomain(brand);
+  if (!d) return '<span class="brand-logo no-logo" aria-hidden="true"></span>';
+  const primary = 'https://cdn.brandfetch.io/'+d+'/w/64/h/64';
+  const fallback = 'https://www.google.com/s2/favicons?sz=64&domain='+d;
+  return '<img class="brand-logo" alt="" loading="lazy" src="'+primary+'" onerror="if(this.src!==\''+fallback+'\'){this.src=\''+fallback+'\';}else{this.classList.add(\'no-logo\');this.removeAttribute(\'src\');}">';
+}
+
 function brandMatchesFrontendPrefs(brand, prefs) {
   const genderMatch=(prefs.womenswear&&brand.womenswear)||(prefs.menswear&&brand.menswear)||(prefs.childrenswear&&brand.childrenswear);
   if (!genderMatch) return false;
@@ -964,7 +981,8 @@ async function renderCentre(centreId) {
       const meta=b.isOnSale
         ?'<span class="brand-meta">'+pctLabel+(daysLabel?'<span class="brand-days">'+daysLabel+'</span>':'')+'<span class="sale-dot"></span></span>'
         :'<span class="no-sale-dot"></span>';
-      const inner='<span class="brand-name">'+b.name+'</span>'+meta;
+      const logoImg = brandLogoImg(b);
+      const inner='<span class="brand-left">'+logoImg+'<span class="brand-name">'+b.name+'</span></span>'+meta;
       brandHTML+= b.isOnSale && b.url
         ? '<a class="brand-chip on-sale" href="'+b.url+'" target="_blank" rel="noopener">'+inner+'</a>'
         : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'">'+inner+'</div>';

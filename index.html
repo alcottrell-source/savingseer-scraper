@@ -26,6 +26,9 @@
   .auth-btn:hover { background: rgba(61,107,53,0.12); }
   .picker-section { padding: 32px 24px 0; }
   .picker-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 10px; display: block; }
+  .centre-search { width: 100%; box-sizing: border-box; appearance: none; -webkit-appearance: none; background: white; border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-family: 'DM Sans', sans-serif; font-size: 15px; color: var(--bark); margin-bottom: 8px; transition: border-color 0.2s; }
+  .centre-search:focus { outline: none; border-color: var(--leaf); }
+  .centre-search::placeholder { color: var(--stone); }
   .centre-select { width: 100%; appearance: none; background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238C8070' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 16px center; border: 1px solid var(--border); border-radius: 8px; padding: 14px 44px 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 400; color: var(--bark); cursor: pointer; transition: border-color 0.2s; }
   .centre-select:focus { outline: none; border-color: var(--leaf); }
   .score-section { padding: 24px 24px 0; }
@@ -60,6 +63,8 @@
   .brand-chip { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--bark); transition: border-color 0.2s; }
   .brand-chip.on-sale { border-color: rgba(61,107,53,0.25); background: var(--leaf-lt); }
   .brand-chip.on-sale .brand-name { font-weight: 500; color: var(--bark); }
+  .brand-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .brand-days { font-size: 11px; color: var(--leaf); font-weight: 500; letter-spacing: 0.01em; }
   .sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); flex-shrink: 0; }
   .no-sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--stone-lt); border: 1px solid var(--border); flex-shrink: 0; }
   .empty-state { padding: 60px 24px; text-align: center; }
@@ -107,6 +112,7 @@
   .traj-indicator { font-size: 12px; font-weight: 500; margin-top: 3px; letter-spacing: 0; text-transform: none; }
   .demo-badge { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); text-align: right; margin-top: 6px; opacity: 0.7; }
 </style>
+<script defer data-domain="REPLACE_WITH_VERCEL_DOMAIN" src="https://plausible.io/js/script.js"></script>
 </head>
 <body>
 
@@ -120,6 +126,7 @@
 
 <div class="picker-section">
   <span class="picker-label">Choose your shopping centre</span>
+  <input type="search" class="centre-search" id="centre-search" placeholder="Search by centre or city" oninput="filterCentres(this.value)" autocomplete="off">
   <select class="centre-select" id="centre-select" onchange="renderCentre(this.value)">
     <option value="">-- Select a centre --</option>
     <option value="C01">Festival Place, Basingstoke</option>
@@ -158,8 +165,8 @@
 <div id="main-content">
   <div class="empty-state">
     <span class="empty-icon">&#127754;</span>
-    <p class="empty-title">When does the tide come in?</p>
-    <p class="empty-sub">Pick a shopping centre to see today's Tide Score and which brands are on sale right now.</p>
+    <p class="empty-title">When is the right moment to go?</p>
+    <p class="empty-sub">Pick a shopping centre to see today's Tide Score and which brands are on sale.</p>
   </div>
 </div>
 
@@ -386,6 +393,75 @@ async function savePreferences() {
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
 let SALE_STATUS = {}, DAYS_RUNNING = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
+let CENTRE_SCORES = {};      // supabase centre_id -> { tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands }
+let CENTRE_HISTORY = {};     // supabase centre_id -> [{date, score}, ...]
+let CENTRE_ID_BY_IDX = [];   // centreIdx (0-based, matches CENTRE_NAMES) -> supabase centre_id
+
+async function loadTideData() {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const [centresRes, salesRes, scoresRes] = await Promise.all([
+      sb.from('centres').select('id, name, tide_history').eq('active', true).order('id'),
+      sb.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, scraper_error'),
+      sb.from('centre_seer_scores').select('centre_id, score_date, tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands').eq('score_date', today),
+    ]);
+    if (centresRes.error || salesRes.error || scoresRes.error) {
+      console.warn('Tide data load partial failure:', centresRes.error || salesRes.error || scoresRes.error);
+      return false;
+    }
+    const centresList = centresRes.data || [];
+    if (!centresList.length) { console.warn('No centres returned from Supabase'); return false; }
+
+    CENTRE_ID_BY_IDX = centresList.map(c => c.id);
+    for (const c of centresList) CENTRE_HISTORY[c.id] = Array.isArray(c.tide_history) ? c.tide_history : [];
+
+    let latestDate = today;
+    for (const row of (scoresRes.data || [])) {
+      CENTRE_SCORES[row.centre_id] = row;
+      if (row.score_date > latestDate) latestDate = row.score_date;
+    }
+
+    for (const row of (salesRes.data || [])) {
+      if (row.scraper_error) continue;
+      SALE_STATUS[row.brand_id] = !!row.sale_status;
+      if (row.sale_status && row.date_first_detected) {
+        const days = Math.floor((new Date(latestDate) - new Date(row.date_first_detected)) / 86400000) + 1;
+        DAYS_RUNNING[row.brand_id] = Math.max(days, 1);
+      } else {
+        DAYS_RUNNING[row.brand_id] = 0;
+      }
+    }
+
+    document.getElementById('today-date').textContent = new Date(latestDate+'T12:00:00')
+      .toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+
+    const sel = document.getElementById('centre-select');
+    if (sel.value) renderCentre(sel.value);
+    return true;
+  } catch (err) {
+    console.warn('Tide data load exception:', err);
+    return false;
+  }
+}
+
+function filterCentres(query) {
+  const q = (query || '').trim().toLowerCase();
+  const sel = document.getElementById('centre-select');
+  for (const opt of sel.options) {
+    if (!opt.value) continue;
+    opt.hidden = q ? !opt.textContent.toLowerCase().includes(q) : false;
+  }
+}
+
+function getServerScore(centreIdx) {
+  const id = CENTRE_ID_BY_IDX[centreIdx];
+  return id ? (CENTRE_SCORES[id] || null) : null;
+}
+
+function getServerHistory(centreIdx) {
+  const id = CENTRE_ID_BY_IDX[centreIdx];
+  return id ? (CENTRE_HISTORY[id] || []) : [];
+}
 
 async function loadSheetData() {
   try {
@@ -616,12 +692,12 @@ function getTideStage(score, trajectory) {
 
 function stageStyle(stage) {
   const s = {
-    'Flat':      {label:'Nothing on',        color:'#8C8070',bg:'#F2EFE9',msg:'No meaningful sales at this centre right now. Check back soon.'},
-    'Turning':   {label:'Starting to build', color:'#3D6B35',bg:'#EEF4EC',msg:'A few brands are breaking into sale. Worth watching.'},
-    'Rising':    {label:'Worth watching',    color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building and fresh. Plan your visit soon.'},
-    'High Tide': {label:'Go now',            color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum density, maximum freshness. This is the moment.'},
-    'Falling':   {label:'Last chance',       color:'#B84C3A',bg:'#FAEAE7',msg:'Tide going out. Go now or miss out.'},
-    'Low':       {label:"It's over",         color:'#8C8070',bg:'#F2EFE9',msg:'Cycle ended. Check back when brands start their next sale.'},
+    'Flat':      {label:'Flat',      color:'#8C8070',bg:'#F2EFE9',msg:'No meaningful sales at this centre right now. Check back soon.'},
+    'Turning':   {label:'Turning',   color:'#3D6B35',bg:'#EEF4EC',msg:'A few brands are breaking into sale. Worth watching.'},
+    'Rising':    {label:'Rising',    color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building and fresh. Plan your visit soon.'},
+    'High Tide': {label:'High Tide', color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum density, maximum freshness. This is the moment.'},
+    'Falling':   {label:'Falling',   color:'#B84C3A',bg:'#FAEAE7',msg:'Tide going out. Go now or miss out.'},
+    'Low':       {label:'Low',       color:'#8C8070',bg:'#F2EFE9',msg:'Cycle ended. Check back when brands start their next sale.'},
   };
   return s[stage]||s['Flat'];
 }
@@ -634,6 +710,18 @@ function computeTrajectory(score, history) {
   if (diff>TRAJECTORY_FLAT_BAND) return 'RISING';
   if (diff<-TRAJECTORY_FLAT_BAND) return 'FALLING';
   return 'FLAT';
+}
+
+function trajectoryDuration(history, currentTraj) {
+  if (currentTraj==='FLAT') return 0;
+  let count = 1;
+  for (let i = history.length-1; i>=3; i--) {
+    const avg = (history[i-1].score+history[i-2].score+history[i-3].score)/3;
+    const diff = history[i].score-avg;
+    const matches = currentTraj==='RISING' ? diff>TRAJECTORY_FLAT_BAND : diff<-TRAJECTORY_FLAT_BAND;
+    if (matches) count++; else break;
+  }
+  return count;
 }
 
 function calcCentreScore(centreIdx) {
@@ -738,7 +826,7 @@ function renderHistoryChart(history, color, isDemo=false) {
     const anchor=pos==='start'?'start':pos==='end'?'end':'middle';
     return '<text x="'+pts[idx][0]+'" y="'+(PT+H+16)+'" font-family="DM Sans,sans-serif" font-size="9.5" fill="#8C8070" text-anchor="'+anchor+'">'+label+'</text>';
   }).join('');
-  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.12"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><text x="'+lx+'" y="'+(ly-9).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+color+'" font-weight="500">today</text><circle cx="'+lx+'" cy="'+ly+'" r="4.5" fill="white" stroke="'+color+'" stroke-width="1.8"/>'+xLabels+'</svg>'+(isDemo?'<div class="demo-badge">Preview -- no live data yet</div>':'')+'</div></div>';
+  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.12"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><text x="'+lx+'" y="'+(ly-9).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+color+'" font-weight="500">today</text><circle cx="'+lx+'" cy="'+ly+'" r="4.5" fill="white" stroke="'+color+'" stroke-width="1.8"/>'+xLabels+'</svg>'+(isDemo?'<div class="demo-badge">Preview data &mdash; no live history yet</div>':'')+'</div></div>';
 }
 
 function brandMatchesFrontendPrefs(brand, prefs) {
@@ -791,16 +879,22 @@ function buildArcSVG(centreScore, personalScore, centreColor) {
 async function renderCentre(centreId) {
   const content=document.getElementById('main-content');
   if (!centreId) {
-    content.innerHTML='<div class="empty-state"><span class="empty-icon">&#127754;</span><p class="empty-title">When does the tide come in?</p><p class="empty-sub">Pick a shopping centre to see today\'s Tide Score and which brands are on sale right now.</p></div>';
+    content.innerHTML='<div class="empty-state"><span class="empty-icon">&#127754;</span><p class="empty-title">When is the right moment to go?</p><p class="empty-sub">Pick a shopping centre to see today\'s Tide Score and which brands are on sale.</p></div>';
     return;
   }
   const centreIdx=parseInt(centreId.replace('C',''))-1;
   const centreName=CENTRE_NAMES[centreIdx];
-  const history=computeHistoricalScores(centreIdx);
-  const {score:centreScore,onSale,total}=calcCentreScore(centreIdx);
-  const trajectory=computeTrajectory(centreScore,history);
+  const serverScore=getServerScore(centreIdx);
+  const tideHistory=getServerHistory(centreIdx);
+  const hasRealHistory=Array.isArray(tideHistory)&&tideHistory.length>=2;
+  const history=hasRealHistory?tideHistory:generateMockHistory(centreIdx);
+  const {score:csvScore,onSale,total}=calcCentreScore(centreIdx);
+  const centreScore=serverScore?serverScore.tide_score:csvScore;
+  const trajectory=serverScore&&serverScore.trajectory?serverScore.trajectory:computeTrajectory(centreScore,history);
   const stage=getTideStage(centreScore,trajectory);
   const style=stageStyle(stage);
+  const verdictLabel=serverScore&&serverScore.verdict?serverScore.verdict:style.label;
+  const verdictMsg=serverScore&&serverScore.bluf?serverScore.bluf:style.msg;
 
   let personalResult=null;
   if (userPrefs) {
@@ -856,14 +950,24 @@ async function renderCentre(centreId) {
     if (!bList||!bList.length) continue;
     brandHTML+='<div class="cluster-label">'+cluster+'</div>';
     for (const b of bList) {
-      brandHTML+='<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"><span class="brand-name">'+b.name+'</span>'+(b.isOnSale?'<span class="sale-dot"></span>':'<span class="no-sale-dot"></span>')+'</div>';
+      const days=b.isOnSale?(DAYS_RUNNING[b.id]||0):0;
+      const daysLabel=days===1?'New today':days>1?days+' days':'';
+      const meta=b.isOnSale
+        ?'<span class="brand-meta">'+(daysLabel?'<span class="brand-days">'+daysLabel+'</span>':'')+'<span class="sale-dot"></span></span>'
+        :'<span class="no-sale-dot"></span>';
+      brandHTML+='<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"><span class="brand-name">'+b.name+'</span>'+meta+'</div>';
     }
   }
 
-  const trajLabel=trajectory==='RISING'?'\u2191 Rising':trajectory==='FALLING'?'\u2193 Falling':'\u2192 Flat';
-  const isDemo=history.length<2;
+  const isDemo=!hasRealHistory;
+  const trajDays = trajectoryDuration(history, trajectory);
+  const trajWord = trajectory==='RISING'?'Rising':trajectory==='FALLING'?'Falling':'Flat';
+  const trajArrow = trajectory==='RISING'?'\u2191':trajectory==='FALLING'?'\u2193':'\u2192';
+  const trajLabel = trajectory==='FLAT' || trajDays<2
+    ? trajArrow+' '+trajWord
+    : trajArrow+' '+trajWord+' for '+trajDays+' days';
 
-  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+style.label+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+'<div class="arc-wrap">'+arcSVG+arcLegend+'</div>'+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+style.msg+'</div></div></div>'+renderHistoryChart(isDemo?generateMockHistory(centreIdx):history,style.color,isDemo)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
+  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+'<div class="arc-wrap">'+arcSVG+arcLegend+'</div>'+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div></div></div>'+renderHistoryChart(history,style.color,isDemo)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
 
   requestAnimationFrame(()=>{
     document.getElementById('score-card').classList.add('visible');
@@ -873,7 +977,7 @@ async function renderCentre(centreId) {
   });
 }
 
-loadSheetData();
+loadTideData().then(ok => { if (!ok) loadSheetData(); });
 </script>
 </body>
 </html>

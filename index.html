@@ -60,11 +60,14 @@
   .section-heading { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
   .on-sale-count { background: var(--leaf-lt); color: var(--leaf); font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
   .brand-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .brand-chip { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--bark); transition: border-color 0.2s; }
+  .brand-chip { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--bark); transition: border-color 0.2s, background 0.2s; text-decoration: none; }
   .brand-chip.on-sale { border-color: rgba(61,107,53,0.25); background: var(--leaf-lt); }
   .brand-chip.on-sale .brand-name { font-weight: 500; color: var(--bark); }
+  a.brand-chip:hover { border-color: var(--leaf); background: rgba(61,107,53,0.10); }
+  a.brand-chip:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
   .brand-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .brand-days { font-size: 11px; color: var(--leaf); font-weight: 500; letter-spacing: 0.01em; }
+  .brand-pct { font-size: 11px; color: var(--amber); font-weight: 600; letter-spacing: 0.01em; background: var(--amber-lt); padding: 2px 7px; border-radius: 10px; }
   .sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); flex-shrink: 0; }
   .no-sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--stone-lt); border: 1px solid var(--border); flex-shrink: 0; }
   .empty-state { padding: 60px 24px; text-align: center; }
@@ -392,7 +395,7 @@ async function savePreferences() {
 }
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
-let SALE_STATUS = {}, DAYS_RUNNING = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
+let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
 let CENTRE_SCORES = {};      // supabase centre_id -> { tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands }
 let CENTRE_HISTORY = {};     // supabase centre_id -> [{date, score}, ...]
 let CENTRE_ID_BY_IDX = [];   // centreIdx (0-based, matches CENTRE_NAMES) -> supabase centre_id
@@ -402,7 +405,7 @@ async function loadTideData() {
     const today = new Date().toISOString().split('T')[0];
     const [centresRes, salesRes, scoresRes] = await Promise.all([
       sb.from('centres').select('id, name, tide_history').eq('active', true).order('id'),
-      sb.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, scraper_error'),
+      sb.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error'),
       sb.from('centre_seer_scores').select('centre_id, score_date, tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands').eq('score_date', today),
     ]);
     if (centresRes.error || salesRes.error || scoresRes.error) {
@@ -424,6 +427,7 @@ async function loadTideData() {
     for (const row of (salesRes.data || [])) {
       if (row.scraper_error) continue;
       SALE_STATUS[row.brand_id] = !!row.sale_status;
+      MAX_DISCOUNT_PCT[row.brand_id] = (row.sale_status && Number.isFinite(row.max_discount_pct)) ? row.max_discount_pct : null;
       if (row.sale_status && row.date_first_detected) {
         const days = Math.floor((new Date(latestDate) - new Date(row.date_first_detected)) / 86400000) + 1;
         DAYS_RUNNING[row.brand_id] = Math.max(days, 1);
@@ -955,10 +959,15 @@ async function renderCentre(centreId) {
                       : days<=7  ? 'Fresh · '+days+'d'
                       : days<=21 ? days+'d in'
                                  : 'Late · '+days+'d';
+      const pct = b.isOnSale ? MAX_DISCOUNT_PCT[b.id] : null;
+      const pctLabel = pct ? '<span class="brand-pct">'+pct+'% off</span>' : '';
       const meta=b.isOnSale
-        ?'<span class="brand-meta">'+(daysLabel?'<span class="brand-days">'+daysLabel+'</span>':'')+'<span class="sale-dot"></span></span>'
+        ?'<span class="brand-meta">'+pctLabel+(daysLabel?'<span class="brand-days">'+daysLabel+'</span>':'')+'<span class="sale-dot"></span></span>'
         :'<span class="no-sale-dot"></span>';
-      brandHTML+='<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"><span class="brand-name">'+b.name+'</span>'+meta+'</div>';
+      const inner='<span class="brand-name">'+b.name+'</span>'+meta;
+      brandHTML+= b.isOnSale && b.url
+        ? '<a class="brand-chip on-sale" href="'+b.url+'" target="_blank" rel="noopener">'+inner+'</a>'
+        : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'">'+inner+'</div>';
     }
   }
 

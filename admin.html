@@ -296,7 +296,12 @@ async function onSignedIn(session) {
     return;
   }
   $('app').style.display = 'block';
-  await loadAndRender();
+  try {
+    await loadAndRender();
+  } catch (err) {
+    console.error('loadAndRender failed:', err);
+    showStatus('Could not render: ' + (err.message || err), true);
+  }
 }
 
 // ── Data load ──────────────────────────────────────────────────────────────
@@ -353,8 +358,20 @@ async function loadAndRender() {
 
   $('needs-count').textContent = needs.length;
   $('confirmed-count').textContent = confirmed.length;
-  $('needs-list').innerHTML = needs.map(renderRow).join('');
-  $('confirmed-list').innerHTML = confirmed.map(r => renderRow(r, true)).join('');
+  // Per-row try/catch so one bad row doesn't blank the whole list, and any
+  // failure is visible inline as a small red card instead of silently empty.
+  const safeRender = (r, isConfirmed) => {
+    try { return renderRow(r, isConfirmed); }
+    catch (err) {
+      console.error('renderRow failed for', r.def && r.def.name, err);
+      return '<div class="brand-card" style="border-color:var(--red);background:var(--red-lt);">'
+        + '<div class="row-name">' + esc((r.def && r.def.name) || r.ev.brand_id) + '</div>'
+        + '<div style="font-size:11px;color:var(--red);margin-top:4px;">Render error: ' + esc(err.message) + '</div>'
+        + '</div>';
+    }
+  };
+  $('needs-list').innerHTML = needs.map(r => safeRender(r, false)).join('');
+  $('confirmed-list').innerHTML = confirmed.map(r => safeRender(r, true)).join('');
   $('needs-empty').style.display = needs.length ? 'none' : 'block';
   $('confirmed-empty').style.display = confirmed.length ? 'none' : 'block';
 

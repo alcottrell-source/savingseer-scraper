@@ -951,7 +951,11 @@ async function renderCentre(centreId) {
     brandHTML+='<div class="cluster-label">'+cluster+'</div>';
     for (const b of bList) {
       const days=b.isOnSale?(DAYS_RUNNING[b.id]||0):0;
-      const daysLabel=days===1?'New today':days>1?days+' days':'';
+      const daysLabel = days===0 ? ''
+                      : days===1 ? 'New today'
+                      : days<=7  ? 'Fresh · '+days+'d'
+                      : days<=21 ? days+'d in'
+                                 : 'Late · '+days+'d';
       const meta=b.isOnSale
         ?'<span class="brand-meta">'+(daysLabel?'<span class="brand-days">'+daysLabel+'</span>':'')+'<span class="sale-dot"></span></span>'
         :'<span class="no-sale-dot"></span>';

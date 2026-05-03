@@ -996,39 +996,48 @@ async function renderCentre(centreId) {
     personalVerdictLine='<p class="personal-verdict-line">'+(diff>0?'Your brands are particularly well-placed right now -- better than the centre average.':'Your brands are a little quieter than the centre average today.')+'</p>';
   }
 
-  const allBrandsAtCentre=BRANDS.filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1);
-  const clusters={};
-  for (const b of allBrandsAtCentre) {
-    if (!clusters[b.cluster]) clusters[b.cluster]=[];
-    clusters[b.cluster].push({...b,isOnSale:SALE_STATUS[b.id]===true});
+  const allBrandsAtCentre = BRANDS
+    .filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1)
+    .map(b => ({...b, isOnSale: SALE_STATUS[b.id]===true, daysRunning: DAYS_RUNNING[b.id]||0}));
+  // On sale: newest sales first (lowest days running), tiebreak alphabetical.
+  const onSaleBrands = allBrandsAtCentre
+    .filter(b => b.isOnSale)
+    .sort((a,b) => a.daysRunning - b.daysRunning || a.name.localeCompare(b.name));
+  // Not on sale: alphabetical.
+  const offSaleBrands = allBrandsAtCentre
+    .filter(b => !b.isOnSale)
+    .sort((a,b) => a.name.localeCompare(b.name));
+
+  function renderChip(b) {
+    const days = b.daysRunning;
+    const daysLabel = days===0 ? ''
+                    : days===1 ? 'New today'
+                    : days<=7  ? 'Fresh · '+days+'d'
+                    : days<=21 ? days+'d in'
+                               : 'Late · '+days+'d';
+    const pct = b.isOnSale ? MAX_DISCOUNT_PCT[b.id] : null;
+    const pctLabel = pct ? '<span class="brand-pct">'+pct+'% off</span>' : '';
+    const daysSpan = daysLabel ? '<span class="brand-days">'+daysLabel+'</span>' : '';
+    const meta = b.isOnSale
+      ? '<span class="brand-meta">'+pctLabel+daysSpan+'<span class="sale-dot"></span></span>'
+      : '<span class="no-sale-dot"></span>';
+    const url = BRAND_URL_BY_NAME[b.name] || null;
+    const logoImg = brandLogoImg(url);
+    const arrow = url ? '<span class="brand-arrow" aria-hidden="true">↗</span>' : '';
+    const inner = '<span class="brand-left">'+logoImg+'<span class="brand-name">'+b.name+'</span></span>'+meta+arrow;
+    return url
+      ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'" href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
+      : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'">'+inner+'</div>';
   }
-  const clusterOrder=['High Street','Contemporary','Classic British','Smart/Occasion','Premium Casual','Active','Footwear','Accessories'];
+
   let brandHTML='';
-  for (const cluster of clusterOrder) {
-    const bList=clusters[cluster];
-    if (!bList||!bList.length) continue;
-    brandHTML+='<div class="cluster-label">'+cluster+'</div>';
-    for (const b of bList) {
-      const days=b.isOnSale?(DAYS_RUNNING[b.id]||0):0;
-      const daysLabel = days===0 ? ''
-                      : days===1 ? 'New today'
-                      : days<=7  ? 'Fresh · '+days+'d'
-                      : days<=21 ? days+'d in'
-                                 : 'Late · '+days+'d';
-      const pct = b.isOnSale ? MAX_DISCOUNT_PCT[b.id] : null;
-      const pctLabel = pct ? '<span class="brand-pct">'+pct+'% off</span>' : '';
-      const daysSpan = daysLabel ? '<span class="brand-days">'+daysLabel+'</span>' : '';
-      const meta=b.isOnSale
-        ?'<span class="brand-meta">'+pctLabel+daysSpan+'<span class="sale-dot"></span></span>'
-        :'<span class="no-sale-dot"></span>';
-      const url = BRAND_URL_BY_NAME[b.name] || null;
-      const logoImg = brandLogoImg(url);
-      const arrow = url ? '<span class="brand-arrow" aria-hidden="true">↗</span>' : '';
-      const inner='<span class="brand-left">'+logoImg+'<span class="brand-name">'+b.name+'</span></span>'+meta+arrow;
-      brandHTML+= url
-        ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'" href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
-        : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'">'+inner+'</div>';
-    }
+  if (onSaleBrands.length) {
+    brandHTML += '<div class="cluster-label">On sale &middot; newest first</div>';
+    for (const b of onSaleBrands) brandHTML += renderChip(b);
+  }
+  if (offSaleBrands.length) {
+    brandHTML += '<div class="cluster-label">Not on sale</div>';
+    for (const b of offSaleBrands) brandHTML += renderChip(b);
   }
 
   const isDemo=!hasRealHistory;

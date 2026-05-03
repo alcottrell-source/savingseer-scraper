@@ -1,5 +1,5 @@
 // brands.js
-// 74 brand configurations for Tide scraper
+// 75 brand configurations for Tide scraper
 // renderMode: 'static' = CheerioCrawler (fast), 'browser' = PlaywrightCrawler (JS-heavy)
 // saleSelectors: CSS selectors that confirm an active sale exists on the page
 
@@ -76,6 +76,14 @@ export const brands = [
     url: 'https://www.peacocks.co.uk/sale',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
+  },
+  {
+    id: 'B010', name: 'John Lewis', cluster: 'High Street',
+    womenswear: true, menswear: true, childrenswear: true,
+    renderMode: 'browser',
+    url: 'https://www.johnlewis.com/browse/clearance/_/N-7zw',
+    saleSelectors: ['h1', '[class*="sale"]', '[class*="clearance"]', '[class*="offer"]'],
+    confirmText: ['sale', 'clearance', 'up to', '% off'],
   },
 
 

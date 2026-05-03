@@ -559,6 +559,7 @@ const BRAND_URL_BY_NAME = {
   'FLANNELS':'https://www.flannels.com/sale','Pandora':'https://uk.pandora.net/en/sale/','Fossil':'https://www.fossil.com/en-gb/sale/',
   'Swarovski':'https://www.swarovski.com/en-GB/s-sale/','Radley':'https://www.radley.co.uk/sale','Flying Tiger':'https://flyingtiger.com/en-gb/collections/sale',
   'Lush':'https://www.lush.com/uk/en/c/sale',
+  'John Lewis':'https://www.johnlewis.com/sale',
 };
 
 // Maps scraper brand_id (from brands.js, used as the key in Supabase
@@ -584,7 +585,7 @@ const DASHBOARD_NAME_BY_SCRAPER_ID = {
   'B054':'Berghaus', 'B055':'Columbia', 'B057':'Timberland', 'B059':'Regatta',
   'B061':'Schuh', 'B062':'Dune London', 'B063':'Office', 'B064':'Clarks',
   'B065':'Kurt Geiger', 'B066':'Skechers', 'B070':'FLANNELS', 'B071':'Pandora',
-  'B073':'Swarovski', 'B075':'Flying Tiger',
+  'B073':'Swarovski', 'B075':'Flying Tiger', 'B077':'John Lewis',
 };
 
 const BRANDS = [
@@ -664,6 +665,7 @@ const BRANDS = [
   {id:'B074',name:'Skechers',cluster:'Footwear',womenswear:true,menswear:true,childrenswear:true},
   {id:'B075',name:'Timberland',cluster:'Active',womenswear:true,menswear:true,childrenswear:false},
   {id:'B076',name:'Flying Tiger',cluster:'Accessories',womenswear:true,menswear:true,childrenswear:true},
+  {id:'B077',name:'John Lewis',cluster:'Classic British',womenswear:true,menswear:true,childrenswear:true},
 ];
 
 const PRESENCE = {
@@ -743,6 +745,15 @@ const PRESENCE = {
   B074:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   B075:[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1],
   B076:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  // John Lewis — best-guess as of May 2026 (JL closed 8+ stores in 2020 incl.
+  // Trafford, Bullring, Birmingham, Watford, Sheffield Heelas). USER SHOULD
+  // REVIEW. Index order: Festival Place, Westquay, Westfield London,
+  // Westfield Stratford, Trafford, Metrocentre, Bluewater, Meadowhall,
+  // Bullring, Lakeside, Liverpool ONE, St David's, Cabot Circus, Arndale,
+  // Brent Cross, Victoria Leeds, Eldon Square, The Oracle, The Lexicon,
+  // Friars Walk, Queensgate, Broadmead, Highcross, Touchwood, Bentall Centre,
+  // White Rose, Cribbs Causeway, Braehead, Silverburn, St James Quarter
+  B077:[0,1,1,1,0,1,1,1,0,0,1,1,0,0,1,0,1,1,0,0,0,1,1,1,1,0,1,0,0,1],
 };
 
 const CENTRE_NAMES = [

@@ -612,6 +612,14 @@ export const brands = [
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
   },
+  {
+    id: 'B077', name: 'John Lewis', cluster: 'Classic British',
+    womenswear: true, menswear: true, childrenswear: true,
+    renderMode: 'browser',
+    url: 'https://www.johnlewis.com/sale',
+    saleSelectors: ['h1', '[class*="sale"]', '[class*="Sale"]', '[data-testid*="sale"]'],
+    confirmText: ['sale', 'up to', '% off', 'reduced'],
+  },
 ];
 
 // Brands that require manual weekly check (bot-protected)

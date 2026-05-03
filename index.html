@@ -6,7 +6,7 @@
 <title>Tide</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -87,6 +87,7 @@
   .updated-at { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11px; color: var(--stone); }
   .live-dot { width: 6px; height: 6px; background: var(--leaf); border-radius: 50%; animation: pulse 2s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  @keyframes tideMark { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.55); } }
   .cluster-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); padding: 12px 0 6px; grid-column: 1 / -1; border-top: 1px solid var(--border); margin-top: 4px; }
   .cluster-label:first-child { border-top: none; padding-top: 0; margin-top: 0; }
   .modal-overlay { position: fixed; inset: 0; background: rgba(44,24,16,0.45); display: flex; align-items: center; justify-content: center; z-index: 500; padding: 20px; }
@@ -142,7 +143,20 @@
 <body>
 
 <header>
-  <div class="wordmark">Ti<span>de</span></div>
+  <svg width="170" height="38" viewBox="0 0 170 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Tide">
+    <defs>
+      <linearGradient id="hBrass" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#D4A84B"/>
+        <stop offset="100%" stop-color="#9A7220"/>
+      </linearGradient>
+    </defs>
+    <rect x="0"  y="19" width="3" height="13" rx="1.5" fill="url(#hBrass)" opacity="0.38" style="animation:tideMark 3.5s ease-in-out infinite 0s;transform-origin:bottom center"/>
+    <rect x="6"  y="12" width="3" height="20" rx="1.5" fill="url(#hBrass)" opacity="0.65" style="animation:tideMark 3.5s ease-in-out infinite 0.15s;transform-origin:bottom center"/>
+    <rect x="12" y="3"  width="3" height="29" rx="1.5" fill="url(#hBrass)"               style="animation:tideMark 3.5s ease-in-out infinite 0.05s;transform-origin:bottom center"/>
+    <rect x="18" y="12" width="3" height="20" rx="1.5" fill="url(#hBrass)" opacity="0.65" style="animation:tideMark 3.5s ease-in-out infinite 0.25s;transform-origin:bottom center"/>
+    <rect x="24" y="19" width="3" height="13" rx="1.5" fill="url(#hBrass)" opacity="0.38" style="animation:tideMark 3.5s ease-in-out infinite 0.1s;transform-origin:bottom center"/>
+    <text x="36" y="31" font-family="'Cormorant Garamond', Georgia, serif" font-size="28" font-weight="400" letter-spacing="5" fill="#1C1A14">TIDE</text>
+  </svg>
   <div class="header-right">
     <div class="tagline">Know when to go</div>
     <button class="auth-btn" id="auth-btn" onclick="onAuthBtnClick()">Sign in</button>

@@ -38,6 +38,7 @@
   .score-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
   .score-numbers { display: flex; align-items: baseline; gap: 14px; }
   .score-number { font-family: 'Playfair Display', serif; font-size: 72px; font-weight: 600; line-height: 1; color: var(--phase-color, var(--leaf)); }
+  .score-suffix { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 400; color: var(--stone); margin-left: 6px; letter-spacing: 0.02em; }
   .personal-score-badge { font-family: 'Playfair Display', serif; font-size: 36px; font-weight: 400; line-height: 1; color: var(--amber); display: flex; flex-direction: column; align-items: flex-start; }
   .personal-score-label { font-family: 'DM Sans', sans-serif; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); font-weight: 400; margin-bottom: 2px; }
   .score-right { text-align: right; }
@@ -814,7 +815,8 @@ function smoothCurvePath(pts) {
 
 function renderHistoryChart(history, color, isDemo=false, trajectory=null) {
   if (history.length<2) return '';
-  const W=380,H=62,PL=4,PT=28,PB=22,n=history.length,k=5;
+  const W=380,H=62,PL=4,PT=28,PB=22,n=history.length;
+  const k=Math.max(1,Math.min(5,Math.floor(n/8)));
   const scores=history.map((_,i)=>{
     let sum=0,w=0;
     for(let j=Math.max(0,i-k);j<=Math.min(n-1,i+k);j++){const wt=k+1-Math.abs(i-j);sum+=history[j].score*wt;w+=wt;}
@@ -845,9 +847,8 @@ function brandDomain(brand) {
 function brandLogoImg(brand) {
   const d = brandDomain(brand);
   if (!d) return '<span class="brand-logo no-logo" aria-hidden="true"></span>';
-  const primary = 'https://cdn.brandfetch.io/'+d+'/w/64/h/64';
-  const fallback = 'https://www.google.com/s2/favicons?sz=64&domain='+d;
-  return '<img class="brand-logo" alt="" loading="lazy" src="'+primary+'" onerror="if(this.src!==\''+fallback+'\'){this.src=\''+fallback+'\';}else{this.classList.add(\'no-logo\');this.removeAttribute(\'src\');}">';
+  const src = 'https://www.google.com/s2/favicons?sz=64&domain='+d;
+  return '<img class="brand-logo" alt="" loading="lazy" src="'+src+'" onerror="this.onerror=null;this.classList.add(\'no-logo\');this.removeAttribute(\'src\');">';
 }
 
 function brandMatchesFrontendPrefs(brand, prefs) {
@@ -926,11 +927,11 @@ async function renderCentre(centreId) {
 
   let scoreHeader='';
   if (personalScore!==null&&!scoresEqual) {
-    scoreHeader='<div class="score-numbers"><div class="score-number">'+centreScore+'</div><div class="personal-score-badge"><span class="personal-score-label">Your score</span>'+personalScore+'</div></div>';
+    scoreHeader='<div class="score-numbers"><div class="score-number">'+centreScore+'<span class="score-suffix">/100</span></div><div class="personal-score-badge"><span class="personal-score-label">Your score</span>'+personalScore+'</div></div>';
   } else if (personalScore!==null&&scoresEqual) {
-    scoreHeader='<div class="score-numbers"><div class="score-number" style="color:var(--amber)">'+personalScore+'</div></div>';
+    scoreHeader='<div class="score-numbers"><div class="score-number" style="color:var(--amber)">'+personalScore+'<span class="score-suffix">/100</span></div></div>';
   } else {
-    scoreHeader='<div class="score-number">'+centreScore+'</div>';
+    scoreHeader='<div class="score-number">'+centreScore+'<span class="score-suffix">/100</span></div>';
   }
 
   const arcSVG=buildArcSVG(centreScore,personalScore,style.color);

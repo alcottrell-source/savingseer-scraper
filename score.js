@@ -20,8 +20,11 @@ const DECAY_MAX            = 42;   // Review after 30 days of real scrape data
 const ANCHOR_MULTIPLIER    = 1.5;  // Review quarterly against footfall data
 const TRAJECTORY_FLAT_BAND = 1.5;  // ±1.5 defines the Flat (Peak) window
 
-// Anchor brands v1 (spec §3): Next, M&S, Zara, H&M, Uniqlo, River Island
-const ANCHOR_BRAND_IDS = new Set(['B001', 'B002', 'B003', 'B005', 'B013', 'B023']);
+// Anchor brands v1 (spec §3): Next, M&S, River Island, Zara, H&M.
+// Uniqlo is in the spec but not yet in brands.js, so it's absent from the
+// scrape pipeline and therefore from the anchor set. Add it here once it's
+// added to brands.js.
+const ANCHOR_BRAND_IDS = new Set(['B001', 'B002', 'B003', 'B011', 'B012']);
 
 const PHASE_NUMBER = { Turning: 1, Rising: 2, 'High Tide': 2, Falling: 2, Low: 1 };
 

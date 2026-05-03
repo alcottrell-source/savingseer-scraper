@@ -1168,10 +1168,53 @@ async function renderCentre(centreId) {
     const hist=document.getElementById('history-section');
     if (hist) hist.classList.add('visible');
     document.getElementById('brands-section').classList.add('visible');
+    document.dispatchEvent(new CustomEvent('centreScoreLoaded'));
   });
 }
 
 loadTideData().then(ok => { if (!ok) loadSheetData(); });
+</script>
+
+<div id="feedback-bar" style="
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--cream);
+  border-top: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--stone);
+  z-index: 200;
+">
+  <span>Tide is brand new. Tell us what's useful — or what's missing.&nbsp;
+    <a href="https://forms.gle/svtpHv8i9W83PukJ8"
+       target="_blank"
+       style="color: var(--amber); text-decoration: underline; font-weight: 500;">
+      Share feedback →
+    </a>
+  </span>
+  <button onclick="document.getElementById('feedback-bar').style.display='none'; localStorage.setItem('fb-dismissed','1')"
+    style="background:none;border:none;cursor:pointer;color:var(--stone);font-size:16px;padding:0 0 0 16px;">
+    ✕
+  </button>
+</div>
+
+<script>
+  // Show after score loads, once per session unless permanently dismissed
+  if (!localStorage.getItem('fb-dismissed')) {
+    document.addEventListener('centreScoreLoaded', () => {
+      document.getElementById('feedback-bar').style.display = 'flex';
+    });
+    // Fallback: show 4s after page load if no event fires
+    setTimeout(() => {
+      if (document.getElementById('feedback-bar').style.display !== 'flex') {
+        document.getElementById('feedback-bar').style.display = 'flex';
+      }
+    }, 4000);
+  }
 </script>
 </body>
 </html>

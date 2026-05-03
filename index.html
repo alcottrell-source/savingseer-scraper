@@ -802,16 +802,25 @@ function brandFreshnessScore(days) {
   return 0;
 }
 
-// Mirrors getTideStage in score.js. Score is the headline; trajectory only
-// kicks in to distinguish Falling vs Low at the cycle-end.
-// Sticky High Tide: a centre that has hit >=75 within the last 5 days stays
-// at High Tide as long as today's score is still >=50, so the verdict doesn't
-// whiplash from "Go now" to "Last chance" overnight.
-const HIGH_TIDE_THRESHOLD=75, STICKY_FLOOR=50, STICKY_LOOKBACK=5;
-function getTideStage(score, trajectory, recentScores) {
-  const recent = recentScores || [];
-  const recentlyPeaked = recent.some(s => s >= HIGH_TIDE_THRESHOLD);
-  if (score>=HIGH_TIDE_THRESHOLD || (recentlyPeaked && score>=STICKY_FLOOR)) return 'High Tide';
+// Local fallback stage computation, used only when serverScore is absent
+// (preview / demo data). For live data we derive stage from the server's
+// verdict via deriveStageFromVerdict() so the gauge matches the scorer's
+// hysteresis state.
+const STAGE_FROM_VERDICT = {
+  'Go now':                       'High Tide',
+  'Last chance':                  'Falling',
+  'Last chance — tide going out': 'Falling',
+  'Worth watching':               'Rising',
+  'Starting to build':            'Turning',
+  "It's over":                    'Low',
+  'Nothing on':                   'Turning',
+};
+function deriveStageFromVerdict(verdict) {
+  return verdict ? (STAGE_FROM_VERDICT[verdict] || null) : null;
+}
+function getTideStage(score, trajectory) {
+  if (score===0) return 'Turning';
+  if (score>=75) return 'High Tide';
   if (trajectory==='FALLING') return score<25 ? 'Low' : 'Falling';
   if (score>=25) return 'Rising';
   return 'Turning';
@@ -821,7 +830,7 @@ function stageStyle(stage) {
   const s = {
     'Turning':   {label:'Turning',   color:'#3D6B35',bg:'#EEF4EC',msg:'A few brands are breaking into sale. Worth watching.'},
     'Rising':    {label:'Rising',    color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building and fresh. Plan your visit soon.'},
-    'High Tide': {label:'High Tide', color:'#C17A2B',bg:'#FBF2E4',msg:'Sales have peaked and are holding. This is the moment.'},
+    'High Tide': {label:'High Tide', color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum density, maximum freshness. This is the moment.'},
     'Falling':   {label:'Falling',   color:'#B84C3A',bg:'#FAEAE7',msg:'Tide going out. Go now or miss out.'},
     'Low':       {label:'Low',       color:'#8C8070',bg:'#F2EFE9',msg:'Cycle ended. Check back when brands start their next sale.'},
   };
@@ -1046,10 +1055,9 @@ async function renderCentre(centreId) {
   const {score:csvScore,onSale,total}=calcCentreScore(centreIdx);
   const centreScore=serverScore?serverScore.tide_score:csvScore;
   const trajectory=serverScore&&serverScore.trajectory?serverScore.trajectory:computeTrajectory(centreScore,history);
-  // Last STICKY_LOOKBACK days excluding today, for the sticky-High-Tide check.
-  const todayIso=new Date().toISOString().split('T')[0];
-  const recentScores=history.filter(h=>h.date<todayIso).slice(-STICKY_LOOKBACK).map(h=>h.score);
-  const stage=getTideStage(centreScore,trajectory,recentScores);
+  // Prefer server-derived stage so the gauge matches the scorer's hysteresis
+  // state. Falls back to local score-only computation for preview data.
+  const stage=(serverScore&&deriveStageFromVerdict(serverScore.verdict))||getTideStage(centreScore,trajectory);
   const style=stageStyle(stage);
   const verdictLabel=serverScore&&serverScore.verdict?serverScore.verdict:style.label;
   const verdictMsg=serverScore&&serverScore.bluf?serverScore.bluf:style.msg;
@@ -1154,9 +1162,9 @@ async function renderCentre(centreId) {
   // competing badge. Skip when FLAT (no new info) since the bluf already says it.
   let trendCopy = '';
   if (trajectory==='RISING') {
-    trendCopy = '<div class="trend-line">\u2191 Score rising \u2014 could climb higher tomorrow</div>';
+    trendCopy = '<div class="trend-line">\u2191 Score rising \u2014 check back tomorrow</div>';
   } else if (trajectory==='FALLING') {
-    trendCopy = '<div class="trend-line">\u2193 Score dropping \u2014 moment is passing</div>';
+    trendCopy = '<div class="trend-line">\u2193 Score easing off \u2014 still worth a visit</div>';
   }
 
   content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div>'+trendCopy+'</div></div>'+renderHistoryChart(history,style.color,isDemo,trajectory)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';

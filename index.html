@@ -71,9 +71,11 @@
   a.brand-chip:hover { border-color: var(--leaf); background: rgba(61,107,53,0.10); }
   a.brand-chip:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
   .brand-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  .brand-days { font-size: 11px; color: var(--leaf); font-weight: 500; letter-spacing: 0.01em; }
-  .brand-pct { font-size: 11px; color: var(--amber); font-weight: 600; letter-spacing: 0.01em; background: var(--amber-lt); padding: 2px 7px; border-radius: 10px; }
+  .brand-days { font-size: 11px; color: var(--leaf); font-weight: 500; letter-spacing: 0.01em; min-width: 72px; text-align: right; }
+  .brand-pct { font-size: 11px; color: var(--amber); font-weight: 600; letter-spacing: 0.01em; background: var(--amber-lt); padding: 2px 7px; border-radius: 10px; min-width: 56px; box-sizing: border-box; text-align: center; }
+  .brand-pct.empty { background: transparent; padding: 2px 0; }
   .brand-arrow { font-size: 11px; color: var(--stone); margin-left: 6px; opacity: 0.55; flex-shrink: 0; }
+  .brand-arrow.invisible { visibility: hidden; }
   a.brand-chip:hover .brand-arrow { color: var(--leaf); opacity: 1; }
   .sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); flex-shrink: 0; }
   .no-sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--stone-lt); border: 1px solid var(--border); flex-shrink: 0; }
@@ -1016,14 +1018,20 @@ async function renderCentre(centreId) {
                     : days<=21 ? days+'d in'
                                : 'Late · '+days+'d';
     const pct = b.isOnSale ? MAX_DISCOUNT_PCT[b.id] : null;
-    const pctLabel = pct ? '<span class="brand-pct">'+pct+'% off</span>' : '';
-    const daysSpan = daysLabel ? '<span class="brand-days">'+daysLabel+'</span>' : '';
-    const meta = b.isOnSale
-      ? '<span class="brand-meta">'+pctLabel+daysSpan+'<span class="sale-dot"></span></span>'
+    // Always render pct/days/dot spans (with empty placeholders when no
+    // content) so the right side of every chip lines up. min-widths in CSS.
+    const pctSpan = pct
+      ? '<span class="brand-pct">'+pct+'% off</span>'
+      : '<span class="brand-pct empty"></span>';
+    const daysSpan = '<span class="brand-days">'+(daysLabel||'')+'</span>';
+    const dotSpan = b.isOnSale
+      ? '<span class="sale-dot"></span>'
       : '<span class="no-sale-dot"></span>';
+    const meta = '<span class="brand-meta">'+pctSpan+daysSpan+dotSpan+'</span>';
     const url = BRAND_URL_BY_NAME[b.name] || null;
     const logoImg = brandLogoImg(url);
-    const arrow = url ? '<span class="brand-arrow" aria-hidden="true">↗</span>' : '';
+    // Always render arrow so the right edge aligns; hide it for unlinked chips.
+    const arrow = '<span class="brand-arrow'+(url?'':' invisible')+'" aria-hidden="true">↗</span>';
     const inner = '<span class="brand-left">'+logoImg+'<span class="brand-name">'+b.name+'</span></span>'+meta+arrow;
     return url
       ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'" href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'

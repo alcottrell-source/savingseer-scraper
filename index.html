@@ -60,7 +60,7 @@
   .brands-section.visible { opacity: 1; transform: translateY(0); }
   .section-heading { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
   .on-sale-count { background: var(--leaf-lt); color: var(--leaf); font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
-  .brand-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .brand-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
   .brand-chip { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--bark); transition: border-color 0.2s, background 0.2s; text-decoration: none; }
   .brand-chip.on-sale { border-color: rgba(61,107,53,0.25); background: var(--leaf-lt); }
   .brand-chip.on-sale .brand-name { font-weight: 500; color: var(--bark); }
@@ -1016,13 +1016,10 @@ async function renderCentre(centreId) {
                       : days<=21 ? days+'d in'
                                  : 'Late · '+days+'d';
       const pct = b.isOnSale ? MAX_DISCOUNT_PCT[b.id] : null;
-      // When we have a clean % off, that's the headline — drop the days
-      // label so chip content fits on a 2-column mobile grid. When no %,
-      // the days label stays as the primary signal.
-      const headline = pct ? '<span class="brand-pct">'+pct+'% off</span>'
-                            : (daysLabel ? '<span class="brand-days">'+daysLabel+'</span>' : '');
+      const pctLabel = pct ? '<span class="brand-pct">'+pct+'% off</span>' : '';
+      const daysSpan = daysLabel ? '<span class="brand-days">'+daysLabel+'</span>' : '';
       const meta=b.isOnSale
-        ?'<span class="brand-meta">'+headline+'<span class="sale-dot"></span></span>'
+        ?'<span class="brand-meta">'+pctLabel+daysSpan+'<span class="sale-dot"></span></span>'
         :'<span class="no-sale-dot"></span>';
       const url = BRAND_URL_BY_NAME[b.name] || null;
       const logoImg = brandLogoImg(url);

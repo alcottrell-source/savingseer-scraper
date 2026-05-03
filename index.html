@@ -46,7 +46,7 @@
   .phase-badge { display: inline-block; font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; padding: 5px 12px; border-radius: 20px; background: var(--phase-bg, var(--leaf-lt)); color: var(--phase-color, var(--leaf)); margin-bottom: 8px; }
   .centre-name-display { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--bark); font-style: italic; }
   .arc-wrap { margin: 16px 0 8px; }
-  .arc-svg { width: 100%; max-width: 320px; display: block; margin: 0 auto; }
+  .arc-svg { width: 100%; max-width: 360px; display: block; margin: 0 auto; }
   .arc-legend { display: flex; justify-content: center; gap: 20px; margin-top: 8px; font-size: 11px; color: var(--stone); letter-spacing: 0.04em; }
   .arc-legend-item { display: flex; align-items: center; gap: 5px; }
   .arc-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -937,23 +937,23 @@ function renderArcWidget(stage, color) {
   // centre below at y=227). Angles: 221.4 / 245.7 / 270 / 294.3 / 318.6 deg.
   // GO NOW lands exactly at the top centre.
   const POS = [
-    {s:'Turning',   dx:30,  dy:95, lx:30,  ly:115, t:'TURNING'},
-    {s:'Rising',    dx:98,  dy:45, lx:98,  ly:33,  t:'RISING'},
-    {s:'High Tide', dx:180, dy:27, lx:180, ly:14,  t:'GO NOW'},
-    {s:'Falling',   dx:262, dy:45, lx:262, ly:33,  t:'FALLING'},
-    {s:'Low',       dx:330, dy:95, lx:330, ly:115, t:'LOW'},
+    {s:'Turning',   dx:30,  dy:95, lx:30,  ly:122, t:'TURNING'},
+    {s:'Rising',    dx:98,  dy:45, lx:98,  ly:30,  t:'RISING'},
+    {s:'High Tide', dx:180, dy:27, lx:180, ly:12,  t:'GO NOW'},
+    {s:'Falling',   dx:262, dy:45, lx:262, ly:30,  t:'FALLING'},
+    {s:'Low',       dx:330, dy:95, lx:330, ly:122, t:'LOW'},
   ];
   const cur = POS.find(p => p.s === stage) || POS[0];
   const uid = stage.replace(/\s/g, '-');
   const labels = POS.map(p => {
     const active = p.s === stage;
-    const fill = active ? color : '#B0A898';
-    const op = active ? 1 : 0.55;
-    const wt = active ? 700 : 400;
-    const sz = active ? 9 : 7.5;
-    return '<text x="'+p.lx+'" y="'+p.ly+'" text-anchor="middle" font-size="'+sz+'" font-family="inherit" letter-spacing="0.07em" fill="'+fill+'" opacity="'+op+'" font-weight="'+wt+'">'+p.t+'</text>';
+    const fill = active ? color : '#5C5347';
+    const op = active ? 1 : 0.9;
+    const wt = active ? 700 : 500;
+    const sz = active ? 13 : 11;
+    return '<text x="'+p.lx+'" y="'+p.ly+'" text-anchor="middle" font-size="'+sz+'" font-family="inherit" letter-spacing="0.08em" fill="'+fill+'" opacity="'+op+'" font-weight="'+wt+'">'+p.t+'</text>';
   }).join('');
-  return '<svg class="arc-widget" viewBox="0 0 360 130" xmlns="http://www.w3.org/2000/svg">'
+  return '<svg class="arc-widget" viewBox="0 0 360 132" xmlns="http://www.w3.org/2000/svg">'
     +'<defs>'
       +'<linearGradient id="arcg-'+uid+'" x1="30" y1="0" x2="330" y2="0" gradientUnits="userSpaceOnUse">'
         +'<stop offset="0%" stop-color="#B0A898"/>'

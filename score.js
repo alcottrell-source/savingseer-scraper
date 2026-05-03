@@ -3,9 +3,10 @@ import { brands } from './brands.js';
 
 const SUPABASE_URL  = process.env.SUPABASE_URL;
 const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_KEY;
-const TODAY          = new Date().toISOString().split('T')[0];
-const THREE_DAYS_AGO = new Date(Date.now() - 3  * 86400000).toISOString().split('T')[0];
-const SIXTY_DAYS_AGO = new Date(Date.now() - 60 * 86400000).toISOString().split('T')[0];
+const TODAY              = new Date().toISOString().split('T')[0];
+const RECENT_LOOKBACK_DAYS = 5;  // window for both trajectory (uses first 3) and sticky High Tide
+const RECENT_LOOKBACK_FROM = new Date(Date.now() - RECENT_LOOKBACK_DAYS * 86400000).toISOString().split('T')[0];
+const SIXTY_DAYS_AGO       = new Date(Date.now() - 60 * 86400000).toISOString().split('T')[0];
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars');
@@ -39,27 +40,32 @@ function brandFreshnessScore(daysRunning) {
 
 // ── Tide stage mapping (spec §7) ─────────────────────────────────────────────
 // 5 stages mapped to cycle position: Turning -> Rising -> High Tide ->
-// Falling -> Low.
+// Falling -> Low. Score is the headline; trajectory is supporting context
+// (rendered as forward-guidance copy on the dashboard, not a competing badge).
 //
-// Trajectory is authoritative for the verdict: "High Tide / Go now" is only
-// reached when the score has stopped climbing (trajectory FLAT) — a centre
-// still RISING hasn't peaked yet, so saying "Go now" while the trajectory
-// arrow points up would contradict itself. RISING + high score reads as
-// Rising / Worth watching: visit now or wait for the plateau.
+// Sticky High Tide: once a centre crosses HIGH_TIDE_THRESHOLD (75) it stays at
+// High Tide for the next RECENT_LOOKBACK_DAYS even if today's score dips, as
+// long as it doesn't crash below STICKY_FLOOR (50). This prevents the "Go now
+// today, Last chance tomorrow" whiplash — a centre that hits peak deserves a
+// stable window for users to actually act on it.
 //
 // Empty centres (score 0) keep the "Nothing on" verdict text but report stage
 // Turning so the dashboard gauge shows them at the leftmost (cycle-start)
-// position rather than a separate "Flat" position.
-function getTideStage(score, trajectory) {
+// position.
+const HIGH_TIDE_THRESHOLD = 75;
+const STICKY_FLOOR        = 50;
+
+function getTideStage(score, trajectory, recentScores = []) {
   if (score === 0) {
     return { stage: 'Turning', verdict: 'Nothing on', bluf: 'No meaningful sales at this centre right now. Check back soon.' };
+  }
+  const recentlyPeaked = recentScores.some(s => s >= HIGH_TIDE_THRESHOLD);
+  if (score >= HIGH_TIDE_THRESHOLD || (recentlyPeaked && score >= STICKY_FLOOR)) {
+    return { stage: 'High Tide', verdict: 'Go now', bluf: 'Sales have peaked and are holding. This is the moment.' };
   }
   if (trajectory === 'FALLING') {
     if (score < 25) return { stage: 'Low',     verdict: "It's over",              bluf: 'Cycle ended. Check back when brands start their next sale.' };
     return           { stage: 'Falling', verdict: 'Last chance — tide going out', bluf: 'Tide going out. Go now or miss out.' };
-  }
-  if (trajectory === 'FLAT' && score >= 50) {
-    return { stage: 'High Tide', verdict: 'Go now', bluf: 'Sales have peaked and are holding. This is the moment.' };
   }
   if (score >= 25) return { stage: 'Rising',    verdict: 'Worth watching',   bluf: 'Sales building and fresh. Plan your visit soon.' };
   return            { stage: 'Turning',   verdict: 'Starting to build', bluf: 'A few brands are breaking into sale. Worth watching.' };
@@ -88,7 +94,7 @@ async function calculateAllCentreScores() {
     supabase.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error'),
     supabase.from('centre_seer_scores')
       .select('centre_id, score_date, tide_score')
-      .gte('score_date', THREE_DAYS_AGO)
+      .gte('score_date', RECENT_LOOKBACK_FROM)
       .lt('score_date', TODAY)
       .order('score_date', { ascending: false }),
   ]);
@@ -147,8 +153,9 @@ async function calculateAllCentreScores() {
 
     // Centre Tide Score = (Σ freshness × weight) / N × 100  (spec §4.1)
     const tideScore = Math.round((totalFreshness / totalBrands) * 100 * 10) / 10;
-    const trajectory = getTrajectory(tideScore, recentScoreMap.get(centre.id) ?? []);
-    const { stage, verdict, bluf } = getTideStage(tideScore, trajectory);
+    const recent = recentScoreMap.get(centre.id) ?? [];
+    const trajectory = getTrajectory(tideScore, recent);
+    const { stage, verdict, bluf } = getTideStage(tideScore, trajectory, recent);
 
     const topBrands = saleDetails
       .sort((a, b) => (b.freshness * b.weight) - (a.freshness * a.weight))
@@ -309,9 +316,9 @@ async function calculatePersonalScores() {
       }
 
       const personalScore = Math.round((totalFreshness / matchingBrandIds.length) * 10) / 10;
-      // Personal scores aren't trajectory-tracked. Pass FLAT so the verdict
-      // reflects the score itself rather than implying still-rising.
-      const { verdict } = getTideStage(personalScore, 'FLAT');
+      // Personal scores aren't trajectory-tracked or sticky. Pass FLAT and an
+      // empty history so the verdict reflects the score alone.
+      const { verdict } = getTideStage(personalScore, 'FLAT', []);
 
       scoreRows.push({
         user_id:             pref.user_id,

@@ -121,7 +121,7 @@
   .history-section { padding: 16px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.08s, transform 0.4s ease 0.08s; }
   .history-section.visible { opacity: 1; transform: translateY(0); }
   .history-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 10px; }
-  .traj-indicator { font-size: 12px; font-weight: 500; margin-top: 3px; letter-spacing: 0; text-transform: none; }
+  .trend-line { font-size: 12px; font-style: italic; color: var(--stone); padding: 8px 0 0; letter-spacing: 0; }
   .demo-badge { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); text-align: right; margin-top: 6px; opacity: 0.7; }
 
   /* Inline "why Tide / install" section above the footer */
@@ -802,14 +802,17 @@ function brandFreshnessScore(days) {
   return 0;
 }
 
-function getTideStage(score, trajectory) {
-  // 5 stages mapped to cycle position: Turning -> Rising -> High Tide -> Falling -> Low.
-  // Trajectory is authoritative: "High Tide" is only reached when the score has
-  // stopped climbing (FLAT). RISING at any score stays at Rising — a centre still
-  // rising hasn't peaked, so the gauge dot doesn't jump to High Tide until the
-  // trajectory arrow flattens. Mirrors getTideStage in score.js.
+// Mirrors getTideStage in score.js. Score is the headline; trajectory only
+// kicks in to distinguish Falling vs Low at the cycle-end.
+// Sticky High Tide: a centre that has hit >=75 within the last 5 days stays
+// at High Tide as long as today's score is still >=50, so the verdict doesn't
+// whiplash from "Go now" to "Last chance" overnight.
+const HIGH_TIDE_THRESHOLD=75, STICKY_FLOOR=50, STICKY_LOOKBACK=5;
+function getTideStage(score, trajectory, recentScores) {
+  const recent = recentScores || [];
+  const recentlyPeaked = recent.some(s => s >= HIGH_TIDE_THRESHOLD);
+  if (score>=HIGH_TIDE_THRESHOLD || (recentlyPeaked && score>=STICKY_FLOOR)) return 'High Tide';
   if (trajectory==='FALLING') return score<25 ? 'Low' : 'Falling';
-  if (trajectory==='FLAT' && score>=50) return 'High Tide';
   if (score>=25) return 'Rising';
   return 'Turning';
 }
@@ -833,18 +836,6 @@ function computeTrajectory(score, history) {
   if (diff>TRAJECTORY_FLAT_BAND) return 'RISING';
   if (diff<-TRAJECTORY_FLAT_BAND) return 'FALLING';
   return 'FLAT';
-}
-
-function trajectoryDuration(history, currentTraj) {
-  if (currentTraj==='FLAT') return 0;
-  let count = 1;
-  for (let i = history.length-1; i>=3; i--) {
-    const avg = (history[i-1].score+history[i-2].score+history[i-3].score)/3;
-    const diff = history[i].score-avg;
-    const matches = currentTraj==='RISING' ? diff>TRAJECTORY_FLAT_BAND : diff<-TRAJECTORY_FLAT_BAND;
-    if (matches) count++; else break;
-  }
-  return count;
 }
 
 function calcCentreScore(centreIdx) {
@@ -1055,7 +1046,10 @@ async function renderCentre(centreId) {
   const {score:csvScore,onSale,total}=calcCentreScore(centreIdx);
   const centreScore=serverScore?serverScore.tide_score:csvScore;
   const trajectory=serverScore&&serverScore.trajectory?serverScore.trajectory:computeTrajectory(centreScore,history);
-  const stage=getTideStage(centreScore,trajectory);
+  // Last STICKY_LOOKBACK days excluding today, for the sticky-High-Tide check.
+  const todayIso=new Date().toISOString().split('T')[0];
+  const recentScores=history.filter(h=>h.date<todayIso).slice(-STICKY_LOOKBACK).map(h=>h.score);
+  const stage=getTideStage(centreScore,trajectory,recentScores);
   const style=stageStyle(stage);
   const verdictLabel=serverScore&&serverScore.verdict?serverScore.verdict:style.label;
   const verdictMsg=serverScore&&serverScore.bluf?serverScore.bluf:style.msg;
@@ -1156,14 +1150,16 @@ async function renderCentre(centreId) {
   }
 
   const isDemo=!hasRealHistory;
-  const trajDays = trajectoryDuration(history, trajectory);
-  const trajWord = trajectory==='RISING'?'Rising':trajectory==='FALLING'?'Falling':'Flat';
-  const trajArrow = trajectory==='RISING'?'\u2191':trajectory==='FALLING'?'\u2193':'\u2192';
-  const trajLabel = trajectory==='FLAT' || trajDays<2
-    ? trajArrow+' '+trajWord
-    : trajArrow+' '+trajWord+' for '+trajDays+' days';
+  // Forward-guidance copy below the bluf \u2014 small italic supporting text, not a
+  // competing badge. Skip when FLAT (no new info) since the bluf already says it.
+  let trendCopy = '';
+  if (trajectory==='RISING') {
+    trendCopy = '<div class="trend-line">\u2191 Score rising \u2014 could climb higher tomorrow</div>';
+  } else if (trajectory==='FALLING') {
+    trendCopy = '<div class="trend-line">\u2193 Score dropping \u2014 moment is passing</div>';
+  }
 
-  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div></div></div>'+renderHistoryChart(history,style.color,isDemo,trajectory)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
+  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div>'+trendCopy+'</div></div>'+renderHistoryChart(history,style.color,isDemo,trajectory)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
 
   requestAnimationFrame(()=>{
     document.getElementById('score-card').classList.add('visible');

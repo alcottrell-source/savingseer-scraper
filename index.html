@@ -121,7 +121,7 @@
   .history-section { padding: 16px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.08s, transform 0.4s ease 0.08s; }
   .history-section.visible { opacity: 1; transform: translateY(0); }
   .history-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 10px; }
-  .traj-indicator { font-size: 12px; font-weight: 500; margin-top: 3px; letter-spacing: 0; text-transform: none; }
+  .trend-line { font-size: 12px; font-style: italic; color: var(--stone); padding: 8px 0 0; letter-spacing: 0; }
   .demo-badge { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); text-align: right; margin-top: 6px; opacity: 0.7; }
 
   /* Inline "why Tide / install" section above the footer */
@@ -802,12 +802,26 @@ function brandFreshnessScore(days) {
   return 0;
 }
 
+// Local fallback stage computation, used only when serverScore is absent
+// (preview / demo data). For live data we derive stage from the server's
+// verdict via deriveStageFromVerdict() so the gauge matches the scorer's
+// hysteresis state.
+const STAGE_FROM_VERDICT = {
+  'Go now':                       'High Tide',
+  'Last chance':                  'Falling',
+  'Last chance — tide going out': 'Falling',
+  'Worth watching':               'Rising',
+  'Starting to build':            'Turning',
+  "It's over":                    'Low',
+  'Nothing on':                   'Turning',
+};
+function deriveStageFromVerdict(verdict) {
+  return verdict ? (STAGE_FROM_VERDICT[verdict] || null) : null;
+}
 function getTideStage(score, trajectory) {
-  // 5 stages mapped to cycle position: Turning -> Rising -> High Tide -> Falling -> Low.
-  // Direction matters: a low score with FALLING trajectory = Low (cycle ended);
-  // a low score with RISING/FLAT trajectory = Turning (cycle starting).
+  if (score===0) return 'Turning';
+  if (score>=75) return 'High Tide';
   if (trajectory==='FALLING') return score<25 ? 'Low' : 'Falling';
-  if (score>=50) return 'High Tide';
   if (score>=25) return 'Rising';
   return 'Turning';
 }
@@ -831,18 +845,6 @@ function computeTrajectory(score, history) {
   if (diff>TRAJECTORY_FLAT_BAND) return 'RISING';
   if (diff<-TRAJECTORY_FLAT_BAND) return 'FALLING';
   return 'FLAT';
-}
-
-function trajectoryDuration(history, currentTraj) {
-  if (currentTraj==='FLAT') return 0;
-  let count = 1;
-  for (let i = history.length-1; i>=3; i--) {
-    const avg = (history[i-1].score+history[i-2].score+history[i-3].score)/3;
-    const diff = history[i].score-avg;
-    const matches = currentTraj==='RISING' ? diff>TRAJECTORY_FLAT_BAND : diff<-TRAJECTORY_FLAT_BAND;
-    if (matches) count++; else break;
-  }
-  return count;
 }
 
 function calcCentreScore(centreIdx) {
@@ -1053,7 +1055,9 @@ async function renderCentre(centreId) {
   const {score:csvScore,onSale,total}=calcCentreScore(centreIdx);
   const centreScore=serverScore?serverScore.tide_score:csvScore;
   const trajectory=serverScore&&serverScore.trajectory?serverScore.trajectory:computeTrajectory(centreScore,history);
-  const stage=getTideStage(centreScore,trajectory);
+  // Prefer server-derived stage so the gauge matches the scorer's hysteresis
+  // state. Falls back to local score-only computation for preview data.
+  const stage=(serverScore&&deriveStageFromVerdict(serverScore.verdict))||getTideStage(centreScore,trajectory);
   const style=stageStyle(stage);
   const verdictLabel=serverScore&&serverScore.verdict?serverScore.verdict:style.label;
   const verdictMsg=serverScore&&serverScore.bluf?serverScore.bluf:style.msg;
@@ -1154,14 +1158,16 @@ async function renderCentre(centreId) {
   }
 
   const isDemo=!hasRealHistory;
-  const trajDays = trajectoryDuration(history, trajectory);
-  const trajWord = trajectory==='RISING'?'Rising':trajectory==='FALLING'?'Falling':'Flat';
-  const trajArrow = trajectory==='RISING'?'\u2191':trajectory==='FALLING'?'\u2193':'\u2192';
-  const trajLabel = trajectory==='FLAT' || trajDays<2
-    ? trajArrow+' '+trajWord
-    : trajArrow+' '+trajWord+' for '+trajDays+' days';
+  // Forward-guidance copy below the bluf \u2014 small italic supporting text, not a
+  // competing badge. Skip when FLAT (no new info) since the bluf already says it.
+  let trendCopy = '';
+  if (trajectory==='RISING') {
+    trendCopy = '<div class="trend-line">\u2191 Score rising \u2014 check back tomorrow</div>';
+  } else if (trajectory==='FALLING') {
+    trendCopy = '<div class="trend-line">\u2193 Score easing off \u2014 still worth a visit</div>';
+  }
 
-  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div></div></div>'+renderHistoryChart(history,style.color,isDemo,trajectory)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
+  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div>'+trendCopy+'</div></div>'+renderHistoryChart(history,style.color,isDemo,trajectory)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
 
   requestAnimationFrame(()=>{
     document.getElementById('score-card').classList.add('visible');

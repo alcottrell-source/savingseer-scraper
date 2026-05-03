@@ -38,24 +38,64 @@ function brandFreshnessScore(daysRunning) {
 }
 
 // ── Tide stage mapping (spec §7) ─────────────────────────────────────────────
-// 5 stages, evenly spaced along the cycle: Turning -> Rising -> High Tide ->
-// Falling -> Low. High Tide and Falling share the 50+ score range; trajectory
-// distinguishes them. Same for Turning vs Low at the low end.
-// Empty centres (score 0) keep the "Nothing on" verdict text but report stage
-// Turning so the dashboard gauge shows them at the leftmost (cycle-start)
-// position rather than a separate "Flat" position.
-function getTideStage(score, trajectory) {
+// 5 stages mapped to cycle position: Turning -> Rising -> High Tide ->
+// Falling -> Low. Score is the headline; trajectory is supporting context
+// (still computed and stored for the dashboard's forward-guidance copy, but
+// no longer gates the stage decision).
+//
+// Hysteresis on High Tide: enter at 75, hold until score drops below 65.
+// Once the score falls out of the hold band the centre transitions into the
+// descent path (Falling -> Low). yesterdayStage is the source of truth for
+// where we are in the cycle.
+//
+// Why hysteresis (not a fixed N-day window): a centre that hits peak should
+// hold "Go now" until the score genuinely retreats, not auto-time-out after
+// a fixed window. The 65 floor gives a 10-point cushion against day-to-day
+// noise around the 75 entry without freezing the verdict if sales actually
+// collapse.
+const HIGH_TIDE_ENTER = 75;
+const HIGH_TIDE_EXIT  = 65;
+
+const STAGE_FROM_VERDICT = {
+  'Go now':                       'High Tide',
+  'Last chance':                  'Falling',
+  'Last chance — tide going out': 'Falling',
+  'Worth watching':               'Rising',
+  'Starting to build':            'Turning',
+  "It's over":                    'Low',
+  'Nothing on':                   'Turning',
+};
+function deriveStageFromVerdict(verdict) {
+  return verdict ? (STAGE_FROM_VERDICT[verdict] || null) : null;
+}
+
+function getTideStage(score, yesterdayStage) {
+  const wasHighTide = yesterdayStage === 'High Tide';
+  const wasDescent  = yesterdayStage === 'Falling' || yesterdayStage === 'Low';
+
   if (score === 0) {
+    if (wasHighTide || wasDescent) {
+      return { stage: 'Low', verdict: "It's over", bluf: 'Cycle ended. Check back when brands start their next sale.' };
+    }
     return { stage: 'Turning', verdict: 'Nothing on', bluf: 'No meaningful sales at this centre right now. Check back soon.' };
   }
-  if (trajectory === 'FALLING') {
+
+  // Hysteresis: enter High Tide at 75, hold until score drops below 65
+  if (score >= HIGH_TIDE_ENTER || (wasHighTide && score >= HIGH_TIDE_EXIT)) {
+    return { stage: 'High Tide', verdict: 'Go now', bluf: 'Maximum density, maximum freshness. This is the moment.' };
+  }
+
+  // Descent path: was at peak yesterday and has now dropped below the hold,
+  // or was already descending. Distinguishes Falling (still meaningful) from
+  // Low (cycle ended) by the 25-point boundary.
+  if (wasHighTide || wasDescent) {
     if (score < 25) return { stage: 'Low',     verdict: "It's over",              bluf: 'Cycle ended. Check back when brands start their next sale.' };
     return           { stage: 'Falling', verdict: 'Last chance — tide going out', bluf: 'Tide going out. Go now or miss out.' };
   }
-  // Rising or Flat trajectory
-  if (score >= 50) return { stage: 'High Tide', verdict: 'Go now',          bluf: 'Maximum density, maximum freshness. This is the moment.' };
-  if (score >= 25) return { stage: 'Rising',    verdict: 'Worth watching',   bluf: 'Sales building and fresh. Plan your visit soon.' };
-  return            { stage: 'Turning',   verdict: 'Starting to build', bluf: 'A few brands are breaking into sale. Worth watching.' };
+
+  // Climb path: working up toward peak (or first day of a new centre)
+  if (score >= 25) return { stage: 'Rising',  verdict: 'Worth watching',   bluf: 'Sales building and fresh. Plan your visit soon.' };
+  return            { stage: 'Turning', verdict: 'Starting to build', bluf: 'A few brands are breaking into sale. Worth watching.' };
 }
 
 // ── Trajectory (spec §5) ─────────────────────────────────────────────────────
@@ -80,7 +120,7 @@ async function calculateAllCentreScores() {
     supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
     supabase.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error'),
     supabase.from('centre_seer_scores')
-      .select('centre_id, score_date, tide_score')
+      .select('centre_id, score_date, tide_score, verdict')
       .gte('score_date', THREE_DAYS_AGO)
       .lt('score_date', TODAY)
       .order('score_date', { ascending: false }),
@@ -93,11 +133,17 @@ async function calculateAllCentreScores() {
 
   const brandSaleMap = new Map(brandSaleRes.data.map(b => [b.brand_id, b]));
 
-  // Build per-centre recent score arrays (newest first) for trajectory calculation
+  // Build per-centre recent score arrays (newest first) for trajectory, and
+  // pull yesterday's stage (most recent prior row's verdict) for hysteresis.
   const recentScoreMap = new Map();
+  const yesterdayStageMap = new Map();
   for (const row of (recentScoresRes.data || [])) {
     if (!recentScoreMap.has(row.centre_id)) recentScoreMap.set(row.centre_id, []);
     recentScoreMap.get(row.centre_id).push(row.tide_score);
+    if (!yesterdayStageMap.has(row.centre_id)) {
+      const stage = deriveStageFromVerdict(row.verdict);
+      if (stage) yesterdayStageMap.set(row.centre_id, stage);
+    }
   }
 
   const centreBrandMap = new Map();
@@ -140,8 +186,10 @@ async function calculateAllCentreScores() {
 
     // Centre Tide Score = (Σ freshness × weight) / N × 100  (spec §4.1)
     const tideScore = Math.round((totalFreshness / totalBrands) * 100 * 10) / 10;
-    const trajectory = getTrajectory(tideScore, recentScoreMap.get(centre.id) ?? []);
-    const { stage, verdict, bluf } = getTideStage(tideScore, trajectory);
+    const recent = recentScoreMap.get(centre.id) ?? [];
+    const trajectory = getTrajectory(tideScore, recent);
+    const yesterdayStage = yesterdayStageMap.get(centre.id) ?? null;
+    const { stage, verdict, bluf } = getTideStage(tideScore, yesterdayStage);
 
     const topBrands = saleDetails
       .sort((a, b) => (b.freshness * b.weight) - (a.freshness * a.weight))
@@ -302,7 +350,9 @@ async function calculatePersonalScores() {
       }
 
       const personalScore = Math.round((totalFreshness / matchingBrandIds.length) * 10) / 10;
-      const { verdict } = getTideStage(personalScore, 'HOLDING');
+      // Personal scores aren't tracked across days, so no yesterdayStage —
+      // the verdict reflects the score alone (no hysteresis).
+      const { verdict } = getTideStage(personalScore, null);
 
       scoreRows.push({
         user_id:             pref.user_id,

@@ -23,7 +23,7 @@ const TRAJECTORY_FLAT_BAND = 1.5;  // ±1.5 defines the Flat (Peak) window
 // Anchor brands v1 (spec §3): Next, M&S, Zara, H&M, Uniqlo, River Island
 const ANCHOR_BRAND_IDS = new Set(['B001', 'B002', 'B003', 'B005', 'B013', 'B023']);
 
-const PHASE_NUMBER = { Flat: 1, Turning: 1, Rising: 2, 'High Tide': 2, Falling: 2, Low: 1 };
+const PHASE_NUMBER = { Turning: 1, Rising: 2, 'High Tide': 2, Falling: 2, Low: 1 };
 
 // ── Brand freshness score (spec §2) ──────────────────────────────────────────
 function brandFreshnessScore(daysRunning) {
@@ -35,11 +35,15 @@ function brandFreshnessScore(daysRunning) {
 }
 
 // ── Tide stage mapping (spec §7) ─────────────────────────────────────────────
-// High Tide and Falling share the 50–74 score range; trajectory is the
-// distinguishing signal. Same applies to Turning (1–24 rising) vs Low (falling).
+// 5 stages, evenly spaced along the cycle: Turning -> Rising -> High Tide ->
+// Falling -> Low. High Tide and Falling share the 50+ score range; trajectory
+// distinguishes them. Same for Turning vs Low at the low end.
+// Empty centres (score 0) keep the "Nothing on" verdict text but report stage
+// Turning so the dashboard gauge shows them at the leftmost (cycle-start)
+// position rather than a separate "Flat" position.
 function getTideStage(score, trajectory) {
   if (score === 0) {
-    return { stage: 'Flat', verdict: 'Nothing on', bluf: 'No meaningful sales at this centre right now.' };
+    return { stage: 'Turning', verdict: 'Nothing on', bluf: 'No meaningful sales at this centre right now. Check back soon.' };
   }
   if (trajectory === 'FALLING') {
     if (score < 25) return { stage: 'Low',     verdict: "It's over",              bluf: 'Cycle ended. Check back when brands start their next sale.' };
@@ -161,7 +165,7 @@ async function calculateAllCentreScores() {
       avg_discount_pct: avgDiscountPct,
     });
 
-    const icons = { Flat: '⬜', Turning: '🔵', Rising: '📈', 'High Tide': '⭐', Falling: '⚠️', Low: '⬛' };
+    const icons = { Turning: '🔵', Rising: '📈', 'High Tide': '⭐', Falling: '⚠️', Low: '⬛' };
     console.log(`  ${icons[stage] ?? '?'} ${centre.name}: ${stage} (${tideScore}) | ${brandsOnSale}/${totalBrands} brands | ${trajectory}`);
   }
 

@@ -73,6 +73,8 @@
   .brand-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .brand-days { font-size: 11px; color: var(--leaf); font-weight: 500; letter-spacing: 0.01em; }
   .brand-pct { font-size: 11px; color: var(--amber); font-weight: 600; letter-spacing: 0.01em; background: var(--amber-lt); padding: 2px 7px; border-radius: 10px; }
+  .brand-arrow { font-size: 11px; color: var(--stone); margin-left: 6px; opacity: 0.55; flex-shrink: 0; }
+  a.brand-chip:hover .brand-arrow { color: var(--leaf); opacity: 1; }
   .sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); flex-shrink: 0; }
   .no-sale-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--stone-lt); border: 1px solid var(--border); flex-shrink: 0; }
   .empty-state { padding: 60px 24px; text-align: center; }
@@ -121,6 +123,7 @@
   .demo-badge { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); text-align: right; margin-top: 6px; opacity: 0.7; }
 </style>
 <script defer data-domain="v0-tide-sale-timing.vercel.app" src="https://plausible.io/js/script.js"></script>
+<script type="text/javascript" src="https://s.skimresources.com/js/REPLACE_WITH_SKIMLINKS_PUBLISHER_ID.skimlinks.js"></script>
 </head>
 <body>
 
@@ -1013,15 +1016,20 @@ async function renderCentre(centreId) {
                       : days<=21 ? days+'d in'
                                  : 'Late · '+days+'d';
       const pct = b.isOnSale ? MAX_DISCOUNT_PCT[b.id] : null;
-      const pctLabel = pct ? '<span class="brand-pct">'+pct+'% off</span>' : '';
+      // When we have a clean % off, that's the headline — drop the days
+      // label so chip content fits on a 2-column mobile grid. When no %,
+      // the days label stays as the primary signal.
+      const headline = pct ? '<span class="brand-pct">'+pct+'% off</span>'
+                            : (daysLabel ? '<span class="brand-days">'+daysLabel+'</span>' : '');
       const meta=b.isOnSale
-        ?'<span class="brand-meta">'+pctLabel+(daysLabel?'<span class="brand-days">'+daysLabel+'</span>':'')+'<span class="sale-dot"></span></span>'
+        ?'<span class="brand-meta">'+headline+'<span class="sale-dot"></span></span>'
         :'<span class="no-sale-dot"></span>';
       const url = BRAND_URL_BY_NAME[b.name] || null;
       const logoImg = brandLogoImg(url);
-      const inner='<span class="brand-left">'+logoImg+'<span class="brand-name">'+b.name+'</span></span>'+meta;
-      brandHTML+= b.isOnSale && url
-        ? '<a class="brand-chip on-sale" href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
+      const arrow = url ? '<span class="brand-arrow" aria-hidden="true">↗</span>' : '';
+      const inner='<span class="brand-left">'+logoImg+'<span class="brand-name">'+b.name+'</span></span>'+meta+arrow;
+      brandHTML+= url
+        ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'" href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
         : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'">'+inner+'</div>';
     }
   }

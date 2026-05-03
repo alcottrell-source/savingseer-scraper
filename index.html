@@ -112,6 +112,7 @@
   .traj-indicator { font-size: 12px; font-weight: 500; margin-top: 3px; letter-spacing: 0; text-transform: none; }
   .demo-badge { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); text-align: right; margin-top: 6px; opacity: 0.7; }
 </style>
+<script defer data-domain="REPLACE_WITH_VERCEL_DOMAIN" src="https://plausible.io/js/script.js"></script>
 </head>
 <body>
 
@@ -164,8 +165,8 @@
 <div id="main-content">
   <div class="empty-state">
     <span class="empty-icon">&#127754;</span>
-    <p class="empty-title">When does the tide come in?</p>
-    <p class="empty-sub">Pick a shopping centre to see today's Tide Score and which brands are on sale right now.</p>
+    <p class="empty-title">When is the right moment to go?</p>
+    <p class="empty-sub">Pick a shopping centre to see today's Tide Score and which brands are on sale.</p>
   </div>
 </div>
 
@@ -691,12 +692,12 @@ function getTideStage(score, trajectory) {
 
 function stageStyle(stage) {
   const s = {
-    'Flat':      {label:'Nothing on',        color:'#8C8070',bg:'#F2EFE9',msg:'No meaningful sales at this centre right now. Check back soon.'},
-    'Turning':   {label:'Starting to build', color:'#3D6B35',bg:'#EEF4EC',msg:'A few brands are breaking into sale. Worth watching.'},
-    'Rising':    {label:'Worth watching',    color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building and fresh. Plan your visit soon.'},
-    'High Tide': {label:'Go now',            color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum density, maximum freshness. This is the moment.'},
-    'Falling':   {label:'Last chance',       color:'#B84C3A',bg:'#FAEAE7',msg:'Tide going out. Go now or miss out.'},
-    'Low':       {label:"It's over",         color:'#8C8070',bg:'#F2EFE9',msg:'Cycle ended. Check back when brands start their next sale.'},
+    'Flat':      {label:'Flat',      color:'#8C8070',bg:'#F2EFE9',msg:'No meaningful sales at this centre right now. Check back soon.'},
+    'Turning':   {label:'Turning',   color:'#3D6B35',bg:'#EEF4EC',msg:'A few brands are breaking into sale. Worth watching.'},
+    'Rising':    {label:'Rising',    color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building and fresh. Plan your visit soon.'},
+    'High Tide': {label:'High Tide', color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum density, maximum freshness. This is the moment.'},
+    'Falling':   {label:'Falling',   color:'#B84C3A',bg:'#FAEAE7',msg:'Tide going out. Go now or miss out.'},
+    'Low':       {label:'Low',       color:'#8C8070',bg:'#F2EFE9',msg:'Cycle ended. Check back when brands start their next sale.'},
   };
   return s[stage]||s['Flat'];
 }
@@ -825,7 +826,7 @@ function renderHistoryChart(history, color, isDemo=false) {
     const anchor=pos==='start'?'start':pos==='end'?'end':'middle';
     return '<text x="'+pts[idx][0]+'" y="'+(PT+H+16)+'" font-family="DM Sans,sans-serif" font-size="9.5" fill="#8C8070" text-anchor="'+anchor+'">'+label+'</text>';
   }).join('');
-  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.12"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><text x="'+lx+'" y="'+(ly-9).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+color+'" font-weight="500">today</text><circle cx="'+lx+'" cy="'+ly+'" r="4.5" fill="white" stroke="'+color+'" stroke-width="1.8"/>'+xLabels+'</svg>'+(isDemo?'<div class="demo-badge">Preview -- no live data yet</div>':'')+'</div></div>';
+  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.12"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><text x="'+lx+'" y="'+(ly-9).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+color+'" font-weight="500">today</text><circle cx="'+lx+'" cy="'+ly+'" r="4.5" fill="white" stroke="'+color+'" stroke-width="1.8"/>'+xLabels+'</svg>'+(isDemo?'<div class="demo-badge">Preview data &mdash; no live history yet</div>':'')+'</div></div>';
 }
 
 function brandMatchesFrontendPrefs(brand, prefs) {
@@ -878,15 +879,15 @@ function buildArcSVG(centreScore, personalScore, centreColor) {
 async function renderCentre(centreId) {
   const content=document.getElementById('main-content');
   if (!centreId) {
-    content.innerHTML='<div class="empty-state"><span class="empty-icon">&#127754;</span><p class="empty-title">When does the tide come in?</p><p class="empty-sub">Pick a shopping centre to see today\'s Tide Score and which brands are on sale right now.</p></div>';
+    content.innerHTML='<div class="empty-state"><span class="empty-icon">&#127754;</span><p class="empty-title">When is the right moment to go?</p><p class="empty-sub">Pick a shopping centre to see today\'s Tide Score and which brands are on sale.</p></div>';
     return;
   }
   const centreIdx=parseInt(centreId.replace('C',''))-1;
   const centreName=CENTRE_NAMES[centreIdx];
   const serverScore=getServerScore(centreIdx);
-  const serverHistory=getServerHistory(centreIdx);
-  const csvHistory=computeHistoricalScores(centreIdx);
-  const history=serverHistory.length>=2?serverHistory:csvHistory;
+  const tideHistory=getServerHistory(centreIdx);
+  const hasRealHistory=Array.isArray(tideHistory)&&tideHistory.length>=2;
+  const history=hasRealHistory?tideHistory:generateMockHistory(centreIdx);
   const {score:csvScore,onSale,total}=calcCentreScore(centreIdx);
   const centreScore=serverScore?serverScore.tide_score:csvScore;
   const trajectory=serverScore&&serverScore.trajectory?serverScore.trajectory:computeTrajectory(centreScore,history);
@@ -958,16 +959,15 @@ async function renderCentre(centreId) {
     }
   }
 
-  const isDemo=history.length<2;
-  const trajHistory = isDemo ? generateMockHistory(centreIdx) : history;
-  const trajDays = trajectoryDuration(trajHistory, trajectory);
+  const isDemo=!hasRealHistory;
+  const trajDays = trajectoryDuration(history, trajectory);
   const trajWord = trajectory==='RISING'?'Rising':trajectory==='FALLING'?'Falling':'Flat';
   const trajArrow = trajectory==='RISING'?'\u2191':trajectory==='FALLING'?'\u2193':'\u2192';
   const trajLabel = trajectory==='FLAT' || trajDays<2
     ? trajArrow+' '+trajWord
     : trajArrow+' '+trajWord+' for '+trajDays+' days';
 
-  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+'<div class="arc-wrap">'+arcSVG+arcLegend+'</div>'+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div></div></div>'+renderHistoryChart(isDemo?generateMockHistory(centreIdx):history,style.color,isDemo)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
+  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+'<div class="arc-wrap">'+arcSVG+arcLegend+'</div>'+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div></div></div>'+renderHistoryChart(history,style.color,isDemo)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
 
   requestAnimationFrame(()=>{
     document.getElementById('score-card').classList.add('visible');

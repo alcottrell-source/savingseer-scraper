@@ -388,6 +388,66 @@ async function savePreferences() {
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
 let SALE_STATUS = {}, DAYS_RUNNING = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
+let CENTRE_SCORES = {};      // supabase centre_id -> { tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands }
+let CENTRE_HISTORY = {};     // supabase centre_id -> [{date, score}, ...]
+let CENTRE_ID_BY_IDX = [];   // centreIdx (0-based, matches CENTRE_NAMES) -> supabase centre_id
+
+async function loadTideData() {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const [centresRes, salesRes, scoresRes] = await Promise.all([
+      sb.from('centres').select('id, name, tide_history').eq('active', true).order('id'),
+      sb.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, scraper_error'),
+      sb.from('centre_seer_scores').select('centre_id, score_date, tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands').eq('score_date', today),
+    ]);
+    if (centresRes.error || salesRes.error || scoresRes.error) {
+      console.warn('Tide data load partial failure:', centresRes.error || salesRes.error || scoresRes.error);
+      return false;
+    }
+    const centresList = centresRes.data || [];
+    if (!centresList.length) { console.warn('No centres returned from Supabase'); return false; }
+
+    CENTRE_ID_BY_IDX = centresList.map(c => c.id);
+    for (const c of centresList) CENTRE_HISTORY[c.id] = Array.isArray(c.tide_history) ? c.tide_history : [];
+
+    let latestDate = today;
+    for (const row of (scoresRes.data || [])) {
+      CENTRE_SCORES[row.centre_id] = row;
+      if (row.score_date > latestDate) latestDate = row.score_date;
+    }
+
+    for (const row of (salesRes.data || [])) {
+      if (row.scraper_error) continue;
+      SALE_STATUS[row.brand_id] = !!row.sale_status;
+      if (row.sale_status && row.date_first_detected) {
+        const days = Math.floor((new Date(latestDate) - new Date(row.date_first_detected)) / 86400000) + 1;
+        DAYS_RUNNING[row.brand_id] = Math.max(days, 1);
+      } else {
+        DAYS_RUNNING[row.brand_id] = 0;
+      }
+    }
+
+    document.getElementById('today-date').textContent = new Date(latestDate+'T12:00:00')
+      .toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+
+    const sel = document.getElementById('centre-select');
+    if (sel.value) renderCentre(sel.value);
+    return true;
+  } catch (err) {
+    console.warn('Tide data load exception:', err);
+    return false;
+  }
+}
+
+function getServerScore(centreIdx) {
+  const id = CENTRE_ID_BY_IDX[centreIdx];
+  return id ? (CENTRE_SCORES[id] || null) : null;
+}
+
+function getServerHistory(centreIdx) {
+  const id = CENTRE_ID_BY_IDX[centreIdx];
+  return id ? (CENTRE_HISTORY[id] || []) : [];
+}
 
 async function loadSheetData() {
   try {
@@ -810,11 +870,17 @@ async function renderCentre(centreId) {
   }
   const centreIdx=parseInt(centreId.replace('C',''))-1;
   const centreName=CENTRE_NAMES[centreIdx];
-  const history=computeHistoricalScores(centreIdx);
-  const {score:centreScore,onSale,total}=calcCentreScore(centreIdx);
-  const trajectory=computeTrajectory(centreScore,history);
+  const serverScore=getServerScore(centreIdx);
+  const serverHistory=getServerHistory(centreIdx);
+  const csvHistory=computeHistoricalScores(centreIdx);
+  const history=serverHistory.length>=2?serverHistory:csvHistory;
+  const {score:csvScore,onSale,total}=calcCentreScore(centreIdx);
+  const centreScore=serverScore?serverScore.tide_score:csvScore;
+  const trajectory=serverScore&&serverScore.trajectory?serverScore.trajectory:computeTrajectory(centreScore,history);
   const stage=getTideStage(centreScore,trajectory);
   const style=stageStyle(stage);
+  const verdictLabel=serverScore&&serverScore.verdict?serverScore.verdict:style.label;
+  const verdictMsg=serverScore&&serverScore.bluf?serverScore.bluf:style.msg;
 
   let personalResult=null;
   if (userPrefs) {
@@ -888,7 +954,7 @@ async function renderCentre(centreId) {
     ? trajArrow+' '+trajWord
     : trajArrow+' '+trajWord+' for '+trajDays+' days';
 
-  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+style.label+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+'<div class="arc-wrap">'+arcSVG+arcLegend+'</div>'+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+style.msg+'</div></div></div>'+renderHistoryChart(isDemo?generateMockHistory(centreIdx):history,style.color,isDemo)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
+  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+'<div class="arc-wrap">'+arcSVG+arcLegend+'</div>'+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div></div></div>'+renderHistoryChart(isDemo?generateMockHistory(centreIdx):history,style.color,isDemo)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
 
   requestAnimationFrame(()=>{
     document.getElementById('score-card').classList.add('visible');
@@ -898,7 +964,7 @@ async function renderCentre(centreId) {
   });
 }
 
-loadSheetData();
+loadTideData().then(ok => { if (!ok) loadSheetData(); });
 </script>
 </body>
 </html>

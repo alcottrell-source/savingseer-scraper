@@ -804,10 +804,12 @@ function brandFreshnessScore(days) {
 
 function getTideStage(score, trajectory) {
   // 5 stages mapped to cycle position: Turning -> Rising -> High Tide -> Falling -> Low.
-  // Direction matters: a low score with FALLING trajectory = Low (cycle ended);
-  // a low score with RISING/FLAT trajectory = Turning (cycle starting).
+  // Trajectory is authoritative: "High Tide" is only reached when the score has
+  // stopped climbing (FLAT). RISING at any score stays at Rising — a centre still
+  // rising hasn't peaked, so the gauge dot doesn't jump to High Tide until the
+  // trajectory arrow flattens. Mirrors getTideStage in score.js.
   if (trajectory==='FALLING') return score<25 ? 'Low' : 'Falling';
-  if (score>=50) return 'High Tide';
+  if (trajectory==='FLAT' && score>=50) return 'High Tide';
   if (score>=25) return 'Rising';
   return 'Turning';
 }
@@ -816,7 +818,7 @@ function stageStyle(stage) {
   const s = {
     'Turning':   {label:'Turning',   color:'#3D6B35',bg:'#EEF4EC',msg:'A few brands are breaking into sale. Worth watching.'},
     'Rising':    {label:'Rising',    color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building and fresh. Plan your visit soon.'},
-    'High Tide': {label:'High Tide', color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum density, maximum freshness. This is the moment.'},
+    'High Tide': {label:'High Tide', color:'#C17A2B',bg:'#FBF2E4',msg:'Sales have peaked and are holding. This is the moment.'},
     'Falling':   {label:'Falling',   color:'#B84C3A',bg:'#FAEAE7',msg:'Tide going out. Go now or miss out.'},
     'Low':       {label:'Low',       color:'#8C8070',bg:'#F2EFE9',msg:'Cycle ended. Check back when brands start their next sale.'},
   };

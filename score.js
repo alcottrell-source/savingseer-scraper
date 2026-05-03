@@ -38,9 +38,15 @@ function brandFreshnessScore(daysRunning) {
 }
 
 // ── Tide stage mapping (spec §7) ─────────────────────────────────────────────
-// 5 stages, evenly spaced along the cycle: Turning -> Rising -> High Tide ->
-// Falling -> Low. High Tide and Falling share the 50+ score range; trajectory
-// distinguishes them. Same for Turning vs Low at the low end.
+// 5 stages mapped to cycle position: Turning -> Rising -> High Tide ->
+// Falling -> Low.
+//
+// Trajectory is authoritative for the verdict: "High Tide / Go now" is only
+// reached when the score has stopped climbing (trajectory FLAT) — a centre
+// still RISING hasn't peaked yet, so saying "Go now" while the trajectory
+// arrow points up would contradict itself. RISING + high score reads as
+// Rising / Worth watching: visit now or wait for the plateau.
+//
 // Empty centres (score 0) keep the "Nothing on" verdict text but report stage
 // Turning so the dashboard gauge shows them at the leftmost (cycle-start)
 // position rather than a separate "Flat" position.
@@ -52,8 +58,9 @@ function getTideStage(score, trajectory) {
     if (score < 25) return { stage: 'Low',     verdict: "It's over",              bluf: 'Cycle ended. Check back when brands start their next sale.' };
     return           { stage: 'Falling', verdict: 'Last chance — tide going out', bluf: 'Tide going out. Go now or miss out.' };
   }
-  // Rising or Flat trajectory
-  if (score >= 50) return { stage: 'High Tide', verdict: 'Go now',          bluf: 'Maximum density, maximum freshness. This is the moment.' };
+  if (trajectory === 'FLAT' && score >= 50) {
+    return { stage: 'High Tide', verdict: 'Go now', bluf: 'Sales have peaked and are holding. This is the moment.' };
+  }
   if (score >= 25) return { stage: 'Rising',    verdict: 'Worth watching',   bluf: 'Sales building and fresh. Plan your visit soon.' };
   return            { stage: 'Turning',   verdict: 'Starting to build', bluf: 'A few brands are breaking into sale. Worth watching.' };
 }
@@ -302,7 +309,9 @@ async function calculatePersonalScores() {
       }
 
       const personalScore = Math.round((totalFreshness / matchingBrandIds.length) * 10) / 10;
-      const { verdict } = getTideStage(personalScore, 'HOLDING');
+      // Personal scores aren't trajectory-tracked. Pass FLAT so the verdict
+      // reflects the score itself rather than implying still-rising.
+      const { verdict } = getTideStage(personalScore, 'FLAT');
 
       scoreRows.push({
         user_id:             pref.user_id,

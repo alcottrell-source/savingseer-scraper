@@ -436,13 +436,17 @@ async function loadTideData() {
 
     for (const row of (salesRes.data || [])) {
       if (row.scraper_error) continue;
-      SALE_STATUS[row.brand_id] = !!row.sale_status;
-      MAX_DISCOUNT_PCT[row.brand_id] = (row.sale_status && Number.isFinite(row.max_discount_pct)) ? row.max_discount_pct : null;
+      // Translate scraper id -> dashboard name. The inline BRANDS array
+      // uses a different id space, so all per-brand state is keyed by name.
+      const name = DASHBOARD_NAME_BY_SCRAPER_ID[row.brand_id];
+      if (!name) continue;
+      SALE_STATUS[name] = !!row.sale_status;
+      MAX_DISCOUNT_PCT[name] = (row.sale_status && Number.isFinite(row.max_discount_pct)) ? row.max_discount_pct : null;
       if (row.sale_status && row.date_first_detected) {
         const days = Math.floor((new Date(latestDate) - new Date(row.date_first_detected)) / 86400000) + 1;
-        DAYS_RUNNING[row.brand_id] = Math.max(days, 1);
+        DAYS_RUNNING[name] = Math.max(days, 1);
       } else {
-        DAYS_RUNNING[row.brand_id] = 0;
+        DAYS_RUNNING[name] = 0;
       }
     }
 
@@ -493,20 +497,26 @@ async function loadSheetData() {
       }
     }
     SHEET_DATE_COLS.sort((a,b) => a.date.localeCompare(b.date));
+    // Build a sheet-id -> dashboard-name index. The CSV uses the inline
+    // BRANDS id space, so we resolve names from BRANDS by id and key the
+    // by-name state maps the same way the Supabase path does.
+    const NAME_BY_INLINE_ID = Object.fromEntries(BRANDS.map(b => [b.id, b.name]));
     for (let r = 1; r < rows.length; r++) {
       const row = rows[r];
       const id = row[0]?.trim().replace(/"/g,'');
       if (!id || !id.startsWith('B')) continue;
       SHEET_ROWS[id] = row;
+      const name = NAME_BY_INLINE_ID[id];
+      if (!name) continue;
       const v = latestColIdx >= 0 ? row[latestColIdx]?.trim().replace(/"/g,'') : '';
-      SALE_STATUS[id] = v === 'TRUE' ? true : v === 'FALSE' ? false : null;
-      if (SALE_STATUS[id] === true) {
+      SALE_STATUS[name] = v === 'TRUE' ? true : v === 'FALSE' ? false : null;
+      if (SALE_STATUS[name] === true) {
         let days = 0;
         for (let c = latestColIdx; c >= 2; c--) {
           if (rows[r][c]?.trim().replace(/"/g,'') === 'TRUE') days++; else break;
         }
-        DAYS_RUNNING[id] = Math.max(days, 1);
-      } else { DAYS_RUNNING[id] = 0; }
+        DAYS_RUNNING[name] = Math.max(days, 1);
+      } else { DAYS_RUNNING[name] = 0; }
     }
     document.getElementById('today-date').textContent = latestDate
       ? new Date(latestDate+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})
@@ -549,6 +559,32 @@ const BRAND_URL_BY_NAME = {
   'FLANNELS':'https://www.flannels.com/sale','Pandora':'https://uk.pandora.net/en/sale/','Fossil':'https://www.fossil.com/en-gb/sale/',
   'Swarovski':'https://www.swarovski.com/en-GB/s-sale/','Radley':'https://www.radley.co.uk/sale','Flying Tiger':'https://flyingtiger.com/en-gb/collections/sale',
   'Lush':'https://www.lush.com/uk/en/c/sale',
+};
+
+// Maps scraper brand_id (from brands.js, used as the key in Supabase
+// brand_sale_events) -> dashboard inline brand name. Critical: the inline
+// BRANDS array below uses an entirely different id space than brands.js, so
+// we route Supabase data lookups via name. Three name aliases (M&S vs Marks &
+// Spencer, Hackett vs Hackett London, Ralph Lauren vs Polo Ralph Lauren) are
+// resolved here. Brands present in brands.js but not in inline BRANDS are
+// omitted; their data is harmlessly dropped.
+const DASHBOARD_NAME_BY_SCRAPER_ID = {
+  'B001':'Next', 'B002':'Marks & Spencer', 'B003':'River Island', 'B004':'New Look',
+  'B005':'Dorothy Perkins', 'B006':'Wallis',
+  'B011':'Zara', 'B012':'H&M', 'B013':'Mango', 'B014':'COS', 'B015':'Arket',
+  'B016':'& Other Stories', 'B019':'Hollister', 'B020':'Abercrombie',
+  'B021':'Fat Face', 'B022':'Joules', 'B023':'White Stuff', 'B024':'Seasalt Cornwall',
+  'B025':'Crew Clothing', 'B026':'Boden', 'B027':'Hobbs', 'B028':'The White Company',
+  'B029':'Barbour', 'B031':'Phase Eight', 'B032':'Whistles', 'B033':'Reiss',
+  'B034':'Ted Baker', 'B035':'Karen Millen', 'B037':'Monsoon', 'B038':'Accessorize',
+  'B039':'Oasis', 'B040':'Warehouse', 'B041':'Sweaty Betty', 'B042':'Lululemon',
+  'B043':'Superdry', 'B044':'Jack Wills', 'B045':'Hackett London',
+  'B046':'Polo Ralph Lauren', 'B047':'Tommy Hilfiger', 'B048':'Lacoste',
+  'B049':'Hugo Boss', 'B051':'Nike', 'B052':'Adidas', 'B053':'The North Face',
+  'B054':'Berghaus', 'B055':'Columbia', 'B057':'Timberland', 'B059':'Regatta',
+  'B061':'Schuh', 'B062':'Dune London', 'B063':'Office', 'B064':'Clarks',
+  'B065':'Kurt Geiger', 'B066':'Skechers', 'B070':'FLANNELS', 'B071':'Pandora',
+  'B073':'Swarovski', 'B075':'Flying Tiger',
 };
 
 const BRANDS = [
@@ -779,8 +815,8 @@ function calcCentreScore(centreIdx) {
   if (!brandsAtCentre.length) return {score:0,onSale:[],total:0};
   let totalFreshness=0; const onSale=[];
   for (const brand of brandsAtCentre) {
-    const days = DAYS_RUNNING[brand.id]||0;
-    if (SALE_STATUS[brand.id]===true && days>0) {
+    const days = DAYS_RUNNING[brand.name]||0;
+    if (SALE_STATUS[brand.name]===true && days>0) {
       const freshness = brandFreshnessScore(days);
       if (freshness===0) continue;
       const weight = ANCHOR_BRAND_IDS.has(brand.id) ? ANCHOR_MULTIPLIER : 1.0;
@@ -934,8 +970,8 @@ function calcPersonalScore(centreId, prefs) {
   const matching=BRANDS.filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1&&brandMatchesFrontendPrefs(b,prefs));
   if (!matching.length) return null;
   let totalFreshness=0;
-  const onSale=matching.filter(b=>SALE_STATUS[b.id]===true);
-  for (const brand of onSale) { totalFreshness+=brandFreshnessScore(DAYS_RUNNING[brand.id]||0); }
+  const onSale=matching.filter(b=>SALE_STATUS[b.name]===true);
+  for (const brand of onSale) { totalFreshness+=brandFreshnessScore(DAYS_RUNNING[brand.name]||0); }
   return {score:Math.round((totalFreshness/matching.length)*100),matchingBrands:matching.length,onSale:onSale.length};
 }
 
@@ -1030,7 +1066,7 @@ async function renderCentre(centreId) {
 
   const allBrandsAtCentre = BRANDS
     .filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1)
-    .map(b => ({...b, isOnSale: SALE_STATUS[b.id]===true, daysRunning: DAYS_RUNNING[b.id]||0}));
+    .map(b => ({...b, isOnSale: SALE_STATUS[b.name]===true, daysRunning: DAYS_RUNNING[b.name]||0}));
   // On sale: newest sales first (lowest days running), tiebreak alphabetical.
   const onSaleBrands = allBrandsAtCentre
     .filter(b => b.isOnSale)
@@ -1047,7 +1083,7 @@ async function renderCentre(centreId) {
                     : days<=7  ? 'Fresh · '+days+'d'
                     : days<=21 ? days+'d in'
                                : 'Late · '+days+'d';
-    const pct = b.isOnSale ? MAX_DISCOUNT_PCT[b.id] : null;
+    const pct = b.isOnSale ? MAX_DISCOUNT_PCT[b.name] : null;
     // Always render pct/days/dot spans (with empty placeholders when no
     // content) so the right side of every chip lines up. min-widths in CSS.
     const pctSpan = pct

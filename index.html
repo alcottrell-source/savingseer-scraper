@@ -511,6 +511,41 @@ async function loadSheetData() {
   } catch(e) { console.warn('Sheet load failed:', e); }
 }
 
+// Sale-page URLs by brand name (mirrored from brands.js, with aliases for
+// dashboard-side name variants like "Marks & Spencer" / "M&S"). Brands not
+// listed here render without a logo or clickthrough until added.
+const BRAND_URL_BY_NAME = {
+  'Next':'https://www.next.co.uk/sale','M&S':'https://www.marksandspencer.com/l/sale','Marks & Spencer':'https://www.marksandspencer.com/l/sale',
+  'River Island':'https://www.riverisland.com/sale','New Look':'https://www.newlook.com/uk/sale','Dorothy Perkins':'https://www.dorothyperkins.com/sale',
+  'Wallis':'https://www.wallis.co.uk/sale','Evans':'https://www.evans.co.uk/sale','Bonmarche':'https://www.bonmarche.co.uk/sale','Peacocks':'https://www.peacocks.co.uk/sale',
+  'Zara':'https://www.zara.com/uk/en/sale-l1141.html','H&M':'https://www2.hm.com/en_gb/sale.html','Mango':'https://shop.mango.com/gb/women/outlet',
+  'COS':'https://www.cos.com/en_gbp/sale.html','Arket':'https://www.arket.com/en_gbp/sale.html','& Other Stories':'https://www.stories.com/en_gbp/sale.html',
+  'Weekday':'https://www.weekday.com/en_gbp/sale.html','Monki':'https://www.monki.com/en_gbp/sale.html',
+  'Hollister':'https://www.hollisterco.com/shop/uk/sale','Abercrombie':'https://www.abercrombie.com/shop/uk/sale',
+  'Fat Face':'https://www.fatface.com/sale','Joules':'https://www.joules.com/sale','White Stuff':'https://www.whitestuff.com/sale',
+  'Seasalt Cornwall':'https://www.seasaltcornwall.co.uk/sale','Crew Clothing':'https://www.crewclothing.co.uk/sale','Boden':'https://www.boden.co.uk/en-gb/sale',
+  'Hobbs':'https://www.hobbs.co.uk/sale','The White Company':'https://www.thewhitecompany.com/uk/sale','Barbour':'https://www.barbour.com/uk/sale',
+  'Cath Kidston':'https://www.cathkidston.com/sale','Phase Eight':'https://www.phase-eight.com/sale','Whistles':'https://www.whistles.com/sale',
+  'Reiss':'https://www.reiss.com/gb/sale','Ted Baker':'https://www.tedbaker.com/uk/Sale','Karen Millen':'https://www.karenmillen.com/sale',
+  'Coast':'https://www.coast-stores.com/sale','Monsoon':'https://www.monsoon.co.uk/sale','Accessorize':'https://www.accessorize.com/uk/sale',
+  'Oasis':'https://www.oasis-stores.com/sale','Warehouse':'https://www.warehouse.co.uk/sale',
+  'Sweaty Betty':'https://www.sweatybetty.com/sale','Lululemon':'https://www.lululemon.co.uk/en-gb/c/sale',
+  'Superdry':'https://www.superdry.com/sale','Jack Wills':'https://www.jackwills.com/sale',
+  'Hackett':'https://www.hackett.com/gb/sale','Hackett London':'https://www.hackett.com/gb/sale',
+  'Ralph Lauren':'https://www.ralphlauren.co.uk/en/sale','Polo Ralph Lauren':'https://www.ralphlauren.co.uk/en/sale',
+  'Tommy Hilfiger':'https://uk.tommy.com/sale','Lacoste':'https://www.lacoste.com/gb/sale/','Hugo Boss':'https://www.hugoboss.com/uk/sale/',
+  'Levis':'https://www.levi.com/GB/en_GB/sale','Nike':'https://www.nike.com/gb/w/sale-3yaep','Adidas':'https://www.adidas.co.uk/sale',
+  'The North Face':'https://www.thenorthface.com/en-gb/sale','Berghaus':'https://www.berghaus.com/sale','Columbia':'https://www.columbiasportswear.co.uk/c/sale',
+  'Patagonia':'https://www.patagonia.com/shop/sale','Timberland':'https://www.timberland.co.uk/sale','Craghoppers':'https://www.craghoppers.com/sale',
+  'Regatta':'https://www.regatta.com/sale','Mountain Warehouse':'https://www.mountainwarehouse.com/sale/',
+  'Schuh':'https://www.schuh.co.uk/sale','Dune London':'https://www.dunelondon.com/sale','Office':'https://www.office.co.uk/view/category/sale',
+  'Clarks':'https://www.clarks.co.uk/c/sale','Kurt Geiger':'https://www.kurtgeiger.com/sale','Skechers':'https://www.skechers.co.uk/sale',
+  'UGG':'https://www.ugg.com/uk/sale','New Balance':'https://www.newbalance.co.uk/sale',
+  'FLANNELS':'https://www.flannels.com/sale','Pandora':'https://uk.pandora.net/en/sale/','Fossil':'https://www.fossil.com/en-gb/sale/',
+  'Swarovski':'https://www.swarovski.com/en-GB/s-sale/','Radley':'https://www.radley.co.uk/sale','Flying Tiger':'https://flyingtiger.com/en-gb/collections/sale',
+  'Lush':'https://www.lush.com/uk/en/c/sale',
+};
+
 const BRANDS = [
   {id:'B001',name:'Marks & Spencer',cluster:'High Street',womenswear:true,menswear:true,childrenswear:true},
   {id:'B002',name:'Next',cluster:'High Street',womenswear:true,menswear:true,childrenswear:true},
@@ -839,13 +874,13 @@ function renderHistoryChart(history, color, isDemo=false, trajectory=null) {
   return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.12"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><text x="'+lx+'" y="'+(ly-9).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+color+'" font-weight="500">today</text><circle cx="'+lx+'" cy="'+ly+'" r="4.5" fill="white" stroke="'+color+'" stroke-width="1.8"/>'+xLabels+'</svg>'+(isDemo?'<div class="demo-badge">Preview data &mdash; no live history yet</div>':'')+'</div></div>';
 }
 
-function brandDomain(brand) {
-  if (!brand||!brand.url) return null;
-  try { return new URL(brand.url).hostname.replace(/^www\./,''); } catch { return null; }
+function urlToDomain(url) {
+  if (!url) return null;
+  try { return new URL(url).hostname.replace(/^www\./,''); } catch { return null; }
 }
 
-function brandLogoImg(brand) {
-  const d = brandDomain(brand);
+function brandLogoImg(url) {
+  const d = urlToDomain(url);
   if (!d) return '<span class="brand-logo no-logo" aria-hidden="true"></span>';
   const src = 'https://www.google.com/s2/favicons?sz=64&domain='+d;
   return '<img class="brand-logo" alt="" loading="lazy" src="'+src+'" onerror="this.onerror=null;this.classList.add(\'no-logo\');this.removeAttribute(\'src\');">';
@@ -982,10 +1017,11 @@ async function renderCentre(centreId) {
       const meta=b.isOnSale
         ?'<span class="brand-meta">'+pctLabel+(daysLabel?'<span class="brand-days">'+daysLabel+'</span>':'')+'<span class="sale-dot"></span></span>'
         :'<span class="no-sale-dot"></span>';
-      const logoImg = brandLogoImg(b);
+      const url = BRAND_URL_BY_NAME[b.name] || null;
+      const logoImg = brandLogoImg(url);
       const inner='<span class="brand-left">'+logoImg+'<span class="brand-name">'+b.name+'</span></span>'+meta;
-      brandHTML+= b.isOnSale && b.url
-        ? '<a class="brand-chip on-sale" href="'+b.url+'" target="_blank" rel="noopener">'+inner+'</a>'
+      brandHTML+= b.isOnSale && url
+        ? '<a class="brand-chip on-sale" href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
         : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'">'+inner+'</div>';
     }
   }

@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS community_signals (
 );
 
 CREATE INDEX IF NOT EXISTS idx_signals_brand_created ON community_signals(brand_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_signals_user_brand_day ON community_signals(user_hash, brand_id, (created_at::date));
+CREATE INDEX IF NOT EXISTS idx_signals_user_brand     ON community_signals(user_hash, brand_id);
 
 ALTER TABLE community_signals ENABLE ROW LEVEL SECURITY;
 

@@ -732,7 +732,9 @@ function brandFreshnessScore(days) {
 }
 
 function getTideStage(score, trajectory) {
-  if (score===0) return 'Flat';
+  // 5 stages mapped to cycle position: Turning -> Rising -> High Tide -> Falling -> Low.
+  // Direction matters: a low score with FALLING trajectory = Low (cycle ended);
+  // a low score with RISING/FLAT trajectory = Turning (cycle starting).
   if (trajectory==='FALLING') return score<25 ? 'Low' : 'Falling';
   if (score>=50) return 'High Tide';
   if (score>=25) return 'Rising';
@@ -741,14 +743,13 @@ function getTideStage(score, trajectory) {
 
 function stageStyle(stage) {
   const s = {
-    'Flat':      {label:'Flat',      color:'#8C8070',bg:'#F2EFE9',msg:'No meaningful sales at this centre right now. Check back soon.'},
     'Turning':   {label:'Turning',   color:'#3D6B35',bg:'#EEF4EC',msg:'A few brands are breaking into sale. Worth watching.'},
     'Rising':    {label:'Rising',    color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building and fresh. Plan your visit soon.'},
     'High Tide': {label:'High Tide', color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum density, maximum freshness. This is the moment.'},
     'Falling':   {label:'Falling',   color:'#B84C3A',bg:'#FAEAE7',msg:'Tide going out. Go now or miss out.'},
     'Low':       {label:'Low',       color:'#8C8070',bg:'#F2EFE9',msg:'Cycle ended. Check back when brands start their next sale.'},
   };
-  return s[stage]||s['Flat'];
+  return s[stage]||s['Turning'];
 }
 
 function computeTrajectory(score, history) {
@@ -812,12 +813,14 @@ function computeHistoricalScores(centreIdx) {
 }
 
 function renderArcWidget(stage, color) {
+  // 5 stages evenly spaced along the half-arc (chord 30..330, radius 200,
+  // centre below at y=227). Angles: 221.4 / 245.7 / 270 / 294.3 / 318.6 deg.
+  // GO NOW lands exactly at the top centre.
   const POS = [
-    {s:'Flat',      dx:30,  dy:95, lx:30,  ly:115, t:'FLAT'},
-    {s:'Turning',   dx:80,  dy:48, lx:78,  ly:36,  t:'TURNING'},
-    {s:'Rising',    dx:148, dy:20, lx:148, ly:9,   t:'RISING'},
-    {s:'High Tide', dx:212, dy:20, lx:212, ly:9,   t:'GO NOW'},
-    {s:'Falling',   dx:280, dy:48, lx:282, ly:36,  t:'FALLING'},
+    {s:'Turning',   dx:30,  dy:95, lx:30,  ly:115, t:'TURNING'},
+    {s:'Rising',    dx:98,  dy:45, lx:98,  ly:33,  t:'RISING'},
+    {s:'High Tide', dx:180, dy:27, lx:180, ly:14,  t:'GO NOW'},
+    {s:'Falling',   dx:262, dy:45, lx:262, ly:33,  t:'FALLING'},
     {s:'Low',       dx:330, dy:95, lx:330, ly:115, t:'LOW'},
   ];
   const cur = POS.find(p => p.s === stage) || POS[0];

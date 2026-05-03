@@ -804,7 +804,7 @@ function smoothCurvePath(pts) {
   return d;
 }
 
-function renderHistoryChart(history, color, isDemo=false) {
+function renderHistoryChart(history, color, isDemo=false, trajectory=null) {
   if (history.length<2) return '';
   const W=380,H=62,PL=4,PT=28,PB=22,n=history.length,k=5;
   const scores=history.map((_,i)=>{
@@ -816,7 +816,7 @@ function renderHistoryChart(history, color, isDemo=false) {
   const lineD=smoothCurvePath(pts);
   const areaD=lineD+' L'+pts[n-1][0]+','+(PT+H)+' L'+pts[0][0]+','+(PT+H)+'Z';
   const [lx,ly]=pts[n-1];
-  const traj=computeTrajectory(history[n-1].score,history);
+  const traj=trajectory||computeTrajectory(history[n-1].score,history);
   const [trajArrow,trajText,trajColor]=traj==='RISING'?['\u2191','Rising',color]:traj==='FALLING'?['\u2193','Falling',color]:['\u2192','Flat','#8C8070'];
   const gridLines=[25,50,75].map(pct=>{const gy=+(PT+(1-pct/100)*H).toFixed(1);return '<line x1="'+PL+'" y1="'+gy+'" x2="'+(PL+W)+'" y2="'+gy+'" stroke="#E8E3DC" stroke-width="0.5"/>';}).join('');
   const midIdx=Math.round((n-1)/2);
@@ -852,8 +852,7 @@ function arcPath(cx,cy,r,score) {
   if (score>=100) return 'M '+(cx-r)+','+cy+' A '+r+','+r+' 0 0,1 '+(cx+r)+','+cy;
   const angle=(1-score/100)*Math.PI;
   const ex=(cx+r*Math.cos(angle)).toFixed(2),ey=(cy-r*Math.sin(angle)).toFixed(2);
-  const largeArc=score>50?1:0;
-  return 'M '+(cx-r)+','+cy+' A '+r+','+r+' 0 '+largeArc+',1 '+ex+','+ey;
+  return 'M '+(cx-r)+','+cy+' A '+r+','+r+' 0 0,1 '+ex+','+ey;
 }
 
 function buildArcSVG(centreScore, personalScore, centreColor) {
@@ -971,7 +970,7 @@ async function renderCentre(centreId) {
     ? trajArrow+' '+trajWord
     : trajArrow+' '+trajWord+' for '+trajDays+' days';
 
-  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+'<div class="arc-wrap">'+arcSVG+arcLegend+'</div>'+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div></div></div>'+renderHistoryChart(history,style.color,isDemo)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
+  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+'<div class="arc-wrap">'+arcSVG+arcLegend+'</div>'+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div></div></div>'+renderHistoryChart(history,style.color,isDemo,trajectory)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
 
   requestAnimationFrame(()=>{
     document.getElementById('score-card').classList.add('visible');

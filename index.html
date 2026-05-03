@@ -812,22 +812,49 @@ function computeHistoricalScores(centreIdx) {
 }
 
 function renderArcWidget(stage, color) {
-  const DOT = {
-    'Flat':      {x:25, y:95}, 'Turning':{x:77,y:45}, 'Rising':{x:144,y:18},
-    'High Tide': {x:216,y:18}, 'Falling':{x:283,y:45}, 'Low':{x:335,y:95},
-  };
-  const LABEL = {
-    'Flat':      {x:25, y:110,text:'FLAT'},    'Turning':{x:72,y:62,text:'TURNING'},
-    'Rising':    {x:144,y:34, text:'RISING'},  'High Tide':{x:216,y:34,text:'GO NOW'},
-    'Falling':   {x:288,y:62, text:'FALLING'}, 'Low':{x:335,y:110,text:'LOW'},
-  };
-  const dot = DOT[stage]||DOT['Flat'];
-  const uid = stage.replace(/\s/g,'-');
-  const labels = Object.keys(DOT).map(s=>{
-    const l=LABEL[s]; const active=s===stage;
-    return '<text x="'+l.x+'" y="'+l.y+'" text-anchor="middle" font-size="7.5" font-family="inherit" letter-spacing="0.05em" fill="'+(active?color:'#B0A898')+'" font-weight="'+(active?'700':'400')+'">'+l.text+'</text>';
+  const POS = [
+    {s:'Flat',      dx:30,  dy:95, lx:30,  ly:115, t:'FLAT'},
+    {s:'Turning',   dx:80,  dy:48, lx:78,  ly:36,  t:'TURNING'},
+    {s:'Rising',    dx:148, dy:20, lx:148, ly:9,   t:'RISING'},
+    {s:'High Tide', dx:212, dy:20, lx:212, ly:9,   t:'GO NOW'},
+    {s:'Falling',   dx:280, dy:48, lx:282, ly:36,  t:'FALLING'},
+    {s:'Low',       dx:330, dy:95, lx:330, ly:115, t:'LOW'},
+  ];
+  const cur = POS.find(p => p.s === stage) || POS[0];
+  const uid = stage.replace(/\s/g, '-');
+  const labels = POS.map(p => {
+    const active = p.s === stage;
+    const fill = active ? color : '#B0A898';
+    const op = active ? 1 : 0.55;
+    const wt = active ? 700 : 400;
+    const sz = active ? 9 : 7.5;
+    return '<text x="'+p.lx+'" y="'+p.ly+'" text-anchor="middle" font-size="'+sz+'" font-family="inherit" letter-spacing="0.07em" fill="'+fill+'" opacity="'+op+'" font-weight="'+wt+'">'+p.t+'</text>';
   }).join('');
-  return '<svg class="arc-widget" viewBox="0 0 360 120" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="arcg-'+uid+'" x1="25" y1="0" x2="335" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#B0A898"/><stop offset="17%" stop-color="#6BA86E"/><stop offset="38%" stop-color="#A8C43A"/><stop offset="50%" stop-color="#D4A030"/><stop offset="62%" stop-color="#D06020"/><stop offset="83%" stop-color="#C04040"/><stop offset="100%" stop-color="#907070"/></linearGradient></defs><path d="M 25,95 A 190 190 0 0 1 335,95" fill="none" stroke="#EAE6DF" stroke-width="8" stroke-linecap="round"/><path d="M 25,95 A 190 190 0 0 1 335,95" fill="none" stroke="url(#arcg-'+uid+')" stroke-width="8" stroke-linecap="round" opacity="0.9"/>'+labels+'<circle cx="'+dot.x+'" cy="'+dot.y+'" r="7.5" fill="white" stroke="'+color+'" stroke-width="2.5"/></svg>';
+  return '<svg class="arc-widget" viewBox="0 0 360 130" xmlns="http://www.w3.org/2000/svg">'
+    +'<defs>'
+      +'<linearGradient id="arcg-'+uid+'" x1="30" y1="0" x2="330" y2="0" gradientUnits="userSpaceOnUse">'
+        +'<stop offset="0%" stop-color="#B0A898"/>'
+        +'<stop offset="17%" stop-color="#6BA86E"/>'
+        +'<stop offset="38%" stop-color="#A8C43A"/>'
+        +'<stop offset="50%" stop-color="#D4A030"/>'
+        +'<stop offset="62%" stop-color="#D06020"/>'
+        +'<stop offset="83%" stop-color="#C04040"/>'
+        +'<stop offset="100%" stop-color="#907070"/>'
+      +'</linearGradient>'
+      +'<filter id="arcdrop-'+uid+'" x="-20%" y="-20%" width="140%" height="160%">'
+        +'<feGaussianBlur in="SourceAlpha" stdDeviation="1.4"/>'
+        +'<feOffset dy="1.5"/>'
+        +'<feComponentTransfer><feFuncA type="linear" slope="0.18"/></feComponentTransfer>'
+        +'<feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>'
+      +'</filter>'
+    +'</defs>'
+    +'<path d="M 30,95 A 200 200 0 0 1 330,95" fill="none" stroke="#EAE6DF" stroke-width="11" stroke-linecap="round"/>'
+    +'<path d="M 30,95 A 200 200 0 0 1 330,95" fill="none" stroke="url(#arcg-'+uid+')" stroke-width="11" stroke-linecap="round" filter="url(#arcdrop-'+uid+')"/>'
+    +labels
+    +'<circle cx="'+cur.dx+'" cy="'+cur.dy+'" r="14" fill="'+color+'" opacity="0.14"/>'
+    +'<circle cx="'+cur.dx+'" cy="'+cur.dy+'" r="9" fill="white" stroke="'+color+'" stroke-width="2.5"/>'
+    +'<circle cx="'+cur.dx+'" cy="'+cur.dy+'" r="2.8" fill="'+color+'"/>'
+  +'</svg>';
 }
 
 function generateMockHistory(centreIdx) {
@@ -1056,7 +1083,7 @@ async function renderCentre(centreId) {
     ? trajArrow+' '+trajWord
     : trajArrow+' '+trajWord+' for '+trajDays+' days';
 
-  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+'<div class="arc-wrap">'+arcSVG+arcLegend+'</div>'+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div></div></div>'+renderHistoryChart(history,style.color,isDemo,trajectory)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
+  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="traj-indicator" style="color:'+style.color+'">'+trajLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div></div></div>'+renderHistoryChart(history,style.color,isDemo,trajectory)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
 
   requestAnimationFrame(()=>{
     document.getElementById('score-card').classList.add('visible');

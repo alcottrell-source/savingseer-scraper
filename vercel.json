@@ -5,7 +5,8 @@
   "outputDirectory": ".",
   "rewrites": [
     { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/(index.html)?", "has": [{ "type": "host", "value": "admin.tidego.co" }], "destination": "/admin.html" }
+    { "source": "/:path((?!admin\\.html|.*\\.(?:js|css|svg|png|jpg|jpeg|webp|woff2?|ico|map|json|txt)).*)", "has": [{ "type": "host", "value": "admin.tidego.co" }], "destination": "/admin.html" },
+    { "source": "/", "has": [{ "type": "host", "value": "admin.tidego.co" }], "destination": "/admin.html" }
   ],
   "headers": [
     {

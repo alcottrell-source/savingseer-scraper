@@ -486,7 +486,7 @@ async function loadTideData() {
     const today = new Date().toISOString().split('T')[0];
     const [centresRes, salesRes, scoresRes] = await Promise.all([
       sb.from('centres').select('id, name, tide_history').eq('active', true).order('id'),
-      sb.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error'),
+      sb.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)'),
       sb.from('centre_seer_scores').select('centre_id, score_date, tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands').eq('score_date', today),
     ]);
     if (centresRes.error || salesRes.error || scoresRes.error) {
@@ -506,15 +506,29 @@ async function loadTideData() {
     }
 
     for (const row of (salesRes.data || [])) {
-      if (row.scraper_error) continue;
       // Translate scraper id -> dashboard name. The inline BRANDS array
       // uses a different id space, so all per-brand state is keyed by name.
       const name = DASHBOARD_NAME_BY_SCRAPER_ID[row.brand_id];
       if (!name) continue;
-      SALE_STATUS[name] = !!row.sale_status;
-      MAX_DISCOUNT_PCT[name] = (row.sale_status && Number.isFinite(row.max_discount_pct)) ? row.max_discount_pct : null;
-      if (row.sale_status && row.date_first_detected) {
-        const days = Math.floor((new Date(latestDate) - new Date(row.date_first_detected)) / 86400000) + 1;
+      // Precedence (mirrors score.js):
+      //   1. active verified cycle (admin opened one — treat as on sale)
+      //   2. last_verified_status  (admin's most recent decision)
+      //   3. scraper sale_status   (only if no human verification, and no error)
+      const isOnSale = row.active_cycle_id
+        ? true
+        : row.last_verified_date
+          ? !!row.last_verified_status
+          : (!!row.sale_status && !row.scraper_error);
+      // Origin date for days-running: prefer cycle start, fall back to scraper.
+      const startDate = (row.cycle && row.cycle.start_date) || row.date_first_detected;
+      // Discount %: prefer cycle's verified value, fall back to scraper's.
+      const cyclePct = row.cycle && Number.isFinite(row.cycle.max_discount_pct) ? row.cycle.max_discount_pct : null;
+      const scraperPct = Number.isFinite(row.max_discount_pct) ? row.max_discount_pct : null;
+      const discountPct = cyclePct !== null ? cyclePct : scraperPct;
+      SALE_STATUS[name] = isOnSale;
+      MAX_DISCOUNT_PCT[name] = (isOnSale && discountPct !== null) ? discountPct : null;
+      if (isOnSale && startDate) {
+        const days = Math.floor((new Date(latestDate) - new Date(startDate)) / 86400000) + 1;
         DAYS_RUNNING[name] = Math.max(days, 1);
       } else {
         DAYS_RUNNING[name] = 0;

@@ -48,7 +48,7 @@ const STONE = "#8C8070";
 
 interface CentreRow      { id: string; name: string }
 interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null }
-interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[] }
+interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; email_alerts: boolean; daily_digest: boolean }
 interface BrandRow       { id: string; name: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; cluster: string | null }
 interface SaleEventRow   { brand_id: string; sale_status: boolean | null; date_first_detected: string | null; max_discount_pct: number | null; scraper_error: boolean | null; last_verified_status: boolean | null; last_verified_date: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null } | null }
 interface CentreBrandRow { centre_id: string; brand_id: string }
@@ -243,7 +243,7 @@ Deno.serve(async (req: Request) => {
       .select("brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)"),
     sb.from("centre_brands").select("centre_id, brand_id"),
     sb.from("user_preferences")
-      .select("user_id, womenswear, menswear, childrenswear, style_clusters, saved_centres")
+      .select("user_id, womenswear, menswear, childrenswear, style_clusters, saved_centres, email_alerts, daily_digest")
       .not("saved_centres", "eq", "{}"),
   ]);
 
@@ -294,7 +294,7 @@ Deno.serve(async (req: Request) => {
       }))
       .sort((a, b) => a.days - b.days);
 
-    const recipients = allPrefs.filter(p => p.saved_centres.includes(score.centre_id));
+    const recipients = allPrefs.filter(p => p.saved_centres.includes(score.centre_id) && p.email_alerts !== false);
     for (const p of recipients) {
       const to = emailById.get(p.user_id);
       if (!to) { log.push({ type: "alert", centre: centreName, skipped: `no email for user ${p.user_id}` }); continue; }
@@ -315,6 +315,7 @@ Deno.serve(async (req: Request) => {
   // 3. DAILY DIGEST.
   const scoreByCentre = new Map<string, ScoreRow>(scores.map(s => [s.centre_id, s]));
   for (const p of allPrefs) {
+    if (p.daily_digest !== true) { log.push({ type: "digest", to: emailById.get(p.user_id), skipped: "daily_digest opt-out" }); continue; }
     const to = emailById.get(p.user_id);
     if (!to) continue;
     const rows = p.saved_centres

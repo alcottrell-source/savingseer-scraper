@@ -143,6 +143,26 @@
   .install-instruction { font-size: 13px; color: var(--stone); line-height: 1.5; padding: 12px 14px; background: var(--leaf-lt); border-radius: 10px; }
   .install-instruction strong { color: var(--bark); font-weight: 500; }
 
+  /* ── Notification toggles + saved-centres list (prefs modal step 3) ── */
+  .pref-toggle-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .pref-toggle-row:last-of-type { border-bottom: none; }
+  .pref-toggle-text { flex: 1; min-width: 0; }
+  .pref-toggle-label { font-size: 13px; font-weight: 500; color: var(--bark); margin-bottom: 2px; }
+  .pref-toggle-sub { font-size: 12px; color: var(--stone); line-height: 1.4; }
+  .pref-switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; cursor: pointer; }
+  .pref-switch input { opacity: 0; width: 0; height: 0; }
+  .pref-switch .pref-switch-track { position: absolute; inset: 0; background: var(--stone-lt); border-radius: 20px; transition: background 0.2s; }
+  .pref-switch .pref-switch-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: white; border-radius: 50%; box-shadow: 0 1px 3px rgba(44,24,16,0.18); transition: transform 0.2s; }
+  .pref-switch input:checked + .pref-switch-track { background: var(--leaf); }
+  .pref-switch input:checked + .pref-switch-track + .pref-switch-thumb { transform: translateX(16px); }
+  .saved-centres-section { margin: 18px 0 8px; }
+  .saved-centres-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 8px; display: block; }
+  .saved-centres-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; padding-right: 4px; }
+  .saved-centre-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: var(--leaf-lt); border-radius: 8px; font-size: 13px; color: var(--bark); }
+  .saved-centre-remove { background: none; border: none; color: var(--stone); font-size: 16px; cursor: pointer; padding: 2px 6px; line-height: 1; flex-shrink: 0; }
+  .saved-centre-remove:hover { color: var(--red); }
+  .saved-centres-empty { font-size: 12px; color: var(--stone); font-style: italic; line-height: 1.5; padding: 10px 0; }
+
   /* ── Magic-link auth controls ── */
   .auth-divider { display: flex; align-items: center; gap: 10px; margin: 16px 0 8px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); }
   .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
@@ -315,7 +335,7 @@
   <div class="modal">
     <button class="modal-close" onclick="closePrefsModal()">&times;</button>
     <div id="pref-step-1">
-      <div class="modal-step-indicator">Step 1 of 3</div>
+      <div class="modal-step-indicator">Step 1 of 4</div>
       <h2 class="modal-title">What do you mainly shop for?</h2>
       <p class="modal-subtitle">Select all that apply -- we'll filter your personal score to brands that match.</p>
       <div class="pref-grid" id="gender-pills">
@@ -326,7 +346,7 @@
       <button class="btn btn-primary" onclick="prefsNextStep(2)">Next</button>
     </div>
     <div id="pref-step-2" style="display:none">
-      <div class="modal-step-indicator">Step 2 of 3</div>
+      <div class="modal-step-indicator">Step 2 of 4</div>
       <h2 class="modal-title">What's your style?</h2>
       <p class="modal-subtitle">Choose your favourite shopping zones. Leave all unselected to include all clusters.</p>
       <div class="pref-grid" id="cluster-pills">
@@ -345,12 +365,47 @@
       </div>
     </div>
     <div id="pref-step-3" style="display:none">
-      <div class="modal-step-indicator">Step 3 of 3</div>
+      <div class="modal-step-indicator">Step 3 of 4</div>
+      <h2 class="modal-title">Notifications</h2>
+      <p class="modal-subtitle">Choose how Tide reaches you.</p>
+      <div class="pref-toggle-row">
+        <div class="pref-toggle-text">
+          <div class="pref-toggle-label">Alert me when a saved centre hits Go Now</div>
+          <div class="pref-toggle-sub">A short email the morning a centre peaks.</div>
+        </div>
+        <label class="pref-switch">
+          <input type="checkbox" id="toggle-email-alerts" onchange="onToggleChange(this, 'email_alerts')">
+          <span class="pref-switch-track"></span>
+          <span class="pref-switch-thumb"></span>
+        </label>
+      </div>
+      <div class="pref-toggle-row">
+        <div class="pref-toggle-text">
+          <div class="pref-toggle-label">Daily morning digest at 7am</div>
+          <div class="pref-toggle-sub">A round-up of your saved centres each morning.</div>
+        </div>
+        <label class="pref-switch">
+          <input type="checkbox" id="toggle-daily-digest" onchange="onToggleChange(this, 'daily_digest')">
+          <span class="pref-switch-track"></span>
+          <span class="pref-switch-thumb"></span>
+        </label>
+      </div>
+      <div class="saved-centres-section">
+        <span class="saved-centres-label">Centres you're tracking</span>
+        <div id="saved-centres-list" class="saved-centres-list"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="prefsNextStep(2)">Back</button>
+        <button class="btn btn-primary" onclick="prefsNextStep(4)">Next</button>
+      </div>
+    </div>
+    <div id="pref-step-4" style="display:none">
+      <div class="modal-step-indicator">Step 4 of 4</div>
       <h2 class="modal-title">Your personal Tide Score</h2>
       <p class="modal-subtitle">Based on your preferences, here's how today looks.</p>
       <div id="pref-preview-content"></div>
       <button class="btn btn-primary" onclick="savePreferences()">Save &amp; see my score</button>
-      <button class="btn btn-text" onclick="prefsNextStep(2)">Back</button>
+      <button class="btn btn-text" onclick="prefsNextStep(3)">Back</button>
       <button class="signout-link" onclick="signOut()">Sign out</button>
     </div>
   </div>
@@ -571,7 +626,7 @@ async function saveCentreToUserPrefs(centreId) {
   else userPrefs = { user_id: currentUser.id, saved_centres: updated };
 }
 
-const pendingPrefs = { womenswear: false, menswear: false, childrenswear: false, style_clusters: [] };
+const pendingPrefs = { womenswear: false, menswear: false, childrenswear: false, style_clusters: [], email_alerts: true, daily_digest: false, saved_centres: [] };
 
 function openPrefsModal() {
   if (userPrefs) {
@@ -580,13 +635,22 @@ function openPrefsModal() {
       menswear: userPrefs.menswear || false,
       childrenswear: userPrefs.childrenswear || false,
       style_clusters: userPrefs.style_clusters || [],
+      // Defaults: alerts on, digest off — preserved for users who pre-date these columns.
+      email_alerts: userPrefs.email_alerts !== false,
+      daily_digest: userPrefs.daily_digest === true,
+      saved_centres: Array.isArray(userPrefs.saved_centres) ? userPrefs.saved_centres.slice() : [],
     });
   } else {
     pendingPrefs.womenswear = false; pendingPrefs.menswear = false;
     pendingPrefs.childrenswear = false; pendingPrefs.style_clusters = [];
+    pendingPrefs.email_alerts = true; pendingPrefs.daily_digest = false;
+    pendingPrefs.saved_centres = [];
   }
   document.querySelectorAll('#gender-pills .pref-pill').forEach(p => p.classList.toggle('active', !!pendingPrefs[p.dataset.key]));
   document.querySelectorAll('#cluster-pills .pref-pill').forEach(p => p.classList.toggle('active', pendingPrefs.style_clusters.includes(p.dataset.key)));
+  document.getElementById('toggle-email-alerts').checked = pendingPrefs.email_alerts;
+  document.getElementById('toggle-daily-digest').checked = pendingPrefs.daily_digest;
+  renderSavedCentresList();
   prefsShowStep(1);
   document.getElementById('prefs-modal').style.display = 'flex';
 }
@@ -594,8 +658,9 @@ function openPrefsModal() {
 function closePrefsModal() { document.getElementById('prefs-modal').style.display = 'none'; }
 
 function prefsShowStep(n) {
-  [1,2,3].forEach(i => { document.getElementById('pref-step-'+i).style.display = i===n ? '' : 'none'; });
-  if (n === 3) renderPrefsPreview();
+  [1,2,3,4].forEach(i => { document.getElementById('pref-step-'+i).style.display = i===n ? '' : 'none'; });
+  if (n === 3) renderSavedCentresList();
+  if (n === 4) renderPrefsPreview();
 }
 
 function prefsNextStep(n) {
@@ -619,6 +684,31 @@ function togglePrefPill(pill) {
   }
 }
 
+function onToggleChange(input, key) {
+  pendingPrefs[key] = !!input.checked;
+}
+
+function renderSavedCentresList() {
+  const container = document.getElementById('saved-centres-list');
+  if (!container) return;
+  const ids = pendingPrefs.saved_centres || [];
+  if (!ids.length) {
+    container.innerHTML = '<p class="saved-centres-empty">You\'ll start tracking centres as you check them. We\'ll email you when those centres hit Go Now.</p>';
+    return;
+  }
+  container.innerHTML = ids.map(cid => {
+    const idx = parseInt(String(cid).replace('C',''), 10) - 1;
+    const name = (typeof CENTRE_NAMES !== 'undefined' && CENTRE_NAMES[idx]) ? CENTRE_NAMES[idx] : cid;
+    const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<div class="saved-centre-row"><span>'+safeName+'</span><button class="saved-centre-remove" aria-label="Remove" onclick="removeSavedCentre(\''+cid+'\')">&times;</button></div>';
+  }).join('');
+}
+
+function removeSavedCentre(cid) {
+  pendingPrefs.saved_centres = (pendingPrefs.saved_centres || []).filter(x => x !== cid);
+  renderSavedCentresList();
+}
+
 function renderPrefsPreview() {
   const container = document.getElementById('pref-preview-content');
   const centreId = document.getElementById('centre-select').value;
@@ -635,6 +725,9 @@ async function savePreferences() {
     user_id: currentUser.id, womenswear: pendingPrefs.womenswear,
     menswear: pendingPrefs.menswear, childrenswear: pendingPrefs.childrenswear,
     style_clusters: pendingPrefs.style_clusters,
+    email_alerts: pendingPrefs.email_alerts,
+    daily_digest: pendingPrefs.daily_digest,
+    saved_centres: pendingPrefs.saved_centres,
   }, { onConflict: 'user_id' });
   if (error) { alert('Could not save preferences: ' + error.message); return; }
   userPrefs = { ...pendingPrefs, user_id: currentUser.id };

@@ -118,7 +118,7 @@ async function calculateAllCentreScores() {
   const [centresRes, centreBrandsRes, brandSaleRes, recentScoresRes] = await Promise.all([
     supabase.from('centres').select('*').eq('active', true),
     supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
-    supabase.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error'),
+    supabase.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)'),
     supabase.from('centre_seer_scores')
       .select('centre_id, score_date, tide_score, verdict')
       .gte('score_date', THREE_DAYS_AGO)
@@ -169,10 +169,25 @@ async function calculateAllCentreScores() {
 
     for (const brandId of brandIds) {
       const sale = brandSaleMap.get(brandId);
-      if (!sale || sale.scraper_error || !sale.sale_status) continue;
+      if (!sale) continue;
 
-      const daysRunning = sale.date_first_detected
-        ? Math.floor((new Date(TODAY) - new Date(sale.date_first_detected)) / 86400000) + 1
+      // Priority for "is this brand on sale today":
+      //   1. Active verified cycle  (admin opened a cycle, treat as on sale)
+      //   2. last_verified_status   (admin's most recent decision)
+      //   3. scraper sale_status    (only if no human verification yet, and no error)
+      const isOnSale = sale.active_cycle_id
+        ? true
+        : sale.last_verified_date
+          ? sale.last_verified_status
+          : (sale.sale_status && !sale.scraper_error);
+      if (!isOnSale) continue;
+
+      // Ripeness origin: prefer the verified cycle's start_date, fall back
+      // to the scraper's date_first_detected. This keeps the freshness curve
+      // aligned with reality once an admin has confirmed a cycle.
+      const cycleStart = (sale.cycle && sale.cycle.start_date) || sale.date_first_detected;
+      const daysRunning = cycleStart
+        ? Math.floor((new Date(TODAY) - new Date(cycleStart)) / 86400000) + 1
         : 1;
 
       const freshness = brandFreshnessScore(daysRunning);
@@ -181,7 +196,9 @@ async function calculateAllCentreScores() {
       const weight = ANCHOR_BRAND_IDS.has(brandId) ? ANCHOR_MULTIPLIER : 1.0;
       totalFreshness += freshness * weight;
       brandsOnSale++;
-      saleDetails.push({ name: brandNameLookup[brandId] || brandId, freshness, weight, maxDiscountPct: sale.max_discount_pct });
+      // Prefer cycle's verified discount % over the scraper's reading.
+      const maxDiscountPct = (sale.cycle && sale.cycle.max_discount_pct) || sale.max_discount_pct;
+      saleDetails.push({ name: brandNameLookup[brandId] || brandId, freshness, weight, maxDiscountPct });
     }
 
     // Centre Tide Score = (Σ freshness × weight) / N × 100  (spec §4.1)

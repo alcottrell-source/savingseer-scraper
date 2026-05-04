@@ -28,33 +28,94 @@ for (const brand of brands) {
 }
 
 // ── SALE DETECTION ──────────────────────────────────────────────
+// Phrases that explicitly announce the sale is over. Match any → not on sale,
+// regardless of other signals. The page can still contain the word "sale" all
+// over (URL, nav, the end-of-sale headline itself), which is why a bare-word
+// match was triggering false positives (e.g. Hugo Boss "THE SALE HAS NOW ENDED").
+const SALE_ENDED_PHRASES = [
+  'sale has ended',
+  'sale has now ended',
+  'the sale has ended',
+  'the sale has now ended',
+  'sale is over',
+  'sale is now over',
+  'sale now over',
+  'sale ended',
+  'sale now ended',
+  'our sale is over',
+  'our sale has ended',
+  'no sale currently',
+  'no current sale',
+];
+
+// Future-tense announcements. Mark as not-on-sale unless the page also carries
+// active-sale evidence (we don't want to mis-flag a "sign up for early access"
+// banner on a page that already has a live sale).
+const SALE_UPCOMING_PHRASES = [
+  'sale starts',
+  'sale begins',
+  'sale coming soon',
+  'sign up for sale alerts',
+];
+
+// Active-sale CTAs and banner copy. Stronger than the bare word "sale" because
+// these phrases don't appear on ended-sale or no-sale landing pages.
+const STRONG_SALE_PHRASES = [
+  'shop sale',
+  'shop the sale',
+  'sale now on',
+  'sale now live',
+  'sale is live',
+  'mid-season sale',
+  'mid season sale',
+  'end of season sale',
+  'final sale',
+  'final reductions',
+  'further reductions',
+  'extra off',
+  'save up to',
+  'up to 70% off',
+  'up to 60% off',
+  'up to 50% off',
+];
+
+function extractDiscountPct(bodyText) {
+  const discountMatch = bodyText.match(/up to (\d+)%\s*off/i) ||
+                        bodyText.match(/save up to (\d+)%/i) ||
+                        bodyText.match(/(\d+)%\s*off/i);
+  if (!discountMatch) return null;
+  const pct = parseInt(discountMatch[1], 10);
+  return pct > 0 && pct <= 95 ? pct : null;
+}
+
 function detectSale(html, $, brand) {
   const bodyText = (html || '').toLowerCase();
 
-  const hasConfirmText = brand.confirmText.some(t => bodyText.includes(t.toLowerCase()));
-
-  let discountPct = null;
-  const discountMatch = bodyText.match(/up to (\d+)%\s*off/i) ||
-                        bodyText.match(/(\d+)%\s*off/i) ||
-                        bodyText.match(/save up to (\d+)%/i);
-  if (discountMatch) {
-    const pct = parseInt(discountMatch[1], 10);
-    if (pct > 0 && pct <= 95) discountPct = pct;
+  // 1. Negative override — explicit end-of-sale wording wins outright.
+  if (SALE_ENDED_PHRASES.some(p => bodyText.includes(p))) {
+    return { onSale: false, discountPct: null };
   }
 
-  let selectorFound = false;
-  if ($) {
-    for (const selector of brand.saleSelectors) {
-      const el = $(selector).first();
-      if (el.length && el.text().toLowerCase().includes('sale')) {
-        selectorFound = true;
-        break;
-      }
-    }
+  const discountPct = extractDiscountPct(bodyText);
+
+  // 2. Future-tense announcement, with no contradicting active-sale evidence.
+  const hasStrongPhrase = STRONG_SALE_PHRASES.some(p => bodyText.includes(p));
+  if (SALE_UPCOMING_PHRASES.some(p => bodyText.includes(p)) &&
+      !hasStrongPhrase &&
+      discountPct === null) {
+    return { onSale: false, discountPct: null };
   }
 
-  const onSale = hasConfirmText || selectorFound;
-  return { onSale, discountPct };
+  // 3. Positive evidence: require something stronger than just the word "sale".
+  //    A discount %, an active-sale CTA, or strikethrough/now-price markers.
+  //    Bare `.sale` selector matches are deliberately ignored — they fire on
+  //    /sale URLs even when the sale has ended.
+  const hasMarkdownPrices = /now\s*£\d+(?:\.\d{2})?/i.test(bodyText) ||
+                            /was\s*£\d+(?:\.\d{2})?\s*now\s*£\d+(?:\.\d{2})?/i.test(bodyText);
+
+  const onSale = discountPct !== null || hasStrongPhrase || hasMarkdownPrices;
+
+  return { onSale, discountPct: onSale ? discountPct : null };
 }
 
 // ── PASS 1: CHEERIO ─────────────────────────────────────────────

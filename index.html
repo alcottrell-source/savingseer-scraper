@@ -124,7 +124,8 @@
   .history-section.visible { opacity: 1; transform: translateY(0); }
   .history-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 10px; }
   .trend-line { font-size: 12px; font-style: italic; color: var(--stone); padding: 8px 0 0; letter-spacing: 0; }
-  .demo-badge { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); text-align: right; margin-top: 6px; opacity: 0.7; }
+  .history-empty { padding: 28px 24px; text-align: center; }
+  .history-empty-msg { font-size: 12px; color: var(--stone); font-style: italic; line-height: 1.5; }
 
   /* Inline "why Tide / install" section above the footer */
   .home-info { padding: 28px 24px 8px; max-width: 480px; margin: 24px auto 0; border-top: 1px solid var(--border); }
@@ -486,7 +487,7 @@ async function loadTideData() {
     const today = new Date().toISOString().split('T')[0];
     const [centresRes, salesRes, scoresRes] = await Promise.all([
       sb.from('centres').select('id, name, tide_history').eq('active', true).order('id'),
-      sb.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)'),
+      sb.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error'),
       sb.from('centre_seer_scores').select('centre_id, score_date, tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands').eq('score_date', today),
     ]);
     if (centresRes.error || salesRes.error || scoresRes.error) {
@@ -506,29 +507,15 @@ async function loadTideData() {
     }
 
     for (const row of (salesRes.data || [])) {
+      if (row.scraper_error) continue;
       // Translate scraper id -> dashboard name. The inline BRANDS array
       // uses a different id space, so all per-brand state is keyed by name.
       const name = DASHBOARD_NAME_BY_SCRAPER_ID[row.brand_id];
       if (!name) continue;
-      // Precedence (mirrors score.js):
-      //   1. active verified cycle (admin opened one — treat as on sale)
-      //   2. last_verified_status  (admin's most recent decision)
-      //   3. scraper sale_status   (only if no human verification, and no error)
-      const isOnSale = row.active_cycle_id
-        ? true
-        : row.last_verified_date
-          ? !!row.last_verified_status
-          : (!!row.sale_status && !row.scraper_error);
-      // Origin date for days-running: prefer cycle start, fall back to scraper.
-      const startDate = (row.cycle && row.cycle.start_date) || row.date_first_detected;
-      // Discount %: prefer cycle's verified value, fall back to scraper's.
-      const cyclePct = row.cycle && Number.isFinite(row.cycle.max_discount_pct) ? row.cycle.max_discount_pct : null;
-      const scraperPct = Number.isFinite(row.max_discount_pct) ? row.max_discount_pct : null;
-      const discountPct = cyclePct !== null ? cyclePct : scraperPct;
-      SALE_STATUS[name] = isOnSale;
-      MAX_DISCOUNT_PCT[name] = (isOnSale && discountPct !== null) ? discountPct : null;
-      if (isOnSale && startDate) {
-        const days = Math.floor((new Date(latestDate) - new Date(startDate)) / 86400000) + 1;
+      SALE_STATUS[name] = !!row.sale_status;
+      MAX_DISCOUNT_PCT[name] = (row.sale_status && Number.isFinite(row.max_discount_pct)) ? row.max_discount_pct : null;
+      if (row.sale_status && row.date_first_detected) {
+        const days = Math.floor((new Date(latestDate) - new Date(row.date_first_detected)) / 86400000) + 1;
         DAYS_RUNNING[name] = Math.max(days, 1);
       } else {
         DAYS_RUNNING[name] = 0;
@@ -900,7 +887,13 @@ function stageStyle(stage) {
 
 function computeTrajectory(score, history) {
   const n = history.length;
-  if (n<4) return 'RISING';
+  if (n<2) return 'FLAT';
+  if (n<4) {
+    const diff = score - history[0].score;
+    if (diff>TRAJECTORY_FLAT_BAND) return 'RISING';
+    if (diff<-TRAJECTORY_FLAT_BAND) return 'FALLING';
+    return 'FLAT';
+  }
   const avg = (history[n-2].score+history[n-3].score+history[n-4].score)/3;
   const diff = score-avg;
   if (diff>TRAJECTORY_FLAT_BAND) return 'RISING';
@@ -994,17 +987,6 @@ function renderArcWidget(stage, color) {
   +'</svg>';
 }
 
-function generateMockHistory(centreIdx) {
-  const n=60, now=Date.now(), phase=centreIdx*1.1;
-  return Array.from({length:n},(_,i)=>{
-    const daysAgo=n-1-i;
-    const date=new Date(now-daysAgo*86400000).toISOString().split('T')[0];
-    const t=i/(n-1);
-    const s=50+Math.sin(t*Math.PI*3.2+phase)*38+Math.sin(t*Math.PI*1.5+phase*0.6)*16;
-    return {date,score:Math.max(0,Math.min(100,Math.round(s)))};
-  });
-}
-
 function smoothCurvePath(pts) {
   if (pts.length<2) return '';
   let d='M'+pts[0][0]+','+pts[0][1];
@@ -1017,8 +999,14 @@ function smoothCurvePath(pts) {
   return d;
 }
 
-function renderHistoryChart(history, color, isDemo=false, trajectory=null) {
-  if (history.length<2) return '';
+function renderHistoryChart(history, color, trajectory=null) {
+  if (history.length<2) {
+    return '<div class="history-section" id="history-section">'
+      + '<div class="section-heading">Tide history</div>'
+      + '<div class="history-card history-empty">'
+      + '<div class="history-empty-msg">Building from today. Trend will appear as new days are scored.</div>'
+      + '</div></div>';
+  }
   const W=380,H=62,PL=4,PT=28,PB=22,n=history.length;
   const k=Math.max(1,Math.min(5,Math.floor(n/8)));
   const scores=history.map((_,i)=>{
@@ -1040,7 +1028,7 @@ function renderHistoryChart(history, color, isDemo=false, trajectory=null) {
     const anchor=pos==='start'?'start':pos==='end'?'end':'middle';
     return '<text x="'+pts[idx][0]+'" y="'+(PT+H+16)+'" font-family="DM Sans,sans-serif" font-size="9.5" fill="#8C8070" text-anchor="'+anchor+'">'+label+'</text>';
   }).join('');
-  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.12"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><text x="'+lx+'" y="'+(ly-9).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+color+'" font-weight="500">today</text><circle cx="'+lx+'" cy="'+ly+'" r="4.5" fill="white" stroke="'+color+'" stroke-width="1.8"/>'+xLabels+'</svg>'+(isDemo?'<div class="demo-badge">Preview data &mdash; no live history yet</div>':'')+'</div></div>';
+  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.12"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><text x="'+lx+'" y="'+(ly-9).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+color+'" font-weight="500">today</text><circle cx="'+lx+'" cy="'+ly+'" r="4.5" fill="white" stroke="'+color+'" stroke-width="1.8"/>'+xLabels+'</svg></div></div>';
 }
 
 function urlToDomain(url) {
@@ -1111,11 +1099,15 @@ async function renderCentre(centreId) {
   const centreName=CENTRE_NAMES[centreIdx];
   const serverScore=getServerScore(centreIdx);
   const tideHistory=getServerHistory(centreIdx);
-  const hasRealHistory=Array.isArray(tideHistory)&&tideHistory.length>=2;
-  const history=hasRealHistory?tideHistory:generateMockHistory(centreIdx);
+  const history=Array.isArray(tideHistory)?tideHistory:[];
   const {score:csvScore,onSale,total}=calcCentreScore(centreIdx);
   const centreScore=serverScore?serverScore.tide_score:csvScore;
-  const trajectory=serverScore&&serverScore.trajectory?serverScore.trajectory:computeTrajectory(centreScore,history);
+  // When history is too sparse to derive a real trend, force FLAT so the
+  // dashboard doesn't show stale server-computed RISING/FALLING from before
+  // the reset. Once 4+ verified days have accumulated, trust the server.
+  const trajectory = history.length<4
+    ? 'FLAT'
+    : (serverScore&&serverScore.trajectory) || computeTrajectory(centreScore,history);
   // Prefer server-derived stage so the gauge matches the scorer's hysteresis
   // state. Falls back to local score-only computation for preview data.
   const stage=(serverScore&&deriveStageFromVerdict(serverScore.verdict))||getTideStage(centreScore,trajectory);
@@ -1217,7 +1209,6 @@ async function renderCentre(centreId) {
     for (const b of offSaleBrands) brandHTML += renderChip(b);
   }
 
-  const isDemo=!hasRealHistory;
   // Forward-guidance copy below the bluf \u2014 small italic supporting text, not a
   // competing badge. Skip when FLAT (no new info) since the bluf already says it.
   let trendCopy = '';
@@ -1227,7 +1218,7 @@ async function renderCentre(centreId) {
     trendCopy = '<div class="trend-line">\u2193 Score easing off \u2014 still worth a visit</div>';
   }
 
-  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div>'+trendCopy+'</div></div>'+renderHistoryChart(history,style.color,isDemo,trajectory)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
+  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div>'+trendCopy+'</div></div>'+renderHistoryChart(history,style.color,trajectory)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
 
   requestAnimationFrame(()=>{
     document.getElementById('score-card').classList.add('visible');

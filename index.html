@@ -1102,18 +1102,23 @@ async function renderCentre(centreId) {
   const history=Array.isArray(tideHistory)?tideHistory:[];
   const {score:csvScore,onSale,total}=calcCentreScore(centreIdx);
   const centreScore=serverScore?serverScore.tide_score:csvScore;
-  // When history is too sparse to derive a real trend, force FLAT so the
-  // dashboard doesn't show stale server-computed RISING/FALLING from before
-  // the reset. Once 4+ verified days have accumulated, trust the server.
-  const trajectory = history.length<4
+  // When history is too sparse to derive a real trend, suppress all
+  // direction-flavoured wording (trajectory, stage label, statement, bluf).
+  // The server's verdict/bluf reflect pre-reset history and would otherwise
+  // bleed through with phrases like "More sales building" or "Rising".
+  const sparseHistory = history.length < 4;
+  const trajectory = sparseHistory
     ? 'FLAT'
     : (serverScore&&serverScore.trajectory) || computeTrajectory(centreScore,history);
-  // Prefer server-derived stage so the gauge matches the scorer's hysteresis
-  // state. Falls back to local score-only computation for preview data.
-  const stage=(serverScore&&deriveStageFromVerdict(serverScore.verdict))||getTideStage(centreScore,trajectory);
-  const style=stageStyle(stage);
-  const verdictLabel=serverScore&&serverScore.verdict?serverScore.verdict:style.label;
-  const verdictMsg=serverScore&&serverScore.bluf?serverScore.bluf:style.msg;
+  const stage = sparseHistory
+    ? 'Turning'
+    : (serverScore&&deriveStageFromVerdict(serverScore.verdict)) || getTideStage(centreScore,trajectory);
+  const style = sparseHistory
+    ? { label: 'Building', statement: 'New tide\ntracking', color: '#8C8070', bg: '#F2EFE9',
+        msg: 'Building from today. Direction will appear once a few days have been scored.' }
+    : stageStyle(stage);
+  const verdictLabel = sparseHistory ? style.label : (serverScore&&serverScore.verdict?serverScore.verdict:style.label);
+  const verdictMsg = sparseHistory ? style.msg : (serverScore&&serverScore.bluf?serverScore.bluf:style.msg);
 
   let personalResult=null;
   if (userPrefs) {

@@ -33,8 +33,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 // deno-lint-ignore no-explicit-any
 declare const Deno: any;
 
-const FROM_EMAIL = "Tide <hello@tidego.co>";
-const APP_URL    = "https://tidego.co";
+// Defaults can be overridden by Supabase secrets — see README. Defaults
+// match the production Vercel URL so emails work before the tidego.co DNS
+// is pointed at the deployment.
+const FROM_EMAIL = Deno.env.get("TIDE_FROM_EMAIL") ?? "Tide <hello@tidego.co>";
+const APP_URL    = Deno.env.get("TIDE_APP_URL")    ?? "https://v0-tide-sale-timing.vercel.app";
 const RESEND_URL = "https://api.resend.com/emails";
 
 const CREAM = "#FAF7F2";

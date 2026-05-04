@@ -4,7 +4,8 @@
   "installCommand": null,
   "outputDirectory": ".",
   "rewrites": [
-    { "source": "/admin", "destination": "/admin.html" }
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/", "has": [{ "type": "host", "value": "admin.tidego.co" }], "destination": "/admin.html" }
   ],
   "headers": [
     {

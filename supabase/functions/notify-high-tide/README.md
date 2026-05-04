@@ -39,8 +39,13 @@ In the Resend dashboard:
   registrar
 - Wait for "Verified" — usually under an hour
 
-Your `from` address is `hello@tidego.co`. If you want a different one, edit
-`FROM_EMAIL` in `index.ts`.
+Your `from` address is `hello@tidego.co`. To override without editing code,
+set the `TIDE_FROM_EMAIL` secret (e.g. `Tide <noreply@tidego.co>`).
+
+> **Note on the live URL.** The CTA button in every email defaults to
+> `https://v0-tide-sale-timing.vercel.app` (the current Vercel deployment).
+> Once you point `tidego.co` DNS at the Vercel project, override it with:
+> `supabase secrets set TIDE_APP_URL=https://tidego.co`
 
 ### 3. Get a Resend API key
 

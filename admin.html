@@ -466,7 +466,7 @@ function renderRow({ ev, def, cycle, review }, isConfirmed) {
   }
 
   const actions = isConfirmed
-    ? renderConfirmedNote(review)
+    ? renderConfirmedNote(review, cycle)
     : renderActionButtons(ev, cycle);
 
   const cardClass = 'brand-card'
@@ -474,7 +474,11 @@ function renderRow({ ev, def, cycle, review }, isConfirmed) {
     + (!isConfirmed && scraperDisagrees(ev) ? ' disagrees' : '');
 
   return '' +
-    '<div class="' + cardClass + '" data-brand-id="' + esc(ev.brand_id) + '">' +
+    '<div class="' + cardClass + '" data-brand-id="' + esc(ev.brand_id) + '"'
+    + (cycle ? ' data-cycle-id="'    + esc(cycle.id)                          + '"'
+             + ' data-cycle-start="' + esc(cycle.start_date)                  + '"'
+             + ' data-cycle-pct="'   + esc(cycle.max_discount_pct ?? '')      + '"' : '')
+    + '>' +
       '<div class="row-top">' +
         '<div class="row-name">' + esc(def.name) +
           (tier ? '<span class="row-tier' + tierClass + '">' + esc(tier) + '</span>' : '') +
@@ -510,7 +514,7 @@ function renderActionButtons(ev, cycle) {
   '</div>';
 }
 
-function renderConfirmedNote(review) {
+function renderConfirmedNote(review, cycle) {
   const pretty = {
     confirmed_start: 'Confirmed sale started',
     confirmed_end:   'Confirmed sale ended',
@@ -520,7 +524,13 @@ function renderConfirmedNote(review) {
     edited:          'Edited',
   }[review.action] || review.action;
   const time = new Date(review.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return '<div style="font-size:12px;color:var(--stone);">' + esc(pretty) + ' · ' + esc(time) + '</div>';
+  const editBtn = cycle
+    ? '<button class="action-btn ghost" data-action="edit_cycle" style="width:auto;padding:5px 12px;margin:0;font-size:11px;">Edit</button>'
+    : '';
+  return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--stone);">'
+    + '<span>' + esc(pretty) + ' · ' + esc(time) + '</span>'
+    + editBtn
+    + '</div>';
 }
 
 // ── Action wiring ─────────────────────────────────────────────────────────
@@ -536,10 +546,13 @@ async function handleAction(card, btn) {
   const brandId = card.dataset.brandId;
   const action = btn.dataset.action;
   const def = BRAND_BY_ID[brandId];
-  // For "confirm_start" we open the inline form first; the form submit
-  // calls applyAction with the user-supplied date + pct.
+  // For "confirm_start" and "edit_cycle" we open an inline form first.
   if (action === 'confirm_start') {
     openStartForm(card, brandId, def);
+    return;
+  }
+  if (action === 'edit_cycle') {
+    openEditForm(card, brandId, def);
     return;
   }
   setRowBusy(card, true);
@@ -599,6 +612,42 @@ function openStartForm(card, brandId, def) {
       await loadAndRender();
     } catch (err) {
       showStatus('Save failed: ' + err.message, true);
+      setRowBusy(card, false);
+    }
+  });
+}
+
+function openEditForm(card, brandId, def) {
+  const mount = card.querySelector('.inline-form-mount');
+  const cycleId    = card.dataset.cycleId    || null;
+  const currentStart = card.dataset.cycleStart || TODAY;
+  const currentPct   = card.dataset.cyclePct   || '';
+  mount.innerHTML =
+    '<div class="inline-form">' +
+      '<div class="inline-form-row">' +
+        '<label>Started <input class="input" type="date" id="edit-start" value="' + esc(currentStart) + '"></label>' +
+        '<label>Discount % <input class="input" type="number" id="edit-pct" min="1" max="99" placeholder="e.g. 30" value="' + esc(currentPct) + '"></label>' +
+      '</div>' +
+      '<div class="inline-form-actions">' +
+        '<button class="btn btn-primary" id="edit-save">Save changes</button>' +
+        '<button class="btn" id="edit-cancel" style="background:var(--stone-lt);color:var(--bark)">Cancel</button>' +
+      '</div>' +
+    '</div>';
+  mount.querySelector('#edit-cancel').addEventListener('click', () => { mount.innerHTML = ''; });
+  mount.querySelector('#edit-save').addEventListener('click', async () => {
+    const startDate = mount.querySelector('#edit-start').value;
+    const pct = mount.querySelector('#edit-pct').value;
+    if (!startDate) { toast('Pick a start date'); return; }
+    setRowBusy(card, true);
+    try {
+      await applyEdit(brandId, cycleId, {
+        start_date: startDate,
+        max_discount_pct: pct ? parseInt(pct, 10) : null,
+      });
+      toast('Updated · ' + def.name);
+      await loadAndRender();
+    } catch (err) {
+      showStatus('Edit failed: ' + err.message, true);
       setRowBusy(card, false);
     }
   });
@@ -691,6 +740,25 @@ async function applyAction(brandId, action, opts) {
   }
 
   throw new Error('Unknown action: ' + action);
+}
+
+async function applyEdit(brandId, cycleId, opts) {
+  if (cycleId) {
+    const { error: cErr } = await sb
+      .from('brand_sale_cycles')
+      .update({ start_date: opts.start_date, max_discount_pct: opts.max_discount_pct })
+      .eq('id', cycleId);
+    if (cErr) throw cErr;
+  }
+  // Keep brand_sale_events in sync — max_discount_pct is what the main app
+  // reads for the "Up to N%" chip label, and updating last_verified_date
+  // confirms this edit counts as today's review.
+  const { error: uErr } = await sb
+    .from('brand_sale_events')
+    .update({ max_discount_pct: opts.max_discount_pct, last_verified_date: TODAY })
+    .eq('brand_id', brandId);
+  if (uErr) throw uErr;
+  await logReview(brandId, 'edited', cycleId);
 }
 
 async function logReview(brandId, action, cycleId) {

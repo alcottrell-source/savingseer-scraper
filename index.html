@@ -900,13 +900,20 @@ let CENTRE_ID_BY_IDX = [];   // centreIdx (0-based, matches CENTRE_NAMES) -> sup
 async function loadTideData() {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const [centresRes, salesRes, scoresRes] = await Promise.all([
+    // Fetch events and cycles separately rather than via PostgREST embedded
+    // resource (`cycle:brand_sale_cycles!active_cycle_id(...)`). The embedded
+    // form silently fails for the whole query if PostgREST's schema cache
+    // hasn't picked up the active_cycle_id FK, which leaves the dashboard
+    // falling back to the stale Google Sheet — so admin confirmations never
+    // surface. Two flat queries + a JS join is what admin.html does.
+    const [centresRes, salesRes, cyclesRes, scoresRes] = await Promise.all([
       sb.from('centres').select('id, name, tide_history').eq('active', true).order('id'),
-      sb.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)'),
+      sb.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id'),
+      sb.from('brand_sale_cycles').select('id, start_date, max_discount_pct').is('end_date', null),
       sb.from('centre_seer_scores').select('centre_id, score_date, tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands').eq('score_date', today),
     ]);
-    if (centresRes.error || salesRes.error || scoresRes.error) {
-      console.warn('Tide data load partial failure:', centresRes.error || salesRes.error || scoresRes.error);
+    if (centresRes.error || salesRes.error || cyclesRes.error || scoresRes.error) {
+      console.error('Tide data load failed:', { centres: centresRes.error, sales: salesRes.error, cycles: cyclesRes.error, scores: scoresRes.error });
       return false;
     }
     const centresList = centresRes.data || [];
@@ -921,11 +928,17 @@ async function loadTideData() {
       if (row.score_date > latestDate) latestDate = row.score_date;
     }
 
+    const cycleById = new Map((cyclesRes.data || []).map(c => [c.id, c]));
+    if (!(salesRes.data || []).length) {
+      console.error('brand_sale_events returned 0 rows — likely an RLS block on anon SELECT');
+    }
+
     for (const row of (salesRes.data || [])) {
       // Translate scraper id -> dashboard name. The inline BRANDS array
       // uses a different id space, so all per-brand state is keyed by name.
       const name = DASHBOARD_NAME_BY_SCRAPER_ID[row.brand_id];
       if (!name) continue;
+      const cycle = row.active_cycle_id ? cycleById.get(row.active_cycle_id) : null;
       // Precedence (mirrors score.js):
       //   1. active verified cycle (admin opened one — treat as on sale)
       //   2. last_verified_status  (admin's most recent decision)
@@ -936,9 +949,9 @@ async function loadTideData() {
           ? !!row.last_verified_status
           : (!!row.sale_status && !row.scraper_error);
       // Origin date for days-running: prefer cycle start, fall back to scraper.
-      const startDate = (row.cycle && row.cycle.start_date) || row.date_first_detected;
+      const startDate = (cycle && cycle.start_date) || row.date_first_detected;
       // Discount %: prefer cycle's verified value, fall back to scraper's.
-      const cyclePct = row.cycle && Number.isFinite(row.cycle.max_discount_pct) ? row.cycle.max_discount_pct : null;
+      const cyclePct = cycle && Number.isFinite(cycle.max_discount_pct) ? cycle.max_discount_pct : null;
       const scraperPct = Number.isFinite(row.max_discount_pct) ? row.max_discount_pct : null;
       const discountPct = cyclePct !== null ? cyclePct : scraperPct;
       SALE_STATUS[name] = isOnSale;

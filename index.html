@@ -105,6 +105,8 @@
   .auth-input { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-family: 'DM Sans', sans-serif; font-size: 15px; color: var(--bark); background: white; margin-bottom: 10px; transition: border-color 0.2s; }
   .auth-input:focus { outline: none; border-color: var(--leaf); }
   .auth-error { background: var(--red-lt); color: var(--red); border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
+  .auth-success { background: var(--leaf-lt); color: var(--leaf); border-radius: 8px; padding: 12px 14px; font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
+  .auth-success strong { font-weight: 500; color: var(--leaf); }
   .btn { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; border-radius: 8px; padding: 12px 20px; cursor: pointer; border: none; transition: background 0.2s, opacity 0.2s; width: 100%; margin-top: 8px; }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-primary { background: var(--leaf); color: white; }
@@ -255,14 +257,17 @@
 <div id="auth-modal" class="modal-overlay" style="display:none" onclick="closeAuthModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeAuthModal()">&times;</button>
-    <h2 class="modal-title">Sign in to Tide</h2>
-    <p class="modal-subtitle">See your personal Tide Score based on the brands you love.</p>
+    <h2 class="modal-title" id="auth-title">Sign in to Tide</h2>
+    <p class="modal-subtitle" id="auth-subtitle">See your personal Tide Score based on the brands you love.</p>
     <div id="auth-error" class="auth-error" style="display:none"></div>
-    <input class="auth-input" id="auth-email" type="email" placeholder="Email address" autocomplete="email">
-    <input class="auth-input" id="auth-password" type="password" placeholder="Password" autocomplete="current-password">
-    <div class="btn-row" style="margin-top:4px">
-      <button class="btn btn-primary" id="btn-signin" onclick="signIn()">Sign in</button>
-      <button class="btn btn-secondary" id="btn-signup" onclick="signUp()">Create account</button>
+    <div id="auth-success" class="auth-success" style="display:none"></div>
+    <div id="auth-form">
+      <input class="auth-input" id="auth-email" type="email" placeholder="Email address" autocomplete="email">
+      <input class="auth-input" id="auth-password" type="password" placeholder="Password" autocomplete="current-password">
+      <div class="btn-row" style="margin-top:4px">
+        <button class="btn btn-primary" id="btn-signin" onclick="signIn()">Sign in</button>
+        <button class="btn btn-secondary" id="btn-signup" onclick="signUp()">Create account</button>
+      </div>
     </div>
   </div>
 </div>
@@ -340,7 +345,14 @@ sb.auth.onAuthStateChange(async (event, session) => {
   if (currentUser) {
     await loadUserPrefs();
     document.getElementById('auth-btn').textContent = 'My Tide';
-    if (event === 'SIGNED_IN' && !userPrefs) openPrefsModal();
+    if (event === 'SIGNED_IN') {
+      const justConfirmed = new URLSearchParams(window.location.search).get('confirmed') === '1';
+      if (justConfirmed) {
+        history.replaceState(null, '', window.location.pathname);
+        document.getElementById('auth-modal').style.display = 'none';
+      }
+      if (!userPrefs) openPrefsModal();
+    }
   } else {
     userPrefs = null;
     document.getElementById('auth-btn').textContent = 'Sign in';
@@ -360,7 +372,7 @@ function onAuthBtnClick() {
 }
 
 function openAuthModal() {
-  clearAuthError();
+  resetAuthModalUI();
   document.getElementById('auth-modal').style.display = 'flex';
   document.getElementById('auth-email').focus();
 }
@@ -373,11 +385,27 @@ function closeAuthModal(e) {
 function clearAuthError() {
   const el = document.getElementById('auth-error');
   el.style.display = 'none'; el.textContent = '';
+  const ok = document.getElementById('auth-success');
+  ok.style.display = 'none'; ok.innerHTML = '';
 }
 
 function showAuthError(msg) {
   const el = document.getElementById('auth-error');
   el.textContent = msg; el.style.display = 'block';
+}
+
+function showAuthSuccess(html) {
+  const el = document.getElementById('auth-success');
+  el.innerHTML = html; el.style.display = 'block';
+}
+
+function resetAuthModalUI() {
+  document.getElementById('auth-title').textContent = 'Sign in to Tide';
+  document.getElementById('auth-subtitle').textContent = 'See your personal Tide Score based on the brands you love.';
+  document.getElementById('auth-form').style.display = '';
+  document.getElementById('auth-email').value = '';
+  document.getElementById('auth-password').value = '';
+  clearAuthError();
 }
 
 function setAuthBusy(busy) {
@@ -400,9 +428,20 @@ async function signUp() {
   const email = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
   if (password.length < 6) { showAuthError('Password must be at least 6 characters.'); setAuthBusy(false); return; }
-  const { error } = await sb.auth.signUp({ email, password });
+  const redirectTo = window.location.origin + window.location.pathname + '?confirmed=1';
+  const { data, error } = await sb.auth.signUp({
+    email, password,
+    options: { emailRedirectTo: redirectTo },
+  });
   setAuthBusy(false);
   if (error) { showAuthError(error.message); return; }
+  if (!data.session) {
+    document.getElementById('auth-form').style.display = 'none';
+    document.getElementById('auth-title').textContent = 'Check your inbox';
+    document.getElementById('auth-subtitle').textContent = 'We sent a confirmation link to ' + email + '. Click it to finish creating your account.';
+    showAuthSuccess('Tap the link in the email to confirm your address. You can close this window — we’ll pick up where you left off.');
+    return;
+  }
   document.getElementById('auth-modal').style.display = 'none';
 }
 

@@ -119,6 +119,9 @@
   .pref-pill:hover { border-color: var(--leaf); color: var(--leaf); }
   .pref-pill.active { background: var(--leaf-lt); border-color: var(--leaf); color: var(--leaf); font-weight: 500; }
   .preview-card { background: var(--stone-lt); border-radius: 12px; padding: 18px 20px; margin: 16px 0 24px; }
+  .preview-gauge { margin: 8px 0 20px; text-align: center; }
+  .preview-gauge .gauge-svg { margin: 0 auto 4px; max-width: 320px; }
+  .preview-gauge .preview-meta { margin-top: 4px; }
   .preview-score { font-family: 'Playfair Display', serif; font-size: 48px; font-weight: 600; color: var(--amber); line-height: 1; margin-bottom: 4px; }
   .preview-label { font-size: 12px; color: var(--stone); letter-spacing: 0.04em; }
   .preview-meta { font-size: 13px; color: var(--stone); margin-top: 10px; line-height: 1.5; }
@@ -168,6 +171,21 @@
   .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
   .auth-disclosure { background: none; border: none; color: var(--stone); font-size: 12px; cursor: pointer; padding: 8px 0 4px; text-decoration: underline; }
   .auth-success { background: var(--leaf-lt); color: var(--leaf); border-radius: 8px; padding: 12px 14px; font-size: 13px; line-height: 1.5; margin-bottom: 14px; }
+  .auth-back-btn { background: none; border: none; color: var(--stone); font-size: 12px; cursor: pointer; padding: 0 0 18px; display: inline-flex; align-items: center; gap: 4px; }
+  .auth-back-btn:hover { color: var(--bark); }
+  .auth-email-confirm { font-size: 13px; color: var(--stone); margin-bottom: 20px; line-height: 1.5; }
+  .auth-email-confirm strong { color: var(--bark); font-weight: 500; }
+  .auth-text-link { background: none; border: none; color: var(--stone); font-size: 12px; cursor: pointer; text-decoration: underline; padding: 10px 0 0; display: block; width: 100%; text-align: center; line-height: 1.6; }
+  .auth-text-link:hover { color: var(--bark); }
+  .auth-inbox-wrap { text-align: center; padding: 8px 0 4px; }
+  .auth-inbox-icon { font-size: 44px; display: block; margin-bottom: 16px; }
+
+  /* ── Account panel (signed-in "My Tide" screen) ── */
+  .account-section { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .account-section:last-of-type { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .account-section-title { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 10px; }
+  .account-user-email { font-size: 14px; font-weight: 500; color: var(--bark); margin-bottom: 2px; }
+  .account-user-sub { font-size: 12px; color: var(--stone); }
 
   /* ── Email-capture banner (logged-out users, after centre pick) ── */
   .notify-banner { position: fixed; left: 12px; right: 12px; bottom: 12px; background: white; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 8px 24px rgba(44,24,16,0.12); padding: 14px 16px 14px 18px; z-index: 250; display: none; flex-direction: column; gap: 10px; max-width: 480px; margin-left: auto; margin-right: auto; }
@@ -311,23 +329,93 @@
 <div id="auth-modal" class="modal-overlay" style="display:none" onclick="closeAuthModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeAuthModal()">&times;</button>
-    <h2 class="modal-title">Sign in to Tide</h2>
-    <p class="modal-subtitle">See your personal Tide Score and get an alert when your favourite centres hit Go Now.</p>
     <div id="auth-error" class="auth-error" style="display:none"></div>
     <div id="auth-success" class="auth-success" style="display:none"></div>
-    <div id="auth-form-section">
-      <input class="auth-input" id="auth-email" type="email" placeholder="Email address" autocomplete="email">
-      <button class="btn btn-primary" id="btn-magic" onclick="sendMagicLink()">Send me a sign-in link</button>
-      <button class="auth-disclosure" id="btn-show-password" onclick="togglePasswordRow()">Have a password? Sign in instead</button>
-      <div id="auth-password-row" style="display:none">
-        <div class="auth-divider">or with password</div>
-        <input class="auth-input" id="auth-password" type="password" placeholder="Password" autocomplete="current-password">
-        <div class="btn-row" style="margin-top:4px">
-          <button class="btn btn-primary" id="btn-signin" onclick="signIn()">Sign in</button>
-          <button class="btn btn-secondary" id="btn-signup" onclick="signUp()">Create account</button>
-        </div>
+
+    <!-- Step 1: email entry -->
+    <div id="auth-step-email">
+      <h2 class="modal-title">Welcome to Tide</h2>
+      <p class="modal-subtitle">Sign in or create your free account to see your personal Tide Score and get Go Now alerts.</p>
+      <input class="auth-input" id="auth-email" type="email" placeholder="Your email address" autocomplete="email"
+             onkeydown="if(event.key==='Enter')authContinue()">
+      <button class="btn btn-primary" id="btn-continue" onclick="authContinue()">Continue</button>
+      <div class="auth-divider">or</div>
+      <button class="btn btn-secondary" id="btn-magic" onclick="authMagicLink()">Email me a sign-in link</button>
+    </div>
+
+    <!-- Step 2a: sign in (returning user) -->
+    <div id="auth-step-signin" style="display:none">
+      <button class="auth-back-btn" onclick="authShowStep('email')">&#8592; Back</button>
+      <h2 class="modal-title">Welcome back</h2>
+      <p class="auth-email-confirm">Signing in as <strong id="auth-signin-email-label"></strong></p>
+      <input class="auth-input" id="auth-password-signin" type="password" placeholder="Password" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter')authSignIn()">
+      <button class="btn btn-primary" id="btn-signin" onclick="authSignIn()">Sign in</button>
+      <button class="auth-text-link" onclick="authMagicLink()">Forgot password? Email me a link instead</button>
+      <button class="auth-text-link" onclick="authShowStep('signup')">New here? Create a free account &#8594;</button>
+    </div>
+
+    <!-- Step 2b: create account (new user) -->
+    <div id="auth-step-signup" style="display:none">
+      <button class="auth-back-btn" onclick="authShowStep('email')">&#8592; Back</button>
+      <h2 class="modal-title">Create your account</h2>
+      <p class="auth-email-confirm">Registering as <strong id="auth-signup-email-label"></strong></p>
+      <input class="auth-input" id="auth-password-signup" type="password" placeholder="Create a password (8+ characters)" autocomplete="new-password"
+             onkeydown="if(event.key==='Enter')authSignUp()">
+      <button class="btn btn-primary" id="btn-signup" onclick="authSignUp()">Create account</button>
+      <button class="auth-text-link" onclick="authShowStep('signin')">Already have an account? Sign in &#8594;</button>
+    </div>
+
+    <!-- Step 3: magic link / confirmation sent -->
+    <div id="auth-step-magic" style="display:none">
+      <div class="auth-inbox-wrap">
+        <span class="auth-inbox-icon">&#9993;</span>
+        <h2 class="modal-title">Check your inbox</h2>
+        <p class="modal-subtitle">We've sent a sign-in link to <strong id="auth-magic-email-label"></strong>. It usually arrives within a minute.</p>
+        <button class="auth-text-link" onclick="authShowStep('email')">Use a different email address</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div id="account-panel" class="modal-overlay" style="display:none" onclick="closeAccountPanel(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeAccountPanel()">&times;</button>
+    <div class="account-section">
+      <div class="account-user-email" id="account-user-email"></div>
+      <div class="account-user-sub">Your Tide account</div>
+    </div>
+    <div class="account-section">
+      <div class="account-section-title">Saved centres</div>
+      <div id="account-centres-list"></div>
+    </div>
+    <div class="account-section">
+      <div class="account-section-title">Email notifications</div>
+      <div class="pref-toggle-row">
+        <div class="pref-toggle-text">
+          <div class="pref-toggle-label">Go Now alerts</div>
+          <div class="pref-toggle-sub">A short email when a saved centre peaks.</div>
+        </div>
+        <label class="pref-switch">
+          <input type="checkbox" id="account-toggle-alerts" onchange="quickSavePref('email_alerts', this.checked)">
+          <span class="pref-switch-track"></span>
+          <span class="pref-switch-thumb"></span>
+        </label>
+      </div>
+      <div class="pref-toggle-row">
+        <div class="pref-toggle-text">
+          <div class="pref-toggle-label">Daily morning digest</div>
+          <div class="pref-toggle-sub">A round-up of your saved centres at 7am.</div>
+        </div>
+        <label class="pref-switch">
+          <input type="checkbox" id="account-toggle-digest" onchange="quickSavePref('daily_digest', this.checked)">
+          <span class="pref-switch-track"></span>
+          <span class="pref-switch-thumb"></span>
+        </label>
+      </div>
+    </div>
+    <button class="btn btn-secondary" onclick="closeAccountPanel(); openPrefsModal()" style="margin-bottom:12px">Edit shopping preferences</button>
+    <button class="signout-link" onclick="signOut(); closeAccountPanel()">Sign out</button>
   </div>
 </div>
 
@@ -451,7 +539,7 @@ sb.auth.onAuthStateChange(async (event, session) => {
       if (sel && !sel.value) sel.value = pendingCentre;
       await saveCentreToUserPrefs(pendingCentre);
     }
-    if (event === 'SIGNED_IN' && !userPrefs?.womenswear && !userPrefs?.menswear && !userPrefs?.childrenswear) openPrefsModal();
+    if (event === 'SIGNED_IN' && !userPrefs) openPrefsModal();
   } else {
     userPrefs = null;
     document.getElementById('auth-btn').textContent = 'Sign in';
@@ -467,16 +555,35 @@ async function loadUserPrefs() {
 }
 
 function onAuthBtnClick() {
-  if (currentUser) openPrefsModal(); else openAuthModal();
+  if (currentUser) openAccountPanel(); else openAuthModal();
+}
+
+// ── Auth modal state machine ──
+
+function authShowStep(step) {
+  clearAuthError(); clearAuthSuccess();
+  ['email','signin','signup','magic'].forEach(s => {
+    document.getElementById('auth-step-' + s).style.display = s === step ? '' : 'none';
+  });
+  const email = document.getElementById('auth-email').value.trim();
+  if (step === 'email') { setTimeout(() => document.getElementById('auth-email').focus(), 50); }
+  if (step === 'signin') {
+    document.getElementById('auth-signin-email-label').textContent = email;
+    setTimeout(() => document.getElementById('auth-password-signin').focus(), 50);
+  }
+  if (step === 'signup') {
+    document.getElementById('auth-signup-email-label').textContent = email;
+    setTimeout(() => document.getElementById('auth-password-signup').focus(), 50);
+  }
+  if (step === 'magic') {
+    document.getElementById('auth-magic-email-label').textContent = email;
+  }
 }
 
 function openAuthModal() {
   clearAuthError(); clearAuthSuccess();
-  document.getElementById('auth-form-section').style.display = '';
-  document.getElementById('auth-password-row').style.display = 'none';
-  document.getElementById('btn-show-password').style.display = '';
   document.getElementById('auth-modal').style.display = 'flex';
-  document.getElementById('auth-email').focus();
+  authShowStep('email');
 }
 
 function closeAuthModal(e) {
@@ -506,25 +613,22 @@ function showAuthSuccess(msg) {
   el.textContent = msg; el.style.display = 'block';
 }
 
-function togglePasswordRow() {
-  const row = document.getElementById('auth-password-row');
-  const open = row.style.display !== 'none';
-  row.style.display = open ? 'none' : '';
-  document.getElementById('btn-show-password').textContent = open
-    ? 'Have a password? Sign in instead'
-    : 'Hide password options';
-}
-
 function setAuthBusy(busy) {
-  ['btn-magic','btn-signin','btn-signup'].forEach(id => {
+  ['btn-continue','btn-magic','btn-signin','btn-signup'].forEach(id => {
     const el = document.getElementById(id); if (el) el.disabled = busy;
   });
 }
 
-async function sendMagicLink() {
-  clearAuthError(); clearAuthSuccess();
+function authContinue() {
   const email = document.getElementById('auth-email').value.trim();
-  if (!email) { showAuthError('Enter your email first.'); return; }
+  if (!email || !email.includes('@')) { showAuthError('Enter a valid email address.'); return; }
+  authShowStep('signin');
+}
+
+async function authMagicLink() {
+  clearAuthError();
+  const email = document.getElementById('auth-email').value.trim();
+  if (!email || !email.includes('@')) { showAuthError('Enter a valid email address.'); return; }
   setAuthBusy(true);
   const { error } = await sb.auth.signInWithOtp({
     email,
@@ -532,32 +636,78 @@ async function sendMagicLink() {
   });
   setAuthBusy(false);
   if (error) { showAuthError(error.message); return; }
-  document.getElementById('auth-form-section').style.display = 'none';
-  showAuthSuccess("Check your email — we've sent you a link to sign in.");
+  authShowStep('magic');
 }
 
-async function signIn() {
-  clearAuthError(); setAuthBusy(true);
+async function authSignIn() {
+  clearAuthError();
   const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
+  const password = document.getElementById('auth-password-signin').value;
+  if (!password) { showAuthError('Enter your password.'); return; }
+  setAuthBusy(true);
   const { error } = await sb.auth.signInWithPassword({ email, password });
   setAuthBusy(false);
   if (error) { showAuthError(error.message); return; }
   document.getElementById('auth-modal').style.display = 'none';
 }
 
-async function signUp() {
-  clearAuthError(); setAuthBusy(true);
+async function authSignUp() {
+  clearAuthError();
   const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
-  if (password.length < 6) { showAuthError('Password must be at least 6 characters.'); setAuthBusy(false); return; }
-  const { error } = await sb.auth.signUp({ email, password });
+  const password = document.getElementById('auth-password-signup').value;
+  if (password.length < 8) { showAuthError('Password must be at least 8 characters.'); return; }
+  setAuthBusy(true);
+  const { data, error } = await sb.auth.signUp({ email, password });
   setAuthBusy(false);
   if (error) { showAuthError(error.message); return; }
-  document.getElementById('auth-modal').style.display = 'none';
+  if (data?.session) {
+    document.getElementById('auth-modal').style.display = 'none';
+  } else {
+    authShowStep('magic');
+  }
 }
 
 async function signOut() { await sb.auth.signOut(); closePrefsModal(); }
+
+// ── Account panel (signed-in users) ──
+
+function openAccountPanel() {
+  document.getElementById('account-user-email').textContent = currentUser.email;
+
+  const centresList = document.getElementById('account-centres-list');
+  const centres = (userPrefs && userPrefs.saved_centres) || [];
+  if (!centres.length) {
+    centresList.innerHTML = '<p class="saved-centres-empty">No centres saved yet. Browse a centre and it\'ll be tracked here.</p>';
+  } else {
+    centresList.innerHTML = '<div class="saved-centres-list">' + centres.map(cid => {
+      const idx = parseInt(String(cid).replace('C',''), 10) - 1;
+      const name = (typeof CENTRE_NAMES !== 'undefined' && CENTRE_NAMES[idx]) ? CENTRE_NAMES[idx] : cid;
+      return '<div class="saved-centre-row"><span>' + name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  document.getElementById('account-toggle-alerts').checked = userPrefs ? userPrefs.email_alerts !== false : true;
+  document.getElementById('account-toggle-digest').checked = userPrefs ? userPrefs.daily_digest === true : false;
+
+  document.getElementById('account-panel').style.display = 'flex';
+}
+
+function closeAccountPanel(e) {
+  if (e && e.target !== document.getElementById('account-panel')) return;
+  document.getElementById('account-panel').style.display = 'none';
+}
+
+async function quickSavePref(key, value) {
+  if (!currentUser) return;
+  const { error } = await sb.from('user_preferences').upsert(
+    { user_id: currentUser.id, [key]: value },
+    { onConflict: 'user_id' }
+  );
+  if (!error) {
+    if (!userPrefs) userPrefs = { user_id: currentUser.id };
+    userPrefs[key] = value;
+  }
+}
 
 // ── Email-capture banner (logged-out users, after centre pick) ──
 function showNotifyBanner() {
@@ -712,11 +862,16 @@ function removeSavedCentre(cid) {
 function renderPrefsPreview() {
   const container = document.getElementById('pref-preview-content');
   const centreId = document.getElementById('centre-select').value;
-  if (!centreId) { container.innerHTML = '<p class="preview-empty">Select a centre from the main screen to see your live score preview here.</p>'; return; }
+  if (!centreId) { container.innerHTML = '<p class="preview-empty">Select a centre from the main screen to see your live signal preview here.</p>'; return; }
   const result = calcPersonalScore(centreId, pendingPrefs);
   const centreName = CENTRE_NAMES[parseInt(centreId.replace('C',''))-1];
   if (!result) { container.innerHTML = '<p class="preview-empty">We don\'t track brands matching your preferences at '+centreName+' yet.</p>'; return; }
-  container.innerHTML = '<div class="preview-card"><div class="preview-score">'+result.score+'</div><div class="preview-label">Personal Tide Score</div><div class="preview-meta">'+result.matchingBrands+' of your brands at '+centreName+' -- '+result.onSale+' on sale today</div></div>';
+  const stage = getTideStage(result.score, 'FLAT');
+  const style = stageStyle(stage);
+  container.innerHTML = '<div class="preview-gauge">'
+    + renderArcWidget(stage, style.color)
+    + '<div class="preview-meta">'+result.matchingBrands+' of your brands at '+centreName+' &mdash; '+result.onSale+' on sale today</div>'
+    + '</div>';
 }
 
 async function savePreferences() {

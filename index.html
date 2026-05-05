@@ -570,7 +570,18 @@ sb.auth.onAuthStateChange(async (event, session) => {
       if (sel && !sel.value) sel.value = pendingCentre;
       await saveCentreToUserPrefs(pendingCentre);
     }
-    if (event === 'SIGNED_IN' && !userPrefs) openPrefsModal();
+    // Supabase fires SIGNED_IN on every session restore (not just real
+    // sign-ins), so gate by a per-user localStorage flag — show the prefs
+    // setup once, not every page load.
+    if (event === 'SIGNED_IN' && !userPrefs) {
+      const seenKey = 'tide_prefs_modal_seen_' + currentUser.id;
+      let seen = false;
+      try { seen = localStorage.getItem(seenKey) === '1'; } catch(e) {}
+      if (!seen) {
+        openPrefsModal();
+        try { localStorage.setItem(seenKey, '1'); } catch(e) {}
+      }
+    }
   } else {
     userPrefs = null;
     document.getElementById('auth-btn').textContent = 'Sign in';

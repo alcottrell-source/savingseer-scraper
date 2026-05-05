@@ -506,19 +506,34 @@ const SUPABASE_ANON_KEY = 'sb_publishable_qid8Ej6biCOmKLjLIY5DfA_nzJXmc9G';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Some browser/extension combos hang on supabase-js's PostgREST calls while
-// raw fetch to the same endpoint works. Use raw fetch for the dashboard's
-// table reads and keep supabase-js for auth + realtime where it's reliable.
-async function pgRead(path) {
+// raw fetch to the same endpoint works. Use raw fetch for table reads/writes
+// and keep supabase-js for auth + realtime where it's reliable.
+let CURRENT_TOKEN = null;
+async function pgFetch(method, path, body, prefer) {
+  const headers = {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: 'Bearer ' + (CURRENT_TOKEN || SUPABASE_ANON_KEY),
+  };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (prefer) headers.Prefer = prefer;
+  const init = { method, headers };
+  if (body !== undefined) init.body = JSON.stringify(body);
   try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
-    });
-    if (!r.ok) return { data: null, error: { status: r.status, message: await r.text() } };
-    return { data: await r.json(), error: null };
+    const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, init);
+    if (!r.ok) {
+      let text = '';
+      try { text = await r.text(); } catch (e) {}
+      return { data: null, error: { status: r.status, message: text || r.statusText } };
+    }
+    if (r.status === 204) return { data: null, error: null };
+    const text = await r.text();
+    return { data: text ? JSON.parse(text) : null, error: null };
   } catch (e) {
     return { data: null, error: { message: e.message } };
   }
 }
+async function pgRead(path)                       { return pgFetch('GET', path); }
+async function pgUpsert(table, body, onConflict)  { return pgFetch('POST', table + (onConflict ? '?on_conflict=' + onConflict : ''), body, 'resolution=merge-duplicates'); }
 
 function dismissSurvey() {
   document.getElementById('survey-card').classList.add('hidden');
@@ -539,6 +554,7 @@ let userPrefs   = null;
 
 sb.auth.onAuthStateChange(async (event, session) => {
   currentUser = session?.user ?? null;
+  CURRENT_TOKEN = session?.access_token ?? null;
   if (currentUser) {
     await loadUserPrefs();
     document.getElementById('auth-btn').textContent = 'My Tide';
@@ -565,8 +581,8 @@ sb.auth.onAuthStateChange(async (event, session) => {
 
 async function loadUserPrefs() {
   if (!currentUser) return;
-  const { data } = await sb.from('user_preferences').select('*').eq('user_id', currentUser.id).maybeSingle();
-  userPrefs = data;
+  const { data } = await pgRead('user_preferences?select=*&user_id=eq.' + encodeURIComponent(currentUser.id));
+  userPrefs = (data || [])[0] || null;
 }
 
 function onAuthBtnClick() {
@@ -714,9 +730,9 @@ function closeAccountPanel(e) {
 
 async function quickSavePref(key, value) {
   if (!currentUser) return;
-  const { error } = await sb.from('user_preferences').upsert(
+  const { error } = await pgUpsert('user_preferences',
     { user_id: currentUser.id, [key]: value },
-    { onConflict: 'user_id' }
+    'user_id'
   );
   if (!error) {
     if (!userPrefs) userPrefs = { user_id: currentUser.id };
@@ -782,10 +798,10 @@ async function saveCentreToUserPrefs(centreId) {
   const existing = (userPrefs && userPrefs.saved_centres) || [];
   if (existing.includes(centreId)) return;
   const updated = existing.concat([centreId]);
-  const { error } = await sb.from('user_preferences').upsert({
+  const { error } = await pgUpsert('user_preferences', {
     user_id: currentUser.id,
     saved_centres: updated,
-  }, { onConflict: 'user_id' });
+  }, 'user_id');
   if (error) { console.warn('saveCentreToUserPrefs failed:', error); return; }
   if (userPrefs) userPrefs.saved_centres = updated;
   else userPrefs = { user_id: currentUser.id, saved_centres: updated };
@@ -891,14 +907,14 @@ function renderPrefsPreview() {
 
 async function savePreferences() {
   if (!currentUser) return;
-  const { error } = await sb.from('user_preferences').upsert({
+  const { error } = await pgUpsert('user_preferences', {
     user_id: currentUser.id, womenswear: pendingPrefs.womenswear,
     menswear: pendingPrefs.menswear, childrenswear: pendingPrefs.childrenswear,
     style_clusters: pendingPrefs.style_clusters,
     email_alerts: pendingPrefs.email_alerts,
     daily_digest: pendingPrefs.daily_digest,
     saved_centres: pendingPrefs.saved_centres,
-  }, { onConflict: 'user_id' });
+  }, 'user_id');
   if (error) { alert('Could not save preferences: ' + error.message); return; }
   userPrefs = { ...pendingPrefs, user_id: currentUser.id };
   closePrefsModal();

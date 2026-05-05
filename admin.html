@@ -249,6 +249,40 @@ const SUPABASE_URL = 'https://vrezzwadwzrmumjpdgge.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_qid8Ej6biCOmKLjLIY5DfA_nzJXmc9G';
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// supabase-js's PostgREST calls hang silently in some browser/extension
+// combinations. Use raw fetch for table reads/writes; keep supabase-js for
+// auth + realtime where it's reliable.
+let CURRENT_TOKEN = null;
+async function pgFetch(method, path, body, prefer) {
+  const headers = {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: 'Bearer ' + (CURRENT_TOKEN || SUPABASE_ANON_KEY),
+  };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (prefer) headers.Prefer = prefer;
+  const init = { method, headers };
+  if (body !== undefined) init.body = JSON.stringify(body);
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, init);
+    if (!r.ok) {
+      let text = '';
+      try { text = await r.text(); } catch (e) {}
+      return { data: null, error: { status: r.status, message: text || r.statusText } };
+    }
+    if (r.status === 204) return { data: null, error: null };
+    const text = await r.text();
+    return { data: text ? JSON.parse(text) : null, error: null };
+  } catch (e) {
+    return { data: null, error: { message: e.message } };
+  }
+}
+const pg = {
+  read:   (path) => pgFetch('GET', path),
+  insert: (table, body, returnRow) => pgFetch('POST', table + (returnRow ? '?select=*' : ''), body, returnRow ? 'return=representation' : null),
+  update: (table, query, body) => pgFetch('PATCH', table + '?' + query, body),
+  upsert: (table, body, onConflict) => pgFetch('POST', table + (onConflict ? '?on_conflict=' + onConflict : ''), body, 'resolution=merge-duplicates'),
+};
+
 const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B011','B012']);
 const TODAY = new Date().toISOString().split('T')[0];
 const BRAND_BY_ID = Object.fromEntries(BRAND_DEFS.map(b => [b.id, b]));
@@ -316,6 +350,7 @@ $('signout-btn').addEventListener('click', async () => {
 });
 
 async function onSignedIn(session) {
+  CURRENT_TOKEN = session.access_token;
   $('loading-screen').style.display = 'none';
   $('login-screen').style.display = 'none';
   $('app').style.display = 'block';
@@ -327,7 +362,7 @@ async function onSignedIn(session) {
   // the main data load — a failed probe shows a warning but does NOT block
   // the UI. Mutations will still fail via RLS if the user lacks admin rights.
   const [probeRes] = await Promise.all([
-    sb.from('admin_review_log').select('id', { count: 'exact', head: true }),
+    pg.read('admin_review_log?select=id&limit=1'),
     loadAndRender().catch(err => {
       console.error('loadAndRender failed:', err);
       showStatus('Could not load brand data: ' + (err.message || err), true);
@@ -346,14 +381,9 @@ async function onSignedIn(session) {
 async function loadAndRender() {
   showStatus('Loading…');
   const [eventsRes, cyclesRes, reviewsRes] = await Promise.all([
-    sb.from('brand_sale_events')
-      .select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_date, last_verified_status, active_cycle_id'),
-    sb.from('brand_sale_cycles')
-      .select('id, brand_id, start_date, end_date, max_discount_pct')
-      .is('end_date', null),
-    sb.from('admin_review_log')
-      .select('brand_id, action, created_at')
-      .eq('reviewed_date', TODAY),
+    pg.read('brand_sale_events?select=brand_id,sale_status,date_first_detected,max_discount_pct,scraper_error,last_verified_date,last_verified_status,active_cycle_id'),
+    pg.read('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct&end_date=is.null'),
+    pg.read('admin_review_log?select=brand_id,action,created_at&reviewed_date=eq.' + TODAY),
   ]);
 
   if (eventsRes.error || cyclesRes.error || reviewsRes.error) {
@@ -657,25 +687,20 @@ function openEditForm(card, brandId, def) {
 // Each action does (1) the cycle/event mutation, then (2) the review log row.
 async function applyAction(brandId, action, opts) {
   if (action === 'confirm_start') {
-    const { data: cycle, error: cErr } = await sb
-      .from('brand_sale_cycles')
-      .insert({
-        brand_id: brandId,
-        start_date: opts.start_date,
-        max_discount_pct: opts.max_discount_pct,
-        source: 'admin',
-      })
-      .select('id')
-      .single();
+    const { data: cycleRows, error: cErr } = await pg.insert('brand_sale_cycles', {
+      brand_id: brandId,
+      start_date: opts.start_date,
+      max_discount_pct: opts.max_discount_pct,
+      source: 'admin',
+    }, true);
     if (cErr) throw cErr;
-    const { error: uErr } = await sb
-      .from('brand_sale_events')
-      .update({
-        active_cycle_id: cycle.id,
-        last_verified_status: true,
-        last_verified_date: TODAY,
-      })
-      .eq('brand_id', brandId);
+    const cycle = (cycleRows || [])[0];
+    if (!cycle) throw new Error('Insert returned no row');
+    const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
+      active_cycle_id: cycle.id,
+      last_verified_status: true,
+      last_verified_date: TODAY,
+    });
     if (uErr) throw uErr;
     await logReview(brandId, 'confirmed_start', cycle.id);
     return;
@@ -683,30 +708,20 @@ async function applyAction(brandId, action, opts) {
 
   if (action === 'confirm_end') {
     // Close the open cycle, clear FK on event, mark verified-off.
-    const { data: openCycle, error: lookupErr } = await sb
-      .from('brand_sale_cycles')
-      .select('id')
-      .eq('brand_id', brandId)
-      .is('end_date', null)
-      .order('start_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: openCycles, error: lookupErr } = await pg.read(
+      'brand_sale_cycles?select=id&brand_id=eq.' + brandId + '&end_date=is.null&order=start_date.desc&limit=1'
+    );
     if (lookupErr) throw lookupErr;
+    const openCycle = (openCycles || [])[0];
     if (openCycle) {
-      const { error: cErr } = await sb
-        .from('brand_sale_cycles')
-        .update({ end_date: TODAY })
-        .eq('id', openCycle.id);
+      const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + openCycle.id, { end_date: TODAY });
       if (cErr) throw cErr;
     }
-    const { error: uErr } = await sb
-      .from('brand_sale_events')
-      .update({
-        active_cycle_id: null,
-        last_verified_status: false,
-        last_verified_date: TODAY,
-      })
-      .eq('brand_id', brandId);
+    const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
+      active_cycle_id: null,
+      last_verified_status: false,
+      last_verified_date: TODAY,
+    });
     if (uErr) throw uErr;
     await logReview(brandId, 'confirmed_end', openCycle ? openCycle.id : null);
     return;
@@ -714,20 +729,18 @@ async function applyAction(brandId, action, opts) {
 
   if (action === 'confirm_on') {
     // Re-affirm the existing on-sale state (no cycle change).
-    const { error } = await sb
-      .from('brand_sale_events')
-      .update({ last_verified_status: true, last_verified_date: TODAY })
-      .eq('brand_id', brandId);
+    const { error } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
+      last_verified_status: true, last_verified_date: TODAY,
+    });
     if (error) throw error;
     await logReview(brandId, 'confirmed_on', null);
     return;
   }
 
   if (action === 'confirm_off') {
-    const { error } = await sb
-      .from('brand_sale_events')
-      .update({ last_verified_status: false, last_verified_date: TODAY })
-      .eq('brand_id', brandId);
+    const { error } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
+      last_verified_status: false, last_verified_date: TODAY,
+    });
     if (error) throw error;
     await logReview(brandId, 'confirmed_off', null);
     return;
@@ -744,30 +757,27 @@ async function applyAction(brandId, action, opts) {
 
 async function applyEdit(brandId, cycleId, opts) {
   if (cycleId) {
-    const { error: cErr } = await sb
-      .from('brand_sale_cycles')
-      .update({ start_date: opts.start_date, max_discount_pct: opts.max_discount_pct })
-      .eq('id', cycleId);
+    const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + cycleId, {
+      start_date: opts.start_date, max_discount_pct: opts.max_discount_pct,
+    });
     if (cErr) throw cErr;
   }
   // Keep brand_sale_events in sync — max_discount_pct is what the main app
   // reads for the "Up to N%" chip label, and updating last_verified_date
   // confirms this edit counts as today's review.
-  const { error: uErr } = await sb
-    .from('brand_sale_events')
-    .update({ max_discount_pct: opts.max_discount_pct, last_verified_date: TODAY })
-    .eq('brand_id', brandId);
+  const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
+    max_discount_pct: opts.max_discount_pct, last_verified_date: TODAY,
+  });
   if (uErr) throw uErr;
   await logReview(brandId, 'edited', cycleId);
 }
 
 async function logReview(brandId, action, cycleId) {
-  const { error } = await sb
-    .from('admin_review_log')
-    .upsert(
-      { brand_id: brandId, reviewed_date: TODAY, action, cycle_id: cycleId },
-      { onConflict: 'brand_id,reviewed_date' }
-    );
+  const { error } = await pg.upsert(
+    'admin_review_log',
+    { brand_id: brandId, reviewed_date: TODAY, action, cycle_id: cycleId },
+    'brand_id,reviewed_date'
+  );
   if (error) throw error;
 }
 

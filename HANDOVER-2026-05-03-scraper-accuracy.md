@@ -2,7 +2,7 @@
 3 May 2026 *(scraper-accuracy patch)*
 
 Repo: https://github.com/alcottrell-source/savingseer-scraper
-Live: https://v0-tide-sale-timing.vercel.app
+Live: https://tidego.co (was https://v0-tide-sale-timing.vercel.app)
 Branch: `claude/fix-sale-status-accuracy-gie01` (pushed, **not yet merged to `main`**)
 
 Builds on the same-day handover at `HANDOVER-2026-05-03.md`. Single scoped change to `scraper.js`.

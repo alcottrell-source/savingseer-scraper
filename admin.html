@@ -8,7 +8,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script type="importmap">
+{
+  "imports": {
+    "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
+  }
+}
+</script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -160,6 +166,23 @@
   }
   .toast.show { opacity: 1; }
 
+  /* ── Loading screen ───────────────────────────────────────────────── */
+  .loading-screen {
+    min-height: calc(100vh - 61px);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .loading-dots span {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--stone); margin: 0 4px;
+    animation: dot-pulse 1.2s ease-in-out infinite;
+  }
+  .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dot-pulse {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.35; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
   @media (min-width: 720px) {
     .brand-list { max-width: 720px; margin: 0 auto; }
     .section-bar { max-width: 720px; margin: 0 auto; padding-left: 0; padding-right: 0; }
@@ -179,8 +202,13 @@
 
 <div id="status" class="status-banner" style="display:none"></div>
 
-<!-- Login screen (visible by default — JS hides it when session is found) -->
-<div id="login-screen" class="login-wrap">
+<!-- Loading screen: shown until start() resolves the auth state -->
+<div id="loading-screen" class="loading-screen">
+  <div class="loading-dots"><span></span><span></span><span></span></div>
+</div>
+
+<!-- Login screen -->
+<div id="login-screen" class="login-wrap" style="display:none">
   <div class="login-card">
     <div class="login-title">Admin sign in</div>
     <div class="login-sub">Sign in with your Tide account to confirm sale cycles.</div>
@@ -213,23 +241,13 @@
 <div id="toast" class="toast"></div>
 
 <script type="module">
+import { createClient } from '@supabase/supabase-js';
 import { brands as BRAND_DEFS } from './brands.js';
 
 // ── Supabase client (anon key — RLS does the gating) ───────────────────────
 const SUPABASE_URL = 'https://vrezzwadwzrmumjpdgge.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_qid8Ej6biCOmKLjLIY5DfA_nzJXmc9G';
-
-// Guard: if the Supabase CDN script failed to load, show a clear error
-// instead of a silent blank page (window.supabase would be undefined).
-if (!window.supabase) {
-  const el = document.getElementById('status');
-  el.textContent = 'Failed to load Supabase. Please refresh the page.';
-  el.className = 'status-banner error';
-  el.style.display = 'block';
-  throw new Error('window.supabase not available — CDN script did not load');
-}
-
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B011','B012']);
 const TODAY = new Date().toISOString().split('T')[0];
@@ -256,12 +274,18 @@ function toast(msg) {
 
 // ── Auth flow ──────────────────────────────────────────────────────────────
 async function start() {
-  const { data: { session } } = await sb.auth.getSession();
-  if (!session) { showLogin(); return; }
-  await onSignedIn(session);
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { showLogin(); return; }
+    await onSignedIn(session);
+  } catch (err) {
+    $('loading-screen').style.display = 'none';
+    showStatus('Could not connect. Please refresh the page. (' + (err.message || err) + ')', true);
+  }
 }
 
 function showLogin() {
+  $('loading-screen').style.display = 'none';
   $('app').style.display = 'none';
   $('login-screen').style.display = 'flex';
   $('signout-btn').style.display = 'none';
@@ -292,26 +316,29 @@ $('signout-btn').addEventListener('click', async () => {
 });
 
 async function onSignedIn(session) {
+  $('loading-screen').style.display = 'none';
   $('login-screen').style.display = 'none';
+  $('app').style.display = 'block';
   $('signout-btn').style.display = 'inline-block';
   $('who').style.display = 'inline';
   $('who').textContent = session.user.email;
 
-  // Probe admin-only table to verify is_admin() returns true for this user.
-  // RLS on admin_review_log restricts SELECT to admin. If we get an empty
-  // result without an error, we're an admin. Errors mean either not-admin
-  // or migration not applied.
-  const probe = await sb.from('admin_review_log').select('id', { count: 'exact', head: true });
-  if (probe.error) {
-    showStatus('This account is not an admin, or the admin migration has not yet been applied. Sign out and use the dashboard instead.', true);
-    return;
-  }
-  $('app').style.display = 'block';
-  try {
-    await loadAndRender();
-  } catch (err) {
-    console.error('loadAndRender failed:', err);
-    showStatus('Could not render: ' + (err.message || err), true);
+  // Probe admin_review_log to confirm admin access. Run in parallel with
+  // the main data load — a failed probe shows a warning but does NOT block
+  // the UI. Mutations will still fail via RLS if the user lacks admin rights.
+  const [probeRes] = await Promise.all([
+    sb.from('admin_review_log').select('id', { count: 'exact', head: true }),
+    loadAndRender().catch(err => {
+      console.error('loadAndRender failed:', err);
+      showStatus('Could not load brand data: ' + (err.message || err), true);
+    }),
+  ]);
+  if (probeRes.error) {
+    showStatus(
+      'Admin access check failed (' + probeRes.error.message + '). '
+      + 'If brands loaded below, you can still review — mutations will fail if your account lacks admin rights.',
+      true
+    );
   }
 }
 
@@ -333,6 +360,17 @@ async function loadAndRender() {
     showStatus('Load failed: ' + (eventsRes.error || cyclesRes.error || reviewsRes.error).message, true);
     return;
   }
+
+  const evRows = eventsRes.data || [];
+  if (evRows.length === 0) {
+    showStatus(
+      'No brands returned from the database. '
+      + 'This usually means a Supabase RLS policy is blocking reads from brand_sale_events. '
+      + 'Check that authenticated users have SELECT permission on that table.',
+      true
+    );
+    return;
+  }
   showStatus(null);
 
   const cycleById = new Map((cyclesRes.data || []).map(c => [c.id, c]));
@@ -341,7 +379,7 @@ async function loadAndRender() {
   const needs = [];
   const confirmed = [];
 
-  for (const ev of (eventsRes.data || [])) {
+  for (const ev of evRows) {
     const def = BRAND_BY_ID[ev.brand_id];
     if (!def) continue;  // Brand removed from brands.js but row still in DB
     const cycle = ev.active_cycle_id ? cycleById.get(ev.active_cycle_id) : null;

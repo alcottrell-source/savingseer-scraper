@@ -1726,6 +1726,21 @@ async function renderCentre(centreId) {
   });
 }
 
+// Debug surface: lets us inspect what the dashboard thinks the world looks
+// like from the browser console without sprinkling console.logs everywhere.
+//   __tide.onSale()         -> ['Whistles', 'Warehouse', ...]
+//   __tide.statusFor('Whistles') -> { onSale, days, pct }
+//   __tide.SALE_STATUS, __tide.DAYS_RUNNING, __tide.MAX_DISCOUNT_PCT, __tide.CENTRE_SCORES
+window.__tide = {
+  get SALE_STATUS()      { return SALE_STATUS; },
+  get DAYS_RUNNING()     { return DAYS_RUNNING; },
+  get MAX_DISCOUNT_PCT() { return MAX_DISCOUNT_PCT; },
+  get CENTRE_SCORES()    { return CENTRE_SCORES; },
+  onSale() { return Object.entries(SALE_STATUS).filter(([,v]) => v === true).map(([k]) => k); },
+  statusFor(name) { return { onSale: SALE_STATUS[name], days: DAYS_RUNNING[name], pct: MAX_DISCOUNT_PCT[name] }; },
+  reload: () => loadTideData(),
+};
+
 loadTideData().then(ok => { if (!ok) loadSheetData(); });
 
 // Subscribe to real-time Supabase changes so admin confirmations appear

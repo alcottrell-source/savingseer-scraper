@@ -61,25 +61,25 @@ GRANT EXECUTE ON FUNCTION reset_brand_sale_cycle(TEXT) TO service_role;
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 2. Seed brands rows for new manual brands
 -- ─────────────────────────────────────────────────────────────────────────────
-INSERT INTO brands (id, name, cluster, womenswear, menswear, childrenswear)
+INSERT INTO brands (id, name, cluster, womenswear, menswear, childrenswear, sale_url)
 VALUES
-  ('B078', 'AllSaints',         'Premium Casual',  TRUE,  TRUE,  FALSE),
-  ('B079', 'Ann Summers',       'Accessories',     TRUE,  FALSE, FALSE),
-  ('B080', 'Boux Avenue',       'Accessories',     TRUE,  FALSE, FALSE),
-  ('B081', 'Bravissimo',        'Accessories',     TRUE,  FALSE, FALSE),
-  ('B082', 'Burton',            'High Street',     FALSE, TRUE,  FALSE),
-  ('B083', 'Calvin Klein',      'Premium Casual',  TRUE,  TRUE,  FALSE),
-  ('B084', 'French Connection', 'Smart/Occasion',  TRUE,  TRUE,  FALSE),
-  ('B085', 'Gant',              'Premium Casual',  TRUE,  TRUE,  FALSE),
-  ('B086', 'Jack & Jones',      'High Street',     FALSE, TRUE,  FALSE),
-  ('B087', 'Jaeger',            'Smart/Occasion',  TRUE,  TRUE,  FALSE),
-  ('B088', 'Jigsaw',            'Smart/Occasion',  TRUE,  TRUE,  FALSE),
-  ('B089', 'LK Bennett',        'Smart/Occasion',  TRUE,  FALSE, FALSE),
-  ('B090', 'Mint Velvet',       'Smart/Occasion',  TRUE,  FALSE, FALSE),
-  ('B091', 'Miss Selfridge',    'High Street',     TRUE,  FALSE, FALSE),
-  ('B092', 'Primark',           'High Street',     TRUE,  TRUE,  TRUE),
-  ('B093', 'Uniqlo',            'Contemporary',    TRUE,  TRUE,  TRUE),
-  ('B094', 'Foot Locker',       'Footwear',        TRUE,  TRUE,  TRUE)
+  ('B078', 'AllSaints',         'Premium Casual',  TRUE,  TRUE,  FALSE, 'https://www.allsaints.com/sale'),
+  ('B079', 'Ann Summers',       'Accessories',     TRUE,  FALSE, FALSE, 'https://www.annsummers.com/sale'),
+  ('B080', 'Boux Avenue',       'Accessories',     TRUE,  FALSE, FALSE, 'https://www.bouxavenue.com/sale'),
+  ('B081', 'Bravissimo',        'Accessories',     TRUE,  FALSE, FALSE, 'https://www.bravissimo.com/sale'),
+  ('B082', 'Burton',            'High Street',     FALSE, TRUE,  FALSE, 'https://www.burton.co.uk/sale'),
+  ('B083', 'Calvin Klein',      'Premium Casual',  TRUE,  TRUE,  FALSE, 'https://www.calvinklein.co.uk/en/sale'),
+  ('B084', 'French Connection', 'Smart/Occasion',  TRUE,  TRUE,  FALSE, 'https://www.frenchconnection.com/sale'),
+  ('B085', 'Gant',              'Premium Casual',  TRUE,  TRUE,  FALSE, 'https://www.gant.co.uk/sale'),
+  ('B086', 'Jack & Jones',      'High Street',     FALSE, TRUE,  FALSE, 'https://www.jackjones.com/gb/en/sale'),
+  ('B087', 'Jaeger',            'Smart/Occasion',  TRUE,  TRUE,  FALSE, 'https://www.jaeger.co.uk/sale'),
+  ('B088', 'Jigsaw',            'Smart/Occasion',  TRUE,  TRUE,  FALSE, 'https://www.jigsaw-online.com/sale'),
+  ('B089', 'LK Bennett',        'Smart/Occasion',  TRUE,  FALSE, FALSE, 'https://www.lkbennett.com/sale'),
+  ('B090', 'Mint Velvet',       'Smart/Occasion',  TRUE,  FALSE, FALSE, 'https://www.mintvelvet.co.uk/sale'),
+  ('B091', 'Miss Selfridge',    'High Street',     TRUE,  FALSE, FALSE, 'https://www.missselfridge.com/sale'),
+  ('B092', 'Primark',           'High Street',     TRUE,  TRUE,  TRUE,  'https://www.primark.com/en-gb/a/offers'),
+  ('B093', 'Uniqlo',            'Contemporary',    TRUE,  TRUE,  TRUE,  'https://www.uniqlo.com/uk/en/sale'),
+  ('B094', 'Foot Locker',       'Footwear',        TRUE,  TRUE,  TRUE,  'https://www.footlocker.co.uk/sale')
 ON CONFLICT (id) DO NOTHING;
 
 

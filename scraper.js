@@ -215,9 +215,12 @@ async function runPlaywrightCrawler() {
 async function writeToSupabase() {
   console.log('\nWriting results to Supabase...');
 
+  // Fetch active_cycle_id so we know if an admin has manually confirmed a sale.
+  // We must not call reset_brand_sale_cycle when an admin cycle is open — that
+  // would wipe human-verified data based on a scraper false-negative.
   const { data: currentState, error: fetchError } = await supabase
     .from('brand_sale_events')
-    .select('brand_id, sale_status, date_first_detected');
+    .select('brand_id, sale_status, date_first_detected, active_cycle_id');
 
   if (fetchError) {
     console.error('Failed to fetch current brand state:', fetchError);
@@ -233,15 +236,32 @@ async function writeToSupabase() {
     const brand = brands.find(b => b.id === brandId);
     if (brand?.manualCheck) continue;
 
+    // When the scraper itself errored, we have no useful signal — preserve
+    // whatever sale_status is already in the DB and just flag the error.
+    if (result.error) {
+      const { error: flagErr } = await supabase
+        .from('brand_sale_events')
+        .update({ scraper_error: true, last_checked: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('brand_id', brandId);
+      if (flagErr) {
+        console.error(`  ✗ Error flag write failed for ${brandId}:`, flagErr);
+        errors++;
+      } else {
+        console.log(`  ⚠ ${brand?.name || brandId}: scrape error — preserving existing sale status`);
+      }
+      continue;
+    }
+
     const current = currentMap.get(brandId);
     const wasOnSale = current?.sale_status || false;
     const hadDateFirstDetected = current?.date_first_detected;
+    const hasAdminCycle = !!current?.active_cycle_id;
 
     const updatePayload = {
       sale_status: result.saleStatus,
       max_discount_pct: result.maxDiscountPct,
       last_checked: new Date().toISOString(),
-      scraper_error: result.error,
+      scraper_error: false,
       updated_at: new Date().toISOString(),
     };
 
@@ -250,6 +270,24 @@ async function writeToSupabase() {
     }
 
     if (!result.saleStatus && wasOnSale && hadDateFirstDetected) {
+      if (hasAdminCycle) {
+        // Admin has manually confirmed this sale is running. The scraper may be
+        // wrong (bot-blocked, detection miss). Update the scraper columns so
+        // the admin console surfaces the disagreement, but leave active_cycle_id
+        // and all human-verified data intact — do NOT call reset_brand_sale_cycle.
+        console.log(`  ⚑ ${brand?.name || brandId}: scraper says ended but admin cycle open — preserving admin cycle`);
+        const { error: updateError } = await supabase
+          .from('brand_sale_events')
+          .update({ sale_status: false, scraper_error: false, last_checked: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq('brand_id', brandId);
+        if (updateError) {
+          console.error(`  ✗ Supabase write failed for ${brandId}:`, updateError);
+          errors++;
+        } else {
+          updated++;
+        }
+        continue;
+      }
       console.log(`  ↩ ${brand?.name || brandId}: sale ended — resetting cycle`);
       const { error: resetError } = await supabase.rpc('reset_brand_sale_cycle', {
         p_brand_id: brandId,

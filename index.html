@@ -119,6 +119,9 @@
   .pref-pill:hover { border-color: var(--leaf); color: var(--leaf); }
   .pref-pill.active { background: var(--leaf-lt); border-color: var(--leaf); color: var(--leaf); font-weight: 500; }
   .preview-card { background: var(--stone-lt); border-radius: 12px; padding: 18px 20px; margin: 16px 0 24px; }
+  .preview-gauge { margin: 8px 0 20px; text-align: center; }
+  .preview-gauge .gauge-svg { margin: 0 auto 4px; max-width: 320px; }
+  .preview-gauge .preview-meta { margin-top: 4px; }
   .preview-score { font-family: 'Playfair Display', serif; font-size: 48px; font-weight: 600; color: var(--amber); line-height: 1; margin-bottom: 4px; }
   .preview-label { font-size: 12px; color: var(--stone); letter-spacing: 0.04em; }
   .preview-meta { font-size: 13px; color: var(--stone); margin-top: 10px; line-height: 1.5; }
@@ -712,11 +715,16 @@ function removeSavedCentre(cid) {
 function renderPrefsPreview() {
   const container = document.getElementById('pref-preview-content');
   const centreId = document.getElementById('centre-select').value;
-  if (!centreId) { container.innerHTML = '<p class="preview-empty">Select a centre from the main screen to see your live score preview here.</p>'; return; }
+  if (!centreId) { container.innerHTML = '<p class="preview-empty">Select a centre from the main screen to see your live signal preview here.</p>'; return; }
   const result = calcPersonalScore(centreId, pendingPrefs);
   const centreName = CENTRE_NAMES[parseInt(centreId.replace('C',''))-1];
   if (!result) { container.innerHTML = '<p class="preview-empty">We don\'t track brands matching your preferences at '+centreName+' yet.</p>'; return; }
-  container.innerHTML = '<div class="preview-card"><div class="preview-score">'+result.score+'</div><div class="preview-label">Personal Tide Score</div><div class="preview-meta">'+result.matchingBrands+' of your brands at '+centreName+' -- '+result.onSale+' on sale today</div></div>';
+  const stage = getTideStage(result.score, 'FLAT');
+  const style = stageStyle(stage);
+  container.innerHTML = '<div class="preview-gauge">'
+    + renderArcWidget(stage, style.color)
+    + '<div class="preview-meta">'+result.matchingBrands+' of your brands at '+centreName+' &mdash; '+result.onSale+' on sale today</div>'
+    + '</div>';
 }
 
 async function savePreferences() {

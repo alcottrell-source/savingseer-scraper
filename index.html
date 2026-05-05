@@ -572,8 +572,10 @@ sb.auth.onAuthStateChange(async (event, session) => {
     }
     // Supabase fires SIGNED_IN on every session restore (not just real
     // sign-ins), so gate by a per-user localStorage flag — show the prefs
-    // setup once, not every page load.
-    if (event === 'SIGNED_IN' && !userPrefs) {
+    // setup once, not every page load. Skip on mobile entirely; mobile
+    // users can open prefs from the My Tide button when they want to.
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+    if (event === 'SIGNED_IN' && !userPrefs && !isMobile) {
       const seenKey = 'tide_prefs_modal_seen_' + currentUser.id;
       let seen = false;
       try { seen = localStorage.getItem(seenKey) === '1'; } catch(e) {}

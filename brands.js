@@ -1,5 +1,5 @@
 // brands.js
-// 74 brand configurations for Tide scraper
+// 91 brand configurations for Tide scraper
 // renderMode: 'static' = CheerioCrawler (fast), 'browser' = PlaywrightCrawler (JS-heavy)
 // saleSelectors: CSS selectors that confirm an active sale exists on the page
 
@@ -619,6 +619,97 @@ export const brands = [
     url: 'https://www.johnlewis.com/sale',
     saleSelectors: ['h1', '[class*="sale"]', '[class*="Sale"]', '[data-testid*="sale"]'],
     confirmText: ['sale', 'up to', '% off', 'reduced'],
+  },
+
+  // ── MANUAL CHECK ────────────────────────────────────────────────────────────
+  // These brands are visible in the Tide app but have no auto-scrape config.
+  // Sale status is confirmed weekly via the admin console.
+  // They have brand_sale_events rows in Supabase and appear in the admin UI,
+  // but the scraper skips them (manualCheck: true).
+  {
+    id: 'B078', name: 'AllSaints', cluster: 'Premium Casual',
+    womenswear: true, menswear: true, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B079', name: 'Ann Summers', cluster: 'Accessories',
+    womenswear: true, menswear: false, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B080', name: 'Boux Avenue', cluster: 'Accessories',
+    womenswear: true, menswear: false, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B081', name: 'Bravissimo', cluster: 'Accessories',
+    womenswear: true, menswear: false, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B082', name: 'Burton', cluster: 'High Street',
+    womenswear: false, menswear: true, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B083', name: 'Calvin Klein', cluster: 'Premium Casual',
+    womenswear: true, menswear: true, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B084', name: 'French Connection', cluster: 'Smart/Occasion',
+    womenswear: true, menswear: true, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B085', name: 'Gant', cluster: 'Premium Casual',
+    womenswear: true, menswear: true, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B086', name: 'Jack & Jones', cluster: 'High Street',
+    womenswear: false, menswear: true, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B087', name: 'Jaeger', cluster: 'Smart/Occasion',
+    womenswear: true, menswear: true, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B088', name: 'Jigsaw', cluster: 'Smart/Occasion',
+    womenswear: true, menswear: true, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B089', name: 'LK Bennett', cluster: 'Smart/Occasion',
+    womenswear: true, menswear: false, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B090', name: 'Mint Velvet', cluster: 'Smart/Occasion',
+    womenswear: true, menswear: false, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B091', name: 'Miss Selfridge', cluster: 'High Street',
+    womenswear: true, menswear: false, childrenswear: false,
+    manualCheck: true,
+  },
+  {
+    id: 'B092', name: 'Primark', cluster: 'High Street',
+    womenswear: true, menswear: true, childrenswear: true,
+    manualCheck: true,
+  },
+  {
+    id: 'B093', name: 'Uniqlo', cluster: 'Contemporary',
+    womenswear: true, menswear: true, childrenswear: true,
+    manualCheck: true,
+  },
+  {
+    id: 'B094', name: 'Foot Locker', cluster: 'Footwear',
+    womenswear: true, menswear: true, childrenswear: true,
+    manualCheck: true,
   },
 ];
 

@@ -505,6 +505,21 @@ const SUPABASE_URL      = 'https://vrezzwadwzrmumjpdgge.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_qid8Ej6biCOmKLjLIY5DfA_nzJXmc9G';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Some browser/extension combos hang on supabase-js's PostgREST calls while
+// raw fetch to the same endpoint works. Use raw fetch for the dashboard's
+// table reads and keep supabase-js for auth + realtime where it's reliable.
+async function pgRead(path) {
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    if (!r.ok) return { data: null, error: { status: r.status, message: await r.text() } };
+    return { data: await r.json(), error: null };
+  } catch (e) {
+    return { data: null, error: { message: e.message } };
+  }
+}
+
 function dismissSurvey() {
   document.getElementById('survey-card').classList.add('hidden');
   try { localStorage.setItem('tide_survey_dismissed', '1'); } catch(e) {}
@@ -907,10 +922,10 @@ async function loadTideData() {
     // falling back to the stale Google Sheet — so admin confirmations never
     // surface. Two flat queries + a JS join is what admin.html does.
     const [centresRes, salesRes, cyclesRes, scoresRes] = await Promise.all([
-      sb.from('centres').select('id, name, tide_history').eq('active', true).order('id'),
-      sb.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id'),
-      sb.from('brand_sale_cycles').select('id, start_date, max_discount_pct').is('end_date', null),
-      sb.from('centre_seer_scores').select('centre_id, score_date, tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands').eq('score_date', today),
+      pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
+      pgRead('brand_sale_events?select=brand_id,sale_status,date_first_detected,max_discount_pct,scraper_error,last_verified_status,last_verified_date,active_cycle_id'),
+      pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct&end_date=is.null'),
+      pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands&score_date=eq.' + today),
     ]);
     if (centresRes.error || salesRes.error || cyclesRes.error || scoresRes.error) {
       console.error('Tide data load failed:', { centres: centresRes.error, sales: salesRes.error, cycles: cyclesRes.error, scores: scoresRes.error });

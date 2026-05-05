@@ -1050,7 +1050,7 @@ const BRAND_URL_BY_NAME = {
   'Hackett':'https://www.hackett.com/gb/sale','Hackett London':'https://www.hackett.com/gb/sale',
   'Ralph Lauren':'https://www.ralphlauren.co.uk/en/sale','Polo Ralph Lauren':'https://www.ralphlauren.co.uk/en/sale',
   'Tommy Hilfiger':'https://uk.tommy.com/sale','Lacoste':'https://www.lacoste.com/gb/sale/','Hugo Boss':'https://www.hugoboss.com/uk/sale/',
-  'Levis':'https://www.levi.com/GB/en_GB/sale','Nike':'https://www.nike.com/gb/w/sale-3yaep','Adidas':'https://www.adidas.co.uk/sale',
+  'Levis':'https://www.levi.com/GB/en_GB/sale',"Levi's":'https://www.levi.com/GB/en_GB/sale','Nike':'https://www.nike.com/gb/w/sale-3yaep','Adidas':'https://www.adidas.co.uk/sale',
   'The North Face':'https://www.thenorthface.com/en-gb/sale','Berghaus':'https://www.berghaus.com/sale','Columbia':'https://www.columbiasportswear.co.uk/c/sale',
   'Patagonia':'https://www.patagonia.com/shop/sale','Timberland':'https://www.timberland.co.uk/sale','Craghoppers':'https://www.craghoppers.com/sale',
   'Regatta':'https://www.regatta.com/sale','Mountain Warehouse':'https://www.mountainwarehouse.com/sale/',
@@ -1061,6 +1061,24 @@ const BRAND_URL_BY_NAME = {
   'Swarovski':'https://www.swarovski.com/en-GB/s-sale/','Radley':'https://www.radley.co.uk/sale','Flying Tiger':'https://flyingtiger.com/en-gb/collections/sale',
   'Lush':'https://www.lush.com/uk/en/c/sale',
   'John Lewis':'https://www.johnlewis.com/sale',
+  // Manual-check brands
+  'AllSaints':'https://www.allsaints.com/sale',
+  'Ann Summers':'https://www.annsummers.com/sale',
+  'Boux Avenue':'https://www.bouxavenue.com/sale',
+  'Bravissimo':'https://www.bravissimo.com/sale',
+  'Burton':'https://www.burton.co.uk/sale',
+  'Calvin Klein':'https://www.calvinklein.co.uk/en/sale',
+  'French Connection':'https://www.frenchconnection.com/sale',
+  'Gant':'https://www.gant.co.uk/sale',
+  'Jack & Jones':'https://www.jackjones.com/gb/en/sale',
+  'Jaeger':'https://www.jaeger.co.uk/sale',
+  'Jigsaw':'https://www.jigsaw-online.com/sale',
+  'LK Bennett':'https://www.lkbennett.com/sale',
+  'Mint Velvet':'https://www.mintvelvet.co.uk/sale',
+  'Miss Selfridge':'https://www.missselfridge.com/sale',
+  'Primark':'https://www.primark.com/en-gb/a/offers',
+  'Uniqlo':'https://www.uniqlo.com/uk/en/sale',
+  'Foot Locker':'https://www.footlocker.co.uk/sale',
 };
 
 // Maps scraper brand_id (from brands.js, used as the key in Supabase
@@ -1696,6 +1714,18 @@ async function renderCentre(centreId) {
 }
 
 loadTideData().then(ok => { if (!ok) loadSheetData(); });
+
+// Subscribe to real-time Supabase changes so admin confirmations appear
+// instantly without a page refresh. 60-second poll is a belt-and-braces
+// fallback for environments where Realtime isn't enabled.
+let _reloadTimer;
+sb.channel('tide-brand-sale-updates')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'brand_sale_events' }, () => {
+    clearTimeout(_reloadTimer);
+    _reloadTimer = setTimeout(() => loadTideData(), 400);
+  })
+  .subscribe();
+setInterval(() => loadTideData(), 60000);
 </script>
 
 <div id="feedback-bar" style="

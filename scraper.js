@@ -1,7 +1,9 @@
 // scraper.js
 // Tide — daily brand scraper
 // Dual-pass: CheerioCrawler (static) → PlaywrightCrawler (browser)
-// Writes results to Supabase brand_sale_events table
+// Scrapes the brand homepage (not the /sale page): retailers always have a
+// sale section in their nav, but only put a real promotion on the homepage
+// when one is actually live. Writes results to Supabase brand_sale_events.
 // Runs via GitHub Actions daily at 06:00 UTC
 
 import { CheerioCrawler, PlaywrightCrawler, purgeDefaultStorages, log } from 'crawlee';
@@ -123,7 +125,7 @@ async function runCheerioCrawler() {
   const staticBrands = autoBrands.filter(b => b.renderMode === 'static');
   console.log(`\nPass 1 (Cheerio): ${staticBrands.length} brands`);
 
-  const brandMap = new Map(staticBrands.map(b => [b.url, b]));
+  const brandMap = new Map(staticBrands.map(b => [b.homepage, b]));
 
   const crawler = new CheerioCrawler({
     maxRequestsPerCrawl: staticBrands.length,
@@ -150,7 +152,7 @@ async function runCheerioCrawler() {
     },
   });
 
-  await crawler.run(staticBrands.map(b => ({ url: b.url })));
+  await crawler.run(staticBrands.map(b => ({ url: b.homepage })));
 }
 
 // ── PASS 2: PLAYWRIGHT ──────────────────────────────────────────
@@ -160,7 +162,7 @@ async function runPlaywrightCrawler() {
 
   if (browserBrands.length === 0) return;
 
-  const brandMap = new Map(browserBrands.map(b => [b.url, b]));
+  const brandMap = new Map(browserBrands.map(b => [b.homepage, b]));
 
   await purgeDefaultStorages();
 
@@ -199,7 +201,7 @@ async function runPlaywrightCrawler() {
   });
 
   try {
-    await crawler.run(browserBrands.map(b => ({ url: b.url })));
+    await crawler.run(browserBrands.map(b => ({ url: b.homepage })));
   } catch (err) {
     console.error('  ✗ Playwright crawler crashed:', err);
     for (const brand of browserBrands) {

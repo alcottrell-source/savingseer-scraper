@@ -670,12 +670,10 @@ async function applyAction(brandId, action, opts) {
     if (cErr) throw cErr;
     const { error: uErr } = await sb
       .from('brand_sale_events')
-      .update({
-        active_cycle_id: cycle.id,
-        last_verified_status: true,
-        last_verified_date: TODAY,
-      })
-      .eq('brand_id', brandId);
+      .upsert(
+        { brand_id: brandId, active_cycle_id: cycle.id, last_verified_status: true, last_verified_date: TODAY, sale_status: false, scraper_error: false },
+        { onConflict: 'brand_id' }
+      );
     if (uErr) throw uErr;
     await logReview(brandId, 'confirmed_start', cycle.id);
     return;
@@ -701,12 +699,10 @@ async function applyAction(brandId, action, opts) {
     }
     const { error: uErr } = await sb
       .from('brand_sale_events')
-      .update({
-        active_cycle_id: null,
-        last_verified_status: false,
-        last_verified_date: TODAY,
-      })
-      .eq('brand_id', brandId);
+      .upsert(
+        { brand_id: brandId, active_cycle_id: null, last_verified_status: false, last_verified_date: TODAY, sale_status: false, scraper_error: false },
+        { onConflict: 'brand_id' }
+      );
     if (uErr) throw uErr;
     await logReview(brandId, 'confirmed_end', openCycle ? openCycle.id : null);
     return;
@@ -716,8 +712,10 @@ async function applyAction(brandId, action, opts) {
     // Re-affirm the existing on-sale state (no cycle change).
     const { error } = await sb
       .from('brand_sale_events')
-      .update({ last_verified_status: true, last_verified_date: TODAY })
-      .eq('brand_id', brandId);
+      .upsert(
+        { brand_id: brandId, last_verified_status: true, last_verified_date: TODAY, sale_status: false, scraper_error: false },
+        { onConflict: 'brand_id' }
+      );
     if (error) throw error;
     await logReview(brandId, 'confirmed_on', null);
     return;
@@ -726,8 +724,10 @@ async function applyAction(brandId, action, opts) {
   if (action === 'confirm_off') {
     const { error } = await sb
       .from('brand_sale_events')
-      .update({ last_verified_status: false, last_verified_date: TODAY })
-      .eq('brand_id', brandId);
+      .upsert(
+        { brand_id: brandId, last_verified_status: false, last_verified_date: TODAY, sale_status: false, scraper_error: false },
+        { onConflict: 'brand_id' }
+      );
     if (error) throw error;
     await logReview(brandId, 'confirmed_off', null);
     return;
@@ -755,8 +755,10 @@ async function applyEdit(brandId, cycleId, opts) {
   // confirms this edit counts as today's review.
   const { error: uErr } = await sb
     .from('brand_sale_events')
-    .update({ max_discount_pct: opts.max_discount_pct, last_verified_date: TODAY })
-    .eq('brand_id', brandId);
+    .upsert(
+      { brand_id: brandId, max_discount_pct: opts.max_discount_pct, last_verified_date: TODAY, sale_status: false, scraper_error: false },
+      { onConflict: 'brand_id' }
+    );
   if (uErr) throw uErr;
   await logReview(brandId, 'edited', cycleId);
 }

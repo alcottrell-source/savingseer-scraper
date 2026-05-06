@@ -587,8 +587,16 @@ sb.auth.onAuthStateChange(async (event, session) => {
     // sign-ins), so gate by a per-user localStorage flag — show the prefs
     // setup once, not every page load. Skip on mobile entirely; mobile
     // users can open prefs from the My Tide button when they want to.
+    //
+    // P1 #8: "no prefs set" is "no gender flag is true", not "userPrefs
+    // is null". After a saved-centre arrives via magic link, an upsert
+    // creates the row with DEFAULT FALSE for gender flags — userPrefs is
+    // truthy but gender prefs are absent. The old check (!userPrefs)
+    // missed this and the wizard never opened for those users.
+    const noGenderPrefsSet = !userPrefs ||
+      (!userPrefs.womenswear && !userPrefs.menswear && !userPrefs.childrenswear);
     const isMobile = window.matchMedia('(max-width: 767px)').matches;
-    if (event === 'SIGNED_IN' && !userPrefs && !isMobile) {
+    if (event === 'SIGNED_IN' && noGenderPrefsSet && !isMobile) {
       const seenKey = 'tide_prefs_modal_seen_' + currentUser.id;
       let seen = false;
       try { seen = localStorage.getItem(seenKey) === '1'; } catch(e) {}
@@ -600,6 +608,9 @@ sb.auth.onAuthStateChange(async (event, session) => {
   } else {
     userPrefs = null;
     document.getElementById('auth-btn').textContent = 'Sign in';
+    // P3 #24 — clear any pending centre stash on sign-out so it can't leak
+    // into another user's account if they sign in on the same browser.
+    try { localStorage.removeItem('tide_pending_save_centre'); } catch(e) {}
   }
   const sel = document.getElementById('centre-select');
   if (sel.value) renderCentre(sel.value);
@@ -760,10 +771,22 @@ async function quickSavePref(key, value) {
     { user_id: currentUser.id, [key]: value },
     'user_id'
   );
-  if (!error) {
-    if (!userPrefs) userPrefs = { user_id: currentUser.id };
-    userPrefs[key] = value;
+  if (error) {
+    // P2 #12 — revert the toggle UI on failure and tell the user. The old
+    // code swallowed errors silently so a failed save would lie: the toggle
+    // showed the new state, the DB still had the old.
+    const toggleId = key === 'email_alerts' ? 'account-toggle-alerts'
+                   : key === 'daily_digest' ? 'account-toggle-digest'
+                   : null;
+    if (toggleId) {
+      const el = document.getElementById(toggleId);
+      if (el) el.checked = !value;
+    }
+    alert('Could not save: ' + (error.message || 'unknown error') + '. Please try again.');
+    return;
   }
+  if (!userPrefs) userPrefs = { user_id: currentUser.id };
+  userPrefs[key] = value;
 }
 
 // ── Email-capture banner (logged-out users, after centre pick) ──
@@ -948,8 +971,12 @@ async function savePreferences() {
   if (sel.value) renderCentre(sel.value);
 }
 
-const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
-let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
+// Per-brand state, keyed by dashboard brand-name. Populated from
+// brand_sale_events + brand_sale_cycles in loadTideData. The Google Sheets
+// CSV fallback was removed (P2 #10) — it pointed at a sheet scraper.js
+// stopped writing to, so during a Supabase outage it would have shown
+// stale data labelled as live.
+let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {};
 let CENTRE_SCORES = {};      // supabase centre_id -> { tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands }
 let CENTRE_HISTORY = {};     // supabase centre_id -> [{date, score}, ...]
 let CENTRE_ID_BY_IDX = [];   // centreIdx (0-based, matches CENTRE_NAMES) -> supabase centre_id
@@ -1131,50 +1158,10 @@ function getServerHistory(centreIdx) {
   return id ? (CENTRE_HISTORY[id] || []) : [];
 }
 
-async function loadSheetData() {
-  try {
-    const res = await fetch(SHEET_CSV_URL);
-    const text = await res.text();
-    const rows = text.trim().split('\n').map(r => r.split(','));
-    const headers = rows[0];
-    SHEET_DATE_COLS = [];
-    let latestColIdx = -1, latestDate = '';
-    for (let i = 2; i < headers.length; i++) {
-      const h = headers[i].trim().replace(/"/g,'');
-      if (/^\d{4}-\d{2}-\d{2}$/.test(h)) {
-        SHEET_DATE_COLS.push({ idx: i, date: h });
-        if (h > latestDate) { latestDate = h; latestColIdx = i; }
-      }
-    }
-    SHEET_DATE_COLS.sort((a,b) => a.date.localeCompare(b.date));
-    // Build a sheet-id -> dashboard-name index. The CSV uses the inline
-    // BRANDS id space, so we resolve names from BRANDS by id and key the
-    // by-name state maps the same way the Supabase path does.
-    const NAME_BY_INLINE_ID = Object.fromEntries(BRANDS.map(b => [b.id, b.name]));
-    for (let r = 1; r < rows.length; r++) {
-      const row = rows[r];
-      const id = row[0]?.trim().replace(/"/g,'');
-      if (!id || !id.startsWith('B')) continue;
-      SHEET_ROWS[id] = row;
-      const name = NAME_BY_INLINE_ID[id];
-      if (!name) continue;
-      const v = latestColIdx >= 0 ? row[latestColIdx]?.trim().replace(/"/g,'') : '';
-      SALE_STATUS[name] = v === 'TRUE' ? true : v === 'FALSE' ? false : null;
-      if (SALE_STATUS[name] === true) {
-        let days = 0;
-        for (let c = latestColIdx; c >= 2; c--) {
-          if (rows[r][c]?.trim().replace(/"/g,'') === 'TRUE') days++; else break;
-        }
-        DAYS_RUNNING[name] = Math.max(days, 1);
-      } else { DAYS_RUNNING[name] = 0; }
-    }
-    document.getElementById('today-date').textContent = latestDate
-      ? new Date(latestDate+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})
-      : new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
-    const sel = document.getElementById('centre-select');
-    if (sel.value) renderCentre(sel.value);
-  } catch(e) { console.warn('Sheet load failed:', e); }
-}
+// (Google Sheets fallback removed — see P2 #10. The full path,
+// SHEET_CSV_URL, SHEET_ROWS, SHEET_DATE_COLS, loadSheetData,
+// computeHistoricalScores were dead and pointed at a sheet that
+// scraper.js no longer maintains.)
 
 // Sale-page URLs by brand name (mirrored from brands.js, with aliases for
 // dashboard-side name variants like "Marks & Spencer" / "M&S"). Brands not
@@ -1523,25 +1510,9 @@ function calcCentreScore(centreIdx) {
   return {score,onSale,total:brandsAtCentre.length};
 }
 
-function computeHistoricalScores(centreIdx) {
-  const brandsAtCentre = BRANDS.filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1);
-  if (!brandsAtCentre.length||!SHEET_DATE_COLS.length) return [];
-  return SHEET_DATE_COLS.slice(-60).map(({idx,date})=>{
-    let totalFreshness=0;
-    for (const brand of brandsAtCentre) {
-      const row = SHEET_ROWS[brand.id];
-      if (!row) continue;
-      if (row[idx]?.trim().replace(/"/g,'')!=='TRUE') continue;
-      let days=0;
-      for (let c=idx;c>=2;c--) { if(row[c]?.trim().replace(/"/g,'') ==='TRUE') days++; else break; }
-      const freshness = brandFreshnessScore(Math.max(days,1));
-      if (freshness===0) continue;
-      const weight = ANCHOR_BRAND_IDS.has(brand.id) ? ANCHOR_MULTIPLIER : 1.0;
-      totalFreshness += freshness*weight;
-    }
-    return {date, score:Math.round((totalFreshness/brandsAtCentre.length)*100)};
-  });
-}
+// (computeHistoricalScores removed alongside the CSV fallback. History
+// for the sparkline now comes from centres.tide_history populated nightly
+// by score.js.)
 
 function renderArcWidget(stage, color) {
   // Semicircular gauge: arc centred at bottom-centre of the SVG.
@@ -1877,19 +1848,38 @@ window.__tide = {
   reload: () => loadTideData(),
 };
 
-loadTideData().then(ok => { if (!ok) loadSheetData(); });
+loadTideData().then(ok => {
+  // P2 #10 — no CSV fallback. The Google Sheets data path was abandoned
+  // when scraper.js stopped writing to it, so a Supabase outage would have
+  // shown stale CSV data labelled with today's date. Surface a clear
+  // "couldn't load" state instead.
+  if (!ok) {
+    const content = document.getElementById('main-content');
+    content.innerHTML = '<div class="empty-state"><span class="empty-icon">&#9888;</span>'
+      + '<p class="empty-title">Can’t reach the live data right now.</p>'
+      + '<p class="empty-sub">Refresh in a moment. If the problem persists this is on our side, not yours.</p></div>';
+  }
+});
 
 // Subscribe to real-time Supabase changes so admin confirmations appear
-// instantly without a page refresh. 60-second poll is a belt-and-braces
-// fallback for environments where Realtime isn't enabled.
+// instantly without a page refresh. P1 #9: also subscribe to
+// brand_sale_cycles (admin edits to a cycle's start_date or discount %
+// without a corresponding brand_sale_events change) and
+// centre_seer_scores (the nightly scorer or any future on-demand recompute).
+// 60-second poll is a belt-and-braces fallback for environments where
+// Realtime isn't enabled — was 15s, which combined with realtime was
+// excessive read traffic.
 let _reloadTimer;
+function scheduleReload() {
+  clearTimeout(_reloadTimer);
+  _reloadTimer = setTimeout(() => loadTideData(), 400);
+}
 sb.channel('tide-brand-sale-updates')
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'brand_sale_events' }, () => {
-    clearTimeout(_reloadTimer);
-    _reloadTimer = setTimeout(() => loadTideData(), 400);
-  })
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'brand_sale_events' }, scheduleReload)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'brand_sale_cycles' }, scheduleReload)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'centre_seer_scores' }, scheduleReload)
   .subscribe();
-setInterval(() => loadTideData(), 15000);
+setInterval(() => loadTideData(), 60000);
 </script>
 
 <div id="feedback-bar" style="

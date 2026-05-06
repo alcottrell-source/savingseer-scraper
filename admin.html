@@ -359,20 +359,27 @@ async function onSignedIn(session) {
   $('who').style.display = 'inline';
   $('who').textContent = session.user.email;
 
-  // Probe admin_review_log to confirm admin access. Run in parallel with
-  // the main data load — a failed probe shows a warning but does NOT block
-  // the UI. Mutations will still fail via RLS if the user lacks admin rights.
+  // Probe admin access by calling the is_admin() RPC directly. The previous
+  // probe did `SELECT FROM admin_review_log` and assumed any failure meant
+  // "not admin", but RLS hides rows silently — a non-admin SELECT returns
+  // 200 OK with []. The RPC returns a boolean, so we can give a clear
+  // "you are not an admin" message instead of letting non-admins click
+  // buttons that will fail with confusing 401/403 toasts.
   const [probeRes] = await Promise.all([
-    pg.read('admin_review_log?select=id&limit=1'),
+    pgFetch('POST', 'rpc/is_admin', {}),
     loadAndRender().catch(err => {
       console.error('loadAndRender failed:', err);
       showStatus('Could not load brand data: ' + (err.message || err), true);
     }),
   ]);
-  if (probeRes.error) {
+  // PostgREST returns the function's scalar boolean as the response body.
+  const isAdmin = !probeRes.error && probeRes.data === true;
+  if (!isAdmin) {
     showStatus(
-      'Admin access check failed (' + probeRes.error.message + '). '
-      + 'If brands loaded below, you can still review — mutations will fail if your account lacks admin rights.',
+      probeRes.error
+        ? 'Admin access check failed (' + (probeRes.error.message || probeRes.error) + ').'
+        : 'You are signed in but do not have admin permissions on this account. '
+          + 'Confirm you used the right email; ask the admin to add you to admin_users if needed.',
       true
     );
   }

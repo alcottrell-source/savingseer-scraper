@@ -43,7 +43,9 @@
   .score-section { padding: 24px 24px 0; }
   .score-card { background: white; border: 1px solid var(--border); border-radius: 16px; padding: 24px 24px 20px; position: relative; overflow: hidden; opacity: 0; transform: translateY(12px); transition: opacity 0.4s ease, transform 0.4s ease; }
   .score-card.visible { opacity: 1; transform: translateY(0); }
-  .score-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--phase-color, var(--leaf)); border-radius: 16px 16px 0 0; }
+  .score-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--phase-color, var(--leaf)); border-radius: 16px 16px 0 0; z-index: 2; }
+  .score-card::after { content: ''; position: absolute; inset: 0; background-image: var(--centre-art, none); background-position: right bottom; background-repeat: no-repeat; background-size: auto 110%; opacity: 0.14; pointer-events: none; z-index: 0; mix-blend-mode: multiply; }
+  .score-card > * { position: relative; z-index: 1; }
   .score-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
   .score-numbers { display: flex; align-items: baseline; gap: 14px; }
   .score-number { display: none; }
@@ -1443,6 +1445,13 @@ const CENTRE_NAMES = [
   'Silverburn','St James Quarter'
 ];
 
+// Faint line-art renders shown behind the score-card. Keyed by centreId
+// (e.g. 'C03'). Missing centres fall back to no background.
+const CENTRE_ART = {
+  C03: 'assets/centres/westfield.png',
+  C04: 'assets/centres/westfield.png',
+};
+
 const DECAY_MAX=42, ANCHOR_MULTIPLIER=1.5, TRAJECTORY_FLAT_BAND=1.5;
 const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B005','B013','B023']);
 
@@ -1851,7 +1860,9 @@ async function renderCentre(centreId) {
     trendCopy = '<div class="trend-line">\u2193 Score easing off \u2014 still worth a visit</div>';
   }
 
-  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div>'+trendCopy+'</div></div>'+renderHistoryChart(history,style.color,trajectory)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
+  const centreArt = CENTRE_ART[centreId];
+  const artVar = centreArt ? ';--centre-art:url(\''+centreArt+'\')' : '';
+  content.innerHTML='<div class="score-section"><div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+artVar+'"><div class="score-top">'+scoreHeader+'<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div><div class="centre-name-display">'+centreName+'</div></div></div>'+renderArcWidget(stage,style.color)+evidenceStrip+noMatchMsg+personalVerdictLine+'<div class="score-message">'+verdictMsg+'</div>'+trendCopy+'</div></div>'+renderHistoryChart(history,style.color,trajectory)+'<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
 
   requestAnimationFrame(()=>{
     document.getElementById('score-card').classList.add('visible');

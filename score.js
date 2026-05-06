@@ -43,7 +43,12 @@ const DECAY_MAX            = 42;   // Review after 30 days of real scrape data
 const ANCHOR_MULTIPLIER    = 1.5;  // Review quarterly against footfall data
 const TRAJECTORY_FLAT_BAND = 1.5;  // ±1.5 defines the Flat (Peak) window
 
-const ANCHOR_BRAND_IDS = new Set(['B001', 'B002', 'B003', 'B011', 'B012']);
+// Anchor brands per spec §3: Next, M&S, River Island, Zara, H&M, Uniqlo.
+// Uniqlo is B093 (manualCheck — admin-verified weekly), and being manual
+// doesn't disqualify it from the anchor set: when the admin opens a cycle
+// or sets last_verified_status=true it counts toward the centre score
+// exactly like an auto-scraped brand does, just with a 1.5× weight.
+const ANCHOR_BRAND_IDS = new Set(['B001', 'B002', 'B003', 'B011', 'B012', 'B093']);
 
 const PHASE_NUMBER = { Turning: 1, Rising: 2, 'High Tide': 2, Falling: 2, Low: 1 };
 

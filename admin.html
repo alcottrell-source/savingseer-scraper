@@ -283,7 +283,8 @@ const pg = {
   upsert: (table, body, onConflict) => pgFetch('POST', table + (onConflict ? '?on_conflict=' + onConflict : ''), body, 'resolution=merge-duplicates'),
 };
 
-const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B011','B012']);
+// Keep in sync with score.js ANCHOR_BRAND_IDS — Uniqlo (B093) is anchor.
+const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B011','B012','B093']);
 const TODAY = new Date().toISOString().split('T')[0];
 const BRAND_BY_ID = Object.fromEntries(BRAND_DEFS.map(b => [b.id, b]));
 

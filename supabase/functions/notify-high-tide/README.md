@@ -9,9 +9,10 @@ Daily email job. Two passes per run:
    centre's stage. Only sent when at least one of their saved centres is at
    Rising or above.
 
-Trigger: cron, daily at 07:00 UTC (matches the existing scoring run at
-`0 8 * * *` in the GitHub Actions workflow — set the cron _after_ the
-scorer so today's `centre_seer_scores` row exists by the time we read it).
+Trigger: cron, daily at 08:30 UTC. The scorer runs at 08:00 UTC and writes
+today's `centre_seer_scores` row; the email job must run *after* that or it
+will read an empty result set and send nothing. 08:30 leaves 30 minutes for
+the scorer to complete (it normally finishes in <1 min).
 
 ---
 
@@ -93,11 +94,14 @@ In the Supabase SQL editor:
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- Schedule the function to run daily at 07:00 UTC.
+-- Schedule the function to run daily at 08:30 UTC — after the 08:00 UTC
+-- scorer run has written today's centre_seer_scores rows. Running before
+-- the scorer would mean the function reads an empty result set and sends
+-- zero emails.
 -- Replace <PROJECT_REF> and <SERVICE_ROLE_KEY> with your real values.
 select cron.schedule(
   'notify-high-tide-daily',
-  '0 7 * * *',
+  '30 8 * * *',
   $$
   select net.http_post(
     url     := 'https://<PROJECT_REF>.functions.supabase.co/notify-high-tide',

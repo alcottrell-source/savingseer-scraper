@@ -252,6 +252,15 @@ Deno.serve(async (req: Request) => {
   }
 
   const scores: ScoreRow[]                = scoresRes.data || [];
+  // Guard against being scheduled before the scorer has written today's row.
+  // Without this, the function silently returns alertsSent=0/digestsSent=0.
+  if (scores.length === 0) {
+    return new Response(JSON.stringify({
+      ok: false,
+      today,
+      reason: "centre_seer_scores has no rows for today — scorer has not yet run. Reschedule cron to run after 08:00 UTC.",
+    }, null, 2), { status: 503, headers: { "content-type": "application/json" } });
+  }
   const centres = new Map<string, string>((centresRes.data || []).map((c: CentreRow) => [c.id, c.name]));
   const brandsById = new Map<string, BrandRow>((brandsRes.data || []).map((b: BrandRow) => [b.id, b]));
   const salesById = new Map<string, SaleEventRow>((salesRes.data || []).map((s: SaleEventRow) => [s.brand_id, s]));

@@ -1,0 +1,72 @@
+name: Regression suite
+
+# Runs after the scraper or scorer workflow finishes (success OR failure),
+# and on demand from the Actions tab.
+#
+# NOTE: workflow_run triggers fire when a workflow with the matching `name:`
+# completes. The repo currently ships `daily-scrape.yml` (name "Daily Scrape & Score")
+# which contains both jobs. Once those are split into separate workflows
+# named "Scraper" and "Scorer", the `workflows:` list below will match.
+# Until then, the "Daily Scrape & Score" entry covers both runs.
+on:
+  workflow_run:
+    workflows:
+      - 'Scraper'
+      - 'Scorer'
+      - 'Daily Scrape & Score'
+    types:
+      - completed
+  workflow_dispatch:
+
+jobs:
+  regression:
+    name: Run regression suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run regression tests
+        id: regression
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Fallback name used elsewhere in this repo's workflows.
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set +e
+          node --test src/tests/regression.test.js 2>&1 | tee regression.log
+          status=${PIPESTATUS[0]}
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit $status
+
+      - name: Failure summary
+        if: failure()
+        run: |
+          {
+            echo '## ❌ Regression suite failed'
+            echo ''
+            echo 'Failed tests (parsed from log):'
+            echo ''
+            echo '```'
+            grep -E '^❌ FAIL' regression.log || echo '(no FAIL lines parsed — see full log)'
+            echo '```'
+            echo ''
+            echo '<details><summary>Full output</summary>'
+            echo ''
+            echo '```'
+            tail -n 200 regression.log
+            echo '```'
+            echo ''
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"

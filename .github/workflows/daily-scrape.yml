@@ -1,19 +1,46 @@
 name: Daily Scrape & Score
 
+# Two cron triggers + workflow_dispatch for manual runs.
+# May 2026 robustness audit additions:
+#   - Explicit per-job timeouts (scraper 20m, scorer 10m). Without these a
+#     hung Playwright job could sit on the runner for hours and chew through
+#     Actions minutes.
+#   - workflow_dispatch trigger on the workflow itself (was already present).
+#   - Node version pinned to '24' explicitly (Node 18 is EOL, 24 is the
+#     June 2026 floor).
+#   - notify_failure job runs after the main jobs and, if either failed,
+#     writes a 'workflow_failure' row to audit_log so the v_system_health
+#     view can surface CI failures without anyone having to dig into the
+#     GitHub Actions UI.
 on:
   schedule:
     - cron: '0 6 * * *'   # 06:00 UTC — scraper runs
     - cron: '0 8 * * *'   # 08:00 UTC — scorer runs (after scraper completes)
   workflow_dispatch:       # Manual trigger from GitHub UI
+    inputs:
+      job:
+        description: 'Which job to run (scrape, score, or both)'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - scrape
+          - score
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  
+
 jobs:
   scrape:
     name: Scrape brand sale status
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 6 * * *' || github.event_name == 'workflow_dispatch'
+    # 20 minutes covers a normal run (~6m) plus retry headroom. A run hitting
+    # this ceiling is the signal that something is truly stuck.
+    timeout-minutes: 20
+    if: >-
+      github.event.schedule == '0 6 * * *' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.job == 'both' || inputs.job == 'scrape'))
 
     steps:
       - name: Checkout repo
@@ -40,7 +67,11 @@ jobs:
   score:
     name: Calculate Tide scores
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
+    # 10 minutes — score.js is pure compute + Supabase writes, normally <1m.
+    timeout-minutes: 10
+    if: >-
+      github.event.schedule == '0 8 * * *' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.job == 'both' || inputs.job == 'score'))
 
     steps:
       - name: Checkout repo
@@ -60,3 +91,41 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: node score.js
+
+  # If either job fails (or is cancelled by hitting the timeout-minutes
+  # ceiling), record a workflow_failure row in audit_log so v_system_health
+  # surfaces the failure. node:24 alpine has fetch built in so we keep the
+  # step dependency-free.
+  notify_failure:
+    name: Record failure in audit_log
+    needs: [scrape, score]
+    if: always() && (needs.scrape.result == 'failure' || needs.scrape.result == 'cancelled' || needs.score.result == 'failure' || needs.score.result == 'cancelled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Write workflow_failure row
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SCRAPE_RESULT: ${{ needs.scrape.result }}
+          SCORE_RESULT:  ${{ needs.score.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY" ]; then
+            echo "Missing SUPABASE_URL or SUPABASE_SERVICE_KEY — cannot record failure"; exit 0
+          fi
+          STATUS="failed"
+          # error_summary is intentionally short; the URL is the operator's
+          # entry point into the full GitHub Actions log.
+          BODY=$(printf '{"run_type":"workflow_failure","run_date":"%s","run_completed_at":"%s","status":"%s","error_summary":"scrape=%s score=%s run=%s","details":{"scrape_result":"%s","score_result":"%s","run_url":"%s"}}' \
+            "$(date -u +%Y-%m-%d)" \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            "$STATUS" \
+            "$SCRAPE_RESULT" "$SCORE_RESULT" "$RUN_URL" \
+            "$SCRAPE_RESULT" "$SCORE_RESULT" "$RUN_URL")
+          curl -fsS -X POST "$SUPABASE_URL/rest/v1/audit_log" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "$BODY" || echo "audit_log POST failed (best-effort)"

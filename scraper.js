@@ -250,13 +250,26 @@ async function runCheerioCrawler() {
       async failedRequestHandler({ request }) {
         const brand = brandMap.get(request.url);
         if (!brand) return;
-        const attempts = attemptCounter.get(brand.url) || MAX_RETRY_ATTEMPTS;
+        const attempts = attemptCounter.get(brand.url) || (request.retryCount + 1);
         const errMsg = request.errorMessages?.[request.errorMessages.length - 1] || 'unknown error';
-        const retryNote = isRetryable(errMsg)
-          ? ` (retried ${attempts}x — transient class)`
-          : '';
+        const retryNote = isRetryable(errMsg) ? ` (retried ${attempts}x — transient class)` : '';
         console.log(`  ✗ ${brand.name}: failed${retryNote} — ${errMsg}`);
         recordFailure(brand, errMsg, attempts);
+      },
+
+      // Short-circuit non-retryable errors (404, DNS, parse) so they fail
+      // after 1 attempt instead of wasting two more retry slots. Transient
+      // errors (HTTP/2, ECONNRESET) get the full retry chain plus a small
+      // backoff sleep — symmetric with the Playwright crawler below.
+      async errorHandler({ request }, error) {
+        const errMsg = error?.message || '';
+        if (!isRetryable(errMsg)) {
+          request.noRetry = true;
+          return;
+        }
+        const attempt = request.retryCount + 1;
+        const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 4000);  // 1s, 2s, 4s
+        await new Promise(r => setTimeout(r, delayMs));
       },
     });
 
@@ -327,23 +340,26 @@ async function runPlaywrightCrawler() {
       async failedRequestHandler({ request }) {
         const brand = brandMap.get(request.url);
         if (!brand) return;
-        const attempts = attemptCounter.get(brand.url) || MAX_RETRY_ATTEMPTS;
+        const attempts = attemptCounter.get(brand.url) || (request.retryCount + 1);
         const errMsg = request.errorMessages?.[request.errorMessages.length - 1] || 'unknown error';
         const retryNote = isRetryable(errMsg) ? ` (retried ${attempts}x — transient class)` : '';
         console.log(`  ✗ ${brand.name}: failed${retryNote} — ${errMsg}`);
         recordFailure(brand, errMsg, attempts);
       },
 
-      // Crawlee retry hook — exponential backoff for transient errors only.
-      // For non-transient errors we still retry (Crawlee requires a hook), but
-      // with no extra delay so they fail fast and free the slot.
+      // Short-circuit non-retryable errors (404, parse, navigation timeout
+      // on a 200-response page) so they fail after 1 attempt. Transient
+      // errors (HTTP/2, ECONNRESET) get the full retry chain with backoff —
+      // this is the FLANNELS recovery path.
       async errorHandler({ request }, error) {
         const errMsg = error?.message || '';
-        if (isRetryable(errMsg)) {
-          const attempt = request.retryCount + 1;
-          const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 8000);  // 1s, 2s, 4s
-          await new Promise(r => setTimeout(r, delayMs));
+        if (!isRetryable(errMsg)) {
+          request.noRetry = true;
+          return;
         }
+        const attempt = request.retryCount + 1;
+        const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 4000);  // 1s, 2s, 4s
+        await new Promise(r => setTimeout(r, delayMs));
       },
     });
 

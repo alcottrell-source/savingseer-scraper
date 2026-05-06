@@ -159,9 +159,11 @@ Three new migrations, all idempotent:
    section 4.
 
 5. **The `audit_log` write from the GitHub Actions failure job** uses the
-   PostgREST endpoint via `curl` rather than `@supabase/supabase-js` to
-   keep the failure-recovery path dependency-free. If the workflow fails
-   before `npm install` completes, we can still write the audit row.
+   PostgREST endpoint via `curl` (with the JSON body assembled by an
+   embedded `python3 -c` so quotes/slashes/unicode in env vars are escaped
+   correctly) rather than `@supabase/supabase-js`, to keep the
+   failure-recovery path dependency-free. If the workflow fails before
+   `npm install` completes, we can still write the audit row.
 
 ---
 

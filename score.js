@@ -114,22 +114,24 @@ function getTrajectory(todayScore, recentScores) {
 // which then misleads the dashboard. Better to abort and leave yesterday's
 // scores standing — operators will see the missing audit_log row and act.
 async function preflight() {
-  const { data, error, count } = await supabase
+  // head: true returns no rows, just an exact count — cheap signal that the
+  // scraper has touched the table today.
+  const { error, count } = await supabase
     .from('brand_sale_events')
-    .select('brand_id, last_checked', { count: 'exact', head: false })
+    .select('brand_id', { count: 'exact', head: true })
     .gte('last_checked', `${TODAY}T00:00:00.000Z`);
 
   if (error) {
     throw new Error(`pre-flight: brand_sale_events query failed: ${error.message}`);
   }
 
-  if (!data || data.length === 0 || count === 0) {
+  if (!count || count === 0) {
     const msg = `Pre-flight failed: brand_sale_events has zero rows updated today (${TODAY}). The scraper appears not to have run. Aborting before writing any scores.`;
     console.error(`❌ ${msg}`);
     throw new Error(msg);
   }
 
-  console.log(`  ✓ Pre-flight: ${data.length} brand_sale_events rows updated today`);
+  console.log(`  ✓ Pre-flight: ${count} brand_sale_events rows updated today`);
 }
 
 // ── Validation gate ──────────────────────────────────────────────────────────

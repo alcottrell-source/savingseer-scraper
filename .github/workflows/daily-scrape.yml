@@ -112,17 +112,27 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY" ]; then
-            echo "Missing SUPABASE_URL or SUPABASE_SERVICE_KEY — cannot record failure"; exit 0
+            echo "Missing SUPABASE_URL or SUPABASE_SERVICE_KEY — cannot record failure"
+            exit 0
           fi
-          STATUS="failed"
-          # error_summary is intentionally short; the URL is the operator's
-          # entry point into the full GitHub Actions log.
-          BODY=$(printf '{"run_type":"workflow_failure","run_date":"%s","run_completed_at":"%s","status":"%s","error_summary":"scrape=%s score=%s run=%s","details":{"scrape_result":"%s","score_result":"%s","run_url":"%s"}}' \
-            "$(date -u +%Y-%m-%d)" \
-            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            "$STATUS" \
-            "$SCRAPE_RESULT" "$SCORE_RESULT" "$RUN_URL" \
-            "$SCRAPE_RESULT" "$SCORE_RESULT" "$RUN_URL")
+          # Build the JSON payload with python's json.dumps so any quote, slash,
+          # or unicode character in the env vars is escaped correctly.
+          BODY=$(python3 -c "
+          import json, os, datetime
+          now = datetime.datetime.utcnow()
+          print(json.dumps({
+            'run_type': 'workflow_failure',
+            'run_date': now.strftime('%Y-%m-%d'),
+            'run_completed_at': now.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'status': 'failed',
+            'error_summary': f\"scrape={os.environ['SCRAPE_RESULT']} score={os.environ['SCORE_RESULT']} run={os.environ['RUN_URL']}\",
+            'details': {
+              'scrape_result': os.environ['SCRAPE_RESULT'],
+              'score_result':  os.environ['SCORE_RESULT'],
+              'run_url':       os.environ['RUN_URL'],
+            },
+          }))
+          ")
           curl -fsS -X POST "$SUPABASE_URL/rest/v1/audit_log" \
             -H "apikey: $SUPABASE_SERVICE_KEY" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \

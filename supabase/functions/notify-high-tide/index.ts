@@ -272,14 +272,25 @@ Deno.serve(async (req: Request) => {
   }
   const allPrefs: PrefsRow[] = prefsRes.data || [];
 
-  // Build email lookup for users with saved_centres. Need to call the auth
-  // admin API because user_preferences only stores user_id.
-  const userIds = Array.from(new Set(allPrefs.map(p => p.user_id)));
+  // Build email lookup for users with saved_centres. P2 #13 — paginate
+  // listUsers in batches of 1000 instead of N round-trips of getUserById.
+  // For 100 users, this is one round-trip instead of 100; scales to a
+  // few thousand active users without becoming the slow path of the job.
+  const userIds = new Set(allPrefs.map(p => p.user_id));
   const emailById = new Map<string, string>();
-  for (const uid of userIds) {
-    const { data, error } = await sb.auth.admin.getUserById(uid);
-    if (error || !data?.user?.email) continue;
-    emailById.set(uid, data.user.email);
+  const PAGE_SIZE = 1000;
+  // Hard ceiling on pages so a runaway shouldn't hang the function.
+  // 50 * 1000 = 50,000 users — more than the email job ever needs to handle.
+  for (let page = 1; page <= 50; page++) {
+    const { data, error } = await sb.auth.admin.listUsers({ page, perPage: PAGE_SIZE });
+    if (error) {
+      return new Response(`auth.admin.listUsers failed (page ${page}): ${error.message}`, { status: 500 });
+    }
+    const users = data?.users || [];
+    for (const u of users) {
+      if (u.email && userIds.has(u.id)) emailById.set(u.id, u.email);
+    }
+    if (users.length < PAGE_SIZE) break;  // last page
   }
 
   const log: { type: string; to?: string; centre?: string; status?: number; ok?: boolean; skipped?: string }[] = [];

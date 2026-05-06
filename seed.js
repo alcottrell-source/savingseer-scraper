@@ -27,6 +27,9 @@ async function seedBrands() {
     womenswear:    b.womenswear,
     menswear:      b.menswear,
     childrenswear: b.childrenswear,
+    // sale_url is read by the public dashboard for the brand-chip
+    // clickthrough — keep it synced with brands.js.
+    sale_url:      b.url,
   }));
 
   const { error } = await supabase

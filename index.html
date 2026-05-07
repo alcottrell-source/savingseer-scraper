@@ -275,6 +275,26 @@
     .ob-brand-grid { grid-template-columns: repeat(5, 1fr); }
   }
 
+  /* ── Saved-centres landing cards (signed-in users with saved centres) ── */
+  .saved-centres-landing { padding: 24px 24px 8px; }
+  .saved-centres-landing-title { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 12px; display: block; }
+  .saved-centre-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 18px; background: white; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.15s; text-align: left; font-family: inherit; width: 100%; margin-bottom: 8px; }
+  .saved-centre-card:hover { border-color: var(--leaf); background: var(--leaf-lt); }
+  .saved-centre-card-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .saved-centre-card-name { font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; color: var(--bark); }
+  .saved-centre-card-location { font-size: 12px; color: var(--stone); }
+  .saved-centre-card-arrow { font-size: 16px; color: var(--stone); flex-shrink: 0; }
+  .saved-centre-card:hover .saved-centre-card-arrow { color: var(--leaf); }
+  .saved-centres-divider { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin: 24px 0 12px; padding: 0 24px; display: block; }
+
+  /* ── Saved-centres chip strip (top of centre view, when user has 2+ saved) ── */
+  .saved-chips-strip { display: flex; gap: 8px; overflow-x: auto; padding: 0 24px 12px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .saved-chips-strip::-webkit-scrollbar { display: none; }
+  .saved-chip { flex-shrink: 0; padding: 7px 14px; background: white; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--bark); cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap; }
+  .saved-chip:hover { border-color: var(--leaf); color: var(--leaf); }
+  .saved-chip.current { background: var(--leaf-lt); border-color: var(--leaf); color: var(--leaf); }
+  .saved-chips-label { flex-shrink: 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); align-self: center; padding-right: 4px; }
+
   /* ── My brands / All brands tab toggle on the dashboard ── */
   .brand-filter-tabs { display: flex; gap: 0; margin-bottom: 12px; background: var(--stone-lt); border-radius: 999px; padding: 3px; width: fit-content; }
   .brand-filter-tab { background: none; border: none; padding: 7px 16px; font-size: 12px; font-weight: 500; color: var(--stone); border-radius: 999px; cursor: pointer; font-family: inherit; transition: all 0.15s; letter-spacing: 0.02em; }
@@ -750,8 +770,24 @@ sb.auth.onAuthStateChange(async (event, session) => {
     userPrefs = null;
     document.getElementById('auth-btn').textContent = 'Sign in';
   }
+  // Smart landing: if a centre is already selected (e.g. user clicked one
+  // before sign-in), respect that choice. Otherwise, signed-in users with
+  // saved centres land directly on their most-recently-saved centre — fires
+  // once per page-load via window._tideAutoLanded so back-navigating to the
+  // picker isn't immediately overridden.
   const sel = document.getElementById('centre-select');
-  if (sel.value) renderCentre(sel.value);
+  if (sel.value) {
+    renderCentre(sel.value);
+  } else if (currentUser && userPrefs && Array.isArray(userPrefs.saved_centres) && userPrefs.saved_centres.length && !window._tideAutoLanded) {
+    window._tideAutoLanded = true;
+    const last = userPrefs.saved_centres[userPrefs.saved_centres.length - 1];
+    sel.value = last;
+    renderCentre(last);
+  } else {
+    // No centre and no candidate to auto-land on — re-render the empty
+    // state so saved-centre cards (if any) appear at the top.
+    renderCentre('');
+  }
 });
 
 async function loadUserPrefs() {
@@ -2024,6 +2060,19 @@ function clearCentreSelection() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// Single entry point for navigating to a centre — keeps the picker, search
+// box, and renderCentre all in sync. Used by saved-centre cards and chips.
+function goToCentre(centreId) {
+  const sel = document.getElementById('centre-select');
+  const search = document.getElementById('centre-search');
+  if (sel) sel.value = centreId;
+  if (search) search.value = '';
+  const list = document.getElementById('centre-suggestions');
+  if (list) list.hidden = true;
+  renderCentre(centreId);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 const DECAY_MAX=42, ANCHOR_MULTIPLIER=1.5, TRAJECTORY_FLAT_BAND=1.5;
 const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B005','B013','B023']);
 
@@ -2307,7 +2356,38 @@ function buildArcSVG(centreScore, personalScore, centreColor) {
 async function renderCentre(centreId) {
   const content=document.getElementById('main-content');
   if (!centreId) {
-    content.innerHTML='<div class="empty-state"><span class="empty-icon">&#127754;</span><p class="empty-title">When is the right moment to go?</p><p class="empty-sub">Pick a shopping centre to see today\'s Tide Score and which brands are on sale.</p></div>';
+    // Empty state — for signed-in users with saved centres, surface those
+    // as tappable cards above the friendly empty message so they have a
+    // one-tap path back to what they care about.
+    const savedIds = (currentUser && userPrefs && Array.isArray(userPrefs.saved_centres)) ? userPrefs.saved_centres : [];
+    let savedHTML = '';
+    if (savedIds.length) {
+      // Most-recently-saved first.
+      const cards = savedIds.slice().reverse().map(cid => {
+        const idx = parseInt(String(cid).replace('C',''), 10) - 1;
+        const name = CENTRE_NAMES[idx] || cid;
+        const loc = (typeof CENTRE_LOCATIONS !== 'undefined' && CENTRE_LOCATIONS[idx]) ? CENTRE_LOCATIONS[idx] : '';
+        const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const safeLoc = loc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        return '<button class="saved-centre-card" onclick="goToCentre(\''+cid+'\')">'
+             + '<div class="saved-centre-card-left">'
+             +   '<div class="saved-centre-card-name">'+safeName+'</div>'
+             +   (safeLoc ? '<div class="saved-centre-card-location">'+safeLoc+'</div>' : '')
+             + '</div>'
+             + '<span class="saved-centre-card-arrow" aria-hidden="true">&rsaquo;</span>'
+             + '</button>';
+      }).join('');
+      savedHTML = '<section class="saved-centres-landing" aria-label="Your saved centres">'
+                + '<span class="saved-centres-landing-title">Your centres</span>'
+                + cards
+                + '</section>'
+                + '<span class="saved-centres-divider">All centres</span>';
+    }
+    content.innerHTML = savedHTML
+      + '<div class="empty-state"><span class="empty-icon">&#127754;</span>'
+      + '<p class="empty-title">'+(savedIds.length ? 'Looking somewhere new?' : 'When is the right moment to go?')+'</p>'
+      + '<p class="empty-sub">'+(savedIds.length ? 'Search any UK centre above &mdash; we\'ll show you today\'s Tide Score.' : 'Pick a shopping centre to see today\'s Tide Score and which brands are on sale.')+'</p>'
+      + '</div>';
     hideNotifyBanner();
     return;
   }
@@ -2475,6 +2555,24 @@ async function renderCentre(centreId) {
     + '<h1 class="centre-name-hero">'+safeCentreName+'</h1>'
     + '</div>';
 
+  // Saved-centres chip strip — only when the user has 2+ saved centres,
+  // gives one-tap switch between them without going back to the picker.
+  let savedChipsHTML = '';
+  const savedCentreIds = (currentUser && userPrefs && Array.isArray(userPrefs.saved_centres)) ? userPrefs.saved_centres : [];
+  if (savedCentreIds.length >= 2) {
+    const chips = savedCentreIds.slice().reverse().map(cid => {
+      const idx = parseInt(String(cid).replace('C',''), 10) - 1;
+      const name = CENTRE_NAMES[idx] || cid;
+      const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const isCurrent = cid === centreId;
+      return '<button class="saved-chip'+(isCurrent?' current':'')+'" onclick="goToCentre(\''+cid+'\')">'+safeName+'</button>';
+    }).join('');
+    savedChipsHTML = '<div class="saved-chips-strip" aria-label="Your saved centres">'
+                   + '<span class="saved-chips-label">Your centres</span>'
+                   + chips
+                   + '</div>';
+  }
+
   // Score card omits the centre name (lives in hero now) and keeps the
   // existing needle gauge — the needle moves between the 5 stages as the
   // score rises and falls.
@@ -2511,7 +2609,7 @@ async function renderCentre(centreId) {
   // tab the user is on), not always the centre-wide count.
   const visibleOnSaleCount = onSaleBrands.length;
 
-  content.innerHTML = heroHTML + scoreCardHTML + narrativeHTML
+  content.innerHTML = heroHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
     + renderHistoryChart(history,style.color,trajectory)
     + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>';
 

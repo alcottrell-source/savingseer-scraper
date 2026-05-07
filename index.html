@@ -275,6 +275,16 @@
     .ob-brand-grid { grid-template-columns: repeat(5, 1fr); }
   }
 
+  /* ── Personalise-your-Tide promo card (signed-in users without prefs) ── */
+  .personalise-card { margin: 24px; background: linear-gradient(135deg, var(--leaf-lt) 0%, var(--amber-lt) 100%); border: 1px solid rgba(61,107,53,0.18); border-radius: 16px; padding: 22px 22px 20px; position: relative; }
+  .personalise-card-eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--leaf); font-weight: 500; margin-bottom: 8px; }
+  .personalise-card-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; color: var(--bark); margin-bottom: 8px; line-height: 1.2; }
+  .personalise-card-body { font-size: 14px; color: var(--bark); line-height: 1.5; margin-bottom: 16px; opacity: 0.85; }
+  .personalise-card-cta { background: var(--leaf); color: white; border: none; border-radius: 999px; padding: 11px 22px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; transition: background 0.2s; }
+  .personalise-card-cta:hover { background: #2f5428; }
+  .personalise-card-dismiss { position: absolute; top: 10px; right: 12px; background: none; border: none; color: var(--stone); font-size: 18px; cursor: pointer; line-height: 1; padding: 4px 6px; }
+  .personalise-card-dismiss:hover { color: var(--bark); }
+
   /* ── Saved-centres landing cards (signed-in users with saved centres) ── */
   .saved-centres-landing { padding: 24px 24px 8px; }
   .saved-centres-landing-title { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 12px; display: block; }
@@ -761,30 +771,35 @@ sb.auth.onAuthStateChange(async (event, session) => {
       !(Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length) &&
       !userPrefs.womenswear && !userPrefs.menswear && !userPrefs.childrenswear
     );
-    if (event === 'SIGNED_IN' && noPrefsYet && !window._tideOnboardingShown) {
-      window._tideOnboardingShown = true;
-      openOnboarding();
-    }
+    // Onboarding no longer auto-opens. Instead, signed-in users without
+    // saved prefs see a "Personalise your Tide Score" promo card on the
+    // empty-state landing (rendered in renderCentre when centreId='').
+    // They tap that to enter onboarding — value-first, less intrusive.
+    // Reading noPrefsYet here is kept for future use (e.g. an inline
+    // banner on the centre view).
+    void noPrefsYet;
   } else {
     userPrefs = null;
     document.getElementById('auth-btn').textContent = 'Sign in';
   }
-  // Smart landing: if a centre is already selected (e.g. user clicked one
-  // before sign-in), respect that choice. Otherwise, signed-in users with
-  // saved centres land directly on their most-recently-saved centre — fires
-  // once per page-load via window._tideAutoLanded so back-navigating to the
-  // picker isn't immediately overridden.
+  // Smart landing: respect any centre already selected. Otherwise, only
+  // auto-land for users who've completed personalisation (have brand_ids)
+  // — newly-signed-in users without prefs land on the empty state where
+  // they'll see the "Personalise your Tide" promo card. Fires once per
+  // page-load so back-navigation isn't immediately overridden.
   const sel = document.getElementById('centre-select');
+  const hasCompletedSetup = currentUser && userPrefs &&
+    Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length > 0 &&
+    Array.isArray(userPrefs.saved_centres) && userPrefs.saved_centres.length > 0;
   if (sel.value) {
     renderCentre(sel.value);
-  } else if (currentUser && userPrefs && Array.isArray(userPrefs.saved_centres) && userPrefs.saved_centres.length && !window._tideAutoLanded) {
+  } else if (hasCompletedSetup && !window._tideAutoLanded) {
     window._tideAutoLanded = true;
     const last = userPrefs.saved_centres[userPrefs.saved_centres.length - 1];
     sel.value = last;
     renderCentre(last);
   } else {
-    // No centre and no candidate to auto-land on — re-render the empty
-    // state so saved-centre cards (if any) appear at the top.
+    // Empty state — promo card and (if any) saved-centre cards appear here.
     renderCentre('');
   }
 });
@@ -918,8 +933,10 @@ async function deleteMyAccount() {
   if (!currentUser) return;
   const ok = confirm("Delete your Tide account?\n\nThis erases your email, preferences, saved centres, and personal scores. You'll be signed out. This cannot be undone.");
   if (!ok) return;
+  // Mobile keyboards autocap "DELETE" to "Delete" — case-insensitive,
+  // trimmed match so the user isn't stuck typing in caps.
   const final = prompt("Type DELETE to confirm:");
-  if (final !== 'DELETE') { alert('Cancelled.'); return; }
+  if ((final || '').trim().toUpperCase() !== 'DELETE') { alert('Cancelled.'); return; }
   const { error } = await sb.rpc('delete_my_account');
   if (error) {
     alert('Could not delete account: ' + error.message + '\n\nEmail privacy@tidego.co and we\'ll erase it manually within 7 days.');
@@ -2059,6 +2076,17 @@ function clearCentreSelection() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// Persist a dismiss for the personalise-card promo so we don't nag users
+// who have explicitly chosen not to set it up. Per-user keyed so a shared
+// device doesn't carry the choice across accounts.
+function dismissPersonaliseCard() {
+  if (currentUser) {
+    try { localStorage.setItem('tide_personalise_dismissed_' + currentUser.id, '1'); } catch(e) {}
+  }
+  // Re-render the empty state without the card.
+  renderCentre('');
+}
+
 // Single entry point for navigating to a centre — keeps the picker, search
 // box, and renderCentre all in sync. Used by saved-centre cards and chips.
 function goToCentre(centreId) {
@@ -2355,6 +2383,28 @@ function buildArcSVG(centreScore, personalScore, centreColor) {
 async function renderCentre(centreId) {
   const content=document.getElementById('main-content');
   if (!centreId) {
+    // Personalise-your-Tide promo — value-first prompt for signed-in users
+    // without saved prefs. Less intrusive than auto-opening onboarding and
+    // lets the user see the app first. Dismissed state persists in
+    // localStorage so we don't keep nagging.
+    let personaliseHTML = '';
+    if (currentUser) {
+      const hasPrefs = userPrefs && (
+        (Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length > 0) ||
+        userPrefs.womenswear || userPrefs.menswear || userPrefs.childrenswear
+      );
+      let dismissed = false;
+      try { dismissed = localStorage.getItem('tide_personalise_dismissed_' + currentUser.id) === '1'; } catch(e) {}
+      if (!hasPrefs && !dismissed) {
+        personaliseHTML = '<div class="personalise-card">'
+          + '<button class="personalise-card-dismiss" onclick="dismissPersonaliseCard()" aria-label="Dismiss">&times;</button>'
+          + '<div class="personalise-card-eyebrow">60 seconds &middot; personalised</div>'
+          + '<div class="personalise-card-title">Get your own Tide Score</div>'
+          + '<div class="personalise-card-body">Pick the brands you actually shop &mdash; we\'ll show you which centres are timed right for you and email you the moment one of yours goes on sale.</div>'
+          + '<button class="personalise-card-cta" onclick="openOnboarding()">Set it up &rarr;</button>'
+          + '</div>';
+      }
+    }
     // Empty state — for signed-in users with saved centres, surface those
     // as tappable cards above the friendly empty message so they have a
     // one-tap path back to what they care about.
@@ -2382,7 +2432,7 @@ async function renderCentre(centreId) {
                 + '</section>'
                 + '<span class="saved-centres-divider">All centres</span>';
     }
-    content.innerHTML = savedHTML
+    content.innerHTML = personaliseHTML + savedHTML
       + '<div class="empty-state"><span class="empty-icon">&#127754;</span>'
       + '<p class="empty-title">'+(savedIds.length ? 'Looking somewhere new?' : 'When is the right moment to go?')+'</p>'
       + '<p class="empty-sub">'+(savedIds.length ? 'Search any UK centre above &mdash; we\'ll show you today\'s Tide Score.' : 'Pick a shopping centre to see today\'s Tide Score and which brands are on sale.')+'</p>'

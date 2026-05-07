@@ -2039,10 +2039,10 @@ async function renderCentre(centreId) {
     const pct = b.isOnSale ? MAX_DISCOUNT_PCT[b.name] : null;
     // Always render pct/days/dot spans (with empty placeholders when no
     // content) so the right side of every chip lines up. min-widths in CSS.
-    // "Up to N% off" rather than "N% off" — the scraper picks the maximum
-    // discount visible on the brand's sale page, which is usually a banner
-    // ("Up to 70% off") not the typical item discount. "Up to" is honest
-    // regardless of which regex matched.
+    // "Up to N% off" rather than "N% off" — the percentage comes from the
+    // verified cycle, which records the maximum discount the admin saw
+    // (typically a banner like "Up to 70% off" rather than a single item
+    // discount). "Up to" is honest regardless.
     const pctSpan = pct
       ? '<span class="brand-pct">Up to '+pct+'%</span>'
       : '<span class="brand-pct empty"></span>';

@@ -762,9 +762,9 @@ async function applyEdit(brandId, cycleId, opts) {
     });
     if (cErr) throw cErr;
   }
-  // Keep brand_sale_events in sync — max_discount_pct is what the main app
-  // reads for the "Up to N%" chip label, and updating last_verified_date
-  // confirms this edit counts as today's review.
+  // Mirror max_discount_pct on brand_sale_events as a denormalised cache
+  // for admin queries (the main app reads it from the cycle, not here).
+  // Bumping last_verified_date confirms this edit counts as today's review.
   const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
     max_discount_pct: opts.max_discount_pct, last_verified_date: TODAY,
   });

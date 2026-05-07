@@ -170,7 +170,7 @@ async function main() {
       .select('centre_id, tide_score, verdict, trajectory, narrative')
       .eq('score_date', TODAY),
     supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
-    supabase.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)'),
+    supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)'),
     supabase.from('centre_seer_scores')
       .select('centre_id, score_date, tide_score')
       .gte('score_date', FOURTEEN_DAYS_AGO)
@@ -237,17 +237,20 @@ async function main() {
     for (const brandId of brandIds) {
       const sale = brandSaleMap.get(brandId);
       if (!sale) continue;
+      // Mirror the admin-only rule used by score.js + the public dashboard.
+      // Don't write a narrative that names a brand the dashboard isn't
+      // showing — the scraper's reading is admin-panel-only.
       const isOnSale = sale.active_cycle_id
         ? true
         : sale.last_verified_date
           ? sale.last_verified_status
-          : (sale.sale_status && !sale.scraper_error);
+          : false;
       if (!isOnSale) continue;
-      const cycleStart = (sale.cycle && sale.cycle.start_date) || sale.date_first_detected;
+      const cycleStart = (sale.cycle && sale.cycle.start_date) || sale.last_verified_date;
       const daysRunning = cycleStart
         ? Math.floor((new Date(TODAY) - new Date(cycleStart)) / 86400000) + 1
         : 1;
-      const discountPct = (sale.cycle && sale.cycle.max_discount_pct) || sale.max_discount_pct || null;
+      const discountPct = (sale.cycle && sale.cycle.max_discount_pct) || null;
       onSale.push({
         name: brandNameLookup[brandId] || brandId,
         daysRunning,

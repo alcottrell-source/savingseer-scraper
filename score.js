@@ -118,7 +118,7 @@ async function calculateAllCentreScores() {
   const [centresRes, centreBrandsRes, brandSaleRes, recentScoresRes] = await Promise.all([
     supabase.from('centres').select('*').eq('active', true),
     supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
-    supabase.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)'),
+    supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)'),
     supabase.from('centre_seer_scores')
       .select('centre_id, score_date, tide_score, verdict')
       .gte('score_date', THREE_DAYS_AGO)

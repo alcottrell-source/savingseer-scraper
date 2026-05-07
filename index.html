@@ -1453,8 +1453,17 @@ async function obSave() {
   if (error) { alert('Could not save preferences: ' + error.message); return; }
   userPrefs = { ...(userPrefs || {}), ...payload };
   closeOnboarding();
-  const sel = document.getElementById('centre-select');
-  if (sel.value) renderCentre(sel.value);
+  // Payoff: if the user only picked one centre, take them straight there
+  // — the "what now?" moment after 5 setup steps is satisfying when it
+  // lands on something concrete. For 2+ centres, drop to the home/empty
+  // state where the saved-centres cards give a clear pick.
+  if (centresArr.length === 1) {
+    goToCentre(centresArr[0]);
+  } else {
+    const sel = document.getElementById('centre-select');
+    if (sel.value) renderCentre(sel.value);
+    else renderCentre('');
+  }
 }
 
 // Backwards-compat shim — older code paths or links that called the modal

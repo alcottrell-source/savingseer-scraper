@@ -38,11 +38,16 @@ if (!GEMINI_API_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const genai    = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-const MODEL          = 'gemini-2.5-flash';
+const MODEL          = 'gemini-2.5-flash-lite';
 const MAX_OUTPUT_LEN = 220; // chars, hard cap on what we'll store
-// Gemini free tier allows 15 requests/minute — leave a little headroom
-// rather than racing the limiter.
-const MIN_GAP_MS     = 250;
+// Gemini free tier on flash-lite is 15 requests/minute. A 5-second gap
+// gives 12 RPM with comfortable headroom — pushes a 37-centre run to
+// roughly 3 minutes, well within a daily workflow's budget.
+//
+// Note: the previous attempt used gemini-2.5-flash, which is only 5 RPM
+// on the free tier and 429'd from the 6th call onward. Don't switch
+// back without also bumping MIN_GAP_MS to ~13000.
+const MIN_GAP_MS     = 5000;
 
 const SYSTEM_PROMPT = `You write Centre Intelligence narratives for the Tide dashboard — a UK shopping-sales tracker. One narrative per centre per day, shown in a small card under the score.
 

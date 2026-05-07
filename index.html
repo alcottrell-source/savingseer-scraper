@@ -2107,9 +2107,18 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
   const freshName  = fresh ? escapeHtml(fresh.name) : '—';
   const freshLabel = fresh ? ('Freshest brand · ' + (fresh.days || 1) + 'd') : 'Freshest brand';
   const cell2 = '<div class="stat-cell"><div class="stat-value warning compact" title="' + (fresh ? escapeHtml(fresh.name) : '') + '">' + freshName + '</div><div class="stat-label">' + freshLabel + '</div></div>';
-  const histValue = histCount >= 2 ? (histCount + 'd') : 'Building…';
-  const histClass = histCount >= 2 ? 'neutral' : 'muted';
-  const cell3 = '<div class="stat-cell"><div class="stat-value ' + histClass + '">' + histValue + '</div><div class="stat-label">Days of history</div></div>';
+  // Cell 3 — biggest discount available across brands on sale today.
+  // More commercially useful than "Days of history" was: directly
+  // answers "is there a meaningful deal here right now?".
+  let bestPct = 0, bestPctBrand = null;
+  for (const b of onSale) {
+    const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
+    if (typeof pct === 'number' && pct > bestPct) { bestPct = pct; bestPctBrand = b.name; }
+  }
+  const cell3 = bestPct > 0
+    ? '<div class="stat-cell"><div class="stat-value warning">Up to ' + bestPct + '%</div><div class="stat-label">Biggest deal &middot; ' + escapeHtml(bestPctBrand) + '</div></div>'
+    : '<div class="stat-cell"><div class="stat-value muted">—</div><div class="stat-label">Biggest deal</div></div>';
+  void histCount;
 
   // Narrative — Claude-written if available, otherwise template fallback.
   const aiNarrative = (getServerScore(centreIdx) || {}).narrative;

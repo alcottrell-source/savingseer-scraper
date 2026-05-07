@@ -748,21 +748,20 @@ sb.auth.onAuthStateChange(async (event, session) => {
       if (sel && !sel.value) sel.value = pendingCentre;
       await saveCentreToUserPrefs(pendingCentre);
     }
-    // Onboarding gate: fire whenever the user has no saved preferences AND
-    // we haven't already opened it this page-load. We DON'T persist a
-    // "seen" flag in localStorage — earlier versions did, which meant a
-    // user who hit a save error or accidentally dismissed the modal got
-    // stuck never seeing onboarding again. Re-prompting on every fresh
-    // page-load until they actually save is the right behaviour.
+    // Onboarding gate: fire only on a real sign-in event (magic-link
+    // callback or password sign-in), never on session restoration. We
+    // DON'T persist a "seen" flag in localStorage — earlier versions
+    // did, which meant a user who hit a save error or accidentally
+    // dismissed the modal got stuck never seeing onboarding again.
+    // The window flag prevents duplicate opens within one page-load.
     //
-    // Supabase fires SIGNED_IN on real sign-in events and INITIAL_SESSION
-    // on session restoration after a redirect (e.g. from a magic-link
-    // callback). Accept both — the per-page-load guard prevents loops.
+    // For returning users without saved prefs, "Edit shopping
+    // preferences" in the My Tide menu is the path back in.
     const noPrefsYet = !userPrefs || (
       !(Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length) &&
       !userPrefs.womenswear && !userPrefs.menswear && !userPrefs.childrenswear
     );
-    if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && noPrefsYet && !window._tideOnboardingShown) {
+    if (event === 'SIGNED_IN' && noPrefsYet && !window._tideOnboardingShown) {
       window._tideOnboardingShown = true;
       openOnboarding();
     }

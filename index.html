@@ -748,23 +748,23 @@ sb.auth.onAuthStateChange(async (event, session) => {
       if (sel && !sel.value) sel.value = pendingCentre;
       await saveCentreToUserPrefs(pendingCentre);
     }
-    // Supabase fires SIGNED_IN on every session restore (not just real
-    // sign-ins), so gate by a per-user localStorage flag — show the
-    // onboarding once, not every page load. Now full-screen, so it works
-    // on mobile too (mobile users were skipped in the modal era because
-    // the centred card was unusable on small screens).
+    // Onboarding gate: fire whenever the user has no saved preferences AND
+    // we haven't already opened it this page-load. We DON'T persist a
+    // "seen" flag in localStorage — earlier versions did, which meant a
+    // user who hit a save error or accidentally dismissed the modal got
+    // stuck never seeing onboarding again. Re-prompting on every fresh
+    // page-load until they actually save is the right behaviour.
+    //
+    // Supabase fires SIGNED_IN on real sign-in events and INITIAL_SESSION
+    // on session restoration after a redirect (e.g. from a magic-link
+    // callback). Accept both — the per-page-load guard prevents loops.
     const noPrefsYet = !userPrefs || (
       !(Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length) &&
       !userPrefs.womenswear && !userPrefs.menswear && !userPrefs.childrenswear
     );
-    if (event === 'SIGNED_IN' && noPrefsYet) {
-      const seenKey = 'tide_prefs_modal_seen_' + currentUser.id;
-      let seen = false;
-      try { seen = localStorage.getItem(seenKey) === '1'; } catch(e) {}
-      if (!seen) {
-        openOnboarding();
-        try { localStorage.setItem(seenKey, '1'); } catch(e) {}
-      }
+    if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && noPrefsYet && !window._tideOnboardingShown) {
+      window._tideOnboardingShown = true;
+      openOnboarding();
     }
   } else {
     userPrefs = null;

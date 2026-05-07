@@ -275,6 +275,20 @@
     .ob-brand-grid { grid-template-columns: repeat(5, 1fr); }
   }
 
+  /* ── Onboarding centre picker (step 4) ── */
+  .ob-centre-search { width: 100%; border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--bark); background: white; margin-bottom: 14px; transition: border-color 0.15s; }
+  .ob-centre-search:focus { outline: none; border-color: var(--leaf); }
+  .ob-centre-list { display: flex; flex-direction: column; gap: 6px; }
+  .ob-centre-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: white; border: 1.5px solid var(--border); border-radius: 10px; cursor: pointer; transition: all 0.15s; text-align: left; font-family: inherit; }
+  .ob-centre-row:hover { border-color: rgba(61,107,53,0.4); }
+  .ob-centre-row.active { border-color: var(--leaf); background: var(--leaf-lt); }
+  .ob-centre-row-text { flex: 1; min-width: 0; }
+  .ob-centre-row-name { font-size: 14px; font-weight: 500; color: var(--bark); }
+  .ob-centre-row-loc { font-size: 12px; color: var(--stone); margin-top: 1px; }
+  .ob-centre-row-check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; }
+  .ob-centre-row.active .ob-centre-row-check { background: var(--leaf); border-color: var(--leaf); }
+  .ob-centre-empty { padding: 24px 16px; text-align: center; color: var(--stone); font-size: 13px; font-style: italic; }
+
   /* ── Personalise-your-Tide promo card (signed-in users without prefs) ── */
   .personalise-card { margin: 24px; background: linear-gradient(135deg, var(--leaf-lt) 0%, var(--amber-lt) 100%); border: 1px solid rgba(61,107,53,0.18); border-radius: 16px; padding: 22px 22px 20px; position: relative; }
   .personalise-card-eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--leaf); font-weight: 500; margin-bottom: 8px; }
@@ -642,7 +656,7 @@
   <div class="ob-top">
     <button class="ob-back" id="ob-back" onclick="obBack()" disabled>&larr;</button>
     <div class="ob-progress">
-      <div class="ob-dot active"></div><div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot"></div>
+      <div class="ob-dot active"></div><div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot"></div>
     </div>
     <button class="ob-skip" onclick="obSkip()">Skip</button>
   </div>
@@ -1113,6 +1127,7 @@ const onb = {
   categories: new Set(),      // 'audience:category' composite keys
   brandIds: new Set(),        // brand IDs the user wants tracked
   excluded: new Set(),        // brand IDs the user has explicitly opted out of
+  centres: new Set(),         // centre IDs the user wants to track
   email_alerts: true,
   brand_sale_alerts: true,
   daily_digest: false,
@@ -1121,7 +1136,7 @@ const onb = {
 function openOnboarding() {
   // Hydrate from existing prefs so editing doesn't blow away their picks.
   onb.step = 1;
-  onb.audiences.clear(); onb.categories.clear(); onb.brandIds.clear(); onb.excluded.clear();
+  onb.audiences.clear(); onb.categories.clear(); onb.brandIds.clear(); onb.excluded.clear(); onb.centres.clear();
   if (userPrefs) {
     const auds = Array.isArray(userPrefs.audiences) && userPrefs.audiences.length
       ? userPrefs.audiences
@@ -1139,6 +1154,7 @@ function openOnboarding() {
     }
     (userPrefs.brand_ids || []).forEach(id => onb.brandIds.add(id));
     (userPrefs.excluded_brand_ids || []).forEach(id => onb.excluded.add(id));
+    (userPrefs.saved_centres || []).forEach(cid => onb.centres.add(cid));
     onb.email_alerts      = userPrefs.email_alerts !== false;
     onb.brand_sale_alerts = userPrefs.brand_sale_alerts !== false;
     onb.daily_digest      = userPrefs.daily_digest === true;
@@ -1173,7 +1189,8 @@ function obRender() {
   if (onb.step === 1) obRenderStep1();
   else if (onb.step === 2) obRenderStep2();
   else if (onb.step === 3) obRenderStep3();
-  else if (onb.step === 4) obRenderStep4();
+  else if (onb.step === 4) obRenderStep4Centres();
+  else if (onb.step === 5) obRenderStep5Notifications();
 }
 
 function obRenderStep1() {
@@ -1187,7 +1204,7 @@ function obRenderStep1() {
          + '</button>';
   }).join('');
   document.getElementById('ob-body').innerHTML =
-    '<div class="ob-eyebrow">Step 1 of 4</div>'
+    '<div class="ob-eyebrow">Step 1 of 5</div>'
     + '<h1 class="ob-title">Who are you shopping for?</h1>'
     + '<p class="ob-sub">Pick anyone who matters &mdash; we\'ll only score brands that match.</p>'
     + '<div class="aud-grid">'+audsHTML+'</div>';
@@ -1209,7 +1226,7 @@ function obRenderStep2() {
     return '<div class="cat-section"><div class="cat-header">'+audMeta.label+'</div><div class="cat-grid">'+grid+'</div></div>';
   }).join('');
   document.getElementById('ob-body').innerHTML =
-    '<div class="ob-eyebrow">Step 2 of 4</div>'
+    '<div class="ob-eyebrow">Step 2 of 5</div>'
     + '<h1 class="ob-title">What do you actually buy?</h1>'
     + '<p class="ob-sub">All selected by default. Tap to remove anything that\'s not you.</p>'
     + '<div class="cat-help"><b>Why this matters:</b> we\'ll only count brands that sell what you wear when calculating your personal Tide Score.</div>'
@@ -1257,7 +1274,7 @@ function obRenderStep3() {
          + '</div><div class="ob-brand-grid">'+grid+'</div></div>';
   }).join('');
   document.getElementById('ob-body').innerHTML =
-    '<div class="ob-eyebrow">Step 3 of 4</div>'
+    '<div class="ob-eyebrow">Step 3 of 5</div>'
     + '<h1 class="ob-title">Your brands</h1>'
     + '<p class="ob-sub">Everything\'s on by default. Switch off any you\'d never visit.</p>'
     + '<div class="brand-summary"><b>'+onb.brandIds.size+'</b> of '+matching.length+' brands tracked</div>'
@@ -1268,8 +1285,55 @@ function obRenderStep3() {
   document.getElementById('ob-help').textContent = onb.brandIds.size === 0 ? 'Pick at least one brand' : '';
 }
 
-function obRenderStep4() {
-  const centreId = document.getElementById('centre-select').value;
+function obRenderStep4Centres() {
+  // Filter centres by search query (re-rendered on input)
+  const query = (window._obCentreSearch || '').trim().toLowerCase();
+  const allCentres = CENTRE_NAMES.map((name, idx) => {
+    const id = 'C' + String(idx+1).padStart(2,'0');
+    const loc = (typeof CENTRE_LOCATIONS !== 'undefined' && CENTRE_LOCATIONS[idx]) ? CENTRE_LOCATIONS[idx] : '';
+    return { id, name, loc };
+  });
+  const filtered = query
+    ? allCentres.filter(c => c.name.toLowerCase().includes(query) || c.loc.toLowerCase().includes(query))
+    : allCentres.slice().sort((a,b) => a.name.localeCompare(b.name));
+  const rows = filtered.map(c => {
+    const on = onb.centres.has(c.id);
+    const safeName = c.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const safeLoc = c.loc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<button class="ob-centre-row '+(on?'active':'')+'" onclick="obToggleCentre(\''+c.id+'\')">'
+         + '<div class="ob-centre-row-text">'
+         +   '<div class="ob-centre-row-name">'+safeName+'</div>'
+         +   (safeLoc ? '<div class="ob-centre-row-loc">'+safeLoc+'</div>' : '')
+         + '</div>'
+         + '<div class="ob-centre-row-check">&#10003;</div>'
+         + '</button>';
+  }).join('');
+  document.getElementById('ob-body').innerHTML =
+    '<div class="ob-eyebrow">Step 4 of 5</div>'
+    + '<h1 class="ob-title">Where do you shop?</h1>'
+    + '<p class="ob-sub">Pick the centres you actually visit. We\'ll alert you when one of them hits peak sale.</p>'
+    + '<input class="ob-centre-search" type="search" placeholder="Search by centre or city" oninput="obCentreSearch(this.value)" value="'+query.replace(/"/g,'&quot;')+'">'
+    + (filtered.length
+        ? '<div class="ob-centre-list">'+rows+'</div>'
+        : '<div class="ob-centre-empty">No centres match &ldquo;'+query.replace(/</g,'&lt;')+'&rdquo;.</div>');
+  // Re-focus the search after re-render so typing stays smooth.
+  if (query) {
+    const input = document.querySelector('.ob-centre-search');
+    if (input) { input.focus(); input.setSelectionRange(query.length, query.length); }
+  }
+  const next = document.getElementById('ob-next');
+  next.textContent = 'Next';
+  next.disabled = onb.centres.size === 0;
+  document.getElementById('ob-help').textContent = onb.centres.size === 0
+    ? 'Pick at least one centre'
+    : onb.centres.size + ' centre' + (onb.centres.size === 1 ? '' : 's') + ' selected';
+}
+
+function obRenderStep5Notifications() {
+  // Use the most-recently-saved centre as the preview centre when possible,
+  // otherwise the currently-selected dropdown centre, otherwise none.
+  let centreId = document.getElementById('centre-select').value;
+  if (!centreId && onb.centres.size > 0) centreId = [...onb.centres][0];
   let preview = '';
   if (centreId) {
     const tempPrefs = { brand_ids: [...onb.brandIds] };
@@ -1286,7 +1350,7 @@ function obRenderStep4() {
     }
   }
   document.getElementById('ob-body').innerHTML =
-    '<div class="ob-eyebrow">Step 4 of 4</div>'
+    '<div class="ob-eyebrow">Step 5 of 5</div>'
     + '<h1 class="ob-title">Stay in sync</h1>'
     + '<p class="ob-sub">We\'ll let you know when there\'s something worth seeing. Off any time.</p>'
     + '<div class="ob-notif-card">'
@@ -1337,6 +1401,17 @@ function obToggleCluster(cluster, on) {
   obRender();
 }
 
+function obToggleCentre(cid) {
+  if (onb.centres.has(cid)) onb.centres.delete(cid);
+  else onb.centres.add(cid);
+  obRender();
+}
+
+function obCentreSearch(q) {
+  window._obCentreSearch = q;
+  obRender();
+}
+
 function obBack() { if (onb.step > 1) { onb.step--; obRender(); } }
 
 function obNext() {
@@ -1345,7 +1420,7 @@ function obNext() {
     // sees the inclusive default and can opt out, not the empty default.
     obMatchingBrands().forEach(b => { if (!onb.excluded.has(b.id)) onb.brandIds.add(b.id); });
   }
-  if (onb.step < 4) { onb.step++; obRender(); }
+  if (onb.step < 5) { onb.step++; obRender(); }
   else { obSave(); }
 }
 
@@ -1355,6 +1430,7 @@ async function obSave() {
   const categoriesArr = [...onb.categories];
   const brandIdsArr   = [...onb.brandIds];
   const excludedArr   = [...onb.excluded];
+  const centresArr    = [...onb.centres];
   // Style clusters fall out of the brand selection so legacy filtering
   // still works for any code that hasn't migrated yet.
   const styleClusters = [...new Set(BRANDS.filter(b => onb.brandIds.has(b.id)).map(b => b.cluster))];
@@ -1364,6 +1440,7 @@ async function obSave() {
     categories: categoriesArr,
     brand_ids: brandIdsArr,
     excluded_brand_ids: excludedArr,
+    saved_centres: centresArr,
     womenswear:    onb.audiences.has('womenswear'),
     menswear:      onb.audiences.has('menswear'),
     childrenswear: onb.audiences.has('childrenswear'),
@@ -2440,7 +2517,9 @@ async function renderCentre(centreId) {
     hideNotifyBanner();
     return;
   }
-  if (currentUser) saveCentreToUserPrefs(centreId);
+  // No auto-save on browse — saved centres are intentional, set during
+  // onboarding (step 4) or by editing prefs in My Tide. Just browsing a
+  // centre doesn't add it to your tracked list.
   const centreIdx=parseInt(centreId.replace('C',''))-1;
   const centreName=CENTRE_NAMES[centreIdx];
   const serverScore=getServerScore(centreIdx);

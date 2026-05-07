@@ -3,12 +3,12 @@ name: Daily Scrape & Score
 on:
   schedule:
     - cron: '0 6 * * *'   # 06:00 UTC — scraper runs
-    - cron: '0 8 * * *'   # 08:00 UTC — scorer runs (after scraper completes)
+    - cron: '0 8 * * *'   # 08:00 UTC — scorer + summariser run (after scraper completes)
   workflow_dispatch:       # Manual trigger from GitHub UI
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  
+
 jobs:
   scrape:
     name: Scrape brand sale status
@@ -60,3 +60,13 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: node score.js
+
+      # Generates the Centre Intelligence narrative shown beneath each
+      # centre's score. Soft-fails if ANTHROPIC_API_KEY is unset; the
+      # front-end falls back to a template narrative in that case.
+      - name: Generate Centre Intelligence narratives
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node summarise.js

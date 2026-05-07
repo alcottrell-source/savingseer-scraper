@@ -6,9 +6,11 @@
   "scripts": {
     "scrape": "node scraper.js",
     "score": "node score.js",
-    "run-all": "node scraper.js && node score.js"
+    "summarise": "node summarise.js",
+    "run-all": "node scraper.js && node score.js && node summarise.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
     "@supabase/supabase-js": "^2.39.0",
     "crawlee": "^3.9.0",
     "playwright": "^1.42.0"

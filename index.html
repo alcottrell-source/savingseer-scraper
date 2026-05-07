@@ -1008,7 +1008,7 @@ async function loadTideData() {
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,sale_status,date_first_detected,max_discount_pct,scraper_error,last_verified_status,last_verified_date,active_cycle_id'),
       pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct&end_date=is.null'),
-      pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands&score_date=eq.' + today),
+      pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,narrative&score_date=eq.' + today),
     ]);
     if (centresRes.error || salesRes.error || cyclesRes.error || scoresRes.error) {
       console.error('Tide data load failed:', { centres: centresRes.error, sales: salesRes.error, cycles: cyclesRes.error, scores: scoresRes.error });
@@ -1601,6 +1601,11 @@ function formatTodayHours(centreIdx) {
 
 // Stat row + narrative + opening hours. All numbers are derived from real
 // data — onSale array, history length, formatTodayHours. No predictions.
+//
+// The narrative paragraph prefers the Claude-generated string stored in
+// centre_seer_scores.narrative (written by summarise.js). When that's
+// missing — first run on a new centre, summariser skipped, API key absent
+// — we fall back to a template narrative built from the same real data.
 function renderCentreNarrativeCard(centreIdx, onSale, history) {
   const onSaleCount = onSale.length;
   const fresh = onSale.length
@@ -1619,9 +1624,12 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
   const histClass = histCount >= 2 ? 'neutral' : 'muted';
   const cell3 = '<div class="stat-cell"><div class="stat-value ' + histClass + '">' + histValue + '</div><div class="stat-label">Days of history</div></div>';
 
-  // Narrative — strict template from the brief. Real data only.
+  // Narrative — Claude-written if available, otherwise template fallback.
+  const aiNarrative = (getServerScore(centreIdx) || {}).narrative;
   let narrative;
-  if (onSaleCount === 0) {
+  if (aiNarrative && aiNarrative.trim()) {
+    narrative = escapeHtml(aiNarrative.trim());
+  } else if (onSaleCount === 0) {
     narrative = 'No brands on sale at this centre today. Check back — the score updates every morning at 07:00.';
   } else {
     narrative = '<strong>' + onSaleCount + ' brand' + (onSaleCount === 1 ? '' : 's') + ' on sale today.</strong> '

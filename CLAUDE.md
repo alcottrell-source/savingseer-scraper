@@ -1,7 +1,7 @@
 # Savingseer / Tide — Claude context
 
 ## Project overview
-Single-file static web app (`index.html`) deployed to Vercel. No build step. Talks directly to Supabase for auth and data. Scraper/scorer logic lives in separate Node scripts (`scraper.js`, `score.js`).
+Single-file static web app (`index.html`) deployed to Vercel. No build step. Talks directly to Supabase for auth and data. Pipeline lives in separate Node scripts: `scraper.js` (scrape brand sale state) → `score.js` (compute Tide Score per centre) → `summarise.js` (Claude-written 1–2 sentence Centre Intelligence narrative).
 
 ## Running locally
 ```bash
@@ -39,9 +39,16 @@ Signed-in users clicking the nav button open `#account-panel` (not the prefs wiz
 ### Preferences wizard (`#prefs-modal`)
 4-step wizard: gender → style clusters → notifications + saved centres → preview. Opens automatically for new users and via "Edit shopping preferences" in the account panel. Saves via upsert on `user_preferences` with `onConflict: 'user_id'`.
 
+## Centre Intelligence narrative (May 2026)
+The card under each centre's score shows a 1–2 sentence trend narrative. It's generated daily by `summarise.js` (Claude Haiku 4.5) and stored in `centre_seer_scores.narrative` for that centre+date. The front-end reads the column and falls back to a template narrative when the column is null (first run on a new centre, summariser skipped, or `ANTHROPIC_API_KEY` absent). Don't add live API calls from the browser — keep generation in the daily pipeline.
+
+Required env var on the GitHub Action's `score` job: `ANTHROPIC_API_KEY` (repo secret).
+
 ## Database
 Supabase project: `vrezzwadwzrmumjpdgge.supabase.co`
-Key table: `user_preferences` — one row per user, RLS enforced (users can only read/write their own row).
+Key tables:
+- `user_preferences` — one row per user, RLS enforced.
+- `centre_seer_scores` — per-centre, per-day Tide Score + verdict + `narrative` (anon read enabled).
 
 ## Deployment
 Vercel, output directory is `.` (repo root). No build command. Preview deployments available per branch.

@@ -2563,13 +2563,13 @@ async function renderCentre(centreId) {
   const personalScore=personalResult?personalResult.score:null;
   const scoresEqual=personalScore!==null&&Math.abs(personalScore-centreScore)<2;
 
+  // Personal score number used to render here as a "YOUR SCORE 21" badge,
+  // but users found the bare number confusing — the gauge already shows
+  // "when to go" visually, and personalVerdictLine below ("Your brands
+  // are particularly well-placed") communicates the personal context in
+  // plain English. Score is internal; users see the verdict.
   const statementHTML='<div class="score-statement">'+style.statement.replace('\n','<br>')+'</div>';
-  let scoreHeader='';
-  if (personalScore!==null&&!scoresEqual) {
-    scoreHeader='<div class="score-numbers">'+statementHTML+'<div class="personal-score-badge"><span class="personal-score-label">Your score</span>'+personalScore+'</div></div>';
-  } else {
-    scoreHeader=statementHTML;
-  }
+  const scoreHeader = statementHTML;
 
   const arcSVG=buildArcSVG(centreScore,personalScore,style.color);
   let arcLegend='';
@@ -2665,9 +2665,9 @@ async function renderCentre(centreId) {
   // competing badge. Skip when FLAT (no new info) since the bluf already says it.
   let trendCopy = '';
   if (trajectory==='RISING') {
-    trendCopy = '<div class="trend-line">\u2191 Score rising \u2014 check back tomorrow</div>';
+    trendCopy = '<div class="trend-line">\u2191 Tide rising \u2014 check back tomorrow</div>';
   } else if (trajectory==='FALLING') {
-    trendCopy = '<div class="trend-line">\u2193 Score easing off \u2014 still worth a visit</div>';
+    trendCopy = '<div class="trend-line">\u2193 Tide easing off \u2014 still worth a visit</div>';
   }
 
   // Centre identity hero — back button + name + location label.

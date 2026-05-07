@@ -171,21 +171,25 @@ async function calculateAllCentreScores() {
       const sale = brandSaleMap.get(brandId);
       if (!sale) continue;
 
+      // Admin is the only source of truth for sale state and discount %.
       // Priority for "is this brand on sale today":
       //   1. Active verified cycle  (admin opened a cycle, treat as on sale)
       //   2. last_verified_status   (admin's most recent decision)
-      //   3. scraper sale_status    (only if no human verification yet, and no error)
+      //   3. otherwise              not on sale
+      // The scraper's sale_status is intentionally NOT a fallback — it lives
+      // in the admin panel as a recommendation only and never reaches the
+      // public dashboard until an admin verifies it.
       const isOnSale = sale.active_cycle_id
         ? true
         : sale.last_verified_date
           ? sale.last_verified_status
-          : (sale.sale_status && !sale.scraper_error);
+          : false;
       if (!isOnSale) continue;
 
       // Ripeness origin: prefer the verified cycle's start_date, fall back
-      // to the scraper's date_first_detected. This keeps the freshness curve
-      // aligned with reality once an admin has confirmed a cycle.
-      const cycleStart = (sale.cycle && sale.cycle.start_date) || sale.date_first_detected;
+      // to last_verified_date when on-sale was confirmed without a cycle
+      // being opened. Never fall back to the scraper's date_first_detected.
+      const cycleStart = (sale.cycle && sale.cycle.start_date) || sale.last_verified_date;
       const daysRunning = cycleStart
         ? Math.floor((new Date(TODAY) - new Date(cycleStart)) / 86400000) + 1
         : 1;
@@ -196,8 +200,9 @@ async function calculateAllCentreScores() {
       const weight = ANCHOR_BRAND_IDS.has(brandId) ? ANCHOR_MULTIPLIER : 1.0;
       totalFreshness += freshness * weight;
       brandsOnSale++;
-      // Prefer cycle's verified discount % over the scraper's reading.
-      const maxDiscountPct = (sale.cycle && sale.cycle.max_discount_pct) || sale.max_discount_pct;
+      // Discount % comes only from a verified cycle. Without one, no
+      // percentage is shown — scraper reading is admin-panel-only.
+      const maxDiscountPct = (sale.cycle && sale.cycle.max_discount_pct) || null;
       saleDetails.push({ name: brandNameLookup[brandId] || brandId, freshness, weight, maxDiscountPct });
     }
 
@@ -309,7 +314,7 @@ async function calculatePersonalScores() {
   const [centresRes, centreBrandsRes, brandSaleRes, prefsRes] = await Promise.all([
     supabase.from('centres').select('id, name').eq('active', true),
     supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
-    supabase.from('brand_sale_events').select('brand_id, sale_status, date_first_detected, scraper_error'),
+    supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date)'),
     supabase.from('user_preferences').select('*'),
   ]);
 
@@ -356,10 +361,19 @@ async function calculatePersonalScores() {
 
       for (const brandId of matchingBrandIds) {
         const sale = brandSaleMap.get(brandId);
-        if (!sale || sale.scraper_error || !sale.sale_status) continue;
+        if (!sale) continue;
+        // Admin-only source of truth (mirrors the centre-score path above):
+        // verified cycle, or last verified status. No scraper fallback.
+        const isOnSale = sale.active_cycle_id
+          ? true
+          : sale.last_verified_date
+            ? sale.last_verified_status
+            : false;
+        if (!isOnSale) continue;
 
-        const daysRunning = sale.date_first_detected
-          ? Math.floor((new Date(TODAY) - new Date(sale.date_first_detected)) / 86400000) + 1
+        const cycleStart = (sale.cycle && sale.cycle.start_date) || sale.last_verified_date;
+        const daysRunning = cycleStart
+          ? Math.floor((new Date(TODAY) - new Date(cycleStart)) / 86400000) + 1
           : 1;
 
         totalFreshness += brandFreshnessScore(daysRunning);

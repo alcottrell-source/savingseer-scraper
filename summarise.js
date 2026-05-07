@@ -215,6 +215,7 @@ async function main() {
   let written = 0;
   let skipped = 0;
   let failed  = 0;
+  let dailyQuotaHit = false;
 
   for (const centre of centresRes.data || []) {
     const score = scoreByCentre.get(centre.id);
@@ -294,7 +295,10 @@ async function main() {
       const msg = String(err && err.message || err);
       if (isDailyQuotaExhausted(msg)) {
         console.warn(`  ⚠ ${centre.name}: daily Gemini free-tier quota exhausted — stopping. Remaining centres will keep their template narrative until tomorrow's run.`);
-        failed++;
+        // Log the underlying API error so we can see the actual quota
+        // numbers (model, RPD limit, retry window) without parsing.
+        console.warn(`     underlying API response: ${msg}`);
+        dailyQuotaHit = true;
         break;
       }
       console.error(`  ✗ ${centre.name}: ${msg}`);
@@ -304,8 +308,13 @@ async function main() {
     await sleep(MIN_GAP_MS);
   }
 
-  console.log(`\nNarratives: ${written} written, ${skipped} skipped, ${failed} failed`);
-  if (failed > 0 && written === 0) process.exit(1);
+  console.log(`\nNarratives: ${written} written, ${skipped} skipped, ${failed} failed${dailyQuotaHit ? ' (daily quota hit — non-fatal)' : ''}`);
+
+  // Exit 1 only on real failures — i.e. nothing was written AND something
+  // failed for a reason other than the daily quota being exhausted. A
+  // daily-quota hit just means we'll catch up on the next scheduled run;
+  // it shouldn't paint the workflow red.
+  if (failed > 0 && written === 0 && !dailyQuotaHit) process.exit(1);
 }
 
 main().catch(err => {

@@ -40,9 +40,11 @@ Signed-in users clicking the nav button open `#account-panel` (not the prefs wiz
 4-step wizard: gender → style clusters → notifications + saved centres → preview. Opens automatically for new users and via "Edit shopping preferences" in the account panel. Saves via upsert on `user_preferences` with `onConflict: 'user_id'`.
 
 ## Centre Intelligence narrative (May 2026)
-The card under each centre's score shows a 1–2 sentence trend narrative. It's generated daily by `summarise.js` (Gemini 2.5 Flash, free tier) and stored in `centre_seer_scores.narrative` for that centre+date. The front-end reads the column and falls back to a template narrative when the column is null (first run on a new centre, summariser skipped, or `GEMINI_API_KEY` absent). Don't add live API calls from the browser — keep generation in the daily pipeline.
+The card under each centre's score shows a 1–2 sentence trend narrative. It's generated daily by `summarise.js` (Gemini 2.0 Flash-Lite, free tier — 1500 RPD, 15 RPM) and stored in `centre_seer_scores.narrative` for that centre+date. The front-end reads the column and falls back to a template narrative when the column is null (first run on a new centre, summariser skipped, or `GEMINI_API_KEY` absent). Don't add live API calls from the browser — keep generation in the daily pipeline.
 
-Required env var on the GitHub Action's `score` job: `GEMINI_API_KEY` (repo secret). Free tier covers 1500 req/day; we use ~30.
+Don't switch the model to `gemini-2.5-flash-lite`: its free-tier daily cap is 20 RPD, below our 30+ centre count, and the script will dead-end halfway through. `gemini-2.0-flash-lite` is the only Gemini free-tier model with enough headroom for this workload as of May 2026.
+
+Required env var on the GitHub Action's `score` job: `GEMINI_API_KEY` (repo secret).
 
 ## Database
 Supabase project: `vrezzwadwzrmumjpdgge.supabase.co`

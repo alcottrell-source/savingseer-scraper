@@ -38,15 +38,16 @@ if (!GEMINI_API_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const genai    = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-const MODEL          = 'gemini-2.5-flash-lite';
+const MODEL          = 'gemini-2.0-flash-lite';
 const MAX_OUTPUT_LEN = 220; // chars, hard cap on what we'll store
-// Gemini free tier on flash-lite is 15 requests/minute. A 5-second gap
-// gives 12 RPM with comfortable headroom — pushes a 37-centre run to
-// roughly 3 minutes, well within a daily workflow's budget.
+// Gemini free tier on gemini-2.0-flash-lite: 15 requests/minute, 1500 per
+// day. A 5-second gap gives 12 RPM with comfortable headroom — pushes a
+// 37-centre run to roughly 3 minutes, well within a daily workflow's
+// budget and far inside the 1500 RPD cap.
 //
-// Note: the previous attempt used gemini-2.5-flash, which is only 5 RPM
-// on the free tier and 429'd from the 6th call onward. Don't switch
-// back without also bumping MIN_GAP_MS to ~13000.
+// Don't switch to gemini-2.5-flash-lite — its free-tier daily cap is only
+// 20 RPD, which is below our 30+ centre count and the script will dead-end
+// halfway through the run.
 const MIN_GAP_MS     = 5000;
 
 const SYSTEM_PROMPT = `You write Centre Intelligence narratives for the Tide dashboard — a UK shopping-sales tracker. One narrative per centre per day, shown in a small card under the score.
@@ -115,16 +116,24 @@ async function generateNarrative(centre) {
   return text.length > MAX_OUTPUT_LEN ? text.slice(0, MAX_OUTPUT_LEN - 1).trimEnd() + '…' : text;
 }
 
+// A 429 with a "PerDay" quotaId means the daily free-tier cap is used up.
+// Retrying within the same workflow run is pointless — the counter only
+// resets at midnight Pacific. Distinguish from a per-minute 429.
+function isDailyQuotaExhausted(msg) {
+  return /"code":\s*429/.test(msg) && /PerDay/.test(msg);
+}
+
 // Wrap generateNarrative with a single retry that respects the API's
-// suggested retryDelay for 429s and a fixed wait for 503s. Without this,
-// any transient hiccup fails the whole step — even when the underlying
-// pipeline is healthy.
+// suggested retryDelay for per-minute 429s and a fixed wait for 503s.
+// Daily-quota 429s rethrow immediately so the caller can stop the run.
 async function generateNarrativeResilient(centre) {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       return await generateNarrative(centre);
     } catch (err) {
       const msg = String(err && err.message || err);
+      if (isDailyQuotaExhausted(msg)) throw err;
+
       const is429 = /RESOURCE_EXHAUSTED|"code":\s*429|\b429\b/.test(msg);
       const is503 = /UNAVAILABLE|"code":\s*503|\b503\b/.test(msg);
       if (attempt === 0 && (is429 || is503)) {
@@ -282,7 +291,13 @@ async function main() {
       console.log(`  ✓ ${centre.name}: ${narrative}`);
       written++;
     } catch (err) {
-      console.error(`  ✗ ${centre.name}: ${err.message}`);
+      const msg = String(err && err.message || err);
+      if (isDailyQuotaExhausted(msg)) {
+        console.warn(`  ⚠ ${centre.name}: daily Gemini free-tier quota exhausted — stopping. Remaining centres will keep their template narrative until tomorrow's run.`);
+        failed++;
+        break;
+      }
+      console.error(`  ✗ ${centre.name}: ${msg}`);
       failed++;
     }
 

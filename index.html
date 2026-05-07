@@ -308,6 +308,10 @@
   /* ── Centre identity hero (above score card when a centre is selected) ── */
   .centre-hero { padding: 22px 24px 0; }
   .centre-hero-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  /* Atmospheric centre illustration band — gated on ?centre-art=1 (mock). */
+  .centre-hero-art { height: 320px; margin: 8px -24px 14px; background-size: cover; background-position: center top; background-repeat: no-repeat; position: relative; }
+  .centre-hero-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(250,247,242,0) 55%, rgba(250,247,242,0.55) 80%, var(--cream) 100%); pointer-events: none; }
+  @media (max-width: 380px) { .centre-hero-art { height: 260px; } }
   .back-btn { display: inline-flex; align-items: center; gap: 6px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--stone); cursor: pointer; background: none; border: none; padding: 0; letter-spacing: 0.02em; }
   .back-btn:hover { color: var(--bark); }
   .back-btn svg { flex-shrink: 0; }
@@ -1823,6 +1827,14 @@ const PRESENCE = {
   B077:[0,1,1,1,0,1,1,1,0,0,1,1,0,0,1,0,1,1,0,0,0,1,1,1,1,0,1,0,0,1],
 };
 
+// Per-centre illustration paths, keyed by 0-based index into CENTRE_NAMES.
+// Only Westfield London (idx 2) has art so far — this is a design mock for
+// rolling out per-centre atmosphere. Feature-flagged via ?centre-art=1 in the
+// URL until we've commissioned the full set.
+const CENTRE_ART_BY_IDX = {
+  2: '/centres/westfield-london.png',
+};
+
 const CENTRE_NAMES = [
   'Festival Place','Westquay','Westfield London','Westfield Stratford',
   'Trafford Centre','Metrocentre','Bluewater','Meadowhall',
@@ -2459,6 +2471,13 @@ async function renderCentre(centreId) {
   const locationHTML = location
     ? '<span class="centre-meta-dot"></span><span class="centre-location">'+location.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span>'
     : '';
+  // Atmospheric illustration band — gated on ?centre-art=1 until we've
+  // commissioned art for every centre. Falls back silently if no asset mapped.
+  const artFlagOn = new URLSearchParams(window.location.search).get('centre-art') === '1';
+  const artUrl = artFlagOn ? CENTRE_ART_BY_IDX[centreIdx] : null;
+  const artHTML = artUrl
+    ? '<div class="centre-hero-art" style="background-image:url(\''+artUrl+'\')" aria-hidden="true"></div>'
+    : '';
   const heroHTML = '<div class="centre-hero">'
     + '<div class="centre-hero-top">'
     +   '<button class="back-btn" onclick="clearCentreSelection()" aria-label="Back to centres">'
@@ -2468,6 +2487,7 @@ async function renderCentre(centreId) {
     +     'Centres'
     +   '</button>'
     + '</div>'
+    + artHTML
     + '<div class="centre-meta">'
     +   '<span class="centre-type">Shopping Centre</span>'
     +   locationHTML

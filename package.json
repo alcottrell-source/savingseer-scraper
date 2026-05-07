@@ -10,7 +10,7 @@
     "run-all": "node scraper.js && node score.js && node summarise.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.65.0",
+    "@google/genai": "^1.52.0",
     "@supabase/supabase-js": "^2.39.0",
     "crawlee": "^3.9.0",
     "playwright": "^1.42.0"

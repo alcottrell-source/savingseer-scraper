@@ -2,7 +2,7 @@
 // Tide — daily Centre Intelligence narrative writer.
 //
 // Runs after score.js on the daily GitHub Action. For each centre with a
-// score row for today, asks Claude Haiku 4.5 for a 1-2 sentence factual
+// score row for today, asks Gemini 2.5 Flash for a 1-2 sentence factual
 // narrative summarising the current sale state (which brands just opened,
 // which are picked-over, whether the tide is rising/falling), and writes
 // it back to centre_seer_scores.narrative for today's row.
@@ -11,39 +11,39 @@
 // if it is null — so the dashboard degrades gracefully if this script is
 // skipped, fails, or the API key is absent.
 //
-// Cost note: 30 centres × 1 call/day with prompt caching on the system
-// prompt is trivial (a few cents per month at Haiku 4.5 prices).
+// Cost: free. Gemini's free tier covers 1500 requests/day; we use 30.
 
 import { createClient } from '@supabase/supabase-js';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 import { brands } from './brands.js';
 
-const SUPABASE_URL      = process.env.SUPABASE_URL;
-const SUPABASE_KEY      = process.env.SUPABASE_SERVICE_KEY;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const TODAY             = new Date().toISOString().split('T')[0];
+const SUPABASE_URL    = process.env.SUPABASE_URL;
+const SUPABASE_KEY    = process.env.SUPABASE_SERVICE_KEY;
+const GEMINI_API_KEY  = process.env.GEMINI_API_KEY;
+const TODAY           = new Date().toISOString().split('T')[0];
 const FOURTEEN_DAYS_AGO = new Date(Date.now() - 14 * 86400000).toISOString().split('T')[0];
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars');
   process.exit(1);
 }
-if (!ANTHROPIC_API_KEY) {
+if (!GEMINI_API_KEY) {
   // Soft-fail: scoring already wrote the row; the front-end falls back to
   // its template narrative. Don't break the daily workflow over a missing
   // API key.
-  console.warn('ANTHROPIC_API_KEY not set — skipping narrative generation');
+  console.warn('GEMINI_API_KEY not set — skipping narrative generation');
   process.exit(0);
 }
 
-const supabase  = createClient(SUPABASE_URL, SUPABASE_KEY);
-const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const genai    = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-const MODEL          = 'claude-haiku-4-5-20251001';
+const MODEL          = 'gemini-2.5-flash';
 const MAX_OUTPUT_LEN = 220; // chars, hard cap on what we'll store
+// Gemini free tier allows 15 requests/minute — leave a little headroom
+// rather than racing the limiter.
+const MIN_GAP_MS     = 250;
 
-// Cacheable system prompt — identical across all 30 centre calls in a
-// single run, so prompt caching saves ~95% of input tokens after the first.
 const SYSTEM_PROMPT = `You write Centre Intelligence narratives for the Tide dashboard — a UK shopping-sales tracker. One narrative per centre per day, shown in a small card under the score.
 
 The Tide Score (0-100) measures density × freshness of brand sales at the centre. The 5 stages, in cycle order:
@@ -64,8 +64,6 @@ Voice rules:
 
 Output: exactly 1 or 2 sentences, ≤200 characters total. Output ONLY the narrative — no preamble, no quotes, no bullets, no line breaks.`;
 
-// Build a compact JSON-ish prompt body. Smaller is faster and cheaper, and
-// Haiku follows structured input well.
 function buildUserMessage(centre) {
   const onSaleLine = centre.onSale.length === 0
     ? 'Brands on sale today: none.'
@@ -91,27 +89,28 @@ function buildUserMessage(centre) {
 }
 
 async function generateNarrative(centre) {
-  const resp = await anthropic.messages.create({
+  const resp = await genai.models.generateContent({
     model: MODEL,
-    max_tokens: 200,
-    system: [
-      { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
-    ],
-    messages: [{ role: 'user', content: buildUserMessage(centre) }],
+    contents: buildUserMessage(centre),
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      maxOutputTokens: 200,
+      temperature: 0.4,
+    },
   });
 
-  const text = resp.content
-    .filter(b => b.type === 'text')
-    .map(b => b.text)
-    .join('')
+  const text = (resp.text || '')
     .trim()
-    .replace(/^["']|["']$/g, '');
+    .replace(/^["']|["']$/g, '')
+    .replace(/\s+/g, ' ');
 
   if (!text) return null;
-  // Hard cap on length — model usually obeys but we don't trust it
-  // unconditionally with user-visible copy.
+  // Hard cap — model usually obeys but we don't trust it unconditionally
+  // with user-visible copy.
   return text.length > MAX_OUTPUT_LEN ? text.slice(0, MAX_OUTPUT_LEN - 1).trimEnd() + '…' : text;
 }
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function main() {
   console.log('═══════════════════════════════════════════════');
@@ -227,6 +226,7 @@ async function main() {
       if (!narrative) {
         console.log(`  · ${centre.name}: empty narrative, skipping`);
         skipped++;
+        await sleep(MIN_GAP_MS);
         continue;
       }
 
@@ -239,6 +239,7 @@ async function main() {
       if (writeError) {
         console.error(`  ✗ ${centre.name}: write failed:`, writeError.message);
         failed++;
+        await sleep(MIN_GAP_MS);
         continue;
       }
 
@@ -248,6 +249,8 @@ async function main() {
       console.error(`  ✗ ${centre.name}: ${err.message}`);
       failed++;
     }
+
+    await sleep(MIN_GAP_MS);
   }
 
   console.log(`\nNarratives: ${written} written, ${skipped} skipped, ${failed} failed`);

@@ -40,9 +40,9 @@ Signed-in users clicking the nav button open `#account-panel` (not the prefs wiz
 4-step wizard: gender → style clusters → notifications + saved centres → preview. Opens automatically for new users and via "Edit shopping preferences" in the account panel. Saves via upsert on `user_preferences` with `onConflict: 'user_id'`.
 
 ## Centre Intelligence narrative (May 2026)
-The card under each centre's score shows a 1–2 sentence trend narrative. It's generated daily by `summarise.js` (Claude Haiku 4.5) and stored in `centre_seer_scores.narrative` for that centre+date. The front-end reads the column and falls back to a template narrative when the column is null (first run on a new centre, summariser skipped, or `ANTHROPIC_API_KEY` absent). Don't add live API calls from the browser — keep generation in the daily pipeline.
+The card under each centre's score shows a 1–2 sentence trend narrative. It's generated daily by `summarise.js` (Gemini 2.5 Flash, free tier) and stored in `centre_seer_scores.narrative` for that centre+date. The front-end reads the column and falls back to a template narrative when the column is null (first run on a new centre, summariser skipped, or `GEMINI_API_KEY` absent). Don't add live API calls from the browser — keep generation in the daily pipeline.
 
-Required env var on the GitHub Action's `score` job: `ANTHROPIC_API_KEY` (repo secret).
+Required env var on the GitHub Action's `score` job: `GEMINI_API_KEY` (repo secret). Free tier covers 1500 req/day; we use ~30.
 
 ## Database
 Supabase project: `vrezzwadwzrmumjpdgge.supabase.co`

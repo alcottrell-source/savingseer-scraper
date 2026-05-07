@@ -115,6 +115,37 @@ async function generateNarrative(centre) {
   return text.length > MAX_OUTPUT_LEN ? text.slice(0, MAX_OUTPUT_LEN - 1).trimEnd() + '…' : text;
 }
 
+// Wrap generateNarrative with a single retry that respects the API's
+// suggested retryDelay for 429s and a fixed wait for 503s. Without this,
+// any transient hiccup fails the whole step — even when the underlying
+// pipeline is healthy.
+async function generateNarrativeResilient(centre) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await generateNarrative(centre);
+    } catch (err) {
+      const msg = String(err && err.message || err);
+      const is429 = /RESOURCE_EXHAUSTED|"code":\s*429|\b429\b/.test(msg);
+      const is503 = /UNAVAILABLE|"code":\s*503|\b503\b/.test(msg);
+      if (attempt === 0 && (is429 || is503)) {
+        // Prefer the API's retryDelay when present; otherwise default to
+        // a generous wait. +1s jitter to avoid landing exactly on the
+        // window boundary.
+        const m = msg.match(/"retryDelay":\s*"(\d+(?:\.\d+)?)s"/);
+        const waitMs = m
+          ? Math.ceil(parseFloat(m[1]) * 1000) + 1000
+          : (is429 ? 30000 : 12000);
+        console.log(`  ⏳ ${centre.name}: ${is429 ? '429' : '503'}, retrying in ${Math.round(waitMs / 1000)}s`);
+        await sleep(waitMs);
+        continue;
+      }
+      throw err;
+    }
+  }
+  // Unreachable but keeps the typechecker happy.
+  return null;
+}
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function main() {
@@ -218,7 +249,7 @@ async function main() {
     const history = (historyByCentre.get(centre.id) || []).slice(-14);
 
     try {
-      const narrative = await generateNarrative({
+      const narrative = await generateNarrativeResilient({
         name: centre.name,
         score: score.tide_score,
         verdict: score.verdict,

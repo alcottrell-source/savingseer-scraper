@@ -240,10 +240,11 @@
   .narrative-title { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--stone); }
   .narrative-live { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--leaf); letter-spacing: 0.04em; }
   .narrative-live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--leaf); animation: pulse 2s ease-in-out infinite; }
-  .stat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; border-bottom: 1px solid var(--border); }
+  .stat-row { display: grid; grid-template-columns: 1fr 1.4fr 1fr; border-bottom: 1px solid var(--border); }
   .stat-cell { padding: 14px 16px; border-right: 1px solid var(--border); min-width: 0; }
   .stat-cell:last-child { border-right: none; }
   .stat-value { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; color: var(--bark); letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat-value.compact { font-size: 17px; letter-spacing: -0.015em; }
   .stat-value.positive { color: var(--leaf); }
   .stat-value.warning { color: var(--amber); }
   .stat-value.muted { color: var(--stone); }
@@ -1616,10 +1617,9 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
 
   // Stat row — three real-data cells per the brief.
   const cell1 = '<div class="stat-cell"><div class="stat-value ' + (onSaleCount > 0 ? 'positive' : 'muted') + '">' + onSaleCount + '</div><div class="stat-label">Brands on sale</div></div>';
-  const freshValue = fresh
-    ? escapeHtml(fresh.name) + ' · ' + (fresh.days || 1) + 'd'
-    : '—';
-  const cell2 = '<div class="stat-cell"><div class="stat-value warning" title="' + (fresh ? escapeHtml(fresh.name) : '') + '">' + freshValue + '</div><div class="stat-label">Freshest brand</div></div>';
+  const freshName  = fresh ? escapeHtml(fresh.name) : '—';
+  const freshLabel = fresh ? ('Freshest brand · ' + (fresh.days || 1) + 'd') : 'Freshest brand';
+  const cell2 = '<div class="stat-cell"><div class="stat-value warning compact" title="' + (fresh ? escapeHtml(fresh.name) : '') + '">' + freshName + '</div><div class="stat-label">' + freshLabel + '</div></div>';
   const histValue = histCount >= 2 ? (histCount + 'd') : 'Building…';
   const histClass = histCount >= 2 ? 'neutral' : 'muted';
   const cell3 = '<div class="stat-cell"><div class="stat-value ' + histClass + '">' + histValue + '</div><div class="stat-label">Days of history</div></div>';

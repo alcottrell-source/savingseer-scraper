@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy &middot; Tide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --cream:#FAF7F2; --bark:#2C1810; --leaf:#3D6B35; --leaf-lt:#EEF4EC; --stone:#8C8070; --border:rgba(44,24,16,0.10); }
+  body { background: var(--cream); color: var(--bark); font-family: 'DM Sans', sans-serif; font-weight: 300; line-height: 1.6; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  header { padding: 18px 24px; border-bottom: 1px solid var(--border); }
+  header a { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; color: var(--bark); text-decoration: none; }
+  header a span { color: var(--leaf); }
+  main { max-width: 720px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-family: 'Playfair Display', serif; font-size: 32px; font-weight: 600; margin-bottom: 8px; }
+  .updated { font-size: 13px; color: var(--stone); margin-bottom: 32px; }
+  h2 { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; margin: 32px 0 12px; }
+  h3 { font-size: 16px; font-weight: 500; margin: 20px 0 8px; color: var(--bark); }
+  p, li { font-size: 15px; color: var(--bark); margin-bottom: 12px; }
+  ul, ol { padding-left: 22px; margin-bottom: 16px; }
+  li { margin-bottom: 6px; }
+  a { color: var(--leaf); }
+  .callout { background: var(--leaf-lt); border-left: 3px solid var(--leaf); padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 20px 0; font-size: 14px; }
+  footer { border-top: 1px solid var(--border); padding: 24px; text-align: center; font-size: 12px; color: var(--stone); }
+  footer a { color: var(--stone); margin: 0 8px; }
+</style>
+</head>
+<body>
+
+<header><a href="/">Tide<span>.</span></a></header>
+
+<main>
+
+<h1>Privacy Policy</h1>
+<p class="updated">Last updated: 7 May 2026</p>
+
+<p>This policy explains what personal data Tide collects when you use this app, why we collect it, and what your rights are under the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018.</p>
+
+<div class="callout">
+  <strong>The short version:</strong> We store your email address and the shopping preferences you tell us about, so we can show you a personalised score and email you when your tracked brands go on sale. We do not sell your data. You can delete your account at any time and we will erase it.
+</div>
+
+<h2>1. Who we are</h2>
+<p>Tide ("we", "us", "our") is operated by Alex Cottrell, an individual data controller registered in the United Kingdom. You can contact us at <a href="mailto:privacy@tidego.co">privacy@tidego.co</a> for any privacy-related questions or to exercise your rights under this policy.</p>
+
+<h2>2. What we collect, and why</h2>
+
+<h3>If you visit the site without an account</h3>
+<ul>
+  <li><strong>Anonymous analytics</strong> via Plausible &mdash; aggregated page-view counts only. Plausible is cookieless and does not track individuals across sites. (<a href="https://plausible.io/data-policy" target="_blank">Plausible's data policy</a>)</li>
+  <li><strong>Skimlinks</strong> &mdash; if you click an outbound brand link, Skimlinks may set a cookie to attribute affiliate revenue to Tide. You can decline this in our cookie banner. (<a href="https://skimlinks.com/privacy-policy" target="_blank">Skimlinks' privacy policy</a>)</li>
+</ul>
+
+<h3>If you create an account</h3>
+<ul>
+  <li><strong>Email address</strong> &mdash; required so we can sign you in and send the email alerts you've enabled.</li>
+  <li><strong>Password</strong> (only if you choose the password sign-in path) &mdash; stored as a one-way bcrypt hash by our authentication provider, Supabase. We never see or store your plain-text password. We recommend the magic-link sign-in instead, which avoids passwords entirely.</li>
+  <li><strong>Shopping preferences</strong> &mdash; the audiences (women's / men's / children's), categories, and brand selections you make during onboarding. Used to compute your personalised Tide Score.</li>
+  <li><strong>Saved centres</strong> &mdash; the shopping centres you've checked, used to send you alerts and the morning digest if you've turned them on.</li>
+  <li><strong>Notification choices</strong> &mdash; whether you want peak-sale alerts, brand-sale alerts, and the daily digest.</li>
+</ul>
+
+<h2>3. Lawful basis for processing</h2>
+<ul>
+  <li><strong>Performing the service you signed up for</strong> &mdash; your email and account data, lawful basis: <em>contract</em>.</li>
+  <li><strong>Personalisation and email alerts</strong> &mdash; lawful basis: <em>consent</em>, given when you complete onboarding and toggle the alert switches. You can withdraw this any time from My Tide.</li>
+  <li><strong>Affiliate tracking via Skimlinks</strong> &mdash; lawful basis: <em>consent</em>, given via the cookie banner.</li>
+  <li><strong>Anonymous analytics via Plausible</strong> &mdash; cookieless and aggregated; lawful basis: <em>legitimate interest</em>.</li>
+</ul>
+
+<h2>4. Who we share data with</h2>
+<p>We share the minimum personal data required to operate Tide with the following processors:</p>
+<ul>
+  <li><strong>Supabase</strong> &mdash; database, authentication, and email hosting (servers in the EU). <a href="https://supabase.com/privacy" target="_blank">Privacy policy</a>.</li>
+  <li><strong>Vercel</strong> &mdash; static site hosting. <a href="https://vercel.com/legal/privacy-policy" target="_blank">Privacy policy</a>.</li>
+  <li><strong>Plausible Analytics</strong> &mdash; anonymous, aggregated traffic counts only. EU-hosted.</li>
+  <li><strong>Skimlinks</strong> &mdash; affiliate-link attribution for brand clicks (only if you accept cookies).</li>
+</ul>
+<p>We do not sell your data to advertisers or third parties.</p>
+
+<h2>5. How long we keep your data</h2>
+<ul>
+  <li>Account data is retained for as long as your account exists.</li>
+  <li>If you delete your account, we erase your email, preferences, and saved centres within 7 days.</li>
+  <li>Inactive accounts (no sign-in for 24 months) are notified by email and then deleted if no response.</li>
+  <li>Anonymous analytics are retained by Plausible per their default policy (24 months).</li>
+</ul>
+
+<h2>6. Your rights under UK GDPR</h2>
+<p>You have the right to:</p>
+<ul>
+  <li><strong>Access</strong> the personal data we hold about you</li>
+  <li><strong>Correct</strong> any inaccurate data</li>
+  <li><strong>Erase</strong> your data ("right to be forgotten") &mdash; available as a one-click "Delete my account" button in My Tide</li>
+  <li><strong>Restrict</strong> or <strong>object</strong> to processing</li>
+  <li><strong>Port</strong> your data to another service (we'll provide a JSON export on request)</li>
+  <li><strong>Withdraw consent</strong> at any time</li>
+  <li><strong>Complain</strong> to the Information Commissioner's Office (ICO) at <a href="https://ico.org.uk" target="_blank">ico.org.uk</a> if you believe we've mishandled your data</li>
+</ul>
+<p>To exercise any of these rights, email <a href="mailto:privacy@tidego.co">privacy@tidego.co</a>. We'll respond within one calendar month.</p>
+
+<h2>7. Security</h2>
+<ul>
+  <li>All traffic is encrypted in transit via TLS.</li>
+  <li>Passwords (where used) are stored as bcrypt hashes; we never see or store the plain text.</li>
+  <li>Database access is restricted by row-level security policies, so each user can only read their own preferences.</li>
+  <li>We recommend the magic-link sign-in path, which removes passwords as an attack surface.</li>
+</ul>
+
+<h2>8. Data breaches</h2>
+<p>If we discover a personal data breach that is likely to result in a risk to your rights and freedoms, we will notify the ICO within 72 hours and notify affected users without undue delay.</p>
+
+<h2>9. Cookies</h2>
+<p>Tide uses the following cookies and similar technologies:</p>
+<ul>
+  <li><strong>Strictly necessary</strong> &mdash; the Supabase authentication session cookie, required to keep you signed in. No consent needed (PECR exemption).</li>
+  <li><strong>Affiliate (Skimlinks)</strong> &mdash; only loaded after you accept via the cookie banner. Used to attribute outbound brand clicks for affiliate revenue.</li>
+  <li><strong>Analytics (Plausible)</strong> &mdash; cookieless. Aggregated page counts only.</li>
+</ul>
+<p>You can change your cookie choices at any time via the "Cookie settings" link in the footer.</p>
+
+<h2>10. Changes to this policy</h2>
+<p>If we make material changes to this policy, we will notify account holders by email and post a notice on the homepage at least 7 days before the changes take effect.</p>
+
+</main>
+
+<footer>
+  &copy; 2026 Tide &middot;
+  <a href="/">Home</a> &middot;
+  <a href="privacy.html">Privacy</a> &middot;
+  <a href="javascript:void(0)" onclick="alert('Cookie settings UI is on the homepage.')">Cookie settings</a>
+</footer>
+
+</body>
+</html>

@@ -211,6 +211,91 @@
   .notify-banner-msg { font-size: 12px; color: var(--leaf); line-height: 1.4; }
   .notify-banner-msg.error { color: var(--red); }
 
+  /* ── Full-screen onboarding takeover ── */
+  .ob { position: fixed; inset: 0; background: var(--cream); display: none; flex-direction: column; z-index: 600; }
+  .ob.visible { display: flex; }
+  .ob-top { padding: 14px 18px 10px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--border); background: var(--cream); flex-shrink: 0; }
+  .ob-back { background: none; border: none; color: var(--stone); font-size: 18px; cursor: pointer; padding: 4px 6px; line-height: 1; width: 32px; text-align: left; font-family: inherit; }
+  .ob-back[disabled] { visibility: hidden; }
+  .ob-progress { flex: 1; display: flex; gap: 6px; }
+  .ob-dot { flex: 1; height: 3px; border-radius: 2px; background: var(--border); transition: background 0.25s; }
+  .ob-dot.done, .ob-dot.active { background: var(--leaf); }
+  .ob-skip { background: none; border: none; color: var(--stone); font-size: 13px; cursor: pointer; padding: 4px 6px; text-decoration: underline; font-family: inherit; }
+  .ob-body { flex: 1; overflow-y: auto; padding: 24px 22px 140px; max-width: 560px; width: 100%; margin: 0 auto; }
+  .ob-eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--leaf); font-weight: 500; margin-bottom: 8px; }
+  .ob-title { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 26px; line-height: 1.15; margin: 0 0 10px; color: var(--bark); }
+  .ob-sub { font-size: 15px; line-height: 1.5; color: var(--stone); margin: 0 0 22px; }
+  .aud-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .aud-card { display: flex; align-items: center; gap: 14px; padding: 18px 16px; background: white; border: 1.5px solid var(--border); border-radius: 14px; cursor: pointer; transition: all 0.15s; text-align: left; font-family: inherit; }
+  .aud-card:hover { border-color: rgba(61,107,53,0.4); }
+  .aud-card.active { border-color: var(--leaf); background: var(--leaf-lt); }
+  .aud-icon { width: 42px; height: 42px; border-radius: 10px; background: var(--leaf-lt); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+  .aud-card.active .aud-icon { background: white; }
+  .aud-text { flex: 1; }
+  .aud-name { font-size: 16px; font-weight: 500; color: var(--bark); }
+  .aud-meta { font-size: 12px; color: var(--stone); margin-top: 2px; }
+  .aud-check { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: white; font-size: 13px; }
+  .aud-card.active .aud-check { background: var(--leaf); border-color: var(--leaf); }
+  .cat-section { margin-bottom: 24px; }
+  .cat-header { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); margin: 0 0 10px; font-weight: 500; }
+  .cat-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cat-pill { background: var(--leaf-lt); color: var(--leaf); border: 1.5px solid var(--leaf); border-radius: 20px; padding: 8px 14px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+  .cat-pill[aria-pressed="false"] { background: white; color: var(--stone); border-color: var(--border); }
+  .cat-help { font-size: 13px; color: var(--stone); background: white; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; line-height: 1.5; }
+  .cat-help b { color: var(--bark); font-weight: 500; }
+  .brand-summary { position: sticky; top: 0; background: var(--cream); padding: 8px 0 12px; font-size: 13px; color: var(--stone); display: flex; align-items: center; gap: 8px; z-index: 5; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+  .brand-summary b { color: var(--leaf); font-weight: 500; }
+  .ob-cluster { margin-bottom: 22px; }
+  .ob-cluster-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .ob-cluster-name { font-size: 13px; font-weight: 500; color: var(--bark); }
+  .ob-cluster-meta { font-size: 11px; color: var(--stone); }
+  .ob-cluster-toggle { background: none; border: none; color: var(--leaf); font-size: 12px; cursor: pointer; text-decoration: underline; font-family: inherit; padding: 4px 0; }
+  .ob-brand-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .ob-brand-chip { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px 12px; background: white; border: 1.5px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.15s; position: relative; font-family: inherit; }
+  .ob-brand-chip.active { border-color: var(--leaf); background: var(--leaf-lt); }
+  .ob-brand-chip:not(.active) { opacity: 0.55; }
+  .ob-brand-logo { width: 36px; height: 36px; border-radius: 8px; background: white; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid var(--border); }
+  .ob-brand-logo img { width: 24px; height: 24px; }
+  .ob-brand-name { font-size: 11px; color: var(--bark); text-align: center; line-height: 1.2; font-weight: 500; }
+  .ob-brand-tick { position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--leaf); color: white; font-size: 10px; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s; }
+  .ob-brand-chip.active .ob-brand-tick { opacity: 1; }
+  .ob-foot { position: fixed; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, var(--cream) 70%, rgba(250,247,242,0)); padding: 18px 22px 24px; display: flex; flex-direction: column; gap: 8px; align-items: center; z-index: 5; }
+  .ob-next { background: var(--leaf); color: white; border: none; border-radius: 999px; padding: 14px 32px; font-size: 15px; font-weight: 500; cursor: pointer; font-family: inherit; width: 100%; max-width: 380px; transition: opacity 0.15s; }
+  .ob-next:disabled { opacity: 0.4; cursor: not-allowed; }
+  .ob-help { font-size: 12px; color: var(--stone); min-height: 16px; }
+  .ob-notif-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 6px 18px; margin-bottom: 18px; }
+  .ob-preview { background: var(--leaf-lt); border-radius: 12px; padding: 18px; text-align: center; }
+  .ob-preview-eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--leaf); margin-bottom: 6px; }
+  .ob-preview-score { font-family: 'Playfair Display', serif; font-size: 48px; color: var(--leaf); font-weight: 600; line-height: 1; }
+  .ob-preview-score-suffix { font-size: 18px; color: var(--stone); font-weight: 400; }
+  .ob-preview-meta { color: var(--stone); font-size: 14px; margin-top: 4px; }
+  @media (min-width: 768px) {
+    .ob-body { padding-top: 48px; }
+    .ob-title { font-size: 32px; }
+    .ob-brand-grid { grid-template-columns: repeat(5, 1fr); }
+  }
+
+  /* ── My brands / All brands tab toggle on the dashboard ── */
+  .brand-filter-tabs { display: flex; gap: 0; margin-bottom: 12px; background: var(--stone-lt); border-radius: 999px; padding: 3px; width: fit-content; }
+  .brand-filter-tab { background: none; border: none; padding: 7px 16px; font-size: 12px; font-weight: 500; color: var(--stone); border-radius: 999px; cursor: pointer; font-family: inherit; transition: all 0.15s; letter-spacing: 0.02em; }
+  .brand-filter-tab.active { background: white; color: var(--bark); box-shadow: 0 1px 2px rgba(44,24,16,0.08); }
+
+  /* ── Cookie consent banner (PECR) ── */
+  .cookie-banner { position: fixed; left: 12px; right: 12px; bottom: 12px; background: white; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 8px 24px rgba(44,24,16,0.12); padding: 16px 18px; z-index: 700; display: none; max-width: 480px; margin-left: auto; margin-right: auto; }
+  .cookie-banner.visible { display: block; }
+  .cookie-banner-title { font-size: 13px; font-weight: 500; color: var(--bark); margin-bottom: 6px; }
+  .cookie-banner-text { font-size: 13px; line-height: 1.45; color: var(--stone); margin-bottom: 12px; }
+  .cookie-banner-text a { color: var(--leaf); }
+  .cookie-banner-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cookie-btn { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; border-radius: 8px; padding: 8px 14px; cursor: pointer; border: none; transition: all 0.15s; }
+  .cookie-btn-accept { background: var(--leaf); color: white; }
+  .cookie-btn-accept:hover { background: #2f5428; }
+  .cookie-btn-reject { background: var(--stone-lt); color: var(--bark); }
+  .cookie-btn-reject:hover { background: #e8e4de; }
+  .cookie-btn-link { background: none; color: var(--stone); text-decoration: underline; padding: 8px 4px; }
+  footer .footer-links { margin-top: 8px; }
+  footer .footer-links a { color: var(--stone); text-decoration: underline; margin: 0 6px; font-size: 11px; }
+
   /* ── Survey card ── */
   .survey-card { margin: 32px 24px; background: var(--amber-lt); border: 1px solid rgba(193,122,43,0.2); border-radius: 16px; padding: 24px 20px 20px; position: relative; display: block; }
   .survey-card.hidden { display: none; }
@@ -263,7 +348,21 @@
 
 </style>
 <script defer data-domain="tidego.co" src="https://plausible.io/js/script.js"></script>
-<script type="text/javascript" src="https://s.skimresources.com/js/302477X1790477.skimlinks.js"></script>
+<script>
+  // Skimlinks (affiliate tracker, drops a cookie) only loads after the user
+  // accepts in the consent banner — PECR requires explicit opt-in for non-
+  // essential cookies. Plausible is cookieless so it loads unconditionally.
+  (function() {
+    try {
+      if (localStorage.getItem('tide_cookies_skimlinks') === 'accepted') {
+        var s = document.createElement('script');
+        s.src = 'https://s.skimresources.com/js/302477X1790477.skimlinks.js';
+        s.async = true;
+        document.head.appendChild(s);
+      }
+    } catch(e) {}
+  })();
+</script>
 </head>
 <body>
 
@@ -364,12 +463,32 @@
     <span class="live-dot"></span>
     Live sale data &middot; <span id="today-date"></span>
   </div>
+  <div class="footer-links">
+    <a href="privacy.html">Privacy Policy</a>
+    &middot;
+    <a href="javascript:void(0)" onclick="openCookieBanner()">Cookie settings</a>
+    &middot;
+    <a href="mailto:privacy@tidego.co">Contact</a>
+  </div>
 </footer>
+
+<!-- Cookie consent banner — first visit shows it; choice persists in localStorage. -->
+<div id="cookie-banner" class="cookie-banner" role="dialog" aria-label="Cookie preferences">
+  <div class="cookie-banner-title">Cookies on Tide</div>
+  <div class="cookie-banner-text">
+    We use a strictly necessary cookie to keep you signed in. With your permission we'd also like to use Skimlinks to attribute affiliate revenue when you click through to a brand &mdash; this helps us keep Tide free.
+    <a href="privacy.html" target="_blank">Read our privacy policy</a>.
+  </div>
+  <div class="cookie-banner-actions">
+    <button class="cookie-btn cookie-btn-accept" onclick="acceptCookies()">Accept all</button>
+    <button class="cookie-btn cookie-btn-reject" onclick="rejectCookies()">Strictly necessary only</button>
+  </div>
+</div>
 
 <div id="notify-banner" class="notify-banner" role="region" aria-label="Get notified about this centre">
   <div class="notify-banner-top">
     <div class="notify-banner-text">
-      <strong>Get notified when this centre hits Go Now.</strong><br>
+      <strong>Get notified when this centre hits peak sale.</strong><br>
       We'll email you the morning the tide peaks.
     </div>
     <button class="notify-banner-close" onclick="dismissNotifyBanner()" aria-label="Dismiss">&times;</button>
@@ -387,15 +506,17 @@
     <div id="auth-error" class="auth-error" style="display:none"></div>
     <div id="auth-success" class="auth-success" style="display:none"></div>
 
-    <!-- Step 1: email entry -->
+    <!-- Step 1: email entry — magic-link first (more secure, no password to steal) -->
     <div id="auth-step-email">
       <h2 class="modal-title">Welcome to Tide</h2>
-      <p class="modal-subtitle">Sign in or create your free account to see your personal Tide Score and get Go Now alerts.</p>
+      <p class="modal-subtitle">Sign in or create your free account to see your personal Tide Score and your brands' sales as they break.</p>
       <input class="auth-input" id="auth-email" type="email" placeholder="Your email address" autocomplete="email"
-             onkeydown="if(event.key==='Enter')authContinue()">
-      <button class="btn btn-primary" id="btn-continue" onclick="authContinue()">Continue</button>
+             onkeydown="if(event.key==='Enter')authMagicLink()">
+      <button class="btn btn-primary" id="btn-magic" onclick="authMagicLink()">Email me a sign-in link</button>
+      <p style="font-size:11px;color:var(--stone);text-align:center;margin:8px 0 0;line-height:1.5">No password needed &mdash; we'll send you a secure link.</p>
       <div class="auth-divider">or</div>
-      <button class="btn btn-secondary" id="btn-magic" onclick="authMagicLink()">Email me a sign-in link</button>
+      <button class="btn btn-secondary" id="btn-continue" onclick="authContinue()">Use a password instead</button>
+      <p style="font-size:11px;color:var(--stone);text-align:center;margin:14px 0 0;line-height:1.5">By continuing you agree to our <a href="privacy.html" target="_blank" style="color:var(--stone);text-decoration:underline">Privacy Policy</a>.</p>
     </div>
 
     <!-- Step 2a: sign in (returning user) -->
@@ -448,8 +569,8 @@
       <div class="account-section-title">Email notifications</div>
       <div class="pref-toggle-row">
         <div class="pref-toggle-text">
-          <div class="pref-toggle-label">Go Now alerts</div>
-          <div class="pref-toggle-sub">A short email when a saved centre peaks.</div>
+          <div class="pref-toggle-label">Alert me when a centre hits peak sale</div>
+          <div class="pref-toggle-sub">A short email the morning a saved centre peaks.</div>
         </div>
         <label class="pref-switch">
           <input type="checkbox" id="account-toggle-alerts" onchange="quickSavePref('email_alerts', this.checked)">
@@ -459,8 +580,19 @@
       </div>
       <div class="pref-toggle-row">
         <div class="pref-toggle-text">
-          <div class="pref-toggle-label">Daily morning digest</div>
-          <div class="pref-toggle-sub">A round-up of your saved centres at 7am.</div>
+          <div class="pref-toggle-label">Alert me when one of my shops goes into sale</div>
+          <div class="pref-toggle-sub">A heads-up the moment any tracked brand starts a new sale.</div>
+        </div>
+        <label class="pref-switch">
+          <input type="checkbox" id="account-toggle-brand-alerts" onchange="quickSavePref('brand_sale_alerts', this.checked)">
+          <span class="pref-switch-track"></span>
+          <span class="pref-switch-thumb"></span>
+        </label>
+      </div>
+      <div class="pref-toggle-row">
+        <div class="pref-toggle-text">
+          <div class="pref-toggle-label">Daily morning digest at 7am</div>
+          <div class="pref-toggle-sub">A round-up of your saved centres.</div>
         </div>
         <label class="pref-switch">
           <input type="checkbox" id="account-toggle-digest" onchange="quickSavePref('daily_digest', this.checked)">
@@ -471,86 +603,23 @@
     </div>
     <button class="btn btn-secondary" onclick="closeAccountPanel(); openPrefsModal()" style="margin-bottom:12px">Edit shopping preferences</button>
     <button class="signout-link" onclick="signOut(); closeAccountPanel()">Sign out</button>
+    <button class="signout-link" style="color:var(--red);margin-top:8px" onclick="deleteMyAccount()">Delete my account &amp; data</button>
   </div>
 </div>
 
-<div id="prefs-modal" class="modal-overlay" style="display:none">
-  <div class="modal">
-    <button class="modal-close" onclick="closePrefsModal()">&times;</button>
-    <div id="pref-step-1">
-      <div class="modal-step-indicator">Step 1 of 4</div>
-      <h2 class="modal-title">What do you mainly shop for?</h2>
-      <p class="modal-subtitle">Select all that apply -- we'll filter your personal score to brands that match.</p>
-      <div class="pref-grid" id="gender-pills">
-        <button class="pref-pill" data-key="womenswear" onclick="togglePrefPill(this)">Women's</button>
-        <button class="pref-pill" data-key="menswear" onclick="togglePrefPill(this)">Men's</button>
-        <button class="pref-pill" data-key="childrenswear" onclick="togglePrefPill(this)">Children's</button>
-      </div>
-      <button class="btn btn-primary" onclick="prefsNextStep(2)">Next</button>
+<!-- Full-screen onboarding takeover (4 steps: audiences → categories → brands → notifications + preview) -->
+<div id="ob" class="ob" role="dialog" aria-label="Set up your Tide preferences">
+  <div class="ob-top">
+    <button class="ob-back" id="ob-back" onclick="obBack()" disabled>&larr;</button>
+    <div class="ob-progress">
+      <div class="ob-dot active"></div><div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot"></div>
     </div>
-    <div id="pref-step-2" style="display:none">
-      <div class="modal-step-indicator">Step 2 of 4</div>
-      <h2 class="modal-title">What's your style?</h2>
-      <p class="modal-subtitle">Choose your favourite shopping zones. Leave all unselected to include all clusters.</p>
-      <div class="pref-grid" id="cluster-pills">
-        <button class="pref-pill" data-key="High Street" onclick="togglePrefPill(this)">High Street</button>
-        <button class="pref-pill" data-key="Contemporary" onclick="togglePrefPill(this)">Contemporary</button>
-        <button class="pref-pill" data-key="Classic British" onclick="togglePrefPill(this)">Classic British</button>
-        <button class="pref-pill" data-key="Smart/Occasion" onclick="togglePrefPill(this)">Smart / Occasion</button>
-        <button class="pref-pill" data-key="Premium Casual" onclick="togglePrefPill(this)">Premium Casual</button>
-        <button class="pref-pill" data-key="Active" onclick="togglePrefPill(this)">Active / Outdoorsy</button>
-        <button class="pref-pill" data-key="Footwear" onclick="togglePrefPill(this)">Footwear</button>
-        <button class="pref-pill" data-key="Accessories" onclick="togglePrefPill(this)">Accessories</button>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-secondary" onclick="prefsNextStep(1)">Back</button>
-        <button class="btn btn-primary" onclick="prefsNextStep(3)">Next</button>
-      </div>
-    </div>
-    <div id="pref-step-3" style="display:none">
-      <div class="modal-step-indicator">Step 3 of 4</div>
-      <h2 class="modal-title">Notifications</h2>
-      <p class="modal-subtitle">Choose how Tide reaches you.</p>
-      <div class="pref-toggle-row">
-        <div class="pref-toggle-text">
-          <div class="pref-toggle-label">Alert me when a saved centre hits Go Now</div>
-          <div class="pref-toggle-sub">A short email the morning a centre peaks.</div>
-        </div>
-        <label class="pref-switch">
-          <input type="checkbox" id="toggle-email-alerts" onchange="onToggleChange(this, 'email_alerts')">
-          <span class="pref-switch-track"></span>
-          <span class="pref-switch-thumb"></span>
-        </label>
-      </div>
-      <div class="pref-toggle-row">
-        <div class="pref-toggle-text">
-          <div class="pref-toggle-label">Daily morning digest at 7am</div>
-          <div class="pref-toggle-sub">A round-up of your saved centres each morning.</div>
-        </div>
-        <label class="pref-switch">
-          <input type="checkbox" id="toggle-daily-digest" onchange="onToggleChange(this, 'daily_digest')">
-          <span class="pref-switch-track"></span>
-          <span class="pref-switch-thumb"></span>
-        </label>
-      </div>
-      <div class="saved-centres-section">
-        <span class="saved-centres-label">Centres you're tracking</span>
-        <div id="saved-centres-list" class="saved-centres-list"></div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-secondary" onclick="prefsNextStep(2)">Back</button>
-        <button class="btn btn-primary" onclick="prefsNextStep(4)">Next</button>
-      </div>
-    </div>
-    <div id="pref-step-4" style="display:none">
-      <div class="modal-step-indicator">Step 4 of 4</div>
-      <h2 class="modal-title">Your personal Tide Score</h2>
-      <p class="modal-subtitle">Based on your preferences, here's how today looks.</p>
-      <div id="pref-preview-content"></div>
-      <button class="btn btn-primary" onclick="savePreferences()">Save &amp; see my score</button>
-      <button class="btn btn-text" onclick="prefsNextStep(3)">Back</button>
-      <button class="signout-link" onclick="signOut()">Sign out</button>
-    </div>
+    <button class="ob-skip" onclick="obSkip()">Skip</button>
+  </div>
+  <div class="ob-body" id="ob-body"></div>
+  <div class="ob-foot">
+    <button class="ob-next" id="ob-next" onclick="obNext()">Next</button>
+    <span class="ob-help" id="ob-help"></span>
   </div>
 </div>
 
@@ -595,6 +664,40 @@ function dismissSurvey() {
   try { localStorage.setItem('tide_survey_dismissed', '1'); } catch(e) {}
 }
 
+// ── Cookie consent (PECR-compliant) ──
+// Skimlinks (affiliate, drops a cookie) is gated on `tide_cookies_skimlinks`
+// in localStorage. The head <script> reads the flag at page-load and only
+// injects Skimlinks if accepted. Switching from "rejected" to "accepted" or
+// vice versa requires a reload to take effect — we trigger that explicitly.
+function openCookieBanner() {
+  document.getElementById('cookie-banner').classList.add('visible');
+}
+function hideCookieBanner() {
+  document.getElementById('cookie-banner').classList.remove('visible');
+}
+function acceptCookies() {
+  try { localStorage.setItem('tide_cookies_skimlinks', 'accepted'); } catch(e) {}
+  hideCookieBanner();
+  // Skimlinks isn't loaded yet on this page-view; reload so it picks up.
+  if (!window._tideSkimlinksLoaded) location.reload();
+}
+function rejectCookies() {
+  try { localStorage.setItem('tide_cookies_skimlinks', 'rejected'); } catch(e) {}
+  hideCookieBanner();
+}
+(function showCookieBannerOnFirstVisit() {
+  try {
+    const stored = localStorage.getItem('tide_cookies_skimlinks');
+    if (stored !== 'accepted' && stored !== 'rejected') {
+      // Show banner after a short delay so it doesn't collide with the
+      // Plausible script on first paint.
+      setTimeout(() => document.getElementById('cookie-banner').classList.add('visible'), 600);
+    } else if (stored === 'accepted') {
+      window._tideSkimlinksLoaded = true;
+    }
+  } catch(e) {}
+})();
+
 (function() {
   try {
     if (localStorage.getItem('tide_survey_dismissed') === '1') {
@@ -626,16 +729,20 @@ sb.auth.onAuthStateChange(async (event, session) => {
       await saveCentreToUserPrefs(pendingCentre);
     }
     // Supabase fires SIGNED_IN on every session restore (not just real
-    // sign-ins), so gate by a per-user localStorage flag — show the prefs
-    // setup once, not every page load. Skip on mobile entirely; mobile
-    // users can open prefs from the My Tide button when they want to.
-    const isMobile = window.matchMedia('(max-width: 767px)').matches;
-    if (event === 'SIGNED_IN' && !userPrefs && !isMobile) {
+    // sign-ins), so gate by a per-user localStorage flag — show the
+    // onboarding once, not every page load. Now full-screen, so it works
+    // on mobile too (mobile users were skipped in the modal era because
+    // the centred card was unusable on small screens).
+    const noPrefsYet = !userPrefs || (
+      !(Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length) &&
+      !userPrefs.womenswear && !userPrefs.menswear && !userPrefs.childrenswear
+    );
+    if (event === 'SIGNED_IN' && noPrefsYet) {
       const seenKey = 'tide_prefs_modal_seen_' + currentUser.id;
       let seen = false;
       try { seen = localStorage.getItem(seenKey) === '1'; } catch(e) {}
       if (!seen) {
-        openPrefsModal();
+        openOnboarding();
         try { localStorage.setItem(seenKey, '1'); } catch(e) {}
       }
     }
@@ -768,6 +875,26 @@ async function authSignUp() {
 
 async function signOut() { await sb.auth.signOut(); closePrefsModal(); }
 
+// UK GDPR Art. 17 — right to erasure. Calls a SECURITY DEFINER Postgres
+// function (delete_my_account) that scopes itself to auth.uid(), so a
+// user can only ever delete their own account. After the wipe we sign
+// the session out and surface a confirmation.
+async function deleteMyAccount() {
+  if (!currentUser) return;
+  const ok = confirm("Delete your Tide account?\n\nThis erases your email, preferences, saved centres, and personal scores. You'll be signed out. This cannot be undone.");
+  if (!ok) return;
+  const final = prompt("Type DELETE to confirm:");
+  if (final !== 'DELETE') { alert('Cancelled.'); return; }
+  const { error } = await sb.rpc('delete_my_account');
+  if (error) {
+    alert('Could not delete account: ' + error.message + '\n\nEmail privacy@tidego.co and we\'ll erase it manually within 7 days.');
+    return;
+  }
+  await sb.auth.signOut();
+  closeAccountPanel();
+  alert('Your account and data have been deleted. Thanks for trying Tide.');
+}
+
 // ── Account panel (signed-in users) ──
 
 function openAccountPanel() {
@@ -786,6 +913,7 @@ function openAccountPanel() {
   }
 
   document.getElementById('account-toggle-alerts').checked = userPrefs ? userPrefs.email_alerts !== false : true;
+  document.getElementById('account-toggle-brand-alerts').checked = userPrefs ? userPrefs.brand_sale_alerts !== false : true;
   document.getElementById('account-toggle-digest').checked = userPrefs ? userPrefs.daily_digest === true : false;
 
   document.getElementById('account-panel').style.display = 'flex';
@@ -875,119 +1003,342 @@ async function saveCentreToUserPrefs(centreId) {
   else userPrefs = { user_id: currentUser.id, saved_centres: updated };
 }
 
-const pendingPrefs = { womenswear: false, menswear: false, childrenswear: false, style_clusters: [], email_alerts: true, daily_digest: false, saved_centres: [] };
+// ── Onboarding (full-screen takeover) ──
+// Drives the 4-step audiences → categories → brands → notifications flow
+// and writes the result to user_preferences.
 
-function openPrefsModal() {
+const AUDIENCE_LIST = [
+  {key:'womenswear',   label:"Women's",   icon:'♀'},
+  {key:'menswear',     label:"Men's",     icon:'♂'},
+  {key:'childrenswear',label:"Children's",icon:'☺'},
+];
+
+// What kind of clothing each cluster covers. Step 2 of onboarding shows
+// these as toggleable categories per audience; Step 3 then surfaces
+// brands whose cluster maps onto at least one selected category.
+const CLUSTER_CATEGORIES = {
+  'High Street':     ['everyday','workwear','denim'],
+  'Contemporary':    ['workwear','going-out','everyday'],
+  'Classic British': ['everyday','outerwear'],
+  'Smart/Occasion':  ['workwear','going-out'],
+  'Premium Casual':  ['everyday','workwear','outerwear'],
+  'Active':          ['active'],
+  'Footwear':        ['footwear'],
+  'Accessories':     ['accessories'],
+};
+const CATEGORY_LABEL = {
+  'everyday':  'Everyday & casual',
+  'workwear':  'Workwear & smart',
+  'going-out': 'Going out',
+  'outerwear': 'Coats & outerwear',
+  'active':    'Activewear',
+  'footwear':  'Footwear',
+  'accessories':'Accessories',
+  'denim':     'Denim',
+};
+// Which categories to offer per audience. Childrenswear gets a tighter list
+// because those are the categories where we actually have child-friendly brands.
+const CATEGORIES_BY_AUDIENCE = {
+  womenswear:   ['everyday','workwear','going-out','outerwear','active','footwear','accessories','denim'],
+  menswear:     ['everyday','workwear','going-out','outerwear','active','footwear','denim'],
+  childrenswear:['everyday','outerwear','footwear','active'],
+};
+
+function brandAudiences(b) {
+  const out = [];
+  if (b.womenswear) out.push('womenswear');
+  if (b.menswear) out.push('menswear');
+  if (b.childrenswear) out.push('childrenswear');
+  return out;
+}
+function brandCategories(b) {
+  return CLUSTER_CATEGORIES[b.cluster] || ['everyday'];
+}
+
+const onb = {
+  step: 1,
+  audiences: new Set(),       // 'womenswear' | 'menswear' | 'childrenswear'
+  categories: new Set(),      // 'audience:category' composite keys
+  brandIds: new Set(),        // brand IDs the user wants tracked
+  excluded: new Set(),        // brand IDs the user has explicitly opted out of
+  email_alerts: true,
+  brand_sale_alerts: true,
+  daily_digest: false,
+};
+
+function openOnboarding() {
+  // Hydrate from existing prefs so editing doesn't blow away their picks.
+  onb.step = 1;
+  onb.audiences.clear(); onb.categories.clear(); onb.brandIds.clear(); onb.excluded.clear();
   if (userPrefs) {
-    Object.assign(pendingPrefs, {
-      womenswear: userPrefs.womenswear || false,
-      menswear: userPrefs.menswear || false,
-      childrenswear: userPrefs.childrenswear || false,
-      style_clusters: userPrefs.style_clusters || [],
-      // Defaults: alerts on, digest off — preserved for users who pre-date these columns.
-      email_alerts: userPrefs.email_alerts !== false,
-      daily_digest: userPrefs.daily_digest === true,
-      saved_centres: Array.isArray(userPrefs.saved_centres) ? userPrefs.saved_centres.slice() : [],
-    });
+    const auds = Array.isArray(userPrefs.audiences) && userPrefs.audiences.length
+      ? userPrefs.audiences
+      : ['womenswear','menswear','childrenswear'].filter(k => userPrefs[k]);
+    auds.forEach(a => onb.audiences.add(a));
+    const cats = Array.isArray(userPrefs.categories) ? userPrefs.categories : [];
+    cats.forEach(c => onb.categories.add(c));
+    // Legacy users (or any state where audiences exist but categories don't)
+    // get their categories defaulted to the inclusive set so step 3's brand
+    // grid doesn't render empty.
+    if (onb.audiences.size > 0 && onb.categories.size === 0) {
+      [...onb.audiences].forEach(a => {
+        (CATEGORIES_BY_AUDIENCE[a] || []).forEach(c => onb.categories.add(a+':'+c));
+      });
+    }
+    (userPrefs.brand_ids || []).forEach(id => onb.brandIds.add(id));
+    (userPrefs.excluded_brand_ids || []).forEach(id => onb.excluded.add(id));
+    onb.email_alerts      = userPrefs.email_alerts !== false;
+    onb.brand_sale_alerts = userPrefs.brand_sale_alerts !== false;
+    onb.daily_digest      = userPrefs.daily_digest === true;
   } else {
-    pendingPrefs.womenswear = false; pendingPrefs.menswear = false;
-    pendingPrefs.childrenswear = false; pendingPrefs.style_clusters = [];
-    pendingPrefs.email_alerts = true; pendingPrefs.daily_digest = false;
-    pendingPrefs.saved_centres = [];
+    onb.email_alerts = true; onb.brand_sale_alerts = true; onb.daily_digest = false;
   }
-  document.querySelectorAll('#gender-pills .pref-pill').forEach(p => p.classList.toggle('active', !!pendingPrefs[p.dataset.key]));
-  document.querySelectorAll('#cluster-pills .pref-pill').forEach(p => p.classList.toggle('active', pendingPrefs.style_clusters.includes(p.dataset.key)));
-  document.getElementById('toggle-email-alerts').checked = pendingPrefs.email_alerts;
-  document.getElementById('toggle-daily-digest').checked = pendingPrefs.daily_digest;
-  renderSavedCentresList();
-  prefsShowStep(1);
-  document.getElementById('prefs-modal').style.display = 'flex';
+  document.getElementById('ob').classList.add('visible');
+  obRender();
 }
 
-function closePrefsModal() { document.getElementById('prefs-modal').style.display = 'none'; }
-
-function prefsShowStep(n) {
-  [1,2,3,4].forEach(i => { document.getElementById('pref-step-'+i).style.display = i===n ? '' : 'none'; });
-  if (n === 3) renderSavedCentresList();
-  if (n === 4) renderPrefsPreview();
+function closeOnboarding() {
+  document.getElementById('ob').classList.remove('visible');
 }
 
-function prefsNextStep(n) {
-  if (n === 2) {
-    if (!pendingPrefs.womenswear && !pendingPrefs.menswear && !pendingPrefs.childrenswear) {
-      alert('Please select at least one shopping preference.'); return;
+function obSkip() {
+  if (confirm('Skip personalisation? You can set this up any time from the My Tide menu.')) {
+    closeOnboarding();
+  }
+}
+
+function obSetProgress() {
+  const dots = document.querySelectorAll('#ob .ob-dot');
+  dots.forEach((d,i) => {
+    d.classList.toggle('done', (i+1) < onb.step);
+    d.classList.toggle('active', (i+1) === onb.step);
+  });
+  document.getElementById('ob-back').disabled = onb.step === 1;
+}
+
+function obRender() {
+  obSetProgress();
+  if (onb.step === 1) obRenderStep1();
+  else if (onb.step === 2) obRenderStep2();
+  else if (onb.step === 3) obRenderStep3();
+  else if (onb.step === 4) obRenderStep4();
+}
+
+function obRenderStep1() {
+  const audsHTML = AUDIENCE_LIST.map(a => {
+    const on = onb.audiences.has(a.key);
+    const count = BRANDS.filter(b => b[a.key]).length;
+    return '<button class="aud-card '+(on?'active':'')+'" onclick="obToggleAudience(\''+a.key+'\')">'
+         + '<div class="aud-icon">'+a.icon+'</div>'
+         + '<div class="aud-text"><div class="aud-name">'+a.label+'</div><div class="aud-meta">'+count+' brands tracked</div></div>'
+         + '<div class="aud-check">&#10003;</div>'
+         + '</button>';
+  }).join('');
+  document.getElementById('ob-body').innerHTML =
+    '<div class="ob-eyebrow">Step 1 of 4</div>'
+    + '<h1 class="ob-title">Who are you shopping for?</h1>'
+    + '<p class="ob-sub">Pick anyone who matters &mdash; we\'ll only score brands that match.</p>'
+    + '<div class="aud-grid">'+audsHTML+'</div>';
+  const next = document.getElementById('ob-next');
+  next.textContent = 'Next';
+  next.disabled = onb.audiences.size === 0;
+  document.getElementById('ob-help').textContent = onb.audiences.size === 0 ? 'Pick at least one to continue' : '';
+}
+
+function obRenderStep2() {
+  const sections = [...onb.audiences].map(aud => {
+    const audMeta = AUDIENCE_LIST.find(x => x.key === aud);
+    const cats = CATEGORIES_BY_AUDIENCE[aud] || [];
+    const grid = cats.map(c => {
+      const k = aud+':'+c;
+      const on = onb.categories.has(k);
+      return '<button class="cat-pill" aria-pressed="'+on+'" onclick="obToggleCategory(\''+k+'\')">'+CATEGORY_LABEL[c]+'</button>';
+    }).join('');
+    return '<div class="cat-section"><div class="cat-header">'+audMeta.label+'</div><div class="cat-grid">'+grid+'</div></div>';
+  }).join('');
+  document.getElementById('ob-body').innerHTML =
+    '<div class="ob-eyebrow">Step 2 of 4</div>'
+    + '<h1 class="ob-title">What do you actually buy?</h1>'
+    + '<p class="ob-sub">All selected by default. Tap to remove anything that\'s not you.</p>'
+    + '<div class="cat-help"><b>Why this matters:</b> we\'ll only count brands that sell what you wear when calculating your personal Tide Score.</div>'
+    + sections;
+  const next = document.getElementById('ob-next');
+  next.textContent = 'Next';
+  next.disabled = onb.categories.size === 0;
+  document.getElementById('ob-help').textContent = onb.categories.size === 0 ? 'Keep at least one category' : '';
+}
+
+function obMatchingBrands() {
+  return BRANDS.filter(b => {
+    const hasAud = brandAudiences(b).some(a => onb.audiences.has(a));
+    if (!hasAud) return false;
+    const cats = brandCategories(b);
+    return cats.some(c => [...onb.categories].some(k => k.endsWith(':'+c)));
+  });
+}
+
+function obRenderStep3() {
+  const matching = obMatchingBrands();
+  // Group by cluster
+  const clusters = {};
+  matching.forEach(b => { (clusters[b.cluster] ||= []).push(b); });
+  const clusterHTML = Object.entries(clusters).map(([cluster, brands]) => {
+    const onCount = brands.filter(b => onb.brandIds.has(b.id)).length;
+    const allOn = onCount === brands.length;
+    const grid = brands.map(b => {
+      const isOn = onb.brandIds.has(b.id);
+      const url = (typeof BRAND_URL_BY_NAME !== 'undefined' && BRAND_URL_BY_NAME[b.name]) || '';
+      const domain = url ? url.replace(/^https?:\/\//,'').split('/')[0] : '';
+      const logo = domain
+        ? '<img src="https://www.google.com/s2/favicons?sz=64&domain='+domain+'" alt="" onerror="this.style.display=\'none\'">'
+        : '';
+      const safeName = b.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return '<button class="ob-brand-chip '+(isOn?'active':'')+'" onclick="obToggleBrand(\''+b.id+'\')">'
+           + '<div class="ob-brand-logo">'+logo+'</div>'
+           + '<div class="ob-brand-name">'+safeName+'</div>'
+           + '<div class="ob-brand-tick">&#10003;</div>'
+           + '</button>';
+    }).join('');
+    return '<div class="ob-cluster">'
+         + '<div class="ob-cluster-head"><div><div class="ob-cluster-name">'+cluster+'</div><div class="ob-cluster-meta">'+onCount+' of '+brands.length+' selected</div></div>'
+         + '<button class="ob-cluster-toggle" onclick="obToggleCluster(\''+cluster.replace(/'/g,"\\'")+'\','+(!allOn)+')">'+(allOn?'Deselect all':'Select all')+'</button>'
+         + '</div><div class="ob-brand-grid">'+grid+'</div></div>';
+  }).join('');
+  document.getElementById('ob-body').innerHTML =
+    '<div class="ob-eyebrow">Step 3 of 4</div>'
+    + '<h1 class="ob-title">Your brands</h1>'
+    + '<p class="ob-sub">Everything\'s on by default. Switch off any you\'d never visit.</p>'
+    + '<div class="brand-summary"><b>'+onb.brandIds.size+'</b> of '+matching.length+' brands tracked</div>'
+    + clusterHTML;
+  const next = document.getElementById('ob-next');
+  next.textContent = 'Next';
+  next.disabled = onb.brandIds.size === 0;
+  document.getElementById('ob-help').textContent = onb.brandIds.size === 0 ? 'Pick at least one brand' : '';
+}
+
+function obRenderStep4() {
+  const centreId = document.getElementById('centre-select').value;
+  let preview = '';
+  if (centreId) {
+    const tempPrefs = { brand_ids: [...onb.brandIds] };
+    const result = calcPersonalScore(centreId, tempPrefs);
+    const centreName = CENTRE_NAMES[parseInt(centreId.replace('C',''))-1];
+    if (result) {
+      preview = '<div class="ob-preview">'
+              + '<div class="ob-preview-eyebrow">Your personal score &middot; '+centreName+'</div>'
+              + '<div class="ob-preview-score">'+result.score+'<span class="ob-preview-score-suffix">/100</span></div>'
+              + '<div class="ob-preview-meta">'+result.onSale+' of your '+result.matchingBrands+' tracked brands here are on sale today</div>'
+              + '</div>';
+    } else {
+      preview = '<div class="ob-preview"><div class="ob-preview-meta">We don\'t track any of your brands at '+centreName+' yet.</div></div>';
     }
   }
-  prefsShowStep(n);
+  document.getElementById('ob-body').innerHTML =
+    '<div class="ob-eyebrow">Step 4 of 4</div>'
+    + '<h1 class="ob-title">Stay in sync</h1>'
+    + '<p class="ob-sub">We\'ll let you know when there\'s something worth seeing. Off any time.</p>'
+    + '<div class="ob-notif-card">'
+    +   '<div class="pref-toggle-row"><div class="pref-toggle-text"><div class="pref-toggle-label">Alert me when a centre hits peak sale</div><div class="pref-toggle-sub">A short email the morning a saved centre peaks.</div></div>'
+    +     '<label class="pref-switch"><input type="checkbox" id="ob-toggle-alerts" '+(onb.email_alerts?'checked':'')+' onchange="onb.email_alerts=this.checked"><span class="pref-switch-track"></span><span class="pref-switch-thumb"></span></label></div>'
+    +   '<div class="pref-toggle-row"><div class="pref-toggle-text"><div class="pref-toggle-label">Alert me when one of my shops goes into sale</div><div class="pref-toggle-sub">A heads-up the moment any tracked brand starts a new sale.</div></div>'
+    +     '<label class="pref-switch"><input type="checkbox" id="ob-toggle-brand-alerts" '+(onb.brand_sale_alerts?'checked':'')+' onchange="onb.brand_sale_alerts=this.checked"><span class="pref-switch-track"></span><span class="pref-switch-thumb"></span></label></div>'
+    +   '<div class="pref-toggle-row"><div class="pref-toggle-text"><div class="pref-toggle-label">Daily morning digest at 7am</div><div class="pref-toggle-sub">A round-up of your saved centres.</div></div>'
+    +     '<label class="pref-switch"><input type="checkbox" id="ob-toggle-digest" '+(onb.daily_digest?'checked':'')+' onchange="onb.daily_digest=this.checked"><span class="pref-switch-track"></span><span class="pref-switch-thumb"></span></label></div>'
+    + '</div>'
+    + preview;
+  const next = document.getElementById('ob-next');
+  next.textContent = 'Save & see my score';
+  next.disabled = false;
+  document.getElementById('ob-help').textContent = '';
 }
 
-function togglePrefPill(pill) {
-  const key = pill.dataset.key;
-  if (pill.closest('#cluster-pills')) {
-    const idx = pendingPrefs.style_clusters.indexOf(key);
-    if (idx >= 0) { pendingPrefs.style_clusters.splice(idx,1); pill.classList.remove('active'); }
-    else { pendingPrefs.style_clusters.push(key); pill.classList.add('active'); }
+function obToggleAudience(k) {
+  if (onb.audiences.has(k)) {
+    onb.audiences.delete(k);
+    // Clean up categories tied to this audience so step 2 stays consistent.
+    [...onb.categories].forEach(c => { if (c.startsWith(k+':')) onb.categories.delete(c); });
   } else {
-    pendingPrefs[key] = !pendingPrefs[key];
-    pill.classList.toggle('active', pendingPrefs[key]);
+    onb.audiences.add(k);
+    // Default-fill categories for the audience (user can deselect).
+    (CATEGORIES_BY_AUDIENCE[k] || []).forEach(c => onb.categories.add(k+':'+c));
   }
+  obRender();
 }
 
-function onToggleChange(input, key) {
-  pendingPrefs[key] = !!input.checked;
+function obToggleCategory(k) {
+  if (onb.categories.has(k)) onb.categories.delete(k);
+  else onb.categories.add(k);
+  obRender();
 }
 
-function renderSavedCentresList() {
-  const container = document.getElementById('saved-centres-list');
-  if (!container) return;
-  const ids = pendingPrefs.saved_centres || [];
-  if (!ids.length) {
-    container.innerHTML = '<p class="saved-centres-empty">You\'ll start tracking centres as you check them. We\'ll email you when those centres hit Go Now.</p>';
-    return;
+function obToggleBrand(id) {
+  if (onb.brandIds.has(id)) { onb.brandIds.delete(id); onb.excluded.add(id); }
+  else { onb.brandIds.add(id); onb.excluded.delete(id); }
+  obRender();
+}
+
+function obToggleCluster(cluster, on) {
+  obMatchingBrands().filter(b => b.cluster === cluster).forEach(b => {
+    if (on) { onb.brandIds.add(b.id); onb.excluded.delete(b.id); }
+    else { onb.brandIds.delete(b.id); onb.excluded.add(b.id); }
+  });
+  obRender();
+}
+
+function obBack() { if (onb.step > 1) { onb.step--; obRender(); } }
+
+function obNext() {
+  if (onb.step === 2 && onb.brandIds.size === 0) {
+    // First time entering step 3 — pre-select all matching brands so the user
+    // sees the inclusive default and can opt out, not the empty default.
+    obMatchingBrands().forEach(b => { if (!onb.excluded.has(b.id)) onb.brandIds.add(b.id); });
   }
-  container.innerHTML = ids.map(cid => {
-    const idx = parseInt(String(cid).replace('C',''), 10) - 1;
-    const name = (typeof CENTRE_NAMES !== 'undefined' && CENTRE_NAMES[idx]) ? CENTRE_NAMES[idx] : cid;
-    const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return '<div class="saved-centre-row"><span>'+safeName+'</span><button class="saved-centre-remove" aria-label="Remove" onclick="removeSavedCentre(\''+cid+'\')">&times;</button></div>';
-  }).join('');
+  if (onb.step < 4) { onb.step++; obRender(); }
+  else { obSave(); }
 }
 
-function removeSavedCentre(cid) {
-  pendingPrefs.saved_centres = (pendingPrefs.saved_centres || []).filter(x => x !== cid);
-  renderSavedCentresList();
-}
-
-function renderPrefsPreview() {
-  const container = document.getElementById('pref-preview-content');
-  const centreId = document.getElementById('centre-select').value;
-  if (!centreId) { container.innerHTML = '<p class="preview-empty">Select a centre from the main screen to see your live signal preview here.</p>'; return; }
-  const result = calcPersonalScore(centreId, pendingPrefs);
-  const centreName = CENTRE_NAMES[parseInt(centreId.replace('C',''))-1];
-  if (!result) { container.innerHTML = '<p class="preview-empty">We don\'t track brands matching your preferences at '+centreName+' yet.</p>'; return; }
-  const stage = getTideStage(result.score, 'FLAT');
-  const style = stageStyle(stage);
-  container.innerHTML = '<div class="preview-gauge">'
-    + renderArcWidget(stage, style.color)
-    + '<div class="preview-meta">'+result.matchingBrands+' of your brands at '+centreName+' &mdash; '+result.onSale+' on sale today</div>'
-    + '</div>';
-}
-
-async function savePreferences() {
-  if (!currentUser) return;
-  const { error } = await pgUpsert('user_preferences', {
-    user_id: currentUser.id, womenswear: pendingPrefs.womenswear,
-    menswear: pendingPrefs.menswear, childrenswear: pendingPrefs.childrenswear,
-    style_clusters: pendingPrefs.style_clusters,
-    email_alerts: pendingPrefs.email_alerts,
-    daily_digest: pendingPrefs.daily_digest,
-    saved_centres: pendingPrefs.saved_centres,
-  }, 'user_id');
+async function obSave() {
+  if (!currentUser) { closeOnboarding(); return; }
+  const audiencesArr  = [...onb.audiences];
+  const categoriesArr = [...onb.categories];
+  const brandIdsArr   = [...onb.brandIds];
+  const excludedArr   = [...onb.excluded];
+  // Style clusters fall out of the brand selection so legacy filtering
+  // still works for any code that hasn't migrated yet.
+  const styleClusters = [...new Set(BRANDS.filter(b => onb.brandIds.has(b.id)).map(b => b.cluster))];
+  const payload = {
+    user_id: currentUser.id,
+    audiences: audiencesArr,
+    categories: categoriesArr,
+    brand_ids: brandIdsArr,
+    excluded_brand_ids: excludedArr,
+    womenswear:    onb.audiences.has('womenswear'),
+    menswear:      onb.audiences.has('menswear'),
+    childrenswear: onb.audiences.has('childrenswear'),
+    style_clusters: styleClusters,
+    email_alerts:      onb.email_alerts,
+    brand_sale_alerts: onb.brand_sale_alerts,
+    daily_digest:      onb.daily_digest,
+  };
+  const { error } = await pgUpsert('user_preferences', payload, 'user_id');
   if (error) { alert('Could not save preferences: ' + error.message); return; }
-  userPrefs = { ...pendingPrefs, user_id: currentUser.id };
-  closePrefsModal();
+  userPrefs = { ...(userPrefs || {}), ...payload };
+  closeOnboarding();
   const sel = document.getElementById('centre-select');
   if (sel.value) renderCentre(sel.value);
+}
+
+// Backwards-compat shim — older code paths or links that called the modal
+// open/close still work after the rename.
+function openPrefsModal() { openOnboarding(); }
+function closePrefsModal() { closeOnboarding(); }
+
+// Brand-list tab toggle (My brands / All brands). Persists across renders
+// within the session via window._tideBrandFilter; renderCentre re-reads it.
+function setBrandFilter(which) {
+  window._tideBrandFilter = which;
+  const sel = document.getElementById('centre-select');
+  if (sel && sel.value) renderCentre(sel.value);
 }
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
@@ -1908,7 +2259,16 @@ function brandMatchesFrontendPrefs(brand, prefs) {
 function calcPersonalScore(centreId, prefs) {
   if (!centreId||!prefs) return null;
   const centreIdx=parseInt(centreId.replace('C',''))-1;
-  const matching=BRANDS.filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1&&brandMatchesFrontendPrefs(b,prefs));
+  // brand_ids takes precedence — if the user explicitly picked brands during
+  // onboarding, score against just those. Falls back to legacy gender +
+  // cluster filtering for users who pre-date the new flow.
+  const useBrandIds = Array.isArray(prefs.brand_ids) && prefs.brand_ids.length > 0;
+  const brandIdSet = useBrandIds ? new Set(prefs.brand_ids) : null;
+  const matching = BRANDS.filter(b => {
+    if ((PRESENCE[b.id]||[])[centreIdx] !== 1) return false;
+    if (brandIdSet) return brandIdSet.has(b.id);
+    return brandMatchesFrontendPrefs(b, prefs);
+  });
   if (!matching.length) return null;
   let totalFreshness=0;
   const onSale=matching.filter(b=>SALE_STATUS[b.name]===true);
@@ -1979,8 +2339,9 @@ async function renderCentre(centreId) {
 
   let personalResult=null;
   if (userPrefs) {
-    const anyGender=userPrefs.womenswear||userPrefs.menswear||userPrefs.childrenswear;
-    if (anyGender) personalResult=calcPersonalScore(centreId,userPrefs);
+    const hasBrandIds = Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length > 0;
+    const anyGender = userPrefs.womenswear || userPrefs.menswear || userPrefs.childrenswear;
+    if (hasBrandIds || anyGender) personalResult = calcPersonalScore(centreId, userPrefs);
   }
   const personalScore=personalResult?personalResult.score:null;
   const scoresEqual=personalScore!==null&&Math.abs(personalScore-centreScore)<2;
@@ -2017,17 +2378,29 @@ async function renderCentre(centreId) {
     personalVerdictLine='<p class="personal-verdict-line">'+(diff>0?'Your brands are particularly well-placed right now -- better than the centre average.':'Your brands are a little quieter than the centre average today.')+'</p>';
   }
 
-  const allBrandsAtCentre = BRANDS
-    .filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1)
+  const userBrandIds = (userPrefs && Array.isArray(userPrefs.brand_ids)) ? new Set(userPrefs.brand_ids) : null;
+  const showBrandFilterTabs = !!userBrandIds && userBrandIds.size > 0;
+  // Default to "My brands" when the user has set them up; logged-out / unset
+  // users see "all" implicitly.
+  if (showBrandFilterTabs && !window._tideBrandFilter) window._tideBrandFilter = 'mine';
+  const brandFilter = showBrandFilterTabs ? (window._tideBrandFilter || 'mine') : 'all';
+  const visibleBrandsAtCentre = BRANDS
+    .filter(b => (PRESENCE[b.id]||[])[centreIdx] === 1)
+    .filter(b => brandFilter === 'all' || !userBrandIds || userBrandIds.has(b.id))
     .map(b => ({...b, isOnSale: SALE_STATUS[b.name]===true, daysRunning: DAYS_RUNNING[b.name]||0}));
   // On sale: newest sales first (lowest days running), tiebreak alphabetical.
-  const onSaleBrands = allBrandsAtCentre
+  const onSaleBrands = visibleBrandsAtCentre
     .filter(b => b.isOnSale)
     .sort((a,b) => a.daysRunning - b.daysRunning || a.name.localeCompare(b.name));
   // Not on sale: alphabetical.
-  const offSaleBrands = allBrandsAtCentre
+  const offSaleBrands = visibleBrandsAtCentre
     .filter(b => !b.isOnSale)
     .sort((a,b) => a.name.localeCompare(b.name));
+  // Total at this centre regardless of filter — used in the "All brands" tab count.
+  const totalAtCentre = BRANDS.filter(b => (PRESENCE[b.id]||[])[centreIdx] === 1).length;
+  const myAtCentre = userBrandIds
+    ? BRANDS.filter(b => (PRESENCE[b.id]||[])[centreIdx] === 1 && userBrandIds.has(b.id)).length
+    : 0;
 
   function renderChip(b) {
     const days = b.daysRunning;
@@ -2124,9 +2497,23 @@ async function renderCentre(centreId) {
   if (stage === 'Rising' || stage === 'High Tide') showNotifyBanner();
   else hideNotifyBanner();
 
+  // My-brands / All-brands tab toggle — only shown when the user has set
+  // up brand_ids during onboarding. The brand list is already pre-filtered
+  // (see visibleBrandsAtCentre above) based on window._tideBrandFilter.
+  let filterTabs = '';
+  if (showBrandFilterTabs) {
+    filterTabs = '<div class="brand-filter-tabs" role="tablist">'
+               + '<button class="brand-filter-tab '+(brandFilter==='mine'?'active':'')+'" onclick="setBrandFilter(\'mine\')" role="tab" aria-selected="'+(brandFilter==='mine')+'">My brands ('+myAtCentre+')</button>'
+               + '<button class="brand-filter-tab '+(brandFilter==='all'?'active':'')+'" onclick="setBrandFilter(\'all\')" role="tab" aria-selected="'+(brandFilter==='all')+'">All brands ('+totalAtCentre+')</button>'
+               + '</div>';
+  }
+  // On-sale chip in the section heading reflects what's visible (matches the
+  // tab the user is on), not always the centre-wide count.
+  const visibleOnSaleCount = onSaleBrands.length;
+
   content.innerHTML = heroHTML + scoreCardHTML + narrativeHTML
     + renderHistoryChart(history,style.color,trajectory)
-    + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+onSale.length+' on sale today</span></div><div class="brand-grid">'+brandHTML+'</div></div>';
+    + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>';
 
   requestAnimationFrame(()=>{
     document.getElementById('score-card').classList.add('visible');

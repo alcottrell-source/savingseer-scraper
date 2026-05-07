@@ -5,6 +5,7 @@
   "outputDirectory": ".",
   "rewrites": [
     { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/(index.html)?", "has": [{ "type": "host", "value": "admin.tidego.co" }], "destination": "/admin.html" }
   ],
   "headers": [

@@ -3437,6 +3437,16 @@ try {
   if (_mc && !_mc.innerHTML.trim()) _mc.innerHTML = renderLandingHero();
   const _hi = document.getElementById('home-info-section');
   if (_hi) _hi.style.display = 'none';
+  // Autofocus the search on desktop only. Touch devices skip it so the
+  // iOS/Android keyboard doesn't pop up the moment the page loads.
+  const _fineHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (_fineHover) {
+    const _picker = document.getElementById('picker-section');
+    const _input = document.getElementById('centre-search');
+    if (_input && _picker && !_picker.classList.contains('is-hidden')) {
+      _input.focus({ preventScroll: true });
+    }
+  }
 } catch (e) { /* render helpers may not be ready yet — auth flow will retry */ }
 
 loadTideData().then(ok => { if (!ok) loadSheetData(); });

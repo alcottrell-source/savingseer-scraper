@@ -115,18 +115,24 @@
   .section-heading { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
   .on-sale-count { background: var(--leaf-lt); color: var(--leaf); font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
   .brand-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
-  .brand-chip { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--bark); transition: border-color 0.2s, background 0.2s; text-decoration: none; }
+  .brand-chip { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px 11px 18px; background: white; border: 1px solid var(--border); border-radius: 12px; font-size: 13px; color: var(--bark); transition: border-color 0.2s, background 0.2s; text-decoration: none; overflow: hidden; }
   .brand-chip.on-sale { border-color: rgba(61,107,53,0.25); background: var(--leaf-lt); }
   .brand-chip.on-sale .brand-name { font-weight: 500; color: var(--bark); }
-  .brand-left { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
-  .brand-logo { width: 22px; height: 22px; border-radius: 5px; background: white; flex-shrink: 0; object-fit: contain; border: 1px solid var(--border); }
+  /* Left-edge freshness bar — green=new, leaf=fresh, amber=aging, red=late */
+  .brand-chip[data-fresh]::before { content: ''; position: absolute; left: 0; top: 12%; bottom: 12%; width: 4px; border-radius: 0 2px 2px 0; }
+  .brand-chip[data-fresh="new"]::before    { background: var(--leaf); }
+  .brand-chip[data-fresh="fresh"]::before  { background: rgba(61,107,53,0.55); }
+  .brand-chip[data-fresh="aging"]::before  { background: var(--amber); }
+  .brand-chip[data-fresh="late"]::before   { background: var(--red); opacity: 0.65; }
+  .brand-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+  .brand-logo { width: 26px; height: 26px; border-radius: 6px; background: white; flex-shrink: 0; object-fit: contain; border: 1px solid var(--border); }
   .brand-logo.no-logo { background: var(--stone-lt); }
   .brand-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   a.brand-chip:hover { border-color: var(--leaf); background: rgba(61,107,53,0.10); }
   a.brand-chip:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
   .brand-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .brand-days { font-size: 11px; color: var(--leaf); font-weight: 500; letter-spacing: 0.01em; min-width: 72px; text-align: right; }
-  .brand-pct { font-size: 11px; color: var(--amber); font-weight: 600; letter-spacing: 0.01em; background: var(--amber-lt); padding: 2px 7px; border-radius: 10px; min-width: 68px; box-sizing: border-box; text-align: center; }
+  .brand-pct { font-family: 'Cormorant Garamond', serif; font-size: 15px; color: var(--gold); font-weight: 600; letter-spacing: 0; background: transparent; padding: 0; min-width: 72px; box-sizing: border-box; text-align: right; }
   .brand-pct.empty { background: transparent; padding: 2px 0; }
   .brand-arrow { font-size: 11px; color: var(--stone); margin-left: 6px; opacity: 0.55; flex-shrink: 0; }
   .brand-arrow.invisible { visibility: hidden; }
@@ -2719,6 +2725,13 @@ async function renderCentre(centreId) {
                     : days<=7  ? 'Fresh · '+days+'d'
                     : days<=21 ? days+'d in'
                                : 'Late · '+days+'d';
+    // Freshness bucket for left-edge colour bar (matches the daysLabel buckets)
+    const fresh = !b.isOnSale ? ''
+                : days<=1     ? 'new'
+                : days<=7     ? 'fresh'
+                : days<=21    ? 'aging'
+                              : 'late';
+    const freshAttr = fresh ? ' data-fresh="'+fresh+'"' : '';
     const pct = b.isOnSale ? MAX_DISCOUNT_PCT[b.name] : null;
     // Always render pct/days/dot spans (with empty placeholders when no
     // content) so the right side of every chip lines up. min-widths in CSS.
@@ -2740,8 +2753,8 @@ async function renderCentre(centreId) {
     const arrow = '<span class="brand-arrow'+(url?'':' invisible')+'" aria-hidden="true">↗</span>';
     const inner = '<span class="brand-left">'+logoImg+'<span class="brand-name">'+b.name+'</span></span>'+meta+arrow;
     return url
-      ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'" href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
-      : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'">'+inner+'</div>';
+      ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+' href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
+      : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+'>'+inner+'</div>';
   }
 
   let brandHTML='';

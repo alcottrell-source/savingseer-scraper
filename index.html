@@ -1559,7 +1559,41 @@ async function loadTideData() {
     const centresList = centresRes.data || [];
     if (!centresList.length) { console.warn('No centres returned from Supabase'); return false; }
 
-    CENTRE_ID_BY_IDX = centresList.map(c => c.id);
+    // Build the dropdown-idx -> Supabase-centre-id map by NAME, not by
+    // Supabase response order. Supabase orders by id (alphabetical) which
+    // does not match the curated CENTRE_NAMES order — without this the
+    // detail view would render centre A's score under centre B's name
+    // for almost every centre, which would silently break the contract
+    // that admin and consumer always agree on what's on sale where.
+    const _norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const _byNorm = new Map();
+    for (const c of centresList) {
+      const k = _norm(c.name);
+      if (k && !_byNorm.has(k)) _byNorm.set(k, c);
+    }
+    CENTRE_ID_BY_IDX = CENTRE_NAMES.map(displayName => {
+      const target = _norm(displayName);
+      // Exact match first
+      if (_byNorm.has(target)) return _byNorm.get(target).id;
+      // Then either-side starts-with / contains (handles "St David's" <->
+      // "St Davids", "Arndale" <-> "Manchester Arndale", etc.). Min target
+      // length 4 so we never let trivial words (e.g. "the") false-match.
+      for (const [k, c] of _byNorm) {
+        if (k.startsWith(target) || target.startsWith(k)) return c.id;
+        if (target.length >= 4 && (k.includes(target) || target.includes(k))) return c.id;
+      }
+      console.warn('No Supabase centre matched dropdown name:', displayName);
+      return null;
+    });
+    // Sanity-check: any nulls or duplicates would silently cross-wire
+    // centres again. Log once per load if found — never deploy with these.
+    const _seen = new Set();
+    for (let i = 0; i < CENTRE_ID_BY_IDX.length; i++) {
+      const id = CENTRE_ID_BY_IDX[i];
+      if (id == null) console.warn('  -> dropdown idx', i, '"' + CENTRE_NAMES[i] + '" has NO match');
+      else if (_seen.has(id)) console.warn('  -> duplicate match: idx', i, CENTRE_NAMES[i], '->', id);
+      if (id) _seen.add(id);
+    }
     for (const c of centresList) CENTRE_HISTORY[c.id] = Array.isArray(c.tide_history) ? c.tide_history : [];
 
     let latestDate = today;

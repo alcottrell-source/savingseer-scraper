@@ -24,13 +24,14 @@
   }
   html { font-size: 16px; }
   body { background: var(--cream); color: var(--bark); font-family: 'DM Sans', sans-serif; font-weight: 300; min-height: 100vh; -webkit-font-smoothing: antialiased; }
-  header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--cream); z-index: 100; }
+  header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: rgba(250,247,242,0.92); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); z-index: 100; }
   .wordmark { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--bark); }
   .wordmark span { color: var(--leaf); }
   .header-right { display: flex; align-items: center; gap: 14px; }
   .tagline { font-size: 12px; color: var(--stone); letter-spacing: 0.06em; text-transform: uppercase; }
-  .auth-btn { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: var(--leaf); background: var(--leaf-lt); border: 1px solid rgba(61,107,53,0.2); border-radius: 20px; padding: 6px 14px; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
-  .auth-btn:hover { background: rgba(61,107,53,0.12); }
+  .auth-btn { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: var(--tide-cream); background: var(--ink); border: 1px solid var(--ink); border-radius: 100px; padding: 7px 16px; cursor: pointer; transition: background 0.2s, transform 0.15s; white-space: nowrap; }
+  .auth-btn:hover { background: var(--ink-mid); }
+  .auth-btn:active { transform: scale(0.97); }
   .picker-section { padding: 32px 24px 0; }
   .picker-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 10px; display: block; }
   .centre-search-wrap { position: relative; margin-bottom: 8px; }

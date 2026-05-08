@@ -2423,13 +2423,24 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, on
   void stage;
 
   // Hero number — the day-on-day % change. Lives in the headline column
-  // (left side), visually dominant, tinted by direction. The right-wall
-  // marks are a separate scale and are spatially clear of this.
+  // (left side), visually dominant, tinted by direction. Uses an arrow
+  // glyph as the "sign" so direction is unmistakable at a glance:
+  //   ↑ N%   (rising — leaf green)
+  //   ↓ N%   (falling — salmon)
+  //   = Same (flat — muted cream)
   let hero = '';
   if (pctChange !== null && pctChange !== undefined && Number.isFinite(pctChange)) {
-    const dirClass = pctChange > 0 ? 'is-up' : pctChange < 0 ? 'is-down' : 'is-flat';
-    const sign = pctChange > 0 ? '+' : '';
-    const text = pctChange === 0 ? 'No change' : (sign + pctChange + '%');
+    let dirClass, text;
+    if (pctChange > 0) {
+      dirClass = 'is-up';
+      text = '↑ ' + pctChange + '%';
+    } else if (pctChange < 0) {
+      dirClass = 'is-down';
+      text = '↓ ' + Math.abs(pctChange) + '%';
+    } else {
+      dirClass = 'is-flat';
+      text = '= Same';
+    }
     hero = '<div class="tide-vessel-hero ' + dirClass + '">' + text + '</div>'
          + '<span class="tide-vessel-hero-label">vs yesterday</span>';
   }

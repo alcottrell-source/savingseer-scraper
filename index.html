@@ -131,7 +131,7 @@
   a.brand-chip:hover { border-color: var(--leaf); background: rgba(61,107,53,0.10); }
   a.brand-chip:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
   .brand-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  .brand-days { font-size: 11px; color: var(--leaf); font-weight: 500; letter-spacing: 0.01em; min-width: 72px; text-align: right; }
+  .brand-days { font-size: 11px; color: var(--leaf); font-weight: 500; letter-spacing: 0.01em; text-align: right; white-space: nowrap; }
   .brand-pct { font-family: 'Cormorant Garamond', serif; font-size: 15px; color: var(--gold); font-weight: 600; letter-spacing: 0; background: transparent; padding: 0; min-width: 72px; box-sizing: border-box; text-align: right; }
   .brand-pct.empty { background: transparent; padding: 2px 0; }
   .brand-arrow { font-size: 11px; color: var(--stone); margin-left: 6px; opacity: 0.55; flex-shrink: 0; }
@@ -415,7 +415,7 @@
   .narrative-title { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--stone); }
   .narrative-live { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--leaf); letter-spacing: 0.04em; }
   .narrative-live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--leaf); animation: pulse 2s ease-in-out infinite; }
-  .stat-row { display: grid; grid-template-columns: 1fr 1.4fr 1fr; border-bottom: 1px solid var(--border); }
+  .stat-row { display: grid; grid-template-columns: minmax(96px, 1fr) 2.2fr; border-bottom: 1px solid var(--border); }
   .stat-cell { padding: 14px 16px; border-right: 1px solid var(--border); min-width: 0; }
   .stat-cell:last-child { border-right: none; }
   .stat-value { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; color: var(--bark); letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -424,6 +424,17 @@
   .stat-value.warning { color: var(--amber); }
   .stat-value.muted { color: var(--stone); }
   .stat-label { font-size: 10px; color: var(--stone); letter-spacing: 0.04em; line-height: 1.3; }
+  /* "Today's freshest deals" list — replaces the wonky truncating
+     "Biggest deal" cell with a richer brand+%+days roster. */
+  .stat-cell.stat-list { padding: 10px 16px; }
+  .stat-list-label { font-size: 10px; letter-spacing: 0.04em; color: var(--stone); margin-bottom: 6px; }
+  .stat-list-items { list-style: none; margin: 0; padding: 0; }
+  .stat-list-items li { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 3px 0; font-size: 13px; color: var(--ink); }
+  .stat-list-items li + li { border-top: 1px dotted var(--tide-border); }
+  .stat-list-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+  .stat-list-meta { font-family: 'Cormorant Garamond', serif; font-size: 14px; color: var(--gold); font-weight: 600; flex-shrink: 0; }
+  .stat-list-meta .stat-list-days { font-family: 'DM Sans', sans-serif; font-size: 11px; color: var(--stone); margin-left: 6px; font-weight: 400; }
+  .stat-list-empty { font-size: 12px; color: var(--stone); font-style: italic; padding: 4px 0; }
   .narrative-body { padding: 14px 18px; }
   .narrative-insight { font-size: 13.5px; color: var(--ink-mid); line-height: 1.65; margin: 0; }
   .narrative-insight::before { content: '\2726'; color: var(--gold); font-size: 13px; margin-right: 8px; vertical-align: 0.05em; }
@@ -2149,23 +2160,31 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
   const histCount = history.length;
   const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // Stat row — three real-data cells per the brief.
+  // Stat row — 2 cells now: the count on the left, and a multi-row
+  // "today's freshest deals" list on the right (replaces the old
+  // single-brand "Biggest deal" cell which truncated awkwardly).
+  // List sorted by ascending days running (freshest first) and
+  // capped at 3 rows.
   const cell1 = '<div class="stat-cell"><div class="stat-value ' + (onSaleCount > 0 ? 'positive' : 'muted') + '">' + onSaleCount + '</div><div class="stat-label">Brands on sale</div></div>';
-  const freshName  = fresh ? escapeHtml(fresh.name) : '—';
-  const freshLabel = fresh ? ('Freshest brand · ' + (fresh.days || 1) + 'd') : 'Freshest brand';
-  const cell2 = '<div class="stat-cell"><div class="stat-value warning compact" title="' + (fresh ? escapeHtml(fresh.name) : '') + '">' + freshName + '</div><div class="stat-label">' + freshLabel + '</div></div>';
-  // Cell 3 — biggest discount available across brands on sale today.
-  // More commercially useful than "Days of history" was: directly
-  // answers "is there a meaningful deal here right now?".
-  let bestPct = 0, bestPctBrand = null;
-  for (const b of onSale) {
-    const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
-    if (typeof pct === 'number' && pct > bestPct) { bestPct = pct; bestPctBrand = b.name; }
-  }
-  const cell3 = bestPct > 0
-    ? '<div class="stat-cell"><div class="stat-value warning">Up to ' + bestPct + '%</div><div class="stat-label">Biggest deal &middot; ' + escapeHtml(bestPctBrand) + '</div></div>'
-    : '<div class="stat-cell"><div class="stat-value muted">—</div><div class="stat-label">Biggest deal</div></div>';
-  void histCount;
+  const topDeals = onSale.slice()
+    .sort((a, b) => (a.days || 0) - (b.days || 0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)))
+    .slice(0, 3);
+  const dealRows = topDeals.length
+    ? '<ul class="stat-list-items">' + topDeals.map(b => {
+        const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
+        const pctTxt = (typeof pct === 'number' && pct > 0) ? ('Up to ' + pct + '%') : '—';
+        const daysTxt = (b.days <= 1) ? 'New' : (b.days + 'd');
+        return '<li>'
+             +   '<span class="stat-list-name">' + escapeHtml(b.name) + '</span>'
+             +   '<span class="stat-list-meta">' + pctTxt + '<span class="stat-list-days">' + daysTxt + '</span></span>'
+             + '</li>';
+      }).join('') + '</ul>'
+    : '<div class="stat-list-empty">No verified sales today.</div>';
+  const cell2 = '<div class="stat-cell stat-list">'
+              +   '<div class="stat-list-label">Today’s freshest deals</div>'
+              +   dealRows
+              + '</div>';
+  void histCount; // narrative still uses `fresh` below
 
   // Narrative — Claude-written if available, otherwise template fallback.
   const aiNarrative = (getServerScore(centreIdx) || {}).narrative;
@@ -2202,7 +2221,7 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
     +   '<span class="narrative-title">Centre Intelligence</span>'
     +   '<span class="narrative-live"><span class="narrative-live-dot"></span>Live sale data</span>'
     + '</div>'
-    + '<div class="stat-row">' + cell1 + cell2 + cell3 + '</div>'
+    + '<div class="stat-row">' + cell1 + cell2 + '</div>'
     + '<div class="narrative-body"><p class="narrative-insight">' + narrative + '</p></div>'
     + hoursStrip
     + '</div></div>';
@@ -2720,11 +2739,12 @@ async function renderCentre(centreId) {
 
   function renderChip(b) {
     const days = b.daysRunning;
+    // Short days label so the brand name gets the room it needs.
+    // Freshness bucket is already conveyed by the left-edge colour bar.
     const daysLabel = days===0 ? ''
-                    : days===1 ? 'New today'
-                    : days<=7  ? 'Fresh · '+days+'d'
-                    : days<=21 ? days+'d in'
-                               : 'Late · '+days+'d';
+                    : days===1 ? 'New'
+                    : days<=21 ? days+'d'
+                               : days+'d';
     // Freshness bucket for left-edge colour bar (matches the daysLabel buckets)
     const fresh = !b.isOnSale ? ''
                 : days<=1     ? 'new'

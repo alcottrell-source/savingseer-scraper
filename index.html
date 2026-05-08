@@ -101,10 +101,15 @@
   .tide-score-float { position: absolute; left: 20px; bottom: calc(var(--tide-level, 0%) + 8px); z-index: 7; display: flex; align-items: baseline; gap: 4px; transition: bottom 1.4s cubic-bezier(0.34, 1.2, 0.64, 1); }
   .tide-score-num  { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 42px; line-height: 1; color: var(--tide-cream); }
   .tide-score-unit { font-family: 'DM Sans', sans-serif; font-size: 12px; color: rgba(245,241,235,0.5); letter-spacing: 0.06em; }
-  /* Score-card: when it contains a vessel, hide the existing top accent stripe and the duplicate Playfair statement (vessel carries it) */
+  /* Score-card: when it contains a vessel, hide the existing top accent
+     stripe, the duplicate Playfair statement, and the redundant phase
+     badge (the lit-up stage marker inside the vessel already shows it). */
   .score-card.has-vessel::before { display: none; }
   .score-card.has-vessel .score-statement { display: none; }
-  .score-card.has-vessel .phase-badge { color: var(--ink-light); background: var(--tide-cream-dark); border: 1px solid var(--tide-border); }
+  .score-card.has-vessel .score-top { display: none; }
+  .score-card.has-vessel { padding: 12px; border-radius: 22px; }
+  .score-card.has-vessel .score-message { border-top: none; padding: 14px 8px 4px; font-size: 13.5px; line-height: 1.55; color: var(--ink-mid); }
+  .score-card.has-vessel .trend-line { padding: 0 8px 6px; font-size: 12px; color: var(--stone); font-style: italic; }
   .brands-section { padding: 24px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.15s, transform 0.4s ease 0.15s; }
   .brands-section.visible { opacity: 1; transform: translateY(0); }
   .section-heading { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }

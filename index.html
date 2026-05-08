@@ -88,16 +88,10 @@
   .tide-wave-svg-2{ position: absolute; top: 4px; left: -15%; width: 130%; height: 28px; animation: tideWaveDrift2 5.5s ease-in-out infinite; opacity: 0.5; }
   @keyframes tideWaveDrift  { 0%,100% { transform: translateX(0); } 50% { transform: translateX(4%);  } }
   @keyframes tideWaveDrift2 { 0%,100% { transform: translateX(5%); } 50% { transform: translateX(-3%); } }
-  .tide-vessel-headline { position: absolute; left: 20px; top: 18px; z-index: 6; }
-  .tide-vessel-eyebrow { display: block; font-family: 'DM Sans', sans-serif; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(245,241,235,0.45); margin-bottom: 4px; }
-  .tide-vessel-statement { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 28px; line-height: 1.1; letter-spacing: -0.01em; color: var(--tide-cream); white-space: pre-line; }
-  .tide-markers { position: absolute; right: 16px; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 14px 0; z-index: 5; }
-  .tide-marker { display: flex; align-items: center; gap: 6px; opacity: 0.30; transition: opacity 0.3s; }
-  .tide-marker.current { opacity: 1; }
-  .tide-marker-line { width: 16px; height: 1px; background: var(--tide-cream); }
-  .tide-marker-label { font-family: 'DM Sans', sans-serif; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--tide-cream); white-space: nowrap; }
-  .tide-marker.current .tide-marker-line { background: var(--gold-light); width: 20px; }
-  .tide-marker.current .tide-marker-label { color: var(--gold-light); }
+  .tide-vessel-headline { position: absolute; left: 20px; top: 18px; right: 20px; z-index: 6; }
+  .tide-vessel-eyebrow { display: block; font-family: 'DM Sans', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold-light); margin-bottom: 6px; }
+  .tide-vessel-statement { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 32px; line-height: 1.1; letter-spacing: -0.01em; color: var(--tide-cream); white-space: pre-line; }
+  /* Stage markers removed — trajectory eyebrow carries the direction now */
   .tide-score-float { position: absolute; left: 20px; bottom: calc(var(--tide-level, 0%) + 8px); z-index: 7; display: flex; align-items: baseline; gap: 4px; transition: bottom 1.4s cubic-bezier(0.34, 1.2, 0.64, 1); }
   .tide-score-num  { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 42px; line-height: 1; color: var(--tide-cream); }
   .tide-score-unit { font-family: 'DM Sans', sans-serif; font-size: 12px; color: rgba(245,241,235,0.5); letter-spacing: 0.06em; }
@@ -2361,33 +2355,28 @@ function computeHistoricalScores(centreIdx) {
   });
 }
 
-// Rebrand step 4: dark "tide vessel" with water fill, waves, score, and
-// stage markers down the right wall. Driven entirely by the score % +
-// the (server-derived) stage label. Replaces the semicircular gauge.
-function renderTideVessel(score, stage, statement) {
+// Rebrand step 4 (revised): a single dark vessel where water height = the
+// numeric score (0-100), and direction comes from the trajectory call-out
+// on the top-left text — NOT from a fixed sequence of stage markers.
+//
+// Why no markers: a single water level can't double as a position on a
+// rising-tide ladder AND on a falling-tide ladder — "Falling" sandwiched
+// between "Turning" and "Rising" reads as bidirectional movement on a
+// one-dimensional axis, which is never what the data means. The score
+// number is the percentage; the trajectory word + arrow says which way.
+function renderTideVessel(score, stage, statement, trajectory) {
   const pct = Math.max(0, Math.min(100, +score || 0));
-  // 5 markers top-down: Go now / Rising / Turning / Falling / Low.
-  // Ordered visually with the highest stage at the top of the vessel.
-  const STAGES = [
-    { key: 'High Tide', label: 'Go now' },
-    { key: 'Rising',    label: 'Rising' },
-    { key: 'Turning',   label: 'Turning' },
-    { key: 'Falling',   label: 'Falling' },
-    { key: 'Low',       label: 'Low' },
-  ];
   const safeStatement = (statement || '').replace(/\n/g, '<br>');
-  const markers = STAGES.map(s =>
-    '<div class="tide-marker' + (s.key === stage ? ' current' : '') + '">'
-      + '<div class="tide-marker-line"></div>'
-      + '<span class="tide-marker-label">' + s.label + '</span>'
-    + '</div>'
-  ).join('');
+  const eyebrow = trajectory === 'RISING'  ? 'Tide rising ↑'
+              : trajectory === 'FALLING' ? 'Tide falling ↓'
+              :                            'Tide steady';
+  void stage; // stage no longer drives a marker; the verdict statement and
+              // trajectory eyebrow carry the message between them.
   return '<div class="tide-vessel" style="--tide-level:' + pct + '%">'
        +   '<div class="tide-vessel-headline">'
-       +     '<span class="tide-vessel-eyebrow">Today’s Tide</span>'
+       +     '<span class="tide-vessel-eyebrow">' + eyebrow + '</span>'
        +     '<div class="tide-vessel-statement">' + safeStatement + '</div>'
        +   '</div>'
-       +   '<div class="tide-markers">' + markers + '</div>'
        +   '<div class="tide-water">'
        +     '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
        +       '<path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.4)"/>'
@@ -2846,7 +2835,7 @@ async function renderCentre(centreId) {
     +   '<div class="score-top">'+scoreHeader
     +     '<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div></div>'
     +   '</div>'
-    +   renderTideVessel(centreScore, stage, style.statement)
+    +   renderTideVessel(centreScore, stage, style.statement, trajectory)
     +   evidenceStrip + noMatchMsg + personalVerdictLine
     +   '<div class="score-message">'+verdictMsg+'</div>'
     +   trendCopy

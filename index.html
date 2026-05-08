@@ -2520,19 +2520,33 @@ function stageStyle(stage) {
   return s[stage]||s['Turning'];
 }
 
-function computeTrajectory(score, history) {
+function computeTrajectory(score, history, yesterdayTrajectory) {
+  // Hysteresis: once the trajectory is RISING or FALLING, hold it through
+  // small noise. Need a meaningful move in the opposite direction to flip.
+  // Without this, a centre that's been climbing for a week flips to FALLING
+  // on a single bad day, then back the next — pulse, not tide.
+  const FLIP_BAND = 4.0;          // RISING -> FALLING (and vice versa)
+  const LEAVE_FLAT_BAND = TRAJECTORY_FLAT_BAND;  // exit FLAT into trend
   const n = history.length;
-  if (n<2) return 'FLAT';
-  if (n<4) {
-    const diff = score - history[0].score;
-    if (diff>TRAJECTORY_FLAT_BAND) return 'RISING';
-    if (diff<-TRAJECTORY_FLAT_BAND) return 'FALLING';
-    return 'FLAT';
+  if (n < 2) return 'FLAT';
+  let avg;
+  if (n < 4) avg = history[0].score;
+  else       avg = (history[n-2].score + history[n-3].score + history[n-4].score) / 3;
+  const diff = score - avg;
+  const prior = yesterdayTrajectory || 'FLAT';
+  if (prior === 'RISING') {
+    if (diff < -FLIP_BAND) return 'FALLING';
+    if (diff < -LEAVE_FLAT_BAND) return 'FLAT';
+    return 'RISING';
   }
-  const avg = (history[n-2].score+history[n-3].score+history[n-4].score)/3;
-  const diff = score-avg;
-  if (diff>TRAJECTORY_FLAT_BAND) return 'RISING';
-  if (diff<-TRAJECTORY_FLAT_BAND) return 'FALLING';
+  if (prior === 'FALLING') {
+    if (diff >  FLIP_BAND) return 'RISING';
+    if (diff >  LEAVE_FLAT_BAND) return 'FLAT';
+    return 'FALLING';
+  }
+  // FLAT (or unknown prior): standard symmetric thresholds
+  if (diff >  LEAVE_FLAT_BAND) return 'RISING';
+  if (diff < -LEAVE_FLAT_BAND) return 'FALLING';
   return 'FLAT';
 }
 
@@ -2583,26 +2597,86 @@ function computeHistoricalScores(centreIdx) {
 // between "Turning" and "Rising" reads as bidirectional movement on a
 // one-dimensional axis, which is never what the data means. The score
 // number is the percentage; the trajectory word + arrow says which way.
-// Verdict word + tone for the dark hero card. Tone drives both the verdict
-// text colour and the radial-gradient overlay on the vessel background.
-function deriveVerdict(stage, trajectory) {
-  switch (stage) {
-    case 'High Tide': return { word: 'GO NOW',      tone: 'go'   };
-    case 'Rising':    return { word: 'GO SOON',     tone: 'rise' };
-    case 'Falling':   return { word: 'LAST CHANCE', tone: 'fall' };
-    case 'Low':       return { word: 'WAIT',        tone: 'wait' };
-    case 'Turning':
-    default:          return { word: 'NOT YET',     tone: 'wait' };
+// Verdict word + tone for the dark hero card and Hot-right-now rows.
+//
+// Banding is on the VISIBLE signal — % of brands on sale at the centre —
+// so the verdict word matches what users can read on the row. Tide Score
+// (freshness-weighted, internal) drives ranking, but not the label.
+//
+// "GO NOW" only fires on high % on sale OR the server's confident peak
+// signal (verdict === 'Go now', which has hysteresis built in: enter at
+// Tide Score 75, hold until below 65). That keeps GO NOW honest — it
+// never fires on a single rising day.
+//
+// ctx fields (any may be null):
+//   serverVerdict   — raw verdict from centre_seer_scores
+//   brandsOnSale    — count today
+//   totalBrands     — total brands at centre
+//   pctOnSale       — pre-computed %, used if brands_on_sale missing
+//   trajectory      — RISING / FLAT / FALLING
+//   stage           — legacy stage label, used as fallback only
+function deriveVerdict(ctx) {
+  ctx = ctx || {};
+
+  // Trust the server's confident peak: stage hysteresis lives there.
+  if (ctx.serverVerdict === 'Go now') return { word: 'GO NOW', tone: 'go' };
+  if (ctx.serverVerdict && /^Last chance/.test(ctx.serverVerdict)) return { word: 'LAST CHANCE', tone: 'fall' };
+  if (ctx.serverVerdict === "It's over") return { word: 'WAIT', tone: 'wait' };
+
+  // Compute on-sale % from counts where possible — that's the authoritative
+  // visible-signal denominator. Fall back to a pre-rounded pctOnSale arg.
+  let pct = null;
+  if (Number.isFinite(+ctx.brandsOnSale) && Number.isFinite(+ctx.totalBrands) && +ctx.totalBrands > 0) {
+    pct = (+ctx.brandsOnSale / +ctx.totalBrands) * 100;
+  } else if (Number.isFinite(+ctx.pctOnSale)) {
+    pct = +ctx.pctOnSale;
   }
+
+  const traj = ctx.trajectory || 'FLAT';
+  const rising  = traj === 'RISING';
+  const falling = traj === 'FALLING';
+
+  if (pct === null) {
+    // No on-sale info — fall back to legacy stage-based label so callers
+    // without count data (sample renders, sparse data) still get sensible
+    // copy. Kept conservative: never returns GO NOW from this path.
+    switch (ctx.stage) {
+      case 'High Tide': return { word: 'GO NOW',      tone: 'go'   };
+      case 'Falling':   return { word: 'LAST CHANCE', tone: 'fall' };
+      case 'Low':       return { word: 'WAIT',        tone: 'wait' };
+      case 'Rising':    return rising  ? { word: 'BUILDING', tone: 'rise' } : { word: 'WORTH IT', tone: 'rise' };
+      default:          return { word: 'NOT YET',     tone: 'wait' };
+    }
+  }
+
+  if (pct >= 60) return { word: 'GO NOW', tone: 'go' };
+  if (pct >= 40) {
+    if (falling) return { word: 'LAST CHANCE', tone: 'fall' };
+    if (rising)  return { word: 'GO SOON',     tone: 'rise' };
+    return                 { word: 'WORTH IT',     tone: 'rise' };
+  }
+  if (pct >= 25) {
+    if (falling) return { word: 'FADING',   tone: 'fall' };
+    if (rising)  return { word: 'BUILDING', tone: 'rise' };
+    return                 { word: 'EARLY',    tone: 'wait' };
+  }
+  return { word: 'WAIT', tone: 'wait' };
 }
 
 // Hero card. Hierarchy is verdict (loudest) → sales fact (bold) → small tide
 // line at the bottom. The wave + water-level visual is decorative — tide is
 // brand flavour, not the message itself.
-function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, onSaleCount, totalCount) {
+function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, onSaleCount, totalCount, serverVerdict) {
   const pct = Math.max(0, Math.min(100, +pctOnSale || 0));
   void statement;
-  const verdict = deriveVerdict(stage, trajectory);
+  const verdict = deriveVerdict({
+    serverVerdict,
+    brandsOnSale: onSaleCount,
+    totalBrands: totalCount,
+    pctOnSale: pct,
+    trajectory,
+    stage,
+  });
 
   const hasCount = Number.isFinite(+onSaleCount) && Number.isFinite(+totalCount) && +totalCount > 0;
   const factText = hasCount ? (onSaleCount + ' of ' + totalCount + ' brands on sale')
@@ -2909,7 +2983,13 @@ function getHotCentres(n, excludeIds) {
     const lastPast = past[past.length - 1];
     const pctChange = lastPast ? Math.round(((+s.tide_score - +lastPast.score) / +lastPast.score) * 100) : null;
     const stage = deriveStageFromVerdict(s.verdict) || getTideStage(+s.tide_score, s.trajectory || 'FLAT');
-    const verdict = deriveVerdict(stage, s.trajectory || 'FLAT');
+    const verdict = deriveVerdict({
+      serverVerdict: s.verdict,
+      brandsOnSale: s.brands_on_sale,
+      totalBrands:  s.total_brands,
+      trajectory:   s.trajectory || 'FLAT',
+      stage,
+    });
     ranked.push({
       cid,
       idx,
@@ -3321,7 +3401,7 @@ async function renderCentre(centreId) {
             const lastPast = past[past.length - 1];
             if (lastPast) pctChange = Math.round(((centreScore - lastPast.score) / lastPast.score) * 100);
           }
-          return renderTideVessel(pctOnSale, stage, style.statement, trajectory, pctChange, onSaleN, totalN);
+          return renderTideVessel(pctOnSale, stage, style.statement, trajectory, pctChange, onSaleN, totalN, sScore && sScore.verdict);
         })()
     +   evidenceStrip + noMatchMsg + personalVerdictLine
     +   '<div class="score-message">'+verdictMsg+'</div>'

@@ -98,13 +98,36 @@ function getTideStage(score, yesterdayStage) {
   return            { stage: 'Turning', verdict: 'Starting to build', bluf: 'A few brands are breaking into sale. Worth watching.' };
 }
 
-// ── Trajectory (spec §5) ─────────────────────────────────────────────────────
+// ── Trajectory (spec §5, with hysteresis) ────────────────────────────────────
 // recentScores: last N daily scores before today, newest first.
+// yesterdayTrajectory: the previous day's trajectory label, used to add
+// directional stickiness so a centre doesn't flap between RISING and
+// FALLING on day-to-day noise. Tide doesn't reverse on a wave.
+//
+// Behaviour:
+//   - Currently RISING: stays RISING through small dips. Need a drop of
+//     >TRAJECTORY_FLIP_BAND (4.0) to flip to FALLING. A milder dip
+//     (<-TRAJECTORY_FLAT_BAND) lands on FLAT.
+//   - Currently FALLING: mirror image — small bounces don't flip it back.
+//   - FLAT (or unknown prior): symmetric ±TRAJECTORY_FLAT_BAND thresholds.
+//
 // Requires ≥3 days of history; defaults to RISING for new centres (spec §9.3).
-function getTrajectory(todayScore, recentScores) {
+const TRAJECTORY_FLIP_BAND = 4.0;
+function getTrajectory(todayScore, recentScores, yesterdayTrajectory) {
   if (recentScores.length < 3) return 'RISING';
   const avg = (recentScores[0] + recentScores[1] + recentScores[2]) / 3;
   const diff = todayScore - avg;
+  const prior = yesterdayTrajectory || 'FLAT';
+  if (prior === 'RISING') {
+    if (diff < -TRAJECTORY_FLIP_BAND) return 'FALLING';
+    if (diff < -TRAJECTORY_FLAT_BAND) return 'FLAT';
+    return 'RISING';
+  }
+  if (prior === 'FALLING') {
+    if (diff >  TRAJECTORY_FLIP_BAND) return 'RISING';
+    if (diff >  TRAJECTORY_FLAT_BAND) return 'FLAT';
+    return 'FALLING';
+  }
   if (diff >  TRAJECTORY_FLAT_BAND) return 'RISING';
   if (diff < -TRAJECTORY_FLAT_BAND) return 'FALLING';
   return 'FLAT';
@@ -120,7 +143,7 @@ async function calculateAllCentreScores() {
     supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
     supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)'),
     supabase.from('centre_seer_scores')
-      .select('centre_id, score_date, tide_score, verdict')
+      .select('centre_id, score_date, tide_score, verdict, trajectory')
       .gte('score_date', THREE_DAYS_AGO)
       .lt('score_date', TODAY)
       .order('score_date', { ascending: false }),
@@ -135,14 +158,20 @@ async function calculateAllCentreScores() {
 
   // Build per-centre recent score arrays (newest first) for trajectory, and
   // pull yesterday's stage (most recent prior row's verdict) for hysteresis.
+  // Yesterday's trajectory feeds hysteresis on the trajectory itself —
+  // direction is sticky through noise.
   const recentScoreMap = new Map();
   const yesterdayStageMap = new Map();
+  const yesterdayTrajectoryMap = new Map();
   for (const row of (recentScoresRes.data || [])) {
     if (!recentScoreMap.has(row.centre_id)) recentScoreMap.set(row.centre_id, []);
     recentScoreMap.get(row.centre_id).push(row.tide_score);
     if (!yesterdayStageMap.has(row.centre_id)) {
       const stage = deriveStageFromVerdict(row.verdict);
       if (stage) yesterdayStageMap.set(row.centre_id, stage);
+    }
+    if (!yesterdayTrajectoryMap.has(row.centre_id) && row.trajectory) {
+      yesterdayTrajectoryMap.set(row.centre_id, row.trajectory);
     }
   }
 
@@ -209,7 +238,8 @@ async function calculateAllCentreScores() {
     // Centre Tide Score = (Σ freshness × weight) / N × 100  (spec §4.1)
     const tideScore = Math.round((totalFreshness / totalBrands) * 100 * 10) / 10;
     const recent = recentScoreMap.get(centre.id) ?? [];
-    const trajectory = getTrajectory(tideScore, recent);
+    const yesterdayTrajectory = yesterdayTrajectoryMap.get(centre.id) ?? null;
+    const trajectory = getTrajectory(tideScore, recent, yesterdayTrajectory);
     const yesterdayStage = yesterdayStageMap.get(centre.id) ?? null;
     const { stage, verdict, bluf } = getTideStage(tideScore, yesterdayStage);
 

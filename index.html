@@ -419,8 +419,9 @@
   .stat-value.muted { color: var(--stone); }
   .stat-label { font-size: 10px; color: var(--stone); letter-spacing: 0.04em; line-height: 1.3; }
   .narrative-body { padding: 14px 18px; }
-  .narrative-insight { font-size: 13.5px; color: var(--bark); line-height: 1.65; margin: 0; }
-  .narrative-insight strong { font-weight: 500; color: var(--bark); }
+  .narrative-insight { font-size: 13.5px; color: var(--ink-mid); line-height: 1.65; margin: 0; }
+  .narrative-insight::before { content: '\2726'; color: var(--gold); font-size: 13px; margin-right: 8px; vertical-align: 0.05em; }
+  .narrative-insight strong { font-weight: 500; color: var(--ink); }
   .narrative-insight .highlight { color: var(--amber); font-weight: 500; }
   .hours-strip { border-top: 1px solid var(--border); padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .hours-left { display: flex; align-items: center; gap: 8px; min-width: 0; }

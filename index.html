@@ -88,16 +88,18 @@
   .tide-wave-svg-2{ position: absolute; top: 4px; left: -15%; width: 130%; height: 28px; animation: tideWaveDrift2 5.5s ease-in-out infinite; opacity: 0.5; }
   @keyframes tideWaveDrift  { 0%,100% { transform: translateX(0); } 50% { transform: translateX(4%);  } }
   @keyframes tideWaveDrift2 { 0%,100% { transform: translateX(5%); } 50% { transform: translateX(-3%); } }
-  .tide-vessel-headline { position: absolute; left: 20px; top: 18px; right: 130px; z-index: 6; }
-  .tide-vessel-eyebrow { display: block; font-family: 'DM Sans', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold-light); margin-bottom: 6px; }
-  .tide-vessel-statement { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 32px; line-height: 1.1; letter-spacing: -0.01em; color: var(--tide-cream); white-space: pre-line; }
-  /* % change watermark (compact) in the top-right of the vessel.
-     Translucent so the tide-marks underneath read through. */
-  .tide-vessel-change { position: absolute; right: 16px; top: 18px; z-index: 6; text-align: right; pointer-events: none; }
-  .tide-vessel-change-pct { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 26px; line-height: 1; letter-spacing: -0.01em; color: var(--tide-cream); opacity: 0.85; }
-  .tide-vessel-change-pct.is-up   { color: #7BC49A; }
-  .tide-vessel-change-pct.is-down { color: #E89882; }
-  .tide-vessel-change-pct.is-flat { color: rgba(245,241,235,0.50); font-size: 14px; letter-spacing: 0.04em; }
+  .tide-vessel-headline { position: absolute; left: 20px; top: 16px; right: 80px; z-index: 6; }
+  .tide-vessel-eyebrow { display: block; font-family: 'DM Sans', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold-light); margin-bottom: 4px; }
+  .tide-vessel-statement { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 22px; line-height: 1.15; letter-spacing: -0.01em; color: var(--tide-cream); white-space: pre-line; opacity: 0.92; }
+  /* Hero % change (left-side, dominant) — the headline number on the
+     vessel. Lives inside .tide-vessel-headline so it stacks with the
+     eyebrow + statement on the left, well clear of the right-wall
+     tide-level marks (which are a different unit). */
+  .tide-vessel-hero { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 54px; line-height: 0.95; letter-spacing: -0.02em; color: var(--tide-cream); margin: 6px 0 2px; }
+  .tide-vessel-hero.is-up   { color: #7BC49A; }
+  .tide-vessel-hero.is-down { color: #E89882; }
+  .tide-vessel-hero.is-flat { font-size: 28px; color: rgba(245,241,235,0.70); }
+  .tide-vessel-hero-label { display: block; font-family: 'DM Sans', sans-serif; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(245,241,235,0.45); margin-bottom: 8px; }
   /* Subtle right-wall tide-level marks at 25/50/75 — labels are in
      "% of shops" terms so the scale lines up with the headline %. */
   .tide-vessel-marks { position: absolute; right: 14px; top: 0; bottom: 0; z-index: 4; pointer-events: none; }
@@ -2420,15 +2422,16 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, on
               :                            'Tide steady';
   void stage;
 
-  // Compact watermark (top-right) for the day-on-day change.
-  let watermark = '';
+  // Hero number — the day-on-day % change. Lives in the headline column
+  // (left side), visually dominant, tinted by direction. The right-wall
+  // marks are a separate scale and are spatially clear of this.
+  let hero = '';
   if (pctChange !== null && pctChange !== undefined && Number.isFinite(pctChange)) {
     const dirClass = pctChange > 0 ? 'is-up' : pctChange < 0 ? 'is-down' : 'is-flat';
     const sign = pctChange > 0 ? '+' : '';
     const text = pctChange === 0 ? 'No change' : (sign + pctChange + '%');
-    watermark = '<div class="tide-vessel-change">'
-              +   '<div class="tide-vessel-change-pct ' + dirClass + '">' + text + '</div>'
-              + '</div>';
+    hero = '<div class="tide-vessel-hero ' + dirClass + '">' + text + '</div>'
+         + '<span class="tide-vessel-hero-label">vs yesterday</span>';
   }
 
   // Subtle right-wall tide-level marks at 75 / 50 / 25 % of brands.
@@ -2447,10 +2450,10 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, on
   return '<div class="tide-vessel" style="--tide-level:' + pct + '%">'
        +   '<div class="tide-vessel-headline">'
        +     '<span class="tide-vessel-eyebrow">' + eyebrow + '</span>'
+       +     hero
        +     '<div class="tide-vessel-statement">' + safeStatement + '</div>'
        +   '</div>'
        +   marks
-       +   watermark
        +   '<div class="tide-water">'
        +     '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
        +       '<path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.4)"/>'

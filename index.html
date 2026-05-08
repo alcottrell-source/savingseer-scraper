@@ -15,7 +15,7 @@
     --amber: #C17A2B; --amber-lt: #FBF2E4; --red: #B84C3A; --red-lt: #FAEAE7;
     --stone: #8C8070; --stone-lt: #F2EFE9; --border: rgba(44,24,16,0.10);
     /* Rebrand additions (additive, opt-in by component) */
-    --ink: #1A1612; --ink-mid: #3D3530; --ink-light: #8A7F76;
+    --ink: #14110E; --ink-mid: #2E2823; --ink-light: #5C5048;
     --gold: #B8935A; --gold-light: #D4AF78;
     --green-deep: #3A6B4A; --green-light: #5A8C6A;
     --tide-cream: #F5F1EB; --tide-cream-dark: #EDE8E0;
@@ -23,7 +23,7 @@
     --tide-border: rgba(26,22,18,0.08);
   }
   html { font-size: 16px; }
-  body { background: var(--cream); color: var(--bark); font-family: 'DM Sans', sans-serif; font-weight: 300; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  body { background: var(--cream); color: var(--ink); font-family: 'DM Sans', sans-serif; font-weight: 400; min-height: 100vh; -webkit-font-smoothing: antialiased; }
   header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: rgba(250,247,242,0.92); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); z-index: 100; }
   .wordmark { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--bark); }
   .wordmark span { color: var(--leaf); }
@@ -35,8 +35,7 @@
   .picker-section { padding: 56px 24px 28px; max-width: 560px; margin: 0 auto; text-align: center; }
   .picker-section.is-hidden { display: none; }
   .picker-label { display: none; }
-  .search-hero-headline { font-family: 'Playfair Display', serif; font-size: 38px; line-height: 1.05; font-weight: 600; color: var(--bark); letter-spacing: -0.02em; margin: 0 0 24px; }
-  .search-hero-subtitle { font-size: 14px; line-height: 1.55; color: var(--ink-mid); margin: 16px auto 0; max-width: 380px; }
+  .search-hero-headline { font-family: 'Playfair Display', serif; font-size: 40px; line-height: 1.05; font-weight: 700; color: var(--ink); letter-spacing: -0.025em; margin: 0 0 24px; }
   .centre-search-wrap { position: relative; max-width: 520px; margin: 0 auto; text-align: left; }
   .centre-search { width: 100%; box-sizing: border-box; appearance: none; -webkit-appearance: none; background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Ccircle cx='8' cy='8' r='5.5' stroke='%238C8070' stroke-width='1.6' fill='none'/%3E%3Cpath d='M12 12l4 4' stroke='%238C8070' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 18px center; border: 1px solid var(--border); border-radius: 999px; padding: 16px 20px 16px 48px; font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--bark); transition: border-color 0.2s, box-shadow 0.2s; box-shadow: 0 6px 24px rgba(28,26,20,0.06); }
   .centre-search:focus { outline: none; border-color: var(--leaf); box-shadow: 0 6px 24px rgba(28,26,20,0.10); }
@@ -221,18 +220,18 @@
   .install-instruction { font-size: 13px; color: var(--stone); line-height: 1.5; padding: 12px 14px; background: var(--leaf-lt); border-radius: 10px; }
   .install-instruction strong { color: var(--bark); font-weight: 500; }
 
-  /* ── Landing "How it works" section (below the search hero) ── */
-  .landing-hero { padding: 32px 24px 16px; max-width: 480px; margin: 0 auto; }
-  .landing-hero-eyebrow { font-family: 'DM Sans', sans-serif; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--stone); font-weight: 500; margin-bottom: 12px; }
-  .landing-steps { display: flex; flex-direction: column; gap: 14px; margin: 0 0 24px; padding: 20px 18px; background: white; border: 1px solid var(--border); border-radius: 14px; }
+  /* ── Landing "How does Tide work?" toggle (below the hot ticker) ── */
+  .how-it-works { padding: 28px 24px 24px; max-width: 560px; margin: 0 auto; }
+  .how-it-works summary { font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--ink-mid); cursor: pointer; padding: 10px 0; list-style: none; user-select: none; display: inline-flex; align-items: center; gap: 6px; }
+  .how-it-works summary::-webkit-details-marker { display: none; }
+  .how-it-works summary::after { content: '↓'; font-size: 11px; opacity: 0.55; transition: transform 0.2s; }
+  .how-it-works[open] summary::after { transform: rotate(180deg); }
+  .how-it-works summary:hover { color: var(--ink); }
+  .landing-steps { display: flex; flex-direction: column; gap: 14px; margin: 12px 0 0; padding: 20px 18px; background: white; border: 1px solid var(--border); border-radius: 14px; }
   .landing-step { display: flex; gap: 14px; align-items: flex-start; }
-  .landing-step-num { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--leaf-lt); color: var(--leaf); font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center; }
-  .landing-step-text strong { display: block; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: var(--bark); margin-bottom: 2px; }
-  .landing-step-text p { font-size: 13px; color: var(--stone); line-height: 1.45; }
-  .landing-cta { display: block; width: 100%; background: var(--ink); color: var(--tide-cream); border: none; border-radius: 100px; padding: 14px 24px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.02em; cursor: pointer; transition: background 0.2s, transform 0.15s; margin-top: 4px; }
-  .landing-cta:hover { background: var(--ink-mid); }
-  .landing-cta:active { transform: scale(0.98); }
-  .landing-cta-note { font-size: 11px; color: var(--stone); text-align: center; margin: 10px 0 16px; letter-spacing: 0.02em; }
+  .landing-step-num { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--leaf-lt); color: var(--leaf); font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .landing-step-text strong { display: block; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+  .landing-step-text p { font-size: 13px; color: var(--ink-mid); line-height: 1.45; }
 
   /* ── Saved-centres landing edit mode ───────────────────────────── */
   .saved-centres-landing-header { display: flex; align-items: center; justify-content: space-between; padding: 0 24px 8px; }
@@ -284,25 +283,22 @@
   .auth-email-preview-meta { font-size: 11px; color: var(--stone); line-height: 1.5; }
   .auth-email-preview-caption { font-size: 12px; color: var(--ink-mid); line-height: 1.5; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(61,107,53,0.18); }
 
-  /* ── Hot centres (top 3 by Tide Score) — quiet ticker beneath the search hero ── */
+  /* ── Hot centres (top 3 by Tide Score) — single-line ticker beneath the search hero ── */
   .hot-centres { padding: 4px 24px 8px; max-width: 560px; margin: 0 auto; }
   .hot-centres-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
   .hot-centres-eyebrow { font-family: 'DM Sans', sans-serif; font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--stone); font-weight: 500; display: inline-flex; align-items: center; gap: 8px; }
   .hot-centres-eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--leaf); animation: pulse 2s ease-in-out infinite; }
   .hot-centres-timestamp { font-size: 11px; letter-spacing: 0.04em; color: var(--stone); }
   .hot-centres-list { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--border); }
-  .hot-centre-row { display: flex; align-items: center; gap: 14px; padding: 12px 4px; background: transparent; border: none; border-bottom: 1px solid var(--border); border-radius: 0; cursor: pointer; transition: background 0.15s; text-align: left; font-family: inherit; width: 100%; }
+  .hot-centre-row { display: flex; align-items: center; gap: 12px; padding: 14px 4px; background: transparent; border: none; border-bottom: 1px solid var(--border); border-radius: 0; cursor: pointer; transition: background 0.15s; text-align: left; font-family: inherit; width: 100%; }
   .hot-centre-row:hover { background: var(--stone-lt); }
-  .hot-centre-row-rank { flex-shrink: 0; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 400; letter-spacing: 0.04em; color: var(--stone); width: 16px; text-align: left; line-height: 1; }
-  .hot-centre-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .hot-centre-row-name { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: var(--bark); line-height: 1.2; }
-  .hot-centre-row-loc { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 400; color: var(--stone); margin-left: 6px; }
-  .hot-centre-row-fact { font-size: 12px; color: var(--ink-light); line-height: 1.4; }
-  .hot-centre-row-fact-change { margin-left: 6px; font-weight: 500; }
-  .hot-centre-row-fact-change.is-up   { color: var(--leaf); }
-  .hot-centre-row-fact-change.is-down { color: var(--red); }
-  .hot-centre-row-fact-change.is-flat { color: var(--stone); }
-  .hot-centre-row-verdict { flex-shrink: 0; font-family: 'DM Sans', sans-serif; font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 9px; border-radius: 100px; white-space: nowrap; }
+  .hot-centre-row-rank { flex-shrink: 0; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--stone); width: 14px; text-align: left; line-height: 1; }
+  .hot-centre-row-name { flex: 1; min-width: 0; font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 600; color: var(--ink); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hot-centre-row-change { flex-shrink: 0; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; line-height: 1; letter-spacing: 0; }
+  .hot-centre-row-change.is-up   { color: var(--leaf); }
+  .hot-centre-row-change.is-down { color: var(--red); }
+  .hot-centre-row-change.is-flat { color: var(--stone); }
+  .hot-centre-row-verdict { flex-shrink: 0; font-family: 'DM Sans', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 10px; border-radius: 100px; white-space: nowrap; }
   .hot-centre-row-verdict.tone-go   { background: var(--amber-lt); color: var(--amber); }
   .hot-centre-row-verdict.tone-rise { background: var(--leaf-lt);  color: var(--leaf); }
   .hot-centre-row-verdict.tone-fall { background: var(--red-lt);   color: var(--red); }
@@ -605,7 +601,6 @@
     <input type="search" class="centre-search" id="centre-search" placeholder="Try Westfield London, Bluewater, Trafford…" oninput="filterCentres(this.value)" onfocus="filterCentres(this.value)" onkeydown="onCentreSearchKey(event)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="centre-suggestions" aria-label="Search any UK shopping centre">
     <ul class="centre-suggestions" id="centre-suggestions" role="listbox" hidden></ul>
   </div>
-  <p class="search-hero-subtitle">Tide scores every UK shopping centre, daily &mdash; so you arrive when the sales actually peak, not a week too late.</p>
   <select class="centre-select" id="centre-select" onchange="renderCentre(this.value)" aria-hidden="true" tabindex="-1">
     <option value="">-- Select a centre --</option>
     <option value="C01">Festival Place, Basingstoke</option>
@@ -3015,24 +3010,18 @@ function renderHotCentres(opts) {
   const stamp = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const rows = hot.map((h, i) => {
     const safeName = h.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const safeLoc  = (h.location || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const fact = (h.brandsOnSale != null && h.totalBrands != null && h.totalBrands > 0)
-      ? (h.brandsOnSale + ' of ' + h.totalBrands + ' brands on sale')
-      : Math.round(h.tideScore) + '% Tide Score';
     let changeHTML = '';
     if (h.pctChange !== null && Number.isFinite(h.pctChange)) {
       let cls, text;
       if (h.pctChange > 0)      { cls = 'is-up';   text = '↑ ' + h.pctChange + '%'; }
       else if (h.pctChange < 0) { cls = 'is-down'; text = '↓ ' + Math.abs(h.pctChange) + '%'; }
       else                      { cls = 'is-flat'; text = 'Steady'; }
-      changeHTML = '<span class="hot-centre-row-fact-change ' + cls + '">' + text + '</span>';
+      changeHTML = '<span class="hot-centre-row-change ' + cls + '">' + text + '</span>';
     }
     return '<button class="hot-centre-row" onclick="goToCentre(\''+h.cid+'\')" aria-label="'+safeName+', '+h.verdict.word+'">'
          +   '<div class="hot-centre-row-rank">'+(i+1)+'</div>'
-         +   '<div class="hot-centre-row-body">'
-         +     '<div class="hot-centre-row-name">'+safeName+(safeLoc ? '<span class="hot-centre-row-loc">'+safeLoc+'</span>' : '')+'</div>'
-         +     '<div class="hot-centre-row-fact">'+fact+changeHTML+'</div>'
-         +   '</div>'
+         +   '<div class="hot-centre-row-name">'+safeName+'</div>'
+         +   changeHTML
          +   '<span class="hot-centre-row-verdict tone-'+h.verdict.tone+'">'+h.verdict.word+'</span>'
          + '</button>';
   }).join('');
@@ -3046,31 +3035,21 @@ function renderHotCentres(opts) {
 }
 
 // Landing body for brand-new visitors and signed-in users without saved
-// centres. The hero (search box + headline + value prop) lives in
-// .picker-section above; this fills in proof-by-data and the explainer
-// below the fold. When scores haven't loaded yet, the hot-list silently
-// no-shows — the search hero is the page's real job.
+// centres. The hero (search box + headline) lives in .picker-section
+// above; this fills in the live "Hot right now" ticker and an optional
+// expandable "How does Tide work?" panel. No CTA on the landing — the
+// search itself is the engagement; sign-up surfaces after a centre view.
 function renderLandingHero() {
   const hotHTML = renderHotCentres({ limit: 3 });
-
-  const cta = currentUser
-    ? '<button class="landing-cta" onclick="document.getElementById(\'centre-search\').focus()">Find a centre to track</button>'
-    : '<button class="landing-cta" onclick="openAuthModal()">Track your centre &mdash; free</button>';
-  const ctaNote = currentUser
-    ? '<p class="landing-cta-note">Search any UK centre and we\'ll show today\'s score.</p>'
-    : '<p class="landing-cta-note">Free forever &middot; No password needed &middot; 1&ndash;2 emails a month</p>';
-
   return hotHTML
-       + '<section class="landing-hero" aria-label="How Tide works">'
-       +   '<p class="landing-hero-eyebrow">How it works</p>'
+       + '<details class="how-it-works">'
+       +   '<summary>How does Tide work?</summary>'
        +   '<div class="landing-steps">'
        +     '<div class="landing-step"><span class="landing-step-num">1</span><div class="landing-step-text"><strong>We score every UK centre, daily</strong><p>Live sale data across thousands of brands.</p></div></div>'
        +     '<div class="landing-step"><span class="landing-step-num">2</span><div class="landing-step-text"><strong>You see when to go</strong><p>Plain verdicts like "go now" or "wait a few days".</p></div></div>'
        +     '<div class="landing-step"><span class="landing-step-num">3</span><div class="landing-step-text"><strong>We email you when it peaks</strong><p>One short email the morning your centre hits peak sale.</p></div></div>'
        +   '</div>'
-       +   cta
-       +   ctaNote
-       + '</section>';
+       + '</details>';
 }
 
 async function renderCentre(centreId) {

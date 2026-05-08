@@ -32,22 +32,21 @@
   .auth-btn { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: var(--tide-cream); background: var(--ink); border: 1px solid var(--ink); border-radius: 100px; padding: 7px 16px; cursor: pointer; transition: background 0.2s, transform 0.15s; white-space: nowrap; }
   .auth-btn:hover { background: var(--ink-mid); }
   .auth-btn:active { transform: scale(0.97); }
-  .picker-section { padding: 32px 24px 0; }
-  .picker-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 10px; display: block; }
-  .centre-search-wrap { position: relative; margin-bottom: 8px; }
-  .centre-search { width: 100%; box-sizing: border-box; appearance: none; -webkit-appearance: none; background: white; border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-family: 'DM Sans', sans-serif; font-size: 15px; color: var(--bark); transition: border-color 0.2s; }
+  .picker-section { padding: 18px 24px 0; }
+  .picker-section.is-hidden { display: none; }
+  .picker-label { display: none; }
+  .centre-search-wrap { position: relative; }
+  .centre-search { width: 100%; box-sizing: border-box; appearance: none; -webkit-appearance: none; background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Ccircle cx='6' cy='6' r='4.5' stroke='%238C8070' stroke-width='1.4' fill='none'/%3E%3Cpath d='M9.4 9.4l3 3' stroke='%238C8070' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 12px center; border: 1px solid var(--border); border-radius: 999px; padding: 9px 14px 9px 34px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--bark); transition: border-color 0.2s; }
   .centre-search:focus { outline: none; border-color: var(--leaf); }
   .centre-search::placeholder { color: var(--stone); }
   .centre-suggestions { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 1px solid var(--border); border-radius: 8px; margin: 0; padding: 4px 0; list-style: none; max-height: 260px; overflow-y: auto; box-shadow: 0 6px 20px rgba(28,26,20,0.08); z-index: 30; }
   .centre-suggestions[hidden] { display: none; }
-  .centre-suggestions li { padding: 10px 16px; font-family: 'DM Sans', sans-serif; font-size: 15px; color: var(--bark); cursor: pointer; }
+  .centre-suggestions li { padding: 10px 16px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--bark); cursor: pointer; }
   .centre-suggestions li:hover, .centre-suggestions li.active { background: var(--leaf-lt); color: var(--leaf); }
   .centre-suggestions .no-match { color: var(--stone); cursor: default; font-style: italic; }
   .centre-suggestions .no-match:hover { background: transparent; color: var(--stone); }
-  .picker-or { display: flex; align-items: center; gap: 10px; margin: 6px 0 8px; color: var(--stone); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
-  .picker-or::before, .picker-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-  .centre-select { width: 100%; appearance: none; background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238C8070' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 16px center; border: 1px solid var(--border); border-radius: 8px; padding: 14px 44px 14px 16px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 400; color: var(--bark); cursor: pointer; transition: border-color 0.2s; }
-  .centre-select:focus { outline: none; border-color: var(--leaf); }
+  .picker-or { display: none; }
+  .centre-select { display: none; }
   .score-section { padding: 24px 24px 0; }
   .score-card { background: white; border: 1px solid var(--border); border-radius: 16px; padding: 24px 24px 20px; position: relative; overflow: hidden; opacity: 0; transform: translateY(12px); transition: opacity 0.4s ease, transform 0.4s ease; }
   .score-card.visible { opacity: 1; transform: translateY(0); }
@@ -67,9 +66,12 @@
   .arc-legend { display: flex; justify-content: center; gap: 20px; margin-top: 8px; font-size: 11px; color: var(--stone); letter-spacing: 0.04em; }
   .arc-legend-item { display: flex; align-items: center; gap: 5px; }
   .arc-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .evidence-strip { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin: 12px 0 10px; font-size: 12px; color: var(--stone); gap: 8px; flex-wrap: wrap; }
-  .evidence-item { display: flex; align-items: center; gap: 5px; }
-  .evidence-num { font-weight: 500; color: var(--bark); }
+  .evidence-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 10px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin: 12px 0 10px; font-size: 12px; color: var(--stone); }
+  .evidence-item { display: flex; flex-direction: column; gap: 2px; padding: 0 10px; border-right: 1px solid var(--border); }
+  .evidence-item:last-child { border-right: none; }
+  .evidence-num { font-weight: 500; color: var(--bark); font-size: 14px; letter-spacing: -0.01em; }
+  .evidence-num .evidence-num-total { color: var(--stone); font-weight: 400; }
+  .evidence-label { font-size: 11px; color: var(--stone); letter-spacing: 0.02em; line-height: 1.3; }
   .personal-no-match { font-size: 12px; color: var(--stone); font-style: italic; padding: 8px 0 4px; border-top: 1px solid var(--border); }
   .personal-verdict-line { font-size: 13px; color: var(--amber); padding: 6px 0 2px; font-weight: 400; }
   .score-message { font-size: 14px; color: var(--stone); line-height: 1.6; padding-top: 10px; border-top: 1px solid var(--border); }
@@ -411,11 +413,14 @@
   .back-btn { display: inline-flex; align-items: center; gap: 6px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--stone); cursor: pointer; background: none; border: none; padding: 0; letter-spacing: 0.02em; }
   .back-btn:hover { color: var(--bark); }
   .back-btn svg { flex-shrink: 0; }
-  .centre-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .centre-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .centre-type { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--stone); }
   .centre-meta-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--stone); opacity: 0.4; }
   .centre-location { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); }
-  .centre-name-hero { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 600; color: var(--bark); line-height: 1.1; margin-bottom: 2px; letter-spacing: -0.02em; }
+  .centre-identity { display: flex; align-items: center; gap: 14px; }
+  .centre-logo-hero { width: 52px; height: 52px; border-radius: 12px; background: white; border: 1px solid var(--border); object-fit: contain; flex-shrink: 0; padding: 6px; box-sizing: border-box; }
+  .centre-logo-hero.no-logo { background: var(--stone-lt); border-color: var(--stone-lt); }
+  .centre-name-hero { font-family: 'Playfair Display', serif; font-size: 34px; font-weight: 600; color: var(--bark); line-height: 1.05; letter-spacing: -0.025em; margin: 0; min-width: 0; word-break: break-word; }
 
   /* ── Centre Intelligence card ── */
   .narrative-section { padding: 20px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.1s, transform 0.4s ease 0.1s; }
@@ -499,14 +504,12 @@
   </div>
 </header>
 
-<div class="picker-section">
-  <span class="picker-label">Choose your shopping centre</span>
+<div class="picker-section" id="picker-section">
   <div class="centre-search-wrap">
-    <input type="search" class="centre-search" id="centre-search" placeholder="Search by centre or city" oninput="filterCentres(this.value)" onfocus="filterCentres(this.value)" onkeydown="onCentreSearchKey(event)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="centre-suggestions">
+    <input type="search" class="centre-search" id="centre-search" placeholder="Search any UK shopping centre" oninput="filterCentres(this.value)" onfocus="filterCentres(this.value)" onkeydown="onCentreSearchKey(event)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="centre-suggestions" aria-label="Choose your shopping centre">
     <ul class="centre-suggestions" id="centre-suggestions" role="listbox" hidden></ul>
   </div>
-  <div class="picker-or" aria-hidden="true"><span>or</span></div>
-  <select class="centre-select" id="centre-select" onchange="renderCentre(this.value)">
+  <select class="centre-select" id="centre-select" onchange="renderCentre(this.value)" aria-hidden="true" tabindex="-1">
     <option value="">-- Select a centre --</option>
     <option value="C01">Festival Place, Basingstoke</option>
     <option value="C02">Westquay, Southampton</option>
@@ -1670,15 +1673,12 @@ function filterCentres(query) {
   const list = document.getElementById('centre-suggestions');
   const input = document.getElementById('centre-search');
   list.innerHTML = '';
-  if (!q) {
-    list.hidden = true;
-    input.setAttribute('aria-expanded', 'false');
-    return;
-  }
   const matches = [];
   for (const opt of sel.options) {
     if (!opt.value) continue;
-    if (opt.textContent.toLowerCase().includes(q)) matches.push({ id: opt.value, name: opt.textContent });
+    if (!q || opt.textContent.toLowerCase().includes(q)) {
+      matches.push({ id: opt.value, name: opt.textContent });
+    }
   }
   if (!matches.length) {
     const li = document.createElement('li');
@@ -1686,7 +1686,10 @@ function filterCentres(query) {
     li.textContent = 'No matching centres';
     list.appendChild(li);
   } else {
-    matches.slice(0, 8).forEach((m, i) => {
+    // Empty query (focus with nothing typed) browses all centres; typed
+    // query narrows to top 8 matches.
+    const cap = q ? 8 : matches.length;
+    matches.slice(0, cap).forEach((m, i) => {
       const li = document.createElement('li');
       li.textContent = m.name;
       li.setAttribute('role', 'option');
@@ -2072,6 +2075,21 @@ const CENTRE_NAMES = [
   'Queensgate','Broadmead','Highcross','Touchwood',
   'Bentall Centre','White Rose','Cribbs Causeway','Braehead',
   'Silverburn','St James Quarter'
+];
+
+// Best-guess official-website domains, used only to fetch a centre logo via
+// the Google favicon API for the hero. If a domain is wrong or missing, the
+// <img> onerror handler falls back to a neutral placeholder — purely cosmetic,
+// no functional impact.
+const CENTRE_DOMAINS = [
+  'festivalplace.co.uk','westquay.co.uk','uk.westfield.com','uk.westfield.com',
+  'traffordcentre.co.uk','metrocentre.co.uk','bluewater.co.uk','meadowhall.co.uk',
+  'bullring.co.uk','lakeside-shopping.com','liverpool-one.com','stdavidscardiff.com',
+  'cabotcircus.com','manchesterarndale.com','brentcross.co.uk','victorialeeds.co.uk',
+  'eldonsquare.co.uk','theoracle.com','thelexiconbracknell.com','friarswalknewport.co.uk',
+  'queensgate-shopping.co.uk','bristolshoppingquarter.co.uk','highcrossleicester.com','touchwoodsolihull.co.uk',
+  'bentall-centre.co.uk','white-rose.co.uk','mall-cribbs.com','braeheadshopping.co.uk',
+  'silverburnshopping.com','stjamesquarter.com'
 ];
 
 // Hardcoded city/area labels shown above the centre name in the hero. Static
@@ -2606,6 +2624,13 @@ function brandLogoImg(url) {
   return '<img class="brand-logo" alt="" loading="lazy" src="'+src+'" onerror="this.onerror=null;this.classList.add(\'no-logo\');this.removeAttribute(\'src\');">';
 }
 
+function centreLogoImg(centreIdx) {
+  const d = (typeof CENTRE_DOMAINS !== 'undefined') ? CENTRE_DOMAINS[centreIdx] : '';
+  if (!d) return '<span class="centre-logo-hero no-logo" aria-hidden="true"></span>';
+  const src = 'https://www.google.com/s2/favicons?sz=128&domain='+d;
+  return '<img class="centre-logo-hero" alt="" loading="lazy" src="'+src+'" onerror="this.onerror=null;this.classList.add(\'no-logo\');this.removeAttribute(\'src\');">';
+}
+
 function brandMatchesFrontendPrefs(brand, prefs) {
   const genderMatch=(prefs.womenswear&&brand.womenswear)||(prefs.menswear&&brand.menswear)||(prefs.childrenswear&&brand.childrenswear);
   if (!genderMatch) return false;
@@ -2663,6 +2688,11 @@ function buildArcSVG(centreScore, personalScore, centreColor) {
 
 async function renderCentre(centreId) {
   const content=document.getElementById('main-content');
+  // Picker is only useful before a centre is chosen — once one is selected,
+  // collapse it so the page leads with the centre's name + score, not a
+  // "choose a centre" prompt. The hero's "< Centres" back button restores it.
+  const picker = document.getElementById('picker-section');
+  if (picker) picker.classList.toggle('is-hidden', !!centreId);
   if (!centreId) {
     // Personalise-your-Tide promo — value-first prompt for signed-in users
     // without saved prefs. Less intrusive than auto-opening onboarding and
@@ -2774,9 +2804,24 @@ async function renderCentre(centreId) {
     arcLegend='<div class="arc-legend"><span class="arc-legend-item"><span class="arc-legend-dot" style="background:var(--amber)"></span> Your score matches the centre</span></div>';
   }
 
+  // Evidence strip — pairs the personalised view with the centre-wide view so
+  // it's clear how the user's brands compare to the whole centre. "X of Y"
+  // reads as "your brands of all tracked here" / "yours on sale of all on
+  // sale today". Only shown when we have a personalResult to anchor against.
   let evidenceStrip='';
   if (personalResult) {
-    evidenceStrip='<div class="evidence-strip"><span class="evidence-item"><span class="evidence-num">'+personalResult.matchingBrands+'</span> brands you shop here</span><span class="evidence-item"><span class="evidence-num">'+personalResult.onSale+'</span> on sale today</span></div>';
+    const totalAtCentreCount = (typeof total !== 'undefined') ? total : 0;
+    const totalOnSaleCount = Array.isArray(onSale) ? onSale.length : 0;
+    evidenceStrip='<div class="evidence-strip">'
+      + '<span class="evidence-item">'
+      +   '<span class="evidence-num">'+personalResult.matchingBrands+' <span class="evidence-num-total">of '+totalAtCentreCount+'</span></span>'
+      +   '<span class="evidence-label">brands here are yours</span>'
+      + '</span>'
+      + '<span class="evidence-item">'
+      +   '<span class="evidence-num">'+personalResult.onSale+' <span class="evidence-num-total">of '+totalOnSaleCount+'</span></span>'
+      +   '<span class="evidence-label">on sale today</span>'
+      + '</span>'
+      + '</div>';
   }
 
   let noMatchMsg='';
@@ -2892,7 +2937,10 @@ async function renderCentre(centreId) {
     +   '<span class="centre-type">Shopping Centre</span>'
     +   locationHTML
     + '</div>'
-    + '<h1 class="centre-name-hero">'+safeCentreName+'</h1>'
+    + '<div class="centre-identity">'
+    +   centreLogoImg(centreIdx)
+    +   '<h1 class="centre-name-hero">'+safeCentreName+'</h1>'
+    + '</div>'
     + '</div>';
 
   // Saved-centres chip strip — only when the user has 2+ saved centres,

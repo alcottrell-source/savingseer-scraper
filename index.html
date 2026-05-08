@@ -88,10 +88,19 @@
   .tide-wave-svg-2{ position: absolute; top: 4px; left: -15%; width: 130%; height: 28px; animation: tideWaveDrift2 5.5s ease-in-out infinite; opacity: 0.5; }
   @keyframes tideWaveDrift  { 0%,100% { transform: translateX(0); } 50% { transform: translateX(4%);  } }
   @keyframes tideWaveDrift2 { 0%,100% { transform: translateX(5%); } 50% { transform: translateX(-3%); } }
-  .tide-vessel-headline { position: absolute; left: 20px; top: 18px; right: 20px; z-index: 6; }
+  .tide-vessel-headline { position: absolute; left: 20px; top: 18px; right: 130px; z-index: 6; }
   .tide-vessel-eyebrow { display: block; font-family: 'DM Sans', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold-light); margin-bottom: 6px; }
   .tide-vessel-statement { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 32px; line-height: 1.1; letter-spacing: -0.01em; color: var(--tide-cream); white-space: pre-line; }
-  /* Stage markers removed — trajectory eyebrow carries the direction now */
+  /* Watermark on the right wall: % change vs yesterday's score.
+     Sized & tinted by direction (green up / red down / stone flat).
+     Lives where the stage markers used to be — translucent so it
+     reads as a watermark, not a primary number. */
+  .tide-vessel-change { position: absolute; right: 18px; top: 22px; z-index: 5; text-align: right; pointer-events: none; }
+  .tide-vessel-change-pct { font-family: 'Cormorant Garamond', serif; font-weight: 400; font-size: 38px; line-height: 1; letter-spacing: -0.02em; color: var(--tide-cream); opacity: 0.65; }
+  .tide-vessel-change-pct.is-up   { color: #7BC49A; }   /* leaf-light against dark */
+  .tide-vessel-change-pct.is-down { color: #E89882; }   /* salmon — readable red on ink */
+  .tide-vessel-change-pct.is-flat { color: rgba(245,241,235,0.55); font-size: 22px; letter-spacing: 0.04em; }
+  .tide-vessel-change-label { font-family: 'DM Sans', sans-serif; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(245,241,235,0.42); margin-top: 4px; }
   .tide-score-float { position: absolute; left: 20px; bottom: calc(var(--tide-level, 0%) + 8px); z-index: 7; display: flex; align-items: baseline; gap: 4px; transition: bottom 1.4s cubic-bezier(0.34, 1.2, 0.64, 1); }
   .tide-score-num  { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 42px; line-height: 1; color: var(--tide-cream); }
   .tide-score-unit { font-family: 'DM Sans', sans-serif; font-size: 12px; color: rgba(245,241,235,0.5); letter-spacing: 0.06em; }
@@ -2398,7 +2407,7 @@ function computeHistoricalScores(centreIdx) {
 // between "Turning" and "Rising" reads as bidirectional movement on a
 // one-dimensional axis, which is never what the data means. The score
 // number is the percentage; the trajectory word + arrow says which way.
-function renderTideVessel(score, stage, statement, trajectory) {
+function renderTideVessel(score, stage, statement, trajectory, pctChange) {
   const pct = Math.max(0, Math.min(100, +score || 0));
   const safeStatement = (statement || '').replace(/\n/g, '<br>');
   const eyebrow = trajectory === 'RISING'  ? 'Tide rising ↑'
@@ -2406,11 +2415,25 @@ function renderTideVessel(score, stage, statement, trajectory) {
               :                            'Tide steady';
   void stage; // stage no longer drives a marker; the verdict statement and
               // trajectory eyebrow carry the message between them.
+  // % change vs yesterday's score — null when there's no comparable
+  // prior day (new centre, sparse history). Renders as a watermark on
+  // the right wall.
+  let watermark = '';
+  if (pctChange !== null && pctChange !== undefined && Number.isFinite(pctChange)) {
+    const dirClass = pctChange > 0 ? 'is-up' : pctChange < 0 ? 'is-down' : 'is-flat';
+    const sign = pctChange > 0 ? '+' : '';
+    const text = pctChange === 0 ? 'No change' : (sign + pctChange + '%');
+    watermark = '<div class="tide-vessel-change">'
+              +   '<div class="tide-vessel-change-pct ' + dirClass + '">' + text + '</div>'
+              +   '<div class="tide-vessel-change-label">vs yesterday</div>'
+              + '</div>';
+  }
   return '<div class="tide-vessel" style="--tide-level:' + pct + '%">'
        +   '<div class="tide-vessel-headline">'
        +     '<span class="tide-vessel-eyebrow">' + eyebrow + '</span>'
        +     '<div class="tide-vessel-statement">' + safeStatement + '</div>'
        +   '</div>'
+       +   watermark
        +   '<div class="tide-water">'
        +     '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
        +       '<path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.4)"/>'
@@ -2869,7 +2892,17 @@ async function renderCentre(centreId) {
     +   '<div class="score-top">'+scoreHeader
     +     '<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div></div>'
     +   '</div>'
-    +   renderTideVessel(centreScore, stage, style.statement, trajectory)
+    +   renderTideVessel(centreScore, stage, style.statement, trajectory, (() => {
+          // % change vs the most recent past score in history (yesterday
+          // typically). Skip if the centre has no prior history or yesterday's
+          // score was 0/null (would divide by zero).
+          if (!history.length) return null;
+          const todayDate = new Date().toISOString().split('T')[0];
+          const past = history.filter(h => h && h.date && h.date < todayDate && Number.isFinite(+h.score) && +h.score > 0);
+          const lastPast = past[past.length - 1];
+          if (!lastPast) return null;
+          return Math.round(((centreScore - lastPast.score) / lastPast.score) * 100);
+        })())
     +   evidenceStrip + noMatchMsg + personalVerdictLine
     +   '<div class="score-message">'+verdictMsg+'</div>'
     +   trendCopy

@@ -6,7 +6,7 @@
 <title>Tide</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -14,16 +14,24 @@
     --cream:   #FAF7F2; --bark: #2C1810; --leaf: #3D6B35; --leaf-lt: #EEF4EC;
     --amber: #C17A2B; --amber-lt: #FBF2E4; --red: #B84C3A; --red-lt: #FAEAE7;
     --stone: #8C8070; --stone-lt: #F2EFE9; --border: rgba(44,24,16,0.10);
+    /* Rebrand additions (additive, opt-in by component) */
+    --ink: #1A1612; --ink-mid: #3D3530; --ink-light: #8A7F76;
+    --gold: #B8935A; --gold-light: #D4AF78;
+    --green-deep: #3A6B4A; --green-light: #5A8C6A;
+    --tide-cream: #F5F1EB; --tide-cream-dark: #EDE8E0;
+    --tide-card-bg: rgba(253,250,247,0.9);
+    --tide-border: rgba(26,22,18,0.08);
   }
   html { font-size: 16px; }
   body { background: var(--cream); color: var(--bark); font-family: 'DM Sans', sans-serif; font-weight: 300; min-height: 100vh; -webkit-font-smoothing: antialiased; }
-  header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--cream); z-index: 100; }
+  header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: rgba(250,247,242,0.92); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); z-index: 100; }
   .wordmark { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--bark); }
   .wordmark span { color: var(--leaf); }
   .header-right { display: flex; align-items: center; gap: 14px; }
   .tagline { font-size: 12px; color: var(--stone); letter-spacing: 0.06em; text-transform: uppercase; }
-  .auth-btn { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: var(--leaf); background: var(--leaf-lt); border: 1px solid rgba(61,107,53,0.2); border-radius: 20px; padding: 6px 14px; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
-  .auth-btn:hover { background: rgba(61,107,53,0.12); }
+  .auth-btn { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: var(--tide-cream); background: var(--ink); border: 1px solid var(--ink); border-radius: 100px; padding: 7px 16px; cursor: pointer; transition: background 0.2s, transform 0.15s; white-space: nowrap; }
+  .auth-btn:hover { background: var(--ink-mid); }
+  .auth-btn:active { transform: scale(0.97); }
   .picker-section { padding: 32px 24px 0; }
   .picker-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 10px; display: block; }
   .centre-search-wrap { position: relative; margin-bottom: 8px; }
@@ -70,23 +78,71 @@
   .gauge-needle { transform: rotate(var(--needle-rot, 0deg)); transition: transform 0.7s cubic-bezier(0.34, 1.2, 0.64, 1); }
   .gauge-svg.gauge-mount .gauge-needle { animation: gaugeNeedleMount 1.1s cubic-bezier(0.34, 1.5, 0.64, 1) both; }
   @keyframes gaugeNeedleMount { 0% { transform: rotate(-90deg); } 100% { transform: rotate(var(--needle-rot, 0deg)); } }
+
+  /* ── Tide Vessel (rebrand step 4) ───────────────────────────── */
+  .tide-vessel { position: relative; height: 200px; margin: 14px 0 8px; background: var(--ink); border-radius: 22px; overflow: hidden; box-shadow: 0 10px 40px rgba(26,22,18,0.18); }
+  .tide-vessel::before { content:''; position:absolute; inset:0; pointer-events:none; z-index:1; background: radial-gradient(ellipse at 20% 100%, rgba(58,107,74,0.20) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(184,147,90,0.12) 0%, transparent 50%); }
+  .tide-water { position: absolute; bottom: 0; left: 0; right: 0; height: var(--tide-level, 0%); z-index: 2; transition: height 1.4s cubic-bezier(0.34, 1.2, 0.64, 1); }
+  .tide-water-body { position: absolute; bottom: 0; left: 0; right: 0; top: 24px; background: linear-gradient(to top, rgba(58,107,74,0.5) 0%, rgba(58,107,74,0.25) 100%); }
+  .tide-wave-svg  { position: absolute; top: 0; left: -10%; width: 120%; height: 28px; animation: tideWaveDrift  4s   ease-in-out infinite; }
+  .tide-wave-svg-2{ position: absolute; top: 4px; left: -15%; width: 130%; height: 28px; animation: tideWaveDrift2 5.5s ease-in-out infinite; opacity: 0.5; }
+  @keyframes tideWaveDrift  { 0%,100% { transform: translateX(0); } 50% { transform: translateX(4%);  } }
+  @keyframes tideWaveDrift2 { 0%,100% { transform: translateX(5%); } 50% { transform: translateX(-3%); } }
+  .tide-vessel-headline { position: absolute; left: 20px; top: 16px; right: 80px; z-index: 6; }
+  .tide-vessel-eyebrow { display: block; font-family: 'DM Sans', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold-light); margin-bottom: 4px; }
+  .tide-vessel-statement { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 22px; line-height: 1.15; letter-spacing: -0.01em; color: var(--tide-cream); white-space: pre-line; opacity: 0.92; }
+  /* Hero % change (left-side, dominant) — the headline number on the
+     vessel. Lives inside .tide-vessel-headline so it stacks with the
+     eyebrow + statement on the left, well clear of the right-wall
+     tide-level marks (which are a different unit). */
+  .tide-vessel-hero { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 54px; line-height: 0.95; letter-spacing: -0.02em; color: var(--tide-cream); margin: 6px 0 2px; }
+  .tide-vessel-hero.is-up   { color: #7BC49A; }
+  .tide-vessel-hero.is-down { color: #E89882; }
+  .tide-vessel-hero.is-flat { font-size: 28px; color: rgba(245,241,235,0.70); }
+  .tide-vessel-hero-label { display: block; font-family: 'DM Sans', sans-serif; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(245,241,235,0.45); margin-bottom: 8px; }
+  /* Subtle right-wall tide-level marks at 25/50/75 — labels are in
+     "% of shops" terms so the scale lines up with the headline %. */
+  .tide-vessel-marks { position: absolute; right: 14px; top: 0; bottom: 0; z-index: 4; pointer-events: none; }
+  .tide-vessel-mark { position: absolute; right: 0; display: flex; align-items: center; gap: 6px; transform: translateY(-50%); }
+  .tide-vessel-mark-line { width: 14px; height: 1px; background: rgba(245,241,235,0.18); }
+  .tide-vessel-mark-label { font-family: 'DM Sans', sans-serif; font-size: 9px; color: rgba(245,241,235,0.30); letter-spacing: 0.04em; }
+  /* Headline number — now "X%" + small "Y of Z shops" subtitle. */
+  .tide-score-num { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 42px; line-height: 1; color: var(--tide-cream); }
+  .tide-score-unit { display: block; font-family: 'DM Sans', sans-serif; font-size: 11px; color: rgba(245,241,235,0.55); letter-spacing: 0.04em; margin-top: 5px; white-space: nowrap; }
+  .tide-score-float { position: absolute; left: 20px; bottom: calc(var(--tide-level, 0%) + 8px); z-index: 7; transition: bottom 1.4s cubic-bezier(0.34, 1.2, 0.64, 1); }
+  /* num + unit defined above (step "shops headline") */
+  /* Score-card: when it contains a vessel, hide the existing top accent
+     stripe, the duplicate Playfair statement, and the redundant phase
+     badge (the lit-up stage marker inside the vessel already shows it). */
+  .score-card.has-vessel::before { display: none; }
+  .score-card.has-vessel .score-statement { display: none; }
+  .score-card.has-vessel .score-top { display: none; }
+  .score-card.has-vessel { padding: 12px; border-radius: 22px; }
+  .score-card.has-vessel .score-message { border-top: none; padding: 14px 8px 4px; font-size: 13.5px; line-height: 1.55; color: var(--ink-mid); }
+  .score-card.has-vessel .trend-line { padding: 0 8px 6px; font-size: 12px; color: var(--stone); font-style: italic; }
   .brands-section { padding: 24px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.15s, transform 0.4s ease 0.15s; }
   .brands-section.visible { opacity: 1; transform: translateY(0); }
   .section-heading { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
   .on-sale-count { background: var(--leaf-lt); color: var(--leaf); font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
   .brand-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
-  .brand-chip { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--bark); transition: border-color 0.2s, background 0.2s; text-decoration: none; }
+  .brand-chip { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px 11px 18px; background: white; border: 1px solid var(--border); border-radius: 12px; font-size: 13px; color: var(--bark); transition: border-color 0.2s, background 0.2s; text-decoration: none; overflow: hidden; }
   .brand-chip.on-sale { border-color: rgba(61,107,53,0.25); background: var(--leaf-lt); }
   .brand-chip.on-sale .brand-name { font-weight: 500; color: var(--bark); }
-  .brand-left { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
-  .brand-logo { width: 22px; height: 22px; border-radius: 5px; background: white; flex-shrink: 0; object-fit: contain; border: 1px solid var(--border); }
+  /* Left-edge freshness bar — green=new, leaf=fresh, amber=aging, red=late */
+  .brand-chip[data-fresh]::before { content: ''; position: absolute; left: 0; top: 12%; bottom: 12%; width: 4px; border-radius: 0 2px 2px 0; }
+  .brand-chip[data-fresh="new"]::before    { background: var(--leaf); }
+  .brand-chip[data-fresh="fresh"]::before  { background: rgba(61,107,53,0.55); }
+  .brand-chip[data-fresh="aging"]::before  { background: var(--amber); }
+  .brand-chip[data-fresh="late"]::before   { background: var(--red); opacity: 0.65; }
+  .brand-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+  .brand-logo { width: 26px; height: 26px; border-radius: 6px; background: white; flex-shrink: 0; object-fit: contain; border: 1px solid var(--border); }
   .brand-logo.no-logo { background: var(--stone-lt); }
   .brand-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   a.brand-chip:hover { border-color: var(--leaf); background: rgba(61,107,53,0.10); }
   a.brand-chip:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
   .brand-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  .brand-days { font-size: 11px; color: var(--leaf); font-weight: 500; letter-spacing: 0.01em; min-width: 72px; text-align: right; }
-  .brand-pct { font-size: 11px; color: var(--amber); font-weight: 600; letter-spacing: 0.01em; background: var(--amber-lt); padding: 2px 7px; border-radius: 10px; min-width: 68px; box-sizing: border-box; text-align: center; }
+  .brand-days { font-size: 11px; color: var(--leaf); font-weight: 500; letter-spacing: 0.01em; text-align: right; white-space: nowrap; }
+  .brand-pct { font-family: 'Cormorant Garamond', serif; font-size: 15px; color: var(--gold); font-weight: 600; letter-spacing: 0; background: transparent; padding: 0; min-width: 72px; box-sizing: border-box; text-align: right; }
   .brand-pct.empty { background: transparent; padding: 2px 0; }
   .brand-arrow { font-size: 11px; color: var(--stone); margin-left: 6px; opacity: 0.55; flex-shrink: 0; }
   .brand-arrow.invisible { visibility: hidden; }
@@ -369,7 +425,7 @@
   .narrative-title { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--stone); }
   .narrative-live { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--leaf); letter-spacing: 0.04em; }
   .narrative-live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--leaf); animation: pulse 2s ease-in-out infinite; }
-  .stat-row { display: grid; grid-template-columns: 1fr 1.4fr 1fr; border-bottom: 1px solid var(--border); }
+  .stat-row { display: grid; grid-template-columns: minmax(96px, 1fr) 2.2fr; border-bottom: 1px solid var(--border); }
   .stat-cell { padding: 14px 16px; border-right: 1px solid var(--border); min-width: 0; }
   .stat-cell:last-child { border-right: none; }
   .stat-value { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; color: var(--bark); letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -378,9 +434,21 @@
   .stat-value.warning { color: var(--amber); }
   .stat-value.muted { color: var(--stone); }
   .stat-label { font-size: 10px; color: var(--stone); letter-spacing: 0.04em; line-height: 1.3; }
+  /* "Today's freshest deals" list — replaces the wonky truncating
+     "Biggest deal" cell with a richer brand+%+days roster. */
+  .stat-cell.stat-list { padding: 10px 16px; }
+  .stat-list-label { font-size: 10px; letter-spacing: 0.04em; color: var(--stone); margin-bottom: 6px; }
+  .stat-list-items { list-style: none; margin: 0; padding: 0; }
+  .stat-list-items li { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 3px 0; font-size: 13px; color: var(--ink); }
+  .stat-list-items li + li { border-top: 1px dotted var(--tide-border); }
+  .stat-list-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+  .stat-list-meta { font-family: 'Cormorant Garamond', serif; font-size: 14px; color: var(--gold); font-weight: 600; flex-shrink: 0; }
+  .stat-list-meta .stat-list-days { font-family: 'DM Sans', sans-serif; font-size: 11px; color: var(--stone); margin-left: 6px; font-weight: 400; }
+  .stat-list-empty { font-size: 12px; color: var(--stone); font-style: italic; padding: 4px 0; }
   .narrative-body { padding: 14px 18px; }
-  .narrative-insight { font-size: 13.5px; color: var(--bark); line-height: 1.65; margin: 0; }
-  .narrative-insight strong { font-weight: 500; color: var(--bark); }
+  .narrative-insight { font-size: 13.5px; color: var(--ink-mid); line-height: 1.65; margin: 0; }
+  .narrative-insight::before { content: '\2726'; color: var(--gold); font-size: 13px; margin-right: 8px; vertical-align: 0.05em; }
+  .narrative-insight strong { font-weight: 500; color: var(--ink); }
   .narrative-insight .highlight { color: var(--amber); font-weight: 500; }
   .hours-strip { border-top: 1px solid var(--border); padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .hours-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -1507,7 +1575,41 @@ async function loadTideData() {
     const centresList = centresRes.data || [];
     if (!centresList.length) { console.warn('No centres returned from Supabase'); return false; }
 
-    CENTRE_ID_BY_IDX = centresList.map(c => c.id);
+    // Build the dropdown-idx -> Supabase-centre-id map by NAME, not by
+    // Supabase response order. Supabase orders by id (alphabetical) which
+    // does not match the curated CENTRE_NAMES order — without this the
+    // detail view would render centre A's score under centre B's name
+    // for almost every centre, which would silently break the contract
+    // that admin and consumer always agree on what's on sale where.
+    const _norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const _byNorm = new Map();
+    for (const c of centresList) {
+      const k = _norm(c.name);
+      if (k && !_byNorm.has(k)) _byNorm.set(k, c);
+    }
+    CENTRE_ID_BY_IDX = CENTRE_NAMES.map(displayName => {
+      const target = _norm(displayName);
+      // Exact match first
+      if (_byNorm.has(target)) return _byNorm.get(target).id;
+      // Then either-side starts-with / contains (handles "St David's" <->
+      // "St Davids", "Arndale" <-> "Manchester Arndale", etc.). Min target
+      // length 4 so we never let trivial words (e.g. "the") false-match.
+      for (const [k, c] of _byNorm) {
+        if (k.startsWith(target) || target.startsWith(k)) return c.id;
+        if (target.length >= 4 && (k.includes(target) || target.includes(k))) return c.id;
+      }
+      console.warn('No Supabase centre matched dropdown name:', displayName);
+      return null;
+    });
+    // Sanity-check: any nulls or duplicates would silently cross-wire
+    // centres again. Log once per load if found — never deploy with these.
+    const _seen = new Set();
+    for (let i = 0; i < CENTRE_ID_BY_IDX.length; i++) {
+      const id = CENTRE_ID_BY_IDX[i];
+      if (id == null) console.warn('  -> dropdown idx', i, '"' + CENTRE_NAMES[i] + '" has NO match');
+      else if (_seen.has(id)) console.warn('  -> duplicate match: idx', i, CENTRE_NAMES[i], '->', id);
+      if (id) _seen.add(id);
+    }
     for (const c of centresList) CENTRE_HISTORY[c.id] = Array.isArray(c.tide_history) ? c.tide_history : [];
 
     let latestDate = today;
@@ -2102,23 +2204,31 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
   const histCount = history.length;
   const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // Stat row — three real-data cells per the brief.
+  // Stat row — 2 cells now: the count on the left, and a multi-row
+  // "today's freshest deals" list on the right (replaces the old
+  // single-brand "Biggest deal" cell which truncated awkwardly).
+  // List sorted by ascending days running (freshest first) and
+  // capped at 3 rows.
   const cell1 = '<div class="stat-cell"><div class="stat-value ' + (onSaleCount > 0 ? 'positive' : 'muted') + '">' + onSaleCount + '</div><div class="stat-label">Brands on sale</div></div>';
-  const freshName  = fresh ? escapeHtml(fresh.name) : '—';
-  const freshLabel = fresh ? ('Freshest brand · ' + (fresh.days || 1) + 'd') : 'Freshest brand';
-  const cell2 = '<div class="stat-cell"><div class="stat-value warning compact" title="' + (fresh ? escapeHtml(fresh.name) : '') + '">' + freshName + '</div><div class="stat-label">' + freshLabel + '</div></div>';
-  // Cell 3 — biggest discount available across brands on sale today.
-  // More commercially useful than "Days of history" was: directly
-  // answers "is there a meaningful deal here right now?".
-  let bestPct = 0, bestPctBrand = null;
-  for (const b of onSale) {
-    const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
-    if (typeof pct === 'number' && pct > bestPct) { bestPct = pct; bestPctBrand = b.name; }
-  }
-  const cell3 = bestPct > 0
-    ? '<div class="stat-cell"><div class="stat-value warning">Up to ' + bestPct + '%</div><div class="stat-label">Biggest deal &middot; ' + escapeHtml(bestPctBrand) + '</div></div>'
-    : '<div class="stat-cell"><div class="stat-value muted">—</div><div class="stat-label">Biggest deal</div></div>';
-  void histCount;
+  const topDeals = onSale.slice()
+    .sort((a, b) => (a.days || 0) - (b.days || 0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)))
+    .slice(0, 3);
+  const dealRows = topDeals.length
+    ? '<ul class="stat-list-items">' + topDeals.map(b => {
+        const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
+        const pctTxt = (typeof pct === 'number' && pct > 0) ? ('Up to ' + pct + '%') : '—';
+        const daysTxt = (b.days <= 1) ? 'New' : (b.days + 'd');
+        return '<li>'
+             +   '<span class="stat-list-name">' + escapeHtml(b.name) + '</span>'
+             +   '<span class="stat-list-meta">' + pctTxt + '<span class="stat-list-days">' + daysTxt + '</span></span>'
+             + '</li>';
+      }).join('') + '</ul>'
+    : '<div class="stat-list-empty">No verified sales today.</div>';
+  const cell2 = '<div class="stat-cell stat-list">'
+              +   '<div class="stat-list-label">Today’s freshest deals</div>'
+              +   dealRows
+              + '</div>';
+  void histCount; // narrative still uses `fresh` below
 
   // Narrative — Claude-written if available, otherwise template fallback.
   const aiNarrative = (getServerScore(centreIdx) || {}).narrative;
@@ -2155,7 +2265,7 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
     +   '<span class="narrative-title">Centre Intelligence</span>'
     +   '<span class="narrative-live"><span class="narrative-live-dot"></span>Live sale data</span>'
     + '</div>'
-    + '<div class="stat-row">' + cell1 + cell2 + cell3 + '</div>'
+    + '<div class="stat-row">' + cell1 + cell2 + '</div>'
     + '<div class="narrative-body"><p class="narrative-insight">' + narrative + '</p></div>'
     + hoursStrip
     + '</div></div>';
@@ -2295,6 +2405,82 @@ function computeHistoricalScores(centreIdx) {
   });
 }
 
+// Rebrand step 4 (revised): a single dark vessel where water height = the
+// numeric score (0-100), and direction comes from the trajectory call-out
+// on the top-left text — NOT from a fixed sequence of stage markers.
+//
+// Why no markers: a single water level can't double as a position on a
+// rising-tide ladder AND on a falling-tide ladder — "Falling" sandwiched
+// between "Turning" and "Rising" reads as bidirectional movement on a
+// one-dimensional axis, which is never what the data means. The score
+// number is the percentage; the trajectory word + arrow says which way.
+function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, onSaleCount, totalCount) {
+  const pct = Math.max(0, Math.min(100, +pctOnSale || 0));
+  const safeStatement = (statement || '').replace(/\n/g, '<br>');
+  const eyebrow = trajectory === 'RISING'  ? 'Tide rising ↑'
+              : trajectory === 'FALLING' ? 'Tide falling ↓'
+              :                            'Tide steady';
+  void stage;
+
+  // Hero number — the day-on-day % change. Lives in the headline column
+  // (left side), visually dominant, tinted by direction. Uses an arrow
+  // glyph as the "sign" so direction is unmistakable at a glance:
+  //   ↑ N%   (rising — leaf green)
+  //   ↓ N%   (falling — salmon)
+  //   = Same (flat — muted cream)
+  let hero = '';
+  if (pctChange !== null && pctChange !== undefined && Number.isFinite(pctChange)) {
+    let dirClass, text;
+    if (pctChange > 0) {
+      dirClass = 'is-up';
+      text = '↑ ' + pctChange + '%';
+    } else if (pctChange < 0) {
+      dirClass = 'is-down';
+      text = '↓ ' + Math.abs(pctChange) + '%';
+    } else {
+      dirClass = 'is-flat';
+      text = '= Same';
+    }
+    hero = '<div class="tide-vessel-hero ' + dirClass + '">' + text + '</div>'
+         + '<span class="tide-vessel-hero-label">vs yesterday</span>';
+  }
+
+  // Subtle right-wall tide-level marks at 75 / 50 / 25 % of brands.
+  const marks = '<div class="tide-vessel-marks">'
+              +   '<div class="tide-vessel-mark" style="top:25%"><div class="tide-vessel-mark-line"></div><span class="tide-vessel-mark-label">75%</span></div>'
+              +   '<div class="tide-vessel-mark" style="top:50%"><div class="tide-vessel-mark-line"></div><span class="tide-vessel-mark-label">50%</span></div>'
+              +   '<div class="tide-vessel-mark" style="top:75%"><div class="tide-vessel-mark-line"></div><span class="tide-vessel-mark-label">25%</span></div>'
+              + '</div>';
+
+  // Headline reads "X%" + concrete count subtitle so the user sees
+  // the consumer-friendly metric, not the internal Tide Score.
+  const subtitle = (Number.isFinite(+onSaleCount) && Number.isFinite(+totalCount) && +totalCount > 0)
+                 ? (onSaleCount + ' of ' + totalCount + ' shops on sale')
+                 : 'of shops on sale';
+
+  return '<div class="tide-vessel" style="--tide-level:' + pct + '%">'
+       +   '<div class="tide-vessel-headline">'
+       +     '<span class="tide-vessel-eyebrow">' + eyebrow + '</span>'
+       +     hero
+       +     '<div class="tide-vessel-statement">' + safeStatement + '</div>'
+       +   '</div>'
+       +   marks
+       +   '<div class="tide-water">'
+       +     '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
+       +       '<path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.4)"/>'
+       +     '</svg>'
+       +     '<svg class="tide-wave-svg-2" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
+       +       '<path d="M0,18 C50,8 100,26 150,16 C200,6 250,26 300,16 C340,8 370,20 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.25)"/>'
+       +     '</svg>'
+       +     '<div class="tide-water-body"></div>'
+       +   '</div>'
+       + '</div>';
+  // Score-float removed: the watermark in the top-right already shows
+  // the only number we need (rate of change). Water height + the right-
+  // wall marks carry the absolute level visually. CI card below has the
+  // concrete "X brands on sale" count.
+}
+
 function renderArcWidget(stage, color) {
   // Semicircular gauge: arc centred at bottom-centre of the SVG.
   // viewBox 360x180, pivot at (180, 160), arc radius 130.
@@ -2405,7 +2591,7 @@ function renderHistoryChart(history, color, trajectory=null) {
     const anchor=pos==='start'?'start':pos==='end'?'end':'middle';
     return '<text x="'+pts[idx][0]+'" y="'+(PT+H+16)+'" font-family="DM Sans,sans-serif" font-size="9.5" fill="#8C8070" text-anchor="'+anchor+'">'+label+'</text>';
   }).join('');
-  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.12"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><text x="'+lx+'" y="'+(ly-9).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+color+'" font-weight="500">today</text><circle cx="'+lx+'" cy="'+ly+'" r="4.5" fill="white" stroke="'+color+'" stroke-width="1.8"/>'+xLabels+'</svg></div></div>';
+  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.12"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><text x="'+lx+'" y="'+(ly-11).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+color+'" font-weight="500">today</text><circle cx="'+lx+'" cy="'+ly+'" r="8" fill="'+color+'" opacity="0.14"/><circle cx="'+lx+'" cy="'+ly+'" r="3.6" fill="'+color+'"/>'+xLabels+'</svg></div></div>';
 }
 
 function urlToDomain(url) {
@@ -2630,11 +2816,19 @@ async function renderCentre(centreId) {
 
   function renderChip(b) {
     const days = b.daysRunning;
+    // Short days label so the brand name gets the room it needs.
+    // Freshness bucket is already conveyed by the left-edge colour bar.
     const daysLabel = days===0 ? ''
-                    : days===1 ? 'New today'
-                    : days<=7  ? 'Fresh · '+days+'d'
-                    : days<=21 ? days+'d in'
-                               : 'Late · '+days+'d';
+                    : days===1 ? 'New'
+                    : days<=21 ? days+'d'
+                               : days+'d';
+    // Freshness bucket for left-edge colour bar (matches the daysLabel buckets)
+    const fresh = !b.isOnSale ? ''
+                : days<=1     ? 'new'
+                : days<=7     ? 'fresh'
+                : days<=21    ? 'aging'
+                              : 'late';
+    const freshAttr = fresh ? ' data-fresh="'+fresh+'"' : '';
     const pct = b.isOnSale ? MAX_DISCOUNT_PCT[b.name] : null;
     // Always render pct/days/dot spans (with empty placeholders when no
     // content) so the right side of every chip lines up. min-widths in CSS.
@@ -2656,8 +2850,8 @@ async function renderCentre(centreId) {
     const arrow = '<span class="brand-arrow'+(url?'':' invisible')+'" aria-hidden="true">↗</span>';
     const inner = '<span class="brand-left">'+logoImg+'<span class="brand-name">'+b.name+'</span></span>'+meta+arrow;
     return url
-      ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'" href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
-      : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'">'+inner+'</div>';
+      ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+' href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
+      : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+'>'+inner+'</div>';
   }
 
   let brandHTML='';
@@ -2719,15 +2913,39 @@ async function renderCentre(centreId) {
                    + '</div>';
   }
 
-  // Score card omits the centre name (lives in hero now) and keeps the
-  // existing needle gauge — the needle moves between the 5 stages as the
-  // score rises and falls.
+  // Score card now uses the dark "tide vessel" (rebrand step 4):
+  // water-fill height = score %, score number at the waterline, stage
+  // markers down the right wall. The duplicated Playfair statement and
+  // the top accent stripe are hidden via .has-vessel CSS — the vessel
+  // carries that copy itself.
   const scoreCardHTML = '<div class="score-section">'
-    + '<div class="score-card" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'">'
+    + '<div class="score-card has-vessel" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'">'
     +   '<div class="score-top">'+scoreHeader
     +     '<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div></div>'
     +   '</div>'
-    +   renderArcWidget(stage,style.color)
+    +   (() => {
+          // Vessel headline is consumer-friendly "% of shops on sale" — the
+          // internal Tide Score (0-100 quality signal) still drives the
+          // verdict / trajectory / bluf above, but isn't surfaced as a
+          // bare number. Prefer the server's brands_on_sale / total_brands
+          // when today's row exists; fall back to the local CSV count.
+          const sScore = (typeof getServerScore === 'function') ? getServerScore(centreIdx) : null;
+          const onSaleN = (sScore && sScore.brands_on_sale != null) ? sScore.brands_on_sale : onSale.length;
+          const totalN  = (sScore && sScore.total_brands != null) ? sScore.total_brands : (typeof totalAtCentre !== 'undefined' ? totalAtCentre : 0);
+          const pctOnSale = totalN > 0 ? Math.round((onSaleN / totalN) * 100) : 0;
+          // % change vs the most recent past score in history. Until we
+          // have a per-day brands_on_sale history, this still uses the
+          // tide_score change (closely tracks direction even if the
+          // magnitude is on a different metric).
+          let pctChange = null;
+          if (history.length) {
+            const todayDate = new Date().toISOString().split('T')[0];
+            const past = history.filter(h => h && h.date && h.date < todayDate && Number.isFinite(+h.score) && +h.score > 0);
+            const lastPast = past[past.length - 1];
+            if (lastPast) pctChange = Math.round(((centreScore - lastPast.score) / lastPast.score) * 100);
+          }
+          return renderTideVessel(pctOnSale, stage, style.statement, trajectory, pctChange, onSaleN, totalN);
+        })()
     +   evidenceStrip + noMatchMsg + personalVerdictLine
     +   '<div class="score-message">'+verdictMsg+'</div>'
     +   trendCopy

@@ -2460,11 +2460,11 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, on
        +     '</svg>'
        +     '<div class="tide-water-body"></div>'
        +   '</div>'
-       +   '<div class="tide-score-float">'
-       +     '<span class="tide-score-num">' + Math.round(pct) + '%</span>'
-       +     '<span class="tide-score-unit">' + subtitle + '</span>'
-       +   '</div>'
        + '</div>';
+  // Score-float removed: the watermark in the top-right already shows
+  // the only number we need (rate of change). Water height + the right-
+  // wall marks carry the absolute level visually. CI card below has the
+  // concrete "X brands on sale" count.
 }
 
 function renderArcWidget(stage, color) {

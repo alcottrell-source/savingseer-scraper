@@ -123,6 +123,7 @@
   .state-value.err { color: var(--red); }
   .state-value.dim { color: var(--stone); font-style: italic; }
   .state-pct { color: var(--amber); font-weight: 500; }
+  .state-type { display: inline-block; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--bark); background: var(--stone-lt); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; }
 
   .row-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .row-actions.with-end { grid-template-columns: 1fr 1fr 1fr; }
@@ -287,6 +288,20 @@ const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B011','B012']);
 const TODAY = new Date().toISOString().split('T')[0];
 const BRAND_BY_ID = Object.fromEntries(BRAND_DEFS.map(b => [b.id, b]));
 
+// Sale-type taxonomy. Keys must match the CHECK constraint in
+// supabase/migrations/20260508_add_sale_type.sql.
+const SALE_TYPES = [
+  { key: 'percent_off',   label: '% off',                short: '% off'   },
+  { key: 'flat_discount', label: 'Flat £/$ off',         short: '£ off'   },
+  { key: 'bogo',          label: '2 for 1 (BOGO)',       short: '2 for 1' },
+  { key: 'bogo_half',     label: '2nd item half price',  short: '2nd ½'   },
+  { key: 'multibuy',      label: 'Multibuy / 3 for 2',   short: '3 for 2' },
+  { key: 'flash',         label: 'Flash sale',           short: 'Flash'   },
+  { key: 'seasonal',      label: 'Seasonal sale',        short: 'Season'  },
+];
+const SALE_TYPE_LABEL = Object.fromEntries(SALE_TYPES.map(t => [t.key, t.label]));
+const SALE_TYPE_SHORT = Object.fromEntries(SALE_TYPES.map(t => [t.key, t.short]));
+
 // ── DOM helpers ────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -381,8 +396,8 @@ async function onSignedIn(session) {
 async function loadAndRender() {
   showStatus('Loading…');
   const [eventsRes, cyclesRes, reviewsRes] = await Promise.all([
-    pg.read('brand_sale_events?select=brand_id,sale_status,date_first_detected,max_discount_pct,scraper_error,last_verified_date,last_verified_status,active_cycle_id'),
-    pg.read('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct&end_date=is.null'),
+    pg.read('brand_sale_events?select=brand_id,sale_status,date_first_detected,max_discount_pct,sale_type,scraper_error,last_verified_date,last_verified_status,active_cycle_id'),
+    pg.read('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct,sale_type&end_date=is.null'),
     pg.read('admin_review_log?select=brand_id,action,created_at&reviewed_date=eq.' + TODAY),
   ]);
 
@@ -485,7 +500,9 @@ function renderRow({ ev, def, cycle, review }, isConfirmed) {
   if (cycle) {
     const days = daysSince(cycle.start_date);
     const pct = cycle.max_discount_pct ? ' · <span class="state-pct">' + cycle.max_discount_pct + '%</span>' : '';
-    verifiedHtml = '<span class="state-value on">On sale</span> · day ' + days + pct;
+    const typeLabel = SALE_TYPE_SHORT[cycle.sale_type] || SALE_TYPE_SHORT.percent_off;
+    const typeChip = ' · <span class="state-type">' + esc(typeLabel) + '</span>';
+    verifiedHtml = '<span class="state-value on">On sale</span> · day ' + days + pct + typeChip;
   } else if (ev.last_verified_date) {
     verifiedHtml = (ev.last_verified_status
         ? '<span class="state-value on">On sale</span>'
@@ -507,7 +524,8 @@ function renderRow({ ev, def, cycle, review }, isConfirmed) {
     '<div class="' + cardClass + '" data-brand-id="' + esc(ev.brand_id) + '"'
     + (cycle ? ' data-cycle-id="'    + esc(cycle.id)                          + '"'
              + ' data-cycle-start="' + esc(cycle.start_date)                  + '"'
-             + ' data-cycle-pct="'   + esc(cycle.max_discount_pct ?? '')      + '"' : '')
+             + ' data-cycle-pct="'   + esc(cycle.max_discount_pct ?? '')      + '"'
+             + ' data-cycle-type="'  + esc(cycle.sale_type ?? 'percent_off')  + '"' : '')
     + '>' +
       '<div class="row-top">' +
         '<div class="row-name">' + esc(def.name) +
@@ -610,6 +628,13 @@ function setRowBusy(card, busy) {
   card.querySelectorAll('button').forEach(b => b.disabled = busy);
 }
 
+function saleTypeOptions(selected) {
+  const sel = selected || 'percent_off';
+  return SALE_TYPES.map(t =>
+    '<option value="' + esc(t.key) + '"' + (t.key === sel ? ' selected' : '') + '>' + esc(t.label) + '</option>'
+  ).join('');
+}
+
 function openStartForm(card, brandId, def) {
   const mount = card.querySelector('.inline-form-mount');
   // Fetch latest scraped pct as the prefill
@@ -619,6 +644,7 @@ function openStartForm(card, brandId, def) {
     '<div class="inline-form">' +
       '<div class="inline-form-row">' +
         '<label>Started <input class="input" type="date" id="frm-start" value="' + TODAY + '"></label>' +
+        '<label>Sale type <select class="input" id="frm-type">' + saleTypeOptions('percent_off') + '</select></label>' +
         '<label>Discount % <input class="input" type="number" id="frm-pct" min="1" max="99" placeholder="e.g. 30" value="' + esc(prefilledPct) + '"></label>' +
       '</div>' +
       '<div class="inline-form-actions">' +
@@ -631,12 +657,14 @@ function openStartForm(card, brandId, def) {
   mount.querySelector('#frm-save').addEventListener('click', async () => {
     const startDate = mount.querySelector('#frm-start').value;
     const pct = mount.querySelector('#frm-pct').value;
+    const saleType = mount.querySelector('#frm-type').value;
     if (!startDate) { toast('Pick a start date'); return; }
     setRowBusy(card, true);
     try {
       await applyAction(brandId, 'confirm_start', {
         start_date: startDate,
         max_discount_pct: pct ? parseInt(pct, 10) : null,
+        sale_type: saleType,
       });
       toast('Sale cycle saved · ' + def.name);
       await loadAndRender();
@@ -652,10 +680,12 @@ function openEditForm(card, brandId, def) {
   const cycleId    = card.dataset.cycleId    || null;
   const currentStart = card.dataset.cycleStart || TODAY;
   const currentPct   = card.dataset.cyclePct   || '';
+  const currentType  = card.dataset.cycleType  || 'percent_off';
   mount.innerHTML =
     '<div class="inline-form">' +
       '<div class="inline-form-row">' +
         '<label>Started <input class="input" type="date" id="edit-start" value="' + esc(currentStart) + '"></label>' +
+        '<label>Sale type <select class="input" id="edit-type">' + saleTypeOptions(currentType) + '</select></label>' +
         '<label>Discount % <input class="input" type="number" id="edit-pct" min="1" max="99" placeholder="e.g. 30" value="' + esc(currentPct) + '"></label>' +
       '</div>' +
       '<div class="inline-form-actions">' +
@@ -667,12 +697,14 @@ function openEditForm(card, brandId, def) {
   mount.querySelector('#edit-save').addEventListener('click', async () => {
     const startDate = mount.querySelector('#edit-start').value;
     const pct = mount.querySelector('#edit-pct').value;
+    const saleType = mount.querySelector('#edit-type').value;
     if (!startDate) { toast('Pick a start date'); return; }
     setRowBusy(card, true);
     try {
       await applyEdit(brandId, cycleId, {
         start_date: startDate,
         max_discount_pct: pct ? parseInt(pct, 10) : null,
+        sale_type: saleType,
       });
       toast('Updated · ' + def.name);
       await loadAndRender();
@@ -691,6 +723,7 @@ async function applyAction(brandId, action, opts) {
       brand_id: brandId,
       start_date: opts.start_date,
       max_discount_pct: opts.max_discount_pct,
+      sale_type: opts.sale_type || 'percent_off',
       source: 'admin',
     }, true);
     if (cErr) throw cErr;
@@ -700,6 +733,7 @@ async function applyAction(brandId, action, opts) {
       active_cycle_id: cycle.id,
       last_verified_status: true,
       last_verified_date: TODAY,
+      sale_type: opts.sale_type || 'percent_off',
     });
     if (uErr) throw uErr;
     await logReview(brandId, 'confirmed_start', cycle.id);
@@ -721,6 +755,7 @@ async function applyAction(brandId, action, opts) {
       active_cycle_id: null,
       last_verified_status: false,
       last_verified_date: TODAY,
+      sale_type: null,
     });
     if (uErr) throw uErr;
     await logReview(brandId, 'confirmed_end', openCycle ? openCycle.id : null);
@@ -758,15 +793,19 @@ async function applyAction(brandId, action, opts) {
 async function applyEdit(brandId, cycleId, opts) {
   if (cycleId) {
     const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + cycleId, {
-      start_date: opts.start_date, max_discount_pct: opts.max_discount_pct,
+      start_date: opts.start_date,
+      max_discount_pct: opts.max_discount_pct,
+      sale_type: opts.sale_type || 'percent_off',
     });
     if (cErr) throw cErr;
   }
-  // Mirror max_discount_pct on brand_sale_events as a denormalised cache
-  // for admin queries (the main app reads it from the cycle, not here).
+  // Mirror max_discount_pct + sale_type on brand_sale_events as a denormalised
+  // cache for admin queries (the main app reads them from the cycle, not here).
   // Bumping last_verified_date confirms this edit counts as today's review.
   const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
-    max_discount_pct: opts.max_discount_pct, last_verified_date: TODAY,
+    max_discount_pct: opts.max_discount_pct,
+    sale_type: opts.sale_type || 'percent_off',
+    last_verified_date: TODAY,
   });
   if (uErr) throw uErr;
   await logReview(brandId, 'edited', cycleId);

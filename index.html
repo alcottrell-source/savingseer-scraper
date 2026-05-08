@@ -146,6 +146,7 @@
   .brand-days { font-size: 11px; color: var(--leaf); font-weight: 500; letter-spacing: 0.01em; text-align: right; white-space: nowrap; }
   .brand-pct { font-family: 'Cormorant Garamond', serif; font-size: 15px; color: var(--gold); font-weight: 600; letter-spacing: 0; background: transparent; padding: 0; min-width: 72px; box-sizing: border-box; text-align: right; }
   .brand-pct.empty { background: transparent; padding: 2px 0; }
+  .brand-type { font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--bark); background: rgba(61,107,53,0.10); border: 1px solid rgba(61,107,53,0.25); border-radius: 3px; padding: 1px 5px; white-space: nowrap; flex-shrink: 0; font-weight: 500; }
   .brand-arrow { font-size: 11px; color: var(--stone); margin-left: 6px; opacity: 0.55; flex-shrink: 0; }
   .brand-arrow.invisible { visibility: hidden; }
   a.brand-chip:hover .brand-arrow { color: var(--leaf); opacity: 1; }
@@ -1551,7 +1552,31 @@ function setBrandFilter(which) {
 }
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
-let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
+let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SALE_TYPE = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
+
+// Sale-type taxonomy. Keys must match the CHECK constraint in
+// supabase/migrations/20260508_add_sale_type.sql. `short` is the chip label
+// used inline on brand rows; `label` is the longer form for the freshest-deals
+// list. percent_off is intentionally omitted from short labels — the "Up to
+// N%" pill already conveys it, so showing "% off" alongside is noise.
+const SALE_TYPE_SHORT = {
+  percent_off:   '',
+  flat_discount: '£ off',
+  bogo:          '2 for 1',
+  bogo_half:     '2nd ½',
+  multibuy:      '3 for 2',
+  flash:         'Flash',
+  seasonal:      'Season',
+};
+const SALE_TYPE_LABEL = {
+  percent_off:   '% off',
+  flat_discount: 'Flat off',
+  bogo:          '2 for 1',
+  bogo_half:     '2nd half price',
+  multibuy:      '3 for 2',
+  flash:         'Flash sale',
+  seasonal:      'Seasonal',
+};
 let CENTRE_SCORES = {};      // supabase centre_id -> { tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands }
 let CENTRE_HISTORY = {};     // supabase centre_id -> [{date, score}, ...]
 let CENTRE_ID_BY_IDX = [];   // centreIdx (0-based, matches CENTRE_NAMES) -> supabase centre_id
@@ -1568,7 +1593,7 @@ async function loadTideData() {
     const [centresRes, salesRes, cyclesRes, scoresRes] = await Promise.all([
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,last_verified_status,last_verified_date,active_cycle_id'),
-      pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct&end_date=is.null'),
+      pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type&end_date=is.null'),
       pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,narrative&score_date=eq.' + today),
     ]);
     if (centresRes.error || salesRes.error || cyclesRes.error || scoresRes.error) {
@@ -1645,8 +1670,12 @@ async function loadTideData() {
       const startDate = (cycle && cycle.start_date) || row.last_verified_date;
       // Discount % comes only from a verified cycle.
       const discountPct = cycle && Number.isFinite(cycle.max_discount_pct) ? cycle.max_discount_pct : null;
+      // Sale type also lives on the verified cycle. Default to percent_off
+      // so legacy rows render the same as before.
+      const saleType = (cycle && cycle.sale_type) || 'percent_off';
       SALE_STATUS[name] = isOnSale;
       MAX_DISCOUNT_PCT[name] = (isOnSale && discountPct !== null) ? discountPct : null;
+      SALE_TYPE[name] = isOnSale ? saleType : null;
       if (isOnSale && startDate) {
         const days = Math.floor((new Date(latestDate) - new Date(startDate)) / 86400000) + 1;
         DAYS_RUNNING[name] = Math.max(days, 1);
@@ -2234,11 +2263,21 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
   const dealRows = topDeals.length
     ? '<ul class="stat-list-items">' + topDeals.map(b => {
         const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
-        const pctTxt = (typeof pct === 'number' && pct > 0) ? ('Up to ' + pct + '%') : '—';
+        const typeKey = SALE_TYPE[b.name];
+        const hasPct = (typeof pct === 'number' && pct > 0);
+        // Prefer the explicit sale-type label (e.g. "2 for 1") when the type
+        // isn't percent_off — that's the headline detail. For percent_off, the
+        // "Up to N%" string is already the headline.
+        let dealTxt;
+        if (typeKey && typeKey !== 'percent_off' && SALE_TYPE_LABEL[typeKey]) {
+          dealTxt = SALE_TYPE_LABEL[typeKey] + (hasPct ? (' · Up to ' + pct + '%') : '');
+        } else {
+          dealTxt = hasPct ? ('Up to ' + pct + '%') : '—';
+        }
         const daysTxt = (b.days <= 1) ? 'New' : (b.days + 'd');
         return '<li>'
              +   '<span class="stat-list-name">' + escapeHtml(b.name) + '</span>'
-             +   '<span class="stat-list-meta">' + pctTxt + '<span class="stat-list-days">' + daysTxt + '</span></span>'
+             +   '<span class="stat-list-meta">' + escapeHtml(dealTxt) + '<span class="stat-list-days">' + daysTxt + '</span></span>'
              + '</li>';
       }).join('') + '</ul>'
     : '<div class="stat-list-empty">No verified sales today.</div>';
@@ -2884,11 +2923,16 @@ async function renderCentre(centreId) {
     const pctSpan = pct
       ? '<span class="brand-pct">Up to '+pct+'%</span>'
       : '<span class="brand-pct empty"></span>';
+    const typeKey = b.isOnSale ? SALE_TYPE[b.name] : null;
+    const typeLabel = (typeKey && SALE_TYPE_SHORT[typeKey]) || '';
+    const typeSpan = typeLabel
+      ? '<span class="brand-type">'+escapeHtml(typeLabel)+'</span>'
+      : '';
     const daysSpan = '<span class="brand-days">'+(daysLabel||'')+'</span>';
     const dotSpan = b.isOnSale
       ? '<span class="sale-dot"></span>'
       : '<span class="no-sale-dot"></span>';
-    const meta = '<span class="brand-meta">'+pctSpan+daysSpan+dotSpan+'</span>';
+    const meta = '<span class="brand-meta">'+typeSpan+pctSpan+daysSpan+dotSpan+'</span>';
     const url = BRAND_URL_BY_NAME[b.name] || null;
     const logoImg = brandLogoImg(url);
     // Always render arrow so the right edge aligns; hide it for unlinked chips.
@@ -3040,14 +3084,15 @@ async function renderCentre(centreId) {
 // like from the browser console without sprinkling console.logs everywhere.
 //   __tide.onSale()         -> ['Whistles', 'Warehouse', ...]
 //   __tide.statusFor('Whistles') -> { onSale, days, pct }
-//   __tide.SALE_STATUS, __tide.DAYS_RUNNING, __tide.MAX_DISCOUNT_PCT, __tide.CENTRE_SCORES
+//   __tide.SALE_STATUS, __tide.DAYS_RUNNING, __tide.MAX_DISCOUNT_PCT, __tide.SALE_TYPE, __tide.CENTRE_SCORES
 window.__tide = {
   get SALE_STATUS()      { return SALE_STATUS; },
   get DAYS_RUNNING()     { return DAYS_RUNNING; },
   get MAX_DISCOUNT_PCT() { return MAX_DISCOUNT_PCT; },
+  get SALE_TYPE()        { return SALE_TYPE; },
   get CENTRE_SCORES()    { return CENTRE_SCORES; },
   onSale() { return Object.entries(SALE_STATUS).filter(([,v]) => v === true).map(([k]) => k); },
-  statusFor(name) { return { onSale: SALE_STATUS[name], days: DAYS_RUNNING[name], pct: MAX_DISCOUNT_PCT[name] }; },
+  statusFor(name) { return { onSale: SALE_STATUS[name], days: DAYS_RUNNING[name], pct: MAX_DISCOUNT_PCT[name], type: SALE_TYPE[name] }; },
   reload: () => loadTideData(),
 };
 

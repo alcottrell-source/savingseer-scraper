@@ -2817,6 +2817,13 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, on
   // RISING 50–75, PEAK 75+) so the highlighted mark agrees with the
   // verdict word at the top of the vessel.
   const activeMark = pct >= 75 ? 'peak' : pct >= 50 ? 'rising' : pct >= 25 ? 'early' : 'low';
+  // Falling tide reuses the ladder bands but with falling-cycle vocabulary:
+  // RISING → FADING, EARLY → ENDING, LOW → QUIET. Peak is the apex either
+  // way. FLAT keeps the default rising vocabulary.
+  const fallingLadder = trajectory === 'FALLING';
+  const lblRising = fallingLadder ? 'FADING' : 'RISING';
+  const lblEarly  = fallingLadder ? 'ENDING' : 'EARLY';
+  const lblLow    = fallingLadder ? 'QUIET'  : 'LOW';
   const mk = (m, top, label) =>
     '<div class="tide-vessel-mark' + (activeMark === m ? ' is-active' : '') + '" style="top:' + top + '%">'
     + '<span class="tide-vessel-mark-line"></span>'
@@ -2824,9 +2831,9 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, on
     + '</div>';
   const marksHTML = '<div class="tide-vessel-marks" aria-hidden="true">'
     + mk('peak',   14, 'PEAK')
-    + mk('rising', 38, 'RISING')
-    + mk('early',  62, 'EARLY')
-    + mk('low',    86, 'LOW')
+    + mk('rising', 38, lblRising)
+    + mk('early',  62, lblEarly)
+    + mk('low',    86, lblLow)
     + '</div>';
 
   return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + '" style="--tide-level:' + pct + '%">'

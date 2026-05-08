@@ -21,6 +21,11 @@
     --tide-cream: #F5F1EB; --tide-cream-dark: #EDE8E0;
     --tide-card-bg: rgba(253,250,247,0.9);
     --tide-border: rgba(26,22,18,0.08);
+    /* Classy neon — used for the tide line + dark-card highlights so
+       brand greens "pop" on dark surfaces. Pair with the glow shadow. */
+    --tide-neon: #5EFFB0;
+    --tide-neon-soft: rgba(94,255,176,0.55);
+    --tide-neon-glow: 0 0 10px rgba(94,255,176,0.55), 0 0 22px rgba(94,255,176,0.22);
   }
   html { font-size: 16px; }
   body { background: var(--cream); color: var(--ink); font-family: 'DM Sans', sans-serif; font-weight: 400; min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -91,9 +96,9 @@
   .tide-vessel { position: relative; height: 200px; margin: 14px 0 8px; background: var(--ink); border-radius: 22px; overflow: hidden; box-shadow: 0 10px 40px rgba(26,22,18,0.18); }
   .tide-vessel::before { content:''; position:absolute; inset:0; pointer-events:none; z-index:1; background: radial-gradient(ellipse at 20% 100%, rgba(58,107,74,0.20) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(184,147,90,0.12) 0%, transparent 50%); }
   .tide-water { position: absolute; bottom: 0; left: 0; right: 0; height: var(--tide-level, 0%); z-index: 2; transition: height 1.4s cubic-bezier(0.34, 1.2, 0.64, 1); }
-  .tide-water-body { position: absolute; bottom: 0; left: 0; right: 0; top: 24px; background: linear-gradient(to top, rgba(58,107,74,0.5) 0%, rgba(58,107,74,0.25) 100%); }
-  .tide-wave-svg  { position: absolute; top: 0; left: -10%; width: 120%; height: 28px; animation: tideWaveDrift  4s   ease-in-out infinite; }
-  .tide-wave-svg-2{ position: absolute; top: 4px; left: -15%; width: 130%; height: 28px; animation: tideWaveDrift2 5.5s ease-in-out infinite; opacity: 0.5; }
+  .tide-water-body { position: absolute; bottom: 0; left: 0; right: 0; top: 24px; background: linear-gradient(to top, rgba(94,255,176,0.22) 0%, rgba(94,255,176,0.04) 100%); }
+  .tide-wave-svg  { position: absolute; top: 0; left: -10%; width: 120%; height: 28px; animation: tideWaveDrift  4s   ease-in-out infinite; filter: drop-shadow(0 0 6px rgba(94,255,176,0.55)); }
+  .tide-wave-svg-2{ position: absolute; top: 4px; left: -15%; width: 130%; height: 28px; animation: tideWaveDrift2 5.5s ease-in-out infinite; opacity: 0.6; filter: drop-shadow(0 0 4px rgba(94,255,176,0.40)); }
   @keyframes tideWaveDrift  { 0%,100% { transform: translateX(0); } 50% { transform: translateX(4%);  } }
   @keyframes tideWaveDrift2 { 0%,100% { transform: translateX(5%); } 50% { transform: translateX(-3%); } }
   .tide-vessel-headline { position: absolute; left: 20px; top: 16px; right: 80px; z-index: 6; }
@@ -203,10 +208,12 @@
   .signout-link { font-size: 12px; color: var(--stone); background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0; margin-top: 16px; display: block; text-align: center; }
   .history-section { padding: 16px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.08s, transform 0.4s ease 0.08s; }
   .history-section.visible { opacity: 1; transform: translateY(0); }
-  .history-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 10px; }
+  .history-card { background: var(--ink); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 18px 16px 12px; box-shadow: 0 10px 40px rgba(26,22,18,0.18); position: relative; overflow: hidden; }
+  .history-card::before { content:''; position:absolute; inset:0; pointer-events:none; z-index:0; background: radial-gradient(ellipse at 25% 105%, rgba(94,255,176,0.10) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(94,255,176,0.04) 0%, transparent 50%); }
+  .history-card svg { position: relative; z-index: 1; }
   .trend-line { font-size: 12px; font-style: italic; color: var(--stone); padding: 8px 0 0; letter-spacing: 0; }
   .history-empty { padding: 28px 24px; text-align: center; }
-  .history-empty-msg { font-size: 12px; color: var(--stone); font-style: italic; line-height: 1.5; }
+  .history-empty-msg { font-size: 12px; color: rgba(245,241,235,0.62); font-style: italic; line-height: 1.5; position: relative; z-index: 1; }
 
   /* Inline "why Tide / install" section above the footer */
   .home-info { padding: 28px 24px 8px; max-width: 480px; margin: 24px auto 0; border-top: 1px solid var(--border); }
@@ -2698,10 +2705,10 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, on
        +   tideLine
        +   '<div class="tide-water">'
        +     '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
-       +       '<path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.4)"/>'
+       +       '<path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(94,255,176,0.55)"/>'
        +     '</svg>'
        +     '<svg class="tide-wave-svg-2" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
-       +       '<path d="M0,18 C50,8 100,26 150,16 C200,6 250,26 300,16 C340,8 370,20 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.25)"/>'
+       +       '<path d="M0,18 C50,8 100,26 150,16 C200,6 250,26 300,16 C340,8 370,20 400,14 L400,28 L0,28 Z" fill="rgba(94,255,176,0.32)"/>'
        +     '</svg>'
        +     '<div class="tide-water-body"></div>'
        +   '</div>'
@@ -2809,16 +2816,25 @@ function renderHistoryChart(history, color, trajectory=null) {
   const areaD=lineD+' L'+pts[n-1][0]+','+(PT+H)+' L'+pts[0][0]+','+(PT+H)+'Z';
   const [lx,ly]=pts[n-1];
   const traj=trajectory||computeTrajectory(history[n-1].score,history);
-  const [trajArrow,trajText,trajColor]=traj==='RISING'?['\u2191','Rising',color]:traj==='FALLING'?['\u2193','Falling',color]:['\u2192','Flat','#8C8070'];
-  const gridLines=[25,50,75].map(pct=>{const gy=+(PT+(1-pct/100)*H).toFixed(1);return '<line x1="'+PL+'" y1="'+gy+'" x2="'+(PL+W)+'" y2="'+gy+'" stroke="#E8E3DC" stroke-width="0.5"/>';}).join('');
+  // Trajectory text/arrow above the chart still carries the verdict
+  // colour. The line itself is brand neon \u2014 it's now the "tide" visual,
+  // not a per-stage signal. (color param kept for callers that pass it.)
+  const NEON='#5EFFB0';
+  const trajColor=traj==='RISING'?NEON:traj==='FALLING'?'#F4B79F':'rgba(245,241,235,0.62)';
+  const trajArrow=traj==='RISING'?'\u2191':traj==='FALLING'?'\u2193':'\u2192';
+  const trajText=traj==='RISING'?'Rising':traj==='FALLING'?'Falling':'Flat';
+  const gridLines=[25,50,75].map(pct=>{const gy=+(PT+(1-pct/100)*H).toFixed(1);return '<line x1="'+PL+'" y1="'+gy+'" x2="'+(PL+W)+'" y2="'+gy+'" stroke="rgba(245,241,235,0.07)" stroke-width="0.5"/>';}).join('');
   const midIdx=Math.round((n-1)/2);
   const daysBack=idx=>n-1-idx;
   const xLabels=[[0,'start'],[midIdx,'middle'],[n-1,'end']].map(([idx,pos])=>{
     const label=daysBack(idx)===0?'Today':daysBack(idx)+'d ago';
     const anchor=pos==='start'?'start':pos==='end'?'end':'middle';
-    return '<text x="'+pts[idx][0]+'" y="'+(PT+H+16)+'" font-family="DM Sans,sans-serif" font-size="9.5" fill="#8C8070" text-anchor="'+anchor+'">'+label+'</text>';
+    return '<text x="'+pts[idx][0]+'" y="'+(PT+H+16)+'" font-family="DM Sans,sans-serif" font-size="9.5" fill="rgba(245,241,235,0.50)" text-anchor="'+anchor+'">'+label+'</text>';
   }).join('');
-  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity="0.12"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><text x="'+lx+'" y="'+(ly-11).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+color+'" font-weight="500">today</text><circle cx="'+lx+'" cy="'+ly+'" r="8" fill="'+color+'" opacity="0.14"/><circle cx="'+lx+'" cy="'+ly+'" r="3.6" fill="'+color+'"/>'+xLabels+'</svg></div></div>';
+  // Glow filter for the neon line + today dot. stdDeviation 1.6 is
+  // enough to feel "lit" without bleeding into the gridlines.
+  const filterDef='<filter id="hgGlow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+NEON+'" stop-opacity="0.22"/><stop offset="100%" stop-color="'+NEON+'" stop-opacity="0"/></linearGradient>'+filterDef+'</defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+NEON+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" filter="url(#hgGlow)"/><text x="'+lx+'" y="'+(ly-11).toFixed(1)+'" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="9.5" fill="'+NEON+'" font-weight="600">today</text><circle cx="'+lx+'" cy="'+ly+'" r="9" fill="'+NEON+'" opacity="0.18"/><circle cx="'+lx+'" cy="'+ly+'" r="3.6" fill="'+NEON+'" filter="url(#hgGlow)"/>'+xLabels+'</svg></div></div>';
 }
 
 function urlToDomain(url) {

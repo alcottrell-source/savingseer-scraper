@@ -214,6 +214,82 @@
   .install-instruction { font-size: 13px; color: var(--stone); line-height: 1.5; padding: 12px 14px; background: var(--leaf-lt); border-radius: 10px; }
   .install-instruction strong { color: var(--bark); font-weight: 500; }
 
+  /* ── Landing proof hero (logged-out / no-saved-centres visitors) ── */
+  .landing-hero { padding: 28px 24px 12px; max-width: 480px; margin: 0 auto; }
+  .landing-hero-eyebrow { font-family: 'DM Sans', sans-serif; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--leaf); font-weight: 500; margin-bottom: 10px; }
+  .landing-hero-title { font-family: 'Playfair Display', serif; font-size: 30px; line-height: 1.1; font-weight: 600; color: var(--bark); letter-spacing: -0.02em; margin-bottom: 10px; }
+  .landing-hero-sub { font-size: 15px; line-height: 1.55; color: var(--ink-mid); margin-bottom: 22px; }
+  .landing-sample-wrap { margin: 0 -4px 8px; }
+  .landing-sample-caption { font-size: 11px; color: var(--stone); letter-spacing: 0.06em; text-align: center; margin: 6px 0 22px; }
+  .landing-steps { display: flex; flex-direction: column; gap: 14px; margin: 24px 0; padding: 20px 18px; background: white; border: 1px solid var(--border); border-radius: 14px; }
+  .landing-step { display: flex; gap: 14px; align-items: flex-start; }
+  .landing-step-num { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--leaf-lt); color: var(--leaf); font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+  .landing-step-text strong { display: block; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: var(--bark); margin-bottom: 2px; }
+  .landing-step-text p { font-size: 13px; color: var(--stone); line-height: 1.45; }
+  .landing-cta { display: block; width: 100%; background: var(--ink); color: var(--tide-cream); border: none; border-radius: 100px; padding: 14px 24px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.02em; cursor: pointer; transition: background 0.2s, transform 0.15s; margin-top: 4px; }
+  .landing-cta:hover { background: var(--ink-mid); }
+  .landing-cta:active { transform: scale(0.98); }
+  .landing-cta-note { font-size: 11px; color: var(--stone); text-align: center; margin: 10px 0 16px; letter-spacing: 0.02em; }
+  .landing-search-prompt { padding: 32px 24px 12px; max-width: 480px; margin: 0 auto; text-align: center; border-top: 1px solid var(--border); }
+  .landing-search-prompt-eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 8px; }
+  .landing-search-prompt-title { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--bark); margin-bottom: 6px; }
+  .landing-search-prompt-sub { font-size: 13px; color: var(--stone); line-height: 1.55; }
+
+  /* Sample tide card on the landing — uses .tide-vessel structure but
+     non-interactive and with a fixed verdict baked in. */
+  .sample-tide-card { position: relative; height: 200px; background: var(--ink); border-radius: 22px; overflow: hidden; box-shadow: 0 10px 40px rgba(26,22,18,0.18); }
+  .sample-tide-card::before { content:''; position:absolute; inset:0; pointer-events:none; z-index:1; background: radial-gradient(ellipse at 30% 110%, rgba(184,147,90,0.32) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(184,147,90,0.14) 0%, transparent 50%); }
+
+  /* ── Saved-centres landing edit mode ───────────────────────────── */
+  .saved-centres-landing-header { display: flex; align-items: center; justify-content: space-between; padding: 0 24px 8px; }
+  .saved-centres-edit-toggle { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--leaf); font-weight: 500; cursor: pointer; padding: 4px 0; }
+  .saved-centres-edit-toggle:hover { color: var(--bark); }
+  .saved-centre-card-remove { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--red); background: white; color: var(--red); font-size: 18px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, color 0.15s; }
+  .saved-centre-card-remove:hover { background: var(--red); color: white; }
+  .saved-centre-card.is-edit { cursor: default; }
+  .saved-centre-card.is-edit:hover { background: white; border-color: var(--border); }
+
+  /* Account panel — remove button on each saved row */
+  .saved-centre-row { justify-content: space-between; }
+  .saved-centre-row-remove { background: none; border: none; color: var(--stone); font-size: 18px; line-height: 1; cursor: pointer; padding: 4px 6px; border-radius: 4px; transition: color 0.15s, background 0.15s; }
+  .saved-centre-row-remove:hover { color: var(--red); background: var(--red-lt); }
+
+  /* ── Vessel verdict re-hierarchy (verdict → sales fact → tide line) ── */
+  .tide-vessel-verdict { position: absolute; left: 22px; right: 22px; top: 18px; z-index: 6; }
+  .tide-vessel-verdict-word { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 30px; line-height: 1; letter-spacing: -0.01em; color: var(--tide-cream); margin-bottom: 14px; }
+  .tide-vessel-verdict-word.tone-go   { color: #FFD79A; }
+  .tide-vessel-verdict-word.tone-rise { color: #9FD8B0; }
+  .tide-vessel-verdict-word.tone-fall { color: #F4B79F; }
+  .tide-vessel-verdict-word.tone-wait { color: rgba(245,241,235,0.78); }
+  .tide-vessel-fact { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 24px; line-height: 1.15; color: var(--tide-cream); letter-spacing: -0.01em; }
+  .tide-vessel-fact-change { display: block; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; letter-spacing: 0.02em; margin-top: 4px; }
+  .tide-vessel-fact-change.is-up   { color: #9FD8B0; }
+  .tide-vessel-fact-change.is-down { color: #F4B79F; }
+  .tide-vessel-fact-change.is-flat { color: rgba(245,241,235,0.55); }
+  .tide-vessel-tideline { position: absolute; left: 22px; right: 22px; bottom: 12px; z-index: 6; font-family: 'DM Sans', sans-serif; font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; color: rgba(245,241,235,0.62); display: flex; align-items: center; gap: 6px; }
+  .tide-vessel-tideline-arrow { display: inline-flex; }
+  /* Verdict tints — additive radial overlays so the dark vessel still
+     reads as a "tide" but the colour signals action at a glance. */
+  .tide-vessel.verdict-go   { background: linear-gradient(135deg, #2a2017 0%, #1A1612 60%); }
+  .tide-vessel.verdict-go::before   { background: radial-gradient(ellipse at 25% 105%, rgba(255,200,120,0.30) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(255,180,80,0.12) 0%, transparent 50%); }
+  .tide-vessel.verdict-rise { background: linear-gradient(135deg, #1a201d 0%, #1A1612 60%); }
+  .tide-vessel.verdict-rise::before { background: radial-gradient(ellipse at 25% 105%, rgba(120,210,150,0.28) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(120,210,150,0.10) 0%, transparent 50%); }
+  .tide-vessel.verdict-fall { background: linear-gradient(135deg, #261814 0%, #1A1612 60%); }
+  .tide-vessel.verdict-fall::before { background: radial-gradient(ellipse at 25% 105%, rgba(232,152,130,0.30) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(232,152,130,0.10) 0%, transparent 50%); }
+  .tide-vessel.verdict-wait { background: linear-gradient(135deg, #1d1a17 0%, #1A1612 60%); }
+  .tide-vessel.verdict-wait::before { background: radial-gradient(ellipse at 50% 105%, rgba(140,128,112,0.25) 0%, transparent 60%); }
+  /* Hide legacy headline structure when the new verdict block is in use */
+  .tide-vessel.has-verdict .tide-vessel-headline,
+  .tide-vessel.has-verdict .tide-vessel-marks { display: none; }
+
+  /* ── Auth modal: email-preview card on signup step ────────────── */
+  .auth-email-preview { background: var(--leaf-lt); border: 1px solid rgba(61,107,53,0.18); border-radius: 12px; padding: 14px 16px; margin: 14px 0 18px; }
+  .auth-email-preview-eyebrow { display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--leaf); font-weight: 500; margin-bottom: 8px; }
+  .auth-email-preview-eyebrow::before { content: '\2709'; font-size: 13px; }
+  .auth-email-preview-subject { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 15px; color: var(--bark); line-height: 1.3; margin-bottom: 4px; }
+  .auth-email-preview-meta { font-size: 11px; color: var(--stone); line-height: 1.5; }
+  .auth-email-preview-caption { font-size: 12px; color: var(--ink-mid); line-height: 1.5; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(61,107,53,0.18); }
+
   /* ── Notification toggles + saved-centres list (prefs modal step 3) ── */
   .pref-toggle-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
   .pref-toggle-row:last-of-type { border-bottom: none; }
@@ -546,21 +622,10 @@
 </div>
 
 <div id="main-content">
-  <div class="empty-state">
-    <span class="empty-icon">&#127754;</span>
-    <p class="empty-title">When is the right moment to go?</p>
-    <p class="empty-sub">Pick a shopping centre to see today's Tide Score and which brands are on sale.</p>
-  </div>
+  <!-- Filled by renderLandingHero() on first load -->
 </div>
 
-<section class="home-info" aria-labelledby="home-info-headline">
-  <h2 class="install-headline" id="home-info-headline">Your shopping trip, timed right.</h2>
-  <p class="install-body">Tide scores every major shopping centre daily — so you arrive when the best brands are on sale at peak freshness, not a week too late.</p>
-  <ul class="install-benefits">
-    <li><span class="benefit-icon">&#9201;</span><div><strong>Know before you go</strong><p>A live score tells you if today is worth the trip.</p></div></li>
-    <li><span class="benefit-icon">&#128200;</span><div><strong>Catch sales at their best</strong><p>Stocks are fullest in the first week. Tide shows you that window.</p></div></li>
-    <li><span class="benefit-icon">&#128257;</span><div><strong>One tap, every morning</strong><p>On your home screen, it takes two seconds to check.</p></div></li>
-  </ul>
+<section class="home-info" id="home-info-section" aria-label="Install Tide">
   <p class="install-instruction"><strong>Never waste a trip.</strong> Tap <strong>Share &rarr; Add to Home Screen</strong> in Safari, or <strong>Install App</strong> in Chrome — and check the score before you go, every time.</p>
 </section>
 
@@ -625,7 +690,7 @@
     <!-- Step 1: email entry — magic-link first (more secure, no password to steal) -->
     <div id="auth-step-email">
       <h2 class="modal-title">Welcome to Tide</h2>
-      <p class="modal-subtitle">Sign in or create your free account to see your personal Tide Score and your brands' sales as they break.</p>
+      <p class="modal-subtitle">Free account &mdash; we'll email you when your shopping centre's sale peaks (about 1&ndash;2 a month). See your personal Tide Score and your brands' sales as they break.</p>
       <input class="auth-input" id="auth-email" type="email" placeholder="Your email address" autocomplete="email"
              onkeydown="if(event.key==='Enter')authMagicLink()">
       <button class="btn btn-primary" id="btn-magic" onclick="authMagicLink()">Email me a sign-in link</button>
@@ -652,9 +717,15 @@
       <button class="auth-back-btn" onclick="authShowStep('email')">&#8592; Back</button>
       <h2 class="modal-title">Create your account</h2>
       <p class="auth-email-confirm">Registering as <strong id="auth-signup-email-label"></strong></p>
+      <div class="auth-email-preview" aria-label="Sample alert email">
+        <div class="auth-email-preview-eyebrow">What we'll send you</div>
+        <div class="auth-email-preview-subject">Westquay is peaking — go before Sunday</div>
+        <div class="auth-email-preview-meta">Tide &middot; the morning your centre hits peak sale</div>
+        <div class="auth-email-preview-caption">One short email when sales peak at your saved centre. About 1&ndash;2 a month. Off any time.</div>
+      </div>
       <input class="auth-input" id="auth-password-signup" type="password" placeholder="Create a password (8+ characters)" autocomplete="new-password"
              onkeydown="if(event.key==='Enter')authSignUp()">
-      <button class="btn btn-primary" id="btn-signup" onclick="authSignUp()">Create account</button>
+      <button class="btn btn-primary" id="btn-signup" onclick="authSignUp()">Create account &amp; email me when to go</button>
       <button class="auth-text-link" onclick="authShowStep('signin')">Already have an account? Sign in &#8594;</button>
     </div>
 
@@ -664,6 +735,11 @@
         <span class="auth-inbox-icon">&#9993;</span>
         <h2 class="modal-title">Check your inbox</h2>
         <p class="modal-subtitle">We've sent a sign-in link to <strong id="auth-magic-email-label"></strong>. It usually arrives within a minute.</p>
+        <div class="auth-email-preview" aria-label="What you'll receive after signing in">
+          <div class="auth-email-preview-eyebrow">After you sign in</div>
+          <div class="auth-email-preview-subject">We'll email you the morning your centre peaks</div>
+          <div class="auth-email-preview-caption">Usually 1&ndash;2 emails a month per centre. You can turn alerts off any time from My Tide.</div>
+        </div>
         <button class="auth-text-link" onclick="authShowStep('email')">Use a different email address</button>
       </div>
     </div>
@@ -1035,20 +1111,28 @@ async function deleteMyAccount() {
 
 // ── Account panel (signed-in users) ──
 
-function openAccountPanel() {
-  document.getElementById('account-user-email').textContent = currentUser.email;
-
+function renderAccountSavedCentres() {
   const centresList = document.getElementById('account-centres-list');
+  if (!centresList) return;
   const centres = (userPrefs && userPrefs.saved_centres) || [];
   if (!centres.length) {
     centresList.innerHTML = '<p class="saved-centres-empty">No centres saved yet. Browse a centre and it\'ll be tracked here.</p>';
-  } else {
-    centresList.innerHTML = '<div class="saved-centres-list">' + centres.map(cid => {
-      const idx = parseInt(String(cid).replace('C',''), 10) - 1;
-      const name = (typeof CENTRE_NAMES !== 'undefined' && CENTRE_NAMES[idx]) ? CENTRE_NAMES[idx] : cid;
-      return '<div class="saved-centre-row"><span>' + name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span></div>';
-    }).join('') + '</div>';
+    return;
   }
+  centresList.innerHTML = '<div class="saved-centres-list">' + centres.map(cid => {
+    const idx = parseInt(String(cid).replace('C',''), 10) - 1;
+    const rawName = (typeof CENTRE_NAMES !== 'undefined' && CENTRE_NAMES[idx]) ? CENTRE_NAMES[idx] : cid;
+    const safeName = rawName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<div class="saved-centre-row">'
+         +   '<span>' + safeName + '</span>'
+         +   '<button class="saved-centre-row-remove" onclick="removeSavedCentre(\''+cid+'\')" aria-label="Remove '+safeName+'" title="Remove">&times;</button>'
+         + '</div>';
+  }).join('') + '</div>';
+}
+
+function openAccountPanel() {
+  document.getElementById('account-user-email').textContent = currentUser.email;
+  renderAccountSavedCentres();
 
   document.getElementById('account-toggle-alerts').checked = userPrefs ? userPrefs.email_alerts !== false : true;
   document.getElementById('account-toggle-brand-alerts').checked = userPrefs ? userPrefs.brand_sale_alerts !== false : true;
@@ -2471,57 +2555,54 @@ function computeHistoricalScores(centreIdx) {
 // between "Turning" and "Rising" reads as bidirectional movement on a
 // one-dimensional axis, which is never what the data means. The score
 // number is the percentage; the trajectory word + arrow says which way.
+// Verdict word + tone for the dark hero card. Tone drives both the verdict
+// text colour and the radial-gradient overlay on the vessel background.
+function deriveVerdict(stage, trajectory) {
+  switch (stage) {
+    case 'High Tide': return { word: 'GO NOW',      tone: 'go'   };
+    case 'Rising':    return { word: 'GO SOON',     tone: 'rise' };
+    case 'Falling':   return { word: 'LAST CHANCE', tone: 'fall' };
+    case 'Low':       return { word: 'WAIT',        tone: 'wait' };
+    case 'Turning':
+    default:          return { word: 'NOT YET',     tone: 'wait' };
+  }
+}
+
+// Hero card. Hierarchy is verdict (loudest) → sales fact (bold) → small tide
+// line at the bottom. The wave + water-level visual is decorative — tide is
+// brand flavour, not the message itself.
 function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, onSaleCount, totalCount) {
   const pct = Math.max(0, Math.min(100, +pctOnSale || 0));
-  const safeStatement = (statement || '').replace(/\n/g, '<br>');
-  const eyebrow = trajectory === 'RISING'  ? 'Tide rising ↑'
-              : trajectory === 'FALLING' ? 'Tide falling ↓'
-              :                            'Tide steady';
-  void stage;
+  void statement;
+  const verdict = deriveVerdict(stage, trajectory);
 
-  // Hero number — the day-on-day % change. Lives in the headline column
-  // (left side), visually dominant, tinted by direction. Uses an arrow
-  // glyph as the "sign" so direction is unmistakable at a glance:
-  //   ↑ N%   (rising — leaf green)
-  //   ↓ N%   (falling — salmon)
-  //   = Same (flat — muted cream)
-  let hero = '';
+  const hasCount = Number.isFinite(+onSaleCount) && Number.isFinite(+totalCount) && +totalCount > 0;
+  const factText = hasCount ? (onSaleCount + ' of ' + totalCount + ' brands on sale')
+                            : (pct + '% of brands on sale');
+
+  let changeHTML = '';
   if (pctChange !== null && pctChange !== undefined && Number.isFinite(pctChange)) {
-    let dirClass, text;
-    if (pctChange > 0) {
-      dirClass = 'is-up';
-      text = '↑ ' + pctChange + '%';
-    } else if (pctChange < 0) {
-      dirClass = 'is-down';
-      text = '↓ ' + Math.abs(pctChange) + '%';
-    } else {
-      dirClass = 'is-flat';
-      text = '= Same';
-    }
-    hero = '<div class="tide-vessel-hero ' + dirClass + '">' + text + '</div>'
-         + '<span class="tide-vessel-hero-label">vs yesterday</span>';
+    let cls, text;
+    if (pctChange > 0)      { cls = 'is-up';   text = '↑ ' + pctChange + '% since yesterday'; }
+    else if (pctChange < 0) { cls = 'is-down'; text = '↓ ' + Math.abs(pctChange) + '% since yesterday'; }
+    else                    { cls = 'is-flat'; text = 'Steady since yesterday'; }
+    changeHTML = '<span class="tide-vessel-fact-change ' + cls + '">' + text + '</span>';
   }
 
-  // Subtle right-wall tide-level marks at 75 / 50 / 25 % of brands.
-  const marks = '<div class="tide-vessel-marks">'
-              +   '<div class="tide-vessel-mark" style="top:25%"><div class="tide-vessel-mark-line"></div><span class="tide-vessel-mark-label">75%</span></div>'
-              +   '<div class="tide-vessel-mark" style="top:50%"><div class="tide-vessel-mark-line"></div><span class="tide-vessel-mark-label">50%</span></div>'
-              +   '<div class="tide-vessel-mark" style="top:75%"><div class="tide-vessel-mark-line"></div><span class="tide-vessel-mark-label">25%</span></div>'
-              + '</div>';
+  const tideArrow = trajectory === 'RISING' ? '↑' : trajectory === 'FALLING' ? '↓' : '';
+  const tideWord  = trajectory === 'RISING' ? 'Tide rising'
+                  : trajectory === 'FALLING' ? 'Tide falling'
+                  : 'Tide steady';
+  const tideLine = '<div class="tide-vessel-tideline"><span>' + tideWord + '</span>'
+                 + (tideArrow ? '<span class="tide-vessel-tideline-arrow">' + tideArrow + '</span>' : '')
+                 + '</div>';
 
-  // Headline reads "X%" + concrete count subtitle so the user sees
-  // the consumer-friendly metric, not the internal Tide Score.
-  const subtitle = (Number.isFinite(+onSaleCount) && Number.isFinite(+totalCount) && +totalCount > 0)
-                 ? (onSaleCount + ' of ' + totalCount + ' shops on sale')
-                 : 'of shops on sale';
-
-  return '<div class="tide-vessel" style="--tide-level:' + pct + '%">'
-       +   '<div class="tide-vessel-headline">'
-       +     '<span class="tide-vessel-eyebrow">' + eyebrow + '</span>'
-       +     hero
-       +     '<div class="tide-vessel-statement">' + safeStatement + '</div>'
+  return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + '" style="--tide-level:' + pct + '%">'
+       +   '<div class="tide-vessel-verdict">'
+       +     '<div class="tide-vessel-verdict-word tone-' + verdict.tone + '">' + verdict.word + '</div>'
+       +     '<div class="tide-vessel-fact">' + factText + changeHTML + '</div>'
        +   '</div>'
-       +   marks
+       +   tideLine
        +   '<div class="tide-water">'
        +     '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
        +       '<path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.4)"/>'
@@ -2532,10 +2613,6 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, on
        +     '<div class="tide-water-body"></div>'
        +   '</div>'
        + '</div>';
-  // Score-float removed: the watermark in the top-right already shows
-  // the only number we need (rate of change). Water height + the right-
-  // wall marks carry the absolute level visually. CI card below has the
-  // concrete "X brands on sale" count.
 }
 
 function renderArcWidget(stage, color) {
@@ -2725,6 +2802,109 @@ function buildArcSVG(centreScore, personalScore, centreColor) {
   return '<svg viewBox="0 0 200 105" class="arc-svg" aria-hidden="true">'+paths+'</svg>';
 }
 
+// Landing edit-mode state — when true, saved-centre cards on the home
+// landing show a remove button instead of being tappable navigation.
+let _savedCentresEditMode = false;
+
+function toggleSavedCentresEditMode() {
+  _savedCentresEditMode = !_savedCentresEditMode;
+  renderCentre('');
+}
+
+async function removeSavedCentre(cid) {
+  if (!currentUser || !userPrefs) return;
+  const existing = Array.isArray(userPrefs.saved_centres) ? userPrefs.saved_centres : [];
+  const updated = existing.filter(x => x !== cid);
+  if (updated.length === existing.length) return;
+  await quickSavePref('saved_centres', updated);
+  // If panel is open, refresh it; if landing is showing, refresh it too.
+  const panel = document.getElementById('account-panel');
+  if (panel && panel.style.display !== 'none') {
+    renderAccountSavedCentres();
+  }
+  const sel = document.getElementById('centre-select');
+  if (!sel || !sel.value) renderCentre('');
+}
+
+// Renders the "Your centres" block on the home landing, with an Edit toggle
+// that flips each card into a remove control (× per card).
+function renderSavedCentresLanding(savedIds) {
+  if (!savedIds || !savedIds.length) return '';
+  const cards = savedIds.slice().reverse().map(cid => {
+    const idx = parseInt(String(cid).replace('C',''), 10) - 1;
+    const name = CENTRE_NAMES[idx] || cid;
+    const loc = (typeof CENTRE_LOCATIONS !== 'undefined' && CENTRE_LOCATIONS[idx]) ? CENTRE_LOCATIONS[idx] : '';
+    const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const safeLoc = loc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if (_savedCentresEditMode) {
+      return '<div class="saved-centre-card is-edit">'
+           + '<div class="saved-centre-card-left">'
+           +   '<div class="saved-centre-card-name">'+safeName+'</div>'
+           +   (safeLoc ? '<div class="saved-centre-card-location">'+safeLoc+'</div>' : '')
+           + '</div>'
+           + '<button class="saved-centre-card-remove" onclick="removeSavedCentre(\''+cid+'\')" aria-label="Remove '+safeName+'">&times;</button>'
+           + '</div>';
+    }
+    return '<button class="saved-centre-card" onclick="goToCentre(\''+cid+'\')">'
+         + '<div class="saved-centre-card-left">'
+         +   '<div class="saved-centre-card-name">'+safeName+'</div>'
+         +   (safeLoc ? '<div class="saved-centre-card-location">'+safeLoc+'</div>' : '')
+         + '</div>'
+         + '<span class="saved-centre-card-arrow" aria-hidden="true">&rsaquo;</span>'
+         + '</button>';
+  }).join('');
+  const editLabel = _savedCentresEditMode ? 'Done' : 'Edit';
+  return '<section class="saved-centres-landing" aria-label="Your saved centres">'
+       +   '<div class="saved-centres-landing-header">'
+       +     '<span class="saved-centres-landing-title">Your centres</span>'
+       +     '<button class="saved-centres-edit-toggle" onclick="toggleSavedCentresEditMode()">'+editLabel+'</button>'
+       +   '</div>'
+       +   cards
+       + '</section>'
+       + '<span class="saved-centres-divider">All centres</span>';
+}
+
+// Proof hero — shown to brand-new visitors and signed-in users without any
+// saved centres. Verdict-first sample card + 3-step value strip + CTA.
+// Lead with the answer to "should I go?" before any tide vocabulary.
+function renderLandingHero() {
+  const sampleCard =
+      '<div class="tide-vessel has-verdict verdict-go sample-tide-card" style="--tide-level:54%" aria-hidden="true">'
+    +   '<div class="tide-vessel-verdict">'
+    +     '<div class="tide-vessel-verdict-word tone-go">GO THIS WEEKEND</div>'
+    +     '<div class="tide-vessel-fact">27 of 50 brands on sale<span class="tide-vessel-fact-change is-up">↑ 11% since yesterday</span></div>'
+    +   '</div>'
+    +   '<div class="tide-vessel-tideline"><span>Tide rising</span><span class="tide-vessel-tideline-arrow">↑</span></div>'
+    +   '<div class="tide-water">'
+    +     '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.4)"/></svg>'
+    +     '<svg class="tide-wave-svg-2" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0,18 C50,8 100,26 150,16 C200,6 250,26 300,16 C340,8 370,20 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.25)"/></svg>'
+    +     '<div class="tide-water-body"></div>'
+    +   '</div>'
+    + '</div>';
+
+  const cta = currentUser
+    ? '<button class="landing-cta" onclick="document.getElementById(\'centre-search\').focus()">Find a centre to track</button>'
+    : '<button class="landing-cta" onclick="openAuthModal()">Track your centre &mdash; free</button>';
+  const ctaNote = currentUser
+    ? '<p class="landing-cta-note">Search any UK centre above and we\'ll show today\'s score.</p>'
+    : '<p class="landing-cta-note">Free forever &middot; No password needed &middot; 1&ndash;2 emails a month</p>';
+
+  return '<section class="landing-hero" aria-labelledby="landing-hero-title">'
+       +   '<p class="landing-hero-eyebrow">UK shopping-centre sale tracker</p>'
+       +   '<h1 class="landing-hero-title" id="landing-hero-title">When are the sales actually good?</h1>'
+       +   '<p class="landing-hero-sub">Tide scores every major UK centre daily &mdash; so you go when the brands are on sale, not a week too late.</p>'
+       +   '<div class="landing-sample-wrap">' + sampleCard + '</div>'
+       +   '<p class="landing-sample-caption">Sample &middot; how a centre looks at peak</p>'
+       +   '<div class="landing-steps">'
+       +     '<div class="landing-step"><span class="landing-step-num">1</span><div class="landing-step-text"><strong>We score every UK centre, daily</strong><p>Live sale data across thousands of brands.</p></div></div>'
+       +     '<div class="landing-step"><span class="landing-step-num">2</span><div class="landing-step-text"><strong>You see when to go</strong><p>Plain verdicts like "go now" or "wait a few days".</p></div></div>'
+       +     '<div class="landing-step"><span class="landing-step-num">3</span><div class="landing-step-text"><strong>We email you when it peaks</strong><p>One short email the morning your centre hits peak sale.</p></div></div>'
+       +   '</div>'
+       +   cta
+       +   ctaNote
+       + '</section>';
+}
+
 async function renderCentre(centreId) {
   const content=document.getElementById('main-content');
   // Picker is only useful before a centre is chosen — once one is selected,
@@ -2732,6 +2912,10 @@ async function renderCentre(centreId) {
   // "choose a centre" prompt. The hero's "< Centres" back button restores it.
   const picker = document.getElementById('picker-section');
   if (picker) picker.classList.toggle('is-hidden', !!centreId);
+  // Show the install / "add to home screen" prompt only on centre views — the
+  // landing has its own value prop and shouldn't double up.
+  const homeInfo = document.getElementById('home-info-section');
+  if (homeInfo) homeInfo.style.display = centreId ? '' : 'none';
   if (!centreId) {
     // Personalise-your-Tide promo — value-first prompt for signed-in users
     // without saved prefs. Less intrusive than auto-opening onboarding and
@@ -2755,38 +2939,23 @@ async function renderCentre(centreId) {
           + '</div>';
       }
     }
-    // Empty state — for signed-in users with saved centres, surface those
-    // as tappable cards above the friendly empty message so they have a
-    // one-tap path back to what they care about.
     const savedIds = (currentUser && userPrefs && Array.isArray(userPrefs.saved_centres)) ? userPrefs.saved_centres : [];
-    let savedHTML = '';
     if (savedIds.length) {
-      // Most-recently-saved first.
-      const cards = savedIds.slice().reverse().map(cid => {
-        const idx = parseInt(String(cid).replace('C',''), 10) - 1;
-        const name = CENTRE_NAMES[idx] || cid;
-        const loc = (typeof CENTRE_LOCATIONS !== 'undefined' && CENTRE_LOCATIONS[idx]) ? CENTRE_LOCATIONS[idx] : '';
-        const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        const safeLoc = loc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        return '<button class="saved-centre-card" onclick="goToCentre(\''+cid+'\')">'
-             + '<div class="saved-centre-card-left">'
-             +   '<div class="saved-centre-card-name">'+safeName+'</div>'
-             +   (safeLoc ? '<div class="saved-centre-card-location">'+safeLoc+'</div>' : '')
-             + '</div>'
-             + '<span class="saved-centre-card-arrow" aria-hidden="true">&rsaquo;</span>'
-             + '</button>';
-      }).join('');
-      savedHTML = '<section class="saved-centres-landing" aria-label="Your saved centres">'
-                + '<span class="saved-centres-landing-title">Your centres</span>'
-                + cards
-                + '</section>'
-                + '<span class="saved-centres-divider">All centres</span>';
+      // User has saved centres — lead with those, then a small "search above"
+      // prompt to find another centre. No proof hero needed (they're past it).
+      const savedHTML = renderSavedCentresLanding(savedIds);
+      const searchPrompt = '<div class="landing-search-prompt">'
+                         + '<p class="landing-search-prompt-eyebrow">Looking somewhere new?</p>'
+                         + '<p class="landing-search-prompt-title">Search any UK centre above</p>'
+                         + '<p class="landing-search-prompt-sub">We\'ll show today\'s verdict and which brands are on sale.</p>'
+                         + '</div>';
+      content.innerHTML = personaliseHTML + savedHTML + searchPrompt;
+    } else {
+      // No saved centres — show the proof hero (sample card + 3-step + CTA).
+      content.innerHTML = personaliseHTML + renderLandingHero();
+      // Reset edit mode whenever we drop back into the no-saved state.
+      _savedCentresEditMode = false;
     }
-    content.innerHTML = personaliseHTML + savedHTML
-      + '<div class="empty-state"><span class="empty-icon">&#127754;</span>'
-      + '<p class="empty-title">'+(savedIds.length ? 'Looking somewhere new?' : 'When is the right moment to go?')+'</p>'
-      + '<p class="empty-sub">'+(savedIds.length ? 'Search any UK centre above &mdash; we\'ll show you today\'s Tide Score.' : 'Pick a shopping centre to see today\'s Tide Score and which brands are on sale.')+'</p>'
-      + '</div>';
     hideNotifyBanner();
     return;
   }
@@ -3095,6 +3264,15 @@ window.__tide = {
   statusFor(name) { return { onSale: SALE_STATUS[name], days: DAYS_RUNNING[name], pct: MAX_DISCOUNT_PCT[name], type: SALE_TYPE[name] }; },
   reload: () => loadTideData(),
 };
+
+// Paint the landing hero immediately so guests don't see an empty page
+// while Supabase auth state and CSV/score data are still loading.
+try {
+  const _mc = document.getElementById('main-content');
+  if (_mc && !_mc.innerHTML.trim()) _mc.innerHTML = renderLandingHero();
+  const _hi = document.getElementById('home-info-section');
+  if (_hi) _hi.style.display = 'none';
+} catch (e) { /* render helpers may not be ready yet — auth flow will retry */ }
 
 loadTideData().then(ok => { if (!ok) loadSheetData(); });
 

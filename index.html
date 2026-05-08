@@ -290,6 +290,30 @@
   .auth-email-preview-meta { font-size: 11px; color: var(--stone); line-height: 1.5; }
   .auth-email-preview-caption { font-size: 12px; color: var(--ink-mid); line-height: 1.5; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(61,107,53,0.18); }
 
+  /* ── Hot centres (top 3 by Tide Score) ──────────────────────── */
+  .hot-centres { padding: 24px 24px 8px; max-width: 480px; margin: 0 auto; }
+  .hot-centres-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+  .hot-centres-eyebrow { font-family: 'DM Sans', sans-serif; font-size: 12px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--bark); font-weight: 500; display: inline-flex; align-items: center; gap: 8px; }
+  .hot-centres-eyebrow::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); animation: pulse 2s ease-in-out infinite; }
+  .hot-centres-timestamp { font-size: 11px; letter-spacing: 0.06em; color: var(--stone); }
+  .hot-centres-list { display: flex; flex-direction: column; gap: 8px; }
+  .hot-centre-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: white; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.15s; text-align: left; font-family: inherit; width: 100%; }
+  .hot-centre-row:hover { border-color: var(--leaf); background: var(--leaf-lt); }
+  .hot-centre-row-rank { flex-shrink: 0; font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 500; color: var(--stone); width: 22px; text-align: center; line-height: 1; }
+  .hot-centre-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .hot-centre-row-name { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; color: var(--bark); line-height: 1.2; }
+  .hot-centre-row-loc { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 400; color: var(--stone); margin-left: 6px; }
+  .hot-centre-row-fact { font-size: 12px; color: var(--ink-mid); line-height: 1.4; }
+  .hot-centre-row-fact-change { margin-left: 6px; font-weight: 500; }
+  .hot-centre-row-fact-change.is-up   { color: var(--leaf); }
+  .hot-centre-row-fact-change.is-down { color: var(--red); }
+  .hot-centre-row-fact-change.is-flat { color: var(--stone); }
+  .hot-centre-row-verdict { flex-shrink: 0; font-family: 'DM Sans', sans-serif; font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 10px; border-radius: 100px; white-space: nowrap; }
+  .hot-centre-row-verdict.tone-go   { background: var(--amber-lt); color: var(--amber); }
+  .hot-centre-row-verdict.tone-rise { background: var(--leaf-lt);  color: var(--leaf); }
+  .hot-centre-row-verdict.tone-fall { background: var(--red-lt);   color: var(--red); }
+  .hot-centre-row-verdict.tone-wait { background: var(--stone-lt); color: var(--stone); }
+
   /* ── Notification toggles + saved-centres list (prefs modal step 3) ── */
   .pref-toggle-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
   .pref-toggle-row:last-of-type { border-bottom: none; }
@@ -1773,6 +1797,10 @@ async function loadTideData() {
 
     const sel = document.getElementById('centre-select');
     if (sel.value) renderCentre(sel.value);
+    // No centre picked — re-render the landing so the "Hot right now" top 3
+    // populates with live data now that scores are loaded. Initial paint
+    // shows the static fallback; this swaps it for the real ranking.
+    else renderCentre('');
     return true;
   } catch (err) {
     console.warn('Tide data load exception:', err);
@@ -2864,23 +2892,108 @@ function renderSavedCentresLanding(savedIds) {
        + '<span class="saved-centres-divider">All centres</span>';
 }
 
+// Top N centres by Tide Score, with everything needed to render a row.
+// `excludeIds` optionally filters out saved centres so signed-in users see
+// "what else is good" rather than duplicating their own list.
+function getHotCentres(n, excludeIds) {
+  const exclude = new Set(Array.isArray(excludeIds) ? excludeIds : []);
+  const ranked = [];
+  for (let idx = 0; idx < CENTRE_NAMES.length; idx++) {
+    const cid = 'C' + (idx + 1);
+    if (exclude.has(cid)) continue;
+    const s = getServerScore(idx);
+    if (!s || !Number.isFinite(+s.tide_score) || +s.tide_score <= 0) continue;
+    const history = getServerHistory(idx) || [];
+    const today = new Date().toISOString().split('T')[0];
+    const past = history.filter(h => h && h.date && h.date < today && Number.isFinite(+h.score) && +h.score > 0);
+    const lastPast = past[past.length - 1];
+    const pctChange = lastPast ? Math.round(((+s.tide_score - +lastPast.score) / +lastPast.score) * 100) : null;
+    const stage = deriveStageFromVerdict(s.verdict) || getTideStage(+s.tide_score, s.trajectory || 'FLAT');
+    const verdict = deriveVerdict(stage, s.trajectory || 'FLAT');
+    ranked.push({
+      cid,
+      idx,
+      name: CENTRE_NAMES[idx] || cid,
+      location: (CENTRE_LOCATIONS && CENTRE_LOCATIONS[idx]) || '',
+      tideScore: +s.tide_score,
+      brandsOnSale: Number.isFinite(+s.brands_on_sale) ? +s.brands_on_sale : null,
+      totalBrands:  Number.isFinite(+s.total_brands)  ? +s.total_brands  : null,
+      trajectory: s.trajectory || 'FLAT',
+      verdict,
+      pctChange,
+    });
+  }
+  ranked.sort((a, b) => b.tideScore - a.tideScore);
+  return ranked.slice(0, n);
+}
+
+// "Hot right now" — top 3 by Tide Score with a visible timestamp so it reads
+// as a shared, dated snapshot. Returns '' when no scores have loaded yet so
+// the section gracefully no-shows rather than rendering empty rows.
+function renderHotCentres(opts) {
+  opts = opts || {};
+  const limit = opts.limit || 3;
+  const excludeIds = opts.excludeIds || [];
+  const hot = getHotCentres(limit, excludeIds);
+  if (!hot.length) return '';
+  const stamp = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const rows = hot.map((h, i) => {
+    const safeName = h.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const safeLoc  = (h.location || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const fact = (h.brandsOnSale != null && h.totalBrands != null && h.totalBrands > 0)
+      ? (h.brandsOnSale + ' of ' + h.totalBrands + ' brands on sale')
+      : Math.round(h.tideScore) + '% Tide Score';
+    let changeHTML = '';
+    if (h.pctChange !== null && Number.isFinite(h.pctChange)) {
+      let cls, text;
+      if (h.pctChange > 0)      { cls = 'is-up';   text = '↑ ' + h.pctChange + '%'; }
+      else if (h.pctChange < 0) { cls = 'is-down'; text = '↓ ' + Math.abs(h.pctChange) + '%'; }
+      else                      { cls = 'is-flat'; text = 'Steady'; }
+      changeHTML = '<span class="hot-centre-row-fact-change ' + cls + '">' + text + '</span>';
+    }
+    return '<button class="hot-centre-row" onclick="goToCentre(\''+h.cid+'\')" aria-label="'+safeName+', '+h.verdict.word+'">'
+         +   '<div class="hot-centre-row-rank">'+(i+1)+'</div>'
+         +   '<div class="hot-centre-row-body">'
+         +     '<div class="hot-centre-row-name">'+safeName+(safeLoc ? '<span class="hot-centre-row-loc">'+safeLoc+'</span>' : '')+'</div>'
+         +     '<div class="hot-centre-row-fact">'+fact+changeHTML+'</div>'
+         +   '</div>'
+         +   '<span class="hot-centre-row-verdict tone-'+h.verdict.tone+'">'+h.verdict.word+'</span>'
+         + '</button>';
+  }).join('');
+  return '<section class="hot-centres" aria-label="Hot centres right now">'
+       +   '<div class="hot-centres-header">'
+       +     '<span class="hot-centres-eyebrow">Hot right now</span>'
+       +     '<span class="hot-centres-timestamp">Updated '+stamp+'</span>'
+       +   '</div>'
+       +   '<div class="hot-centres-list">'+rows+'</div>'
+       + '</section>';
+}
+
 // Proof hero — shown to brand-new visitors and signed-in users without any
-// saved centres. Verdict-first sample card + 3-step value strip + CTA.
-// Lead with the answer to "should I go?" before any tide vocabulary.
+// saved centres. Live "Hot right now" top 3 leads (proof-by-data); the
+// 3-step explainer follows so the metaphor still gets taught.
 function renderLandingHero() {
-  const sampleCard =
-      '<div class="tide-vessel has-verdict verdict-go sample-tide-card" style="--tide-level:54%" aria-hidden="true">'
-    +   '<div class="tide-vessel-verdict">'
-    +     '<div class="tide-vessel-verdict-word tone-go">GO THIS WEEKEND</div>'
-    +     '<div class="tide-vessel-fact">27 of 50 brands on sale<span class="tide-vessel-fact-change is-up">↑ 11% since yesterday</span></div>'
+  // Prefer the live "Hot right now" top 3 — proof-by-data. Falls back to
+  // the static sample card only when scores haven't loaded yet, so first
+  // paint still has something verdict-flavoured to look at.
+  const hotHTML = renderHotCentres({ limit: 3 });
+  const proofHTML = hotHTML
+    ? hotHTML
+    : '<div class="landing-sample-wrap">'
+    +   '<div class="tide-vessel has-verdict verdict-go sample-tide-card" style="--tide-level:54%" aria-hidden="true">'
+    +     '<div class="tide-vessel-verdict">'
+    +       '<div class="tide-vessel-verdict-word tone-go">GO THIS WEEKEND</div>'
+    +       '<div class="tide-vessel-fact">27 of 50 brands on sale<span class="tide-vessel-fact-change is-up">↑ 11% since yesterday</span></div>'
+    +     '</div>'
+    +     '<div class="tide-vessel-tideline"><span>Tide rising</span><span class="tide-vessel-tideline-arrow">↑</span></div>'
+    +     '<div class="tide-water">'
+    +       '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.4)"/></svg>'
+    +       '<svg class="tide-wave-svg-2" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0,18 C50,8 100,26 150,16 C200,6 250,26 300,16 C340,8 370,20 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.25)"/></svg>'
+    +       '<div class="tide-water-body"></div>'
+    +     '</div>'
     +   '</div>'
-    +   '<div class="tide-vessel-tideline"><span>Tide rising</span><span class="tide-vessel-tideline-arrow">↑</span></div>'
-    +   '<div class="tide-water">'
-    +     '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.4)"/></svg>'
-    +     '<svg class="tide-wave-svg-2" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0,18 C50,8 100,26 150,16 C200,6 250,26 300,16 C340,8 370,20 400,14 L400,28 L0,28 Z" fill="rgba(58,107,74,0.25)"/></svg>'
-    +     '<div class="tide-water-body"></div>'
-    +   '</div>'
-    + '</div>';
+    + '</div>'
+    + '<p class="landing-sample-caption">Sample &middot; how a centre looks at peak</p>';
 
   const cta = currentUser
     ? '<button class="landing-cta" onclick="document.getElementById(\'centre-search\').focus()">Find a centre to track</button>'
@@ -2893,8 +3006,9 @@ function renderLandingHero() {
        +   '<p class="landing-hero-eyebrow">UK shopping-centre sale tracker</p>'
        +   '<h1 class="landing-hero-title" id="landing-hero-title">When are the sales actually good?</h1>'
        +   '<p class="landing-hero-sub">Tide scores every major UK centre daily &mdash; so you go when the brands are on sale, not a week too late.</p>'
-       +   '<div class="landing-sample-wrap">' + sampleCard + '</div>'
-       +   '<p class="landing-sample-caption">Sample &middot; how a centre looks at peak</p>'
+       + '</section>'
+       + proofHTML
+       + '<section class="landing-hero">'
        +   '<div class="landing-steps">'
        +     '<div class="landing-step"><span class="landing-step-num">1</span><div class="landing-step-text"><strong>We score every UK centre, daily</strong><p>Live sale data across thousands of brands.</p></div></div>'
        +     '<div class="landing-step"><span class="landing-step-num">2</span><div class="landing-step-text"><strong>You see when to go</strong><p>Plain verdicts like "go now" or "wait a few days".</p></div></div>'
@@ -2941,15 +3055,17 @@ async function renderCentre(centreId) {
     }
     const savedIds = (currentUser && userPrefs && Array.isArray(userPrefs.saved_centres)) ? userPrefs.saved_centres : [];
     if (savedIds.length) {
-      // User has saved centres — lead with those, then a small "search above"
-      // prompt to find another centre. No proof hero needed (they're past it).
+      // User has saved centres — lead with those, then a "Hot right now"
+      // discovery row (excluding their own saved centres so it's net-new),
+      // then a small "search above" prompt.
       const savedHTML = renderSavedCentresLanding(savedIds);
+      const hotHTML = renderHotCentres({ limit: 3, excludeIds: savedIds });
       const searchPrompt = '<div class="landing-search-prompt">'
                          + '<p class="landing-search-prompt-eyebrow">Looking somewhere new?</p>'
                          + '<p class="landing-search-prompt-title">Search any UK centre above</p>'
                          + '<p class="landing-search-prompt-sub">We\'ll show today\'s verdict and which brands are on sale.</p>'
                          + '</div>';
-      content.innerHTML = personaliseHTML + savedHTML + searchPrompt;
+      content.innerHTML = personaliseHTML + savedHTML + hotHTML + searchPrompt;
     } else {
       // No saved centres — show the proof hero (sample card + 3-step + CTA).
       content.innerHTML = personaliseHTML + renderLandingHero();

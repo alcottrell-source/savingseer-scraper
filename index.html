@@ -287,9 +287,17 @@
   .tide-vessel.verdict-fall::before { background: radial-gradient(ellipse at 25% 105%, rgba(232,152,130,0.30) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(232,152,130,0.10) 0%, transparent 50%); }
   .tide-vessel.verdict-wait { background: linear-gradient(135deg, #1d1a17 0%, #1A1612 60%); }
   .tide-vessel.verdict-wait::before { background: radial-gradient(ellipse at 50% 105%, rgba(140,128,112,0.25) 0%, transparent 60%); }
-  /* Hide legacy headline structure when the new verdict block is in use */
-  .tide-vessel.has-verdict .tide-vessel-headline,
-  .tide-vessel.has-verdict .tide-vessel-marks { display: none; }
+  /* Hide legacy headline structure when the new verdict block is in use,
+     but keep the marks — they're now an active tide-gauge ladder so the
+     wave height reads as a stage (LOW / EARLY / RISING / PEAK), not just
+     a coloured strip. */
+  .tide-vessel.has-verdict .tide-vessel-headline { display: none; }
+  .tide-vessel.has-verdict .tide-vessel-verdict { right: 78px; }
+  .tide-vessel.has-verdict .tide-vessel-mark-line { width: 12px; transition: width 0.2s, background 0.2s; }
+  .tide-vessel.has-verdict .tide-vessel-mark-label { font-size: 8px; letter-spacing: 0.10em; transition: color 0.2s, opacity 0.2s; }
+  .tide-vessel.has-verdict .tide-vessel-mark:not(.is-active) .tide-vessel-mark-label { opacity: 0.55; }
+  .tide-vessel.has-verdict .tide-vessel-mark.is-active .tide-vessel-mark-line { width: 16px; height: 1.5px; background: var(--tide-neon); box-shadow: 0 0 6px rgba(94,255,176,0.55); }
+  .tide-vessel.has-verdict .tide-vessel-mark.is-active .tide-vessel-mark-label { color: var(--tide-neon); font-weight: 600; opacity: 1; }
 
   /* ── Auth modal: email-preview card on signup step ────────────── */
   .auth-email-preview { background: var(--leaf-lt); border: 1px solid rgba(61,107,53,0.18); border-radius: 12px; padding: 14px 16px; margin: 14px 0 18px; }
@@ -2800,11 +2808,30 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, on
                  + (tideArrow ? '<span class="tide-vessel-tideline-arrow">' + tideArrow + '</span>' : '')
                  + '</div>';
 
+  // Tide-gauge marks down the right edge. Each mark is a fixed level on
+  // the ladder; the active mark is the one the wave height currently
+  // sits in. Banding mirrors the verdict bands (LOW <25, EARLY 25–50,
+  // RISING 50–75, PEAK 75+) so the highlighted mark agrees with the
+  // verdict word at the top of the vessel.
+  const activeMark = pct >= 75 ? 'peak' : pct >= 50 ? 'rising' : pct >= 25 ? 'early' : 'low';
+  const mk = (m, top, label) =>
+    '<div class="tide-vessel-mark' + (activeMark === m ? ' is-active' : '') + '" style="top:' + top + '%">'
+    + '<span class="tide-vessel-mark-line"></span>'
+    + '<span class="tide-vessel-mark-label">' + label + '</span>'
+    + '</div>';
+  const marksHTML = '<div class="tide-vessel-marks" aria-hidden="true">'
+    + mk('peak',   14, 'PEAK')
+    + mk('rising', 38, 'RISING')
+    + mk('early',  62, 'EARLY')
+    + mk('low',    86, 'LOW')
+    + '</div>';
+
   return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + '" style="--tide-level:' + pct + '%">'
        +   '<div class="tide-vessel-verdict">'
        +     '<div class="tide-vessel-verdict-word tone-' + verdict.tone + '">' + verdict.word + '</div>'
        +     '<div class="tide-vessel-fact">' + factText + changeHTML + '</div>'
        +   '</div>'
+       +   marksHTML
        +   tideLine
        +   '<div class="tide-water">'
        +     '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'

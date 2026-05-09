@@ -325,6 +325,14 @@ async function calculateAllCentreScores(opts = {}) {
       total_brands: totalBrands,
       top_brands: topBrands,
       avg_discount_pct: avgDiscountPct,
+      // Null the narrative whenever the underlying numbers are recomputed.
+      // The morning summariser repopulates it; admin rescores during the
+      // day leave it null, so the front-end falls back to its template
+      // narrative (computed live from current brand data) instead of
+      // showing yesterday's prose against today's numbers. Carry-forward
+      // path above intentionally omits this so untouched centres keep
+      // their existing narrative.
+      narrative: null,
     });
 
     const icons = { Turning: '🔵', Rising: '📈', 'High Tide': '⭐', Falling: '⚠️', Low: '⬛' };

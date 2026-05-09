@@ -1,0 +1,51 @@
+name: Extract Floors (manual)
+
+# Manually-triggered workflow to scrape per-store floor data for a single
+# centre. Wraps `node extract-floors.js`. Not part of the daily cron — floor
+# data is refreshed on demand. See CLAUDE.md "Per-store floor grouping".
+#
+# Usage:
+#   GitHub → Actions tab → "Extract Floors (manual)" → Run workflow
+#   Fill in centre_id (e.g. "westfield-stratford-london") and pick dry_run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      centre_id:
+        description: 'Centre id to extract (matches centres.id in Supabase)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (preview only, do not write to Supabase)'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  extract:
+    name: Extract floor data
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run extractor
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            node extract-floors.js --centre "${{ inputs.centre_id }}" --dry-run
+          else
+            node extract-floors.js --centre "${{ inputs.centre_id }}"
+          fi

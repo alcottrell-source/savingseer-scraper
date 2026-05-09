@@ -161,28 +161,28 @@
   .tide-vessel--falling .tide-ladder-tick.is-reached::after { background: #F4B79F; box-shadow: 0 0 8px rgba(244,183,159,0.45); }
   .tide-vessel--falling .tide-ladder-tick.is-reached .tide-ladder-num { color: #F4B79F; }
   .tide-vessel--flat .tide-ladder-tick.is-reached::after { background: var(--tide-cream); box-shadow: 0 0 6px rgba(245,241,235,0.25); }
-  /* Direction glyph on the highest reached tick — small reinforcement,
-     pointing at the current waterline. */
-  .tide-ladder-tick.is-current .tide-ladder-arrow { display: inline-block; }
-  .tide-ladder-arrow { display: none; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700; line-height: 1; margin-right: 2px; }
-  .tide-vessel--rising  .tide-ladder-arrow { color: #9FD8B0; }
-  .tide-vessel--falling .tide-ladder-arrow { color: #F4B79F; }
-  .tide-vessel--flat    .tide-ladder-arrow { color: rgba(245,241,235,0.55); }
 
-  /* Big direction badge at the top of the ladder — the loud "tide is
-     going UP / DOWN" signal so it registers before the eye lands on
-     the verdict. Arrow bounces in the direction of travel. */
-  .tide-ladder-direction { position: absolute; top: 14px; right: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; line-height: 1; pointer-events: none; }
-  .tide-ladder-direction-arrow { font-size: 28px; line-height: 0.9; font-weight: 700; }
-  .tide-ladder-direction-word { font-family: 'Inter', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; }
-  .tide-vessel--rising .tide-ladder-direction-arrow { color: var(--tide-neon); text-shadow: 0 0 12px rgba(94,255,176,0.65); animation: tideArrowRise 2.2s ease-in-out infinite; }
-  .tide-vessel--rising .tide-ladder-direction-word  { color: #9FD8B0; }
-  .tide-vessel--falling .tide-ladder-direction-arrow { color: #F4B79F; text-shadow: 0 0 12px rgba(244,183,159,0.55); animation: tideArrowFall 2.2s ease-in-out infinite; }
-  .tide-vessel--falling .tide-ladder-direction-word  { color: #F4B79F; }
-  .tide-vessel--flat .tide-ladder-direction-arrow { color: rgba(245,241,235,0.55); font-size: 22px; }
-  .tide-vessel--flat .tide-ladder-direction-word  { color: rgba(245,241,235,0.55); }
-  @keyframes tideArrowRise { 0%, 100% { transform: translateY(0); opacity: 0.85; } 50% { transform: translateY(-4px); opacity: 1; } }
-  @keyframes tideArrowFall { 0%, 100% { transform: translateY(0); opacity: 0.85; } 50% { transform: translateY(4px); opacity: 1; } }
+  /* GIANT backdrop arrow behind the verdict word — the loud, unmissable
+     "tide is going UP / DOWN" signal. Sits at low opacity so the verdict
+     word still reads cleanly on top of it. Drifts up/down to reinforce
+     direction without being distracting. Hidden when trajectory is flat
+     (no movement = no arrow to draw). */
+  .tide-vessel-direction-bg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 200px; line-height: 0.8; font-weight: 900; z-index: 3; pointer-events: none; user-select: none; }
+  .tide-vessel--rising .tide-vessel-direction-bg { color: rgba(94,255,176,0.16); text-shadow: 0 0 60px rgba(94,255,176,0.30); animation: tideBgArrowRise 3.2s ease-in-out infinite; }
+  .tide-vessel--falling .tide-vessel-direction-bg { color: rgba(244,183,159,0.16); text-shadow: 0 0 60px rgba(244,183,159,0.28); animation: tideBgArrowFall 3.2s ease-in-out infinite; }
+  .tide-vessel--flat .tide-vessel-direction-bg { display: none; }
+  @keyframes tideBgArrowRise { 0%, 100% { transform: translate(-50%, -48%); } 50% { transform: translate(-50%, -54%); } }
+  @keyframes tideBgArrowFall { 0%, 100% { transform: translate(-50%, -52%); } 50% { transform: translate(-50%, -46%); } }
+
+  /* Plain-English trend pill — sits under the brand-count fact line.
+     Says exactly what's happening with sales, in words. Coloured pill
+     so it carries weight at a glance. */
+  .tide-vessel-trend { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 6px 12px; border-radius: 100px; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1; }
+  .tide-vessel-trend.is-up   { background: rgba(94,255,176,0.18);  color: #9FD8B0; }
+  .tide-vessel-trend.is-down { background: rgba(244,183,159,0.18); color: #F4B79F; }
+  .tide-vessel-trend.is-flat { background: rgba(245,241,235,0.10); color: rgba(245,241,235,0.65); }
+  .tide-vessel-trend-arrow { font-size: 14px; font-weight: 700; line-height: 1; }
+  .tide-vessel-trend-detail { font-weight: 400; opacity: 0.75; text-transform: none; letter-spacing: 0; margin-left: 2px; }
   /* Headline number — now "X%" + small "Y of Z shops" subtitle. */
   .tide-score-num { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 42px; line-height: 1; color: var(--tide-cream); }
   .tide-score-unit { display: block; font-family: 'Inter', sans-serif; font-size: 11px; color: rgba(245,241,235,0.55); letter-spacing: 0.04em; margin-top: 5px; white-space: nowrap; }
@@ -2957,49 +2957,65 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
   // sat in each phase. The vessel itself now carries the percentage signal
   // as the tide mark plus a labelled ladder on the right wall (see below).
 
-  // Tide-line ladder on the right wall. Ticks anchored to the verdict
-  // thresholds so the scale doubles as a legend. Labels use the *neutral*
-  // verdict word for each band (no trajectory variants — those would shift
-  // the scale's meaning between centres). Trajectory is conveyed by the
-  // colour of the lit ticks (.tide-vessel--rising / --falling / --flat),
-  // so a "Go now" tick lit warm-amber on a falling tide reads as "tide
-  // has receded past this line" instead of "still here, jump in".
+  // Trajectory drives three things on the panel: the GIANT backdrop
+  // arrow behind the verdict word (loud), the plain-English trend pill
+  // under the fact (explicit), and the colour of the lit ladder ticks
+  // (so a "Go now" tick lit warm-amber on a falling tide reads as "tide
+  // has receded past this line" instead of "still here, jump in").
   const traj = trajectory === 'RISING' ? 'rising'
              : trajectory === 'FALLING' ? 'falling'
              : 'flat';
-  const dirArrow = traj === 'rising' ? '&uarr;' : traj === 'falling' ? '&darr;' : '&middot;';
-  // Big top-of-ladder direction badge — "TIDE RISING / FALLING / STEADY"
-  // with a glowing, bouncing chevron in the trajectory colour.
-  const dirChevron = traj === 'rising' ? '&#9650;'   // ▲
-                   : traj === 'falling' ? '&#9660;'  // ▼
-                   : '&mdash;';
-  const dirWord = traj === 'rising' ? 'Tide rising'
-                : traj === 'falling' ? 'Tide falling'
-                : 'Tide steady';
-  const directionHTML = '<div class="tide-ladder-direction">'
-                      +   '<span class="tide-ladder-direction-arrow">' + dirChevron + '</span>'
-                      +   '<span class="tide-ladder-direction-word">' + dirWord + '</span>'
-                      + '</div>';
+  const bgChevron = traj === 'rising' ? '&#9650;'   // ▲
+                  : traj === 'falling' ? '&#9660;'  // ▼
+                  : '';
+  const bgArrowHTML = traj === 'flat' ? '' : '<div class="tide-vessel-direction-bg" aria-hidden="true">' + bgChevron + '</div>';
+
+  // Plain-English trend pill — explicit "what's happening with sales".
+  // The "fast" qualifier kicks in when today's brand-count delta agrees
+  // with the medium-term trajectory by more than one brand, so we only
+  // shout "fast" when both signals point the same way strongly.
+  let trendCls, trendArrow, trendText, trendDetail = '';
+  const fastUp   = traj === 'rising'  && Number.isFinite(brandsDelta) && brandsDelta >=  2;
+  const fastDown = traj === 'falling' && Number.isFinite(brandsDelta) && brandsDelta <= -2;
+  if (traj === 'rising') {
+    trendCls = 'is-up'; trendArrow = '&uarr;';
+    trendText = fastUp ? 'Sales rising fast' : 'Sales rising';
+  } else if (traj === 'falling') {
+    trendCls = 'is-down'; trendArrow = '&darr;';
+    trendText = fastDown ? 'Sales falling fast' : 'Sales falling';
+  } else {
+    trendCls = 'is-flat'; trendArrow = '&rarr;';
+    trendText = 'Sales steady';
+  }
+  if (Number.isFinite(brandsDelta) && brandsDelta !== 0) {
+    const noun = Math.abs(brandsDelta) === 1 ? 'brand' : 'brands';
+    trendDetail = '<span class="tide-vessel-trend-detail">&middot; ' + (brandsDelta > 0 ? '+' : '') + brandsDelta + ' ' + noun + ' today</span>';
+  }
+  const trendHTML = '<div class="tide-vessel-trend ' + trendCls + '">'
+                  +   '<span class="tide-vessel-trend-arrow">' + trendArrow + '</span>'
+                  +   trendText
+                  +   trendDetail
+                  + '</div>';
+
   const LADDER = [
     { level: 60, label: 'Go now'  },
     { level: 40, label: 'Worth it' },
     { level: 25, label: 'Early'   },
   ];
-  const reachedIdx = LADDER.findIndex(t => pct >= t.level); // highest tick the wave has reached
-  const ticksHTML = LADDER.map((t, i) => {
-    const cls = (pct >= t.level ? ' is-reached' : '') + (i === reachedIdx ? ' is-current' : '');
-    return '<div class="tide-ladder-tick' + cls + '" style="bottom:' + t.level + '%">'
-         +   '<span class="tide-ladder-arrow">' + dirArrow + '</span>'
+  const ladderHTML = LADDER.map(t => {
+    const reached = pct >= t.level ? ' is-reached' : '';
+    return '<div class="tide-ladder-tick' + reached + '" style="bottom:' + t.level + '%">'
          +   '<span class="tide-ladder-label">' + t.label + '</span>'
          +   '<span class="tide-ladder-num">' + t.level + '%</span>'
          + '</div>';
   }).join('');
-  const ladderHTML = directionHTML + ticksHTML;
 
   return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + ' tide-vessel--' + traj + '" style="--tide-level:' + pct + '%">'
+       +   bgArrowHTML
        +   '<div class="tide-vessel-verdict">'
        +     '<div class="tide-vessel-verdict-word tone-' + verdict.tone + '">' + verdict.word + '</div>'
        +     '<div class="tide-vessel-fact">' + factText + changeHTML + '</div>'
+       +     trendHTML
        +   '</div>'
        +   '<div class="tide-ladder" aria-hidden="true">' + ladderHTML + '</div>'
        +   '<div class="tide-water">'

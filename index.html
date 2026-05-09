@@ -235,6 +235,11 @@
   @keyframes tideMark { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.55); } }
   .cluster-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); padding: 12px 0 6px; grid-column: 1 / -1; border-top: 1px solid var(--border); margin-top: 4px; }
   .cluster-label:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+  /* Sub-label nested inside the "Not on sale" section — smaller, no top
+     border, just a faint divider to chunk the list by cluster. */
+  .cluster-sublabel { font-size: 11px; font-weight: 500; color: var(--ink-mid); padding: 10px 0 4px; grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; }
+  .cluster-sublabel + .cluster-sublabel { padding-top: 6px; }
+  .cluster-sublabel-count { font-size: 10px; color: var(--stone); font-weight: 400; letter-spacing: 0.04em; }
   .modal-overlay { position: fixed; inset: 0; background: rgba(44,24,16,0.45); display: flex; align-items: center; justify-content: center; z-index: 500; padding: 20px; }
   .modal { background: white; border-radius: 20px; padding: 32px 28px 28px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; position: relative; }
   .modal-close { position: absolute; top: 16px; right: 18px; background: none; border: none; font-size: 22px; color: var(--stone); cursor: pointer; line-height: 1; padding: 2px 6px; }
@@ -3773,7 +3778,35 @@ async function renderCentre(centreId) {
   }
   if (offSaleBrands.length) {
     brandHTML += '<div class="cluster-label">Not on sale</div>';
-    for (const b of offSaleBrands) brandHTML += renderChip(b);
+    // Group by cluster so the long not-on-sale list reads as chunked
+    // categories (Activewear / Footwear / High Street / etc.) rather
+    // than a single alphabetical wall. One brand maps to one cluster,
+    // so no duplication. Order is broadest-first.
+    const CLUSTER_DISPLAY = {
+      'High Street':     'High Street',
+      'Contemporary':    'Contemporary',
+      'Premium Casual':  'Premium Casual',
+      'Classic British': 'Classic British',
+      'Smart/Occasion':  'Smart & Occasion',
+      'Active':          'Activewear',
+      'Footwear':        'Footwear',
+      'Accessories':     'Accessories',
+    };
+    const CLUSTER_ORDER = ['High Street','Contemporary','Premium Casual','Classic British','Smart/Occasion','Active','Footwear','Accessories'];
+    const grouped = {};
+    for (const b of offSaleBrands) {
+      const k = b.cluster || 'Other';
+      (grouped[k] ||= []).push(b);
+    }
+    const orderedKeys = CLUSTER_ORDER.filter(k => grouped[k]);
+    for (const k of Object.keys(grouped)) {
+      if (!orderedKeys.includes(k)) orderedKeys.push(k);
+    }
+    for (const k of orderedKeys) {
+      const label = CLUSTER_DISPLAY[k] || k;
+      brandHTML += '<div class="cluster-sublabel">'+label+' <span class="cluster-sublabel-count">'+grouped[k].length+'</span></div>';
+      for (const b of grouped[k]) brandHTML += renderChip(b);
+    }
   }
 
   // Forward-guidance copy below the bluf \u2014 small italic supporting text, not a

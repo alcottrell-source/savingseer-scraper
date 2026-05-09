@@ -35,12 +35,12 @@
   /* Landing backdrop — sits behind the search hero on the home page only.
      Fixed to viewport bottom so the line-art arcade reads as ground beneath
      the hero. Soft radial mask kills the centre so the search stays crisp. */
-  .landing-backdrop { position: fixed; left: 0; right: 0; bottom: 0; height: 70vh; max-height: 720px; min-height: 400px; pointer-events: none; z-index: 0; opacity: 0.18; overflow: hidden; -webkit-mask-image: radial-gradient(ellipse 70% 90% at 50% 35%, transparent 25%, black 75%); mask-image: radial-gradient(ellipse 70% 90% at 50% 35%, transparent 25%, black 75%); }
+  .landing-backdrop { position: fixed; left: 0; right: 0; bottom: 0; height: 70vh; max-height: 720px; min-height: 400px; pointer-events: none; z-index: 0; opacity: 0.24; overflow: hidden; -webkit-mask-image: radial-gradient(ellipse 70% 90% at 50% 35%, transparent 25%, black 75%); mask-image: radial-gradient(ellipse 70% 90% at 50% 35%, transparent 25%, black 75%); }
   .landing-backdrop svg { width: 100%; height: 100%; min-width: 1100px; display: block; }
   body.is-centre-view .landing-backdrop { display: none; }
   /* Header + page content sit above the backdrop. */
   header, .picker-section, #main-content, footer, .home-info, .survey-card { position: relative; z-index: 1; }
-  @media (max-width: 700px) { .landing-backdrop { opacity: 0.14; height: 50vh; min-height: 280px; } .landing-backdrop svg { min-width: 900px; } }
+  @media (max-width: 700px) { .landing-backdrop { opacity: 0.18; height: 55vh; min-height: 320px; } .landing-backdrop svg { min-width: 900px; } }
   header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: rgba(250,247,242,0.92); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); z-index: 100; }
   .wordmark { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--bark); }
   .wordmark span { color: var(--leaf); }
@@ -62,12 +62,18 @@
     .search-hero-headline { font-size: 30px; margin-bottom: 20px; }
     .centre-search { font-size: 15px; padding: 14px 18px 14px 44px; background-position: 16px center; }
   }
-  .centre-suggestions { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 1px solid var(--border); border-radius: 8px; margin: 0; padding: 4px 0; list-style: none; max-height: 260px; overflow-y: auto; box-shadow: 0 6px 20px rgba(28,26,20,0.08); z-index: 30; }
+  .centre-suggestions { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: white; border: 1px solid var(--border); border-radius: 12px; margin: 0; padding: 6px 0; list-style: none; max-height: min(420px, 60vh); overflow-y: auto; box-shadow: 0 12px 32px rgba(28,26,20,0.18); z-index: 200; }
   .centre-suggestions[hidden] { display: none; }
-  .centre-suggestions li { padding: 10px 16px; font-family: 'Inter', sans-serif; font-size: 14px; color: var(--bark); cursor: pointer; }
+  .centre-suggestions li { padding: 11px 18px; font-family: 'Inter', sans-serif; font-size: 14px; color: var(--bark); cursor: pointer; }
   .centre-suggestions li:hover, .centre-suggestions li.active { background: var(--leaf-lt); color: var(--leaf); }
   .centre-suggestions .no-match { color: var(--stone); cursor: default; font-style: italic; }
   .centre-suggestions .no-match:hover { background: transparent; color: var(--stone); }
+  /* While the dropdown is open, dim the page behind so the suggestions
+     read as a focused floating panel rather than overlapping the saved-
+     centres / hot-centres blocks below. */
+  body.is-search-open #main-content,
+  body.is-search-open .home-info,
+  body.is-search-open .survey-card { opacity: 0.18; pointer-events: none; transition: opacity 0.15s; }
   .picker-or { display: none; }
   .centre-select { display: none; }
   .score-section { padding: 24px 24px 0; }
@@ -239,14 +245,10 @@
   .install-instruction { font-size: 13px; color: var(--stone); line-height: 1.5; padding: 12px 14px; background: var(--leaf-lt); border-radius: 10px; }
   .install-instruction strong { color: var(--bark); font-weight: 500; }
 
-  /* ── Landing "How does Tide work?" toggle (below the hot ticker) ── */
+  /* ── Landing "How does Tide work?" panel (below the hot ticker) ── */
   .how-it-works { padding: 28px 24px 24px; max-width: 560px; margin: 0 auto; }
-  .how-it-works summary { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; color: var(--ink-mid); cursor: pointer; padding: 10px 0; list-style: none; user-select: none; display: inline-flex; align-items: center; gap: 6px; }
-  .how-it-works summary::-webkit-details-marker { display: none; }
-  .how-it-works summary::after { content: '↓'; font-size: 11px; opacity: 0.55; transition: transform 0.2s; }
-  .how-it-works[open] summary::after { transform: rotate(180deg); }
-  .how-it-works summary:hover { color: var(--ink); }
-  .landing-steps { display: flex; flex-direction: column; gap: 14px; margin: 12px 0 0; padding: 20px 18px; background: white; border: 1px solid var(--border); border-radius: 14px; }
+  .how-it-works-title { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.10em; text-transform: uppercase; color: var(--stone); padding: 0 4px 10px; }
+  .landing-steps { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 20px 18px; background: white; border: 1px solid var(--border); border-radius: 14px; }
   .landing-step { display: flex; gap: 14px; align-items: flex-start; }
   .landing-step-num { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--leaf-lt); color: var(--leaf); font-family: 'Inter', sans-serif; font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center; }
   .landing-step-text strong { display: block; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
@@ -629,95 +631,190 @@
      a commissioned illustration later — just replace the inline <svg>. -->
 <div class="landing-backdrop" aria-hidden="true">
   <svg viewBox="0 0 1200 600" preserveAspectRatio="xMidYMax slice" fill="none" stroke="#C8AE7A" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
-    <!-- Distant buildings (faintest) -->
-    <g opacity="0.55">
-      <rect x="20" y="160" width="160" height="360"/>
-      <rect x="1020" y="140" width="160" height="380"/>
-      <line x1="20" y1="240" x2="180" y2="240"/>
-      <line x1="20" y1="320" x2="180" y2="320"/>
-      <line x1="20" y1="400" x2="180" y2="400"/>
-      <line x1="80"  y1="160" x2="80"  y2="520"/>
-      <line x1="120" y1="160" x2="120" y2="520"/>
-      <line x1="1020" y1="220" x2="1180" y2="220"/>
-      <line x1="1020" y1="300" x2="1180" y2="300"/>
-      <line x1="1020" y1="380" x2="1180" y2="380"/>
-      <line x1="1080" y1="140" x2="1080" y2="520"/>
-      <line x1="1130" y1="140" x2="1130" y2="520"/>
-    </g>
-    <!-- Mid-ground left building -->
-    <rect x="190" y="100" width="220" height="420"/>
-    <line x1="190" y1="180" x2="410" y2="180"/>
-    <line x1="190" y1="260" x2="410" y2="260"/>
-    <line x1="190" y1="340" x2="410" y2="340"/>
-    <line x1="190" y1="420" x2="410" y2="420"/>
-    <line x1="245" y1="100" x2="245" y2="520"/>
-    <line x1="300" y1="100" x2="300" y2="520"/>
-    <line x1="355" y1="100" x2="355" y2="520"/>
-    <!-- Centre tall building -->
-    <rect x="430" y="60" width="340" height="460"/>
-    <line x1="430" y1="140" x2="770" y2="140"/>
-    <line x1="430" y1="220" x2="770" y2="220"/>
-    <line x1="430" y1="300" x2="770" y2="300"/>
-    <line x1="430" y1="380" x2="770" y2="380"/>
-    <line x1="490" y1="60"  x2="490" y2="520"/>
-    <line x1="550" y1="60"  x2="550" y2="520"/>
-    <line x1="610" y1="60"  x2="610" y2="520"/>
-    <line x1="670" y1="60"  x2="670" y2="520"/>
-    <line x1="730" y1="60"  x2="730" y2="520"/>
-    <!-- Mid-ground right building -->
-    <rect x="790" y="100" width="220" height="420"/>
-    <line x1="790" y1="180" x2="1010" y2="180"/>
-    <line x1="790" y1="260" x2="1010" y2="260"/>
-    <line x1="790" y1="340" x2="1010" y2="340"/>
-    <line x1="790" y1="420" x2="1010" y2="420"/>
-    <line x1="845" y1="100" x2="845" y2="520"/>
-    <line x1="900" y1="100" x2="900" y2="520"/>
-    <line x1="955" y1="100" x2="955" y2="520"/>
-    <!-- Awning level -->
-    <line x1="0" y1="478" x2="1200" y2="478"/>
+    <!-- Shopping centre facade — long horizontal building with a curved
+         glass atrium entrance in the middle, rows of storefronts on
+         either side, signage strip, awnings, shoppers with bags. -->
+
+    <!-- Parapet / roofline -->
+    <line x1="0" y1="150" x2="1200" y2="150"/>
+    <line x1="0" y1="162" x2="1200" y2="162"/>
+
+    <!-- Pylon mall sign on the left -->
+    <rect x="40" y="60" width="44" height="120"/>
+    <line x1="40" y1="92" x2="84" y2="92"/>
+    <line x1="40" y1="124" x2="84" y2="124"/>
+    <line x1="62" y1="180" x2="62" y2="220"/>
+
+    <!-- Centre nameplate banner above the entrance -->
+    <rect x="500" y="32" width="200" height="42" rx="3"/>
+    <line x1="500" y1="50" x2="700" y2="50"/>
+    <line x1="500" y1="58" x2="700" y2="58"/>
+
+    <!-- Curved glass atrium entrance (centre of the facade) -->
+    <path d="M 460 320 L 460 200 Q 460 88 600 88 Q 740 88 740 200 L 740 320"/>
+    <!-- Atrium horizontal bands (suggest tiered glass) -->
+    <path d="M 462 220 Q 600 132 738 220"/>
+    <path d="M 462 260 Q 600 188 738 260"/>
+    <line x1="460" y1="300" x2="740" y2="300"/>
+    <!-- Atrium vertical mullions -->
+    <line x1="490" y1="320" x2="490" y2="206"/>
+    <line x1="525" y1="320" x2="525" y2="160"/>
+    <line x1="565" y1="320" x2="565" y2="124"/>
+    <line x1="600" y1="320" x2="600" y2="100"/>
+    <line x1="635" y1="320" x2="635" y2="124"/>
+    <line x1="675" y1="320" x2="675" y2="160"/>
+    <line x1="710" y1="320" x2="710" y2="206"/>
+
+    <!-- Entrance doors (within atrium) -->
+    <rect x="555" y="430" width="90" height="138"/>
+    <line x1="600" y1="430" x2="600" y2="568"/>
+    <line x1="555" y1="475" x2="645" y2="475"/>
+    <line x1="555" y1="520" x2="645" y2="520"/>
+
+    <!-- Left wing — upper-floor window grid -->
+    <rect x="50"  y="200" width="40" height="100"/>
+    <rect x="100" y="200" width="40" height="100"/>
+    <rect x="150" y="200" width="40" height="100"/>
+    <rect x="200" y="200" width="40" height="100"/>
+    <rect x="250" y="200" width="40" height="100"/>
+    <rect x="300" y="200" width="40" height="100"/>
+    <rect x="350" y="200" width="100" height="100"/>
+    <line x1="50" y1="240" x2="450" y2="240"/>
+    <line x1="50" y1="270" x2="450" y2="270"/>
+    <line x1="380" y1="200" x2="380" y2="300"/>
+    <line x1="410" y1="200" x2="410" y2="300"/>
+
+    <!-- Left wing — signage strip + ground-floor shop bays -->
+    <line x1="40" y1="320" x2="460" y2="320"/>
+    <rect x="40" y="320" width="420" height="32"/>
+    <line x1="125" y1="320" x2="125" y2="352"/>
+    <line x1="210" y1="320" x2="210" y2="352"/>
+    <line x1="295" y1="320" x2="295" y2="352"/>
+    <line x1="380" y1="320" x2="380" y2="352"/>
+    <line x1="40"  y1="352" x2="460" y2="352"/>
+    <line x1="125" y1="352" x2="125" y2="568"/>
+    <line x1="210" y1="352" x2="210" y2="568"/>
+    <line x1="295" y1="352" x2="295" y2="568"/>
+    <line x1="380" y1="352" x2="380" y2="568"/>
+    <line x1="40"  y1="352" x2="40"  y2="568"/>
+    <!-- Shop window dressing (display lines) -->
+    <line x1="55"  y1="400" x2="110" y2="400"/>
+    <line x1="55"  y1="440" x2="110" y2="440"/>
+    <line x1="140" y1="400" x2="195" y2="400"/>
+    <line x1="140" y1="440" x2="195" y2="440"/>
+    <line x1="225" y1="400" x2="280" y2="400"/>
+    <line x1="225" y1="440" x2="280" y2="440"/>
+    <line x1="310" y1="400" x2="365" y2="400"/>
+    <line x1="310" y1="440" x2="365" y2="440"/>
+    <line x1="395" y1="400" x2="450" y2="400"/>
+    <line x1="395" y1="440" x2="450" y2="440"/>
+
+    <!-- Right wing — upper-floor window grid -->
+    <rect x="750" y="200" width="100" height="100"/>
+    <rect x="860" y="200" width="40" height="100"/>
+    <rect x="910" y="200" width="40" height="100"/>
+    <rect x="960" y="200" width="40" height="100"/>
+    <rect x="1010" y="200" width="40" height="100"/>
+    <rect x="1060" y="200" width="40" height="100"/>
+    <rect x="1110" y="200" width="40" height="100"/>
+    <line x1="750" y1="240" x2="1150" y2="240"/>
+    <line x1="750" y1="270" x2="1150" y2="270"/>
+    <line x1="780" y1="200" x2="780" y2="300"/>
+    <line x1="810" y1="200" x2="810" y2="300"/>
+
+    <!-- Right wing — signage strip + ground-floor shop bays -->
+    <line x1="740" y1="320" x2="1160" y2="320"/>
+    <rect x="740" y="320" width="420" height="32"/>
+    <line x1="825" y1="320" x2="825" y2="352"/>
+    <line x1="910" y1="320" x2="910" y2="352"/>
+    <line x1="995" y1="320" x2="995" y2="352"/>
+    <line x1="1080" y1="320" x2="1080" y2="352"/>
+    <line x1="740"  y1="352" x2="1160" y2="352"/>
+    <line x1="825"  y1="352" x2="825"  y2="568"/>
+    <line x1="910"  y1="352" x2="910"  y2="568"/>
+    <line x1="995"  y1="352" x2="995"  y2="568"/>
+    <line x1="1080" y1="352" x2="1080" y2="568"/>
+    <line x1="1160" y1="352" x2="1160" y2="568"/>
+    <!-- Shop window dressing -->
+    <line x1="755" y1="400" x2="810" y2="400"/>
+    <line x1="755" y1="440" x2="810" y2="440"/>
+    <line x1="840" y1="400" x2="895" y2="400"/>
+    <line x1="840" y1="440" x2="895" y2="440"/>
+    <line x1="925" y1="400" x2="980" y2="400"/>
+    <line x1="925" y1="440" x2="980" y2="440"/>
+    <line x1="1010" y1="400" x2="1065" y2="400"/>
+    <line x1="1010" y1="440" x2="1065" y2="440"/>
+    <line x1="1095" y1="400" x2="1150" y2="400"/>
+    <line x1="1095" y1="440" x2="1150" y2="440"/>
+
     <!-- Festoon strand arcing across the top -->
-    <path d="M0 50 Q 200 100 400 60 T 800 60 T 1200 50" stroke-width="0.9"/>
+    <path d="M0 28 Q 200 80 400 44 T 800 44 T 1200 28" stroke-width="0.9"/>
     <g fill="#C8AE7A" stroke="none">
-      <circle cx="40"   cy="68"  r="2.2"/>
-      <circle cx="100"  cy="84"  r="2.2"/>
-      <circle cx="160"  cy="92"  r="2.2"/>
-      <circle cx="220"  cy="88"  r="2.2"/>
-      <circle cx="280"  cy="76"  r="2.2"/>
-      <circle cx="340"  cy="66"  r="2.2"/>
-      <circle cx="400"  cy="60"  r="2.2"/>
-      <circle cx="460"  cy="68"  r="2.2"/>
-      <circle cx="520"  cy="84"  r="2.2"/>
-      <circle cx="580"  cy="92"  r="2.2"/>
-      <circle cx="640"  cy="84"  r="2.2"/>
-      <circle cx="700"  cy="68"  r="2.2"/>
-      <circle cx="760"  cy="60"  r="2.2"/>
-      <circle cx="820"  cy="68"  r="2.2"/>
-      <circle cx="880"  cy="84"  r="2.2"/>
-      <circle cx="940"  cy="92"  r="2.2"/>
-      <circle cx="1000" cy="84"  r="2.2"/>
-      <circle cx="1060" cy="68"  r="2.2"/>
-      <circle cx="1120" cy="56"  r="2.2"/>
+      <circle cx="60"   cy="50"  r="2"/>
+      <circle cx="160"  cy="68"  r="2"/>
+      <circle cx="260"  cy="68"  r="2"/>
+      <circle cx="360"  cy="48"  r="2"/>
+      <circle cx="840"  cy="48"  r="2"/>
+      <circle cx="940"  cy="68"  r="2"/>
+      <circle cx="1040" cy="68"  r="2"/>
+      <circle cx="1140" cy="40"  r="2"/>
     </g>
+
+    <!-- Planters / trees flanking the entrance -->
+    <circle cx="465" cy="544" r="14"/>
+    <line x1="465" y1="558" x2="465" y2="568"/>
+    <circle cx="735" cy="544" r="14"/>
+    <line x1="735" y1="558" x2="735" y2="568"/>
+
     <!-- Ground line -->
     <line x1="0" y1="568" x2="1200" y2="568"/>
-    <!-- Shoppers walking -->
+
+    <!-- Shoppers (some carrying bags / pushing trolleys) -->
     <g stroke-width="1.3">
-      <circle cx="120"  cy="514" r="6"/><path d="M120 520 L120 548 M110 530 L130 530 M115 548 L120 562 M125 548 L120 562"/>
-      <circle cx="210"  cy="512" r="6"/><path d="M210 518 L210 548 M200 528 L222 534 M204 548 L210 562 M214 548 L210 562"/>
-      <circle cx="320"  cy="514" r="6"/><path d="M320 520 L320 548 M310 530 L330 530 M315 548 L320 562 M325 548 L320 562"/>
-      <circle cx="420"  cy="512" r="6"/><path d="M420 518 L420 548 M410 530 L430 530 M414 548 L420 562 M426 548 L420 562"/>
-      <circle cx="540"  cy="514" r="6"/><path d="M540 520 L540 548 M528 528 L552 534 M533 548 L540 562 M545 548 L540 562"/>
-      <circle cx="660"  cy="512" r="6"/><path d="M660 518 L660 548 M650 530 L670 530 M654 548 L660 562 M666 548 L660 562"/>
-      <circle cx="770"  cy="514" r="6"/><path d="M770 520 L770 548 M760 530 L780 530 M765 548 L770 562 M775 548 L770 562"/>
-      <circle cx="880"  cy="512" r="6"/><path d="M880 518 L880 548 M870 528 L892 534 M874 548 L880 562 M886 548 L880 562"/>
-      <circle cx="990"  cy="514" r="6"/><path d="M990 520 L990 548 M980 530 L1000 530 M984 548 L990 562 M996 548 L990 562"/>
-      <circle cx="1090" cy="512" r="6"/><path d="M1090 518 L1090 548 M1080 530 L1100 530 M1084 548 L1090 562 M1096 548 L1090 562"/>
+      <circle cx="170" cy="514" r="6"/>
+      <path d="M170 520 L170 548 M160 530 L180 530 M165 548 L170 562 M175 548 L170 562"/>
+      <rect x="178" y="534" width="10" height="14"/>
+      <line x1="180" y1="534" x2="183" y2="528"/>
+
+      <circle cx="265" cy="512" r="6"/>
+      <path d="M265 518 L265 548 M254 528 L278 534 M260 548 L265 562 M270 548 L265 562"/>
+      <rect x="246" y="532" width="10" height="14"/>
+
+      <circle cx="355" cy="514" r="6"/>
+      <path d="M355 520 L355 548 M345 530 L365 530 M350 548 L355 562 M360 548 L355 562"/>
+
+      <circle cx="500" cy="514" r="6"/>
+      <path d="M500 520 L500 548 M490 530 L510 530 M495 548 L500 562 M505 548 L500 562"/>
+      <rect x="508" y="534" width="10" height="14"/>
+
+      <!-- trolley pusher right of entrance -->
+      <circle cx="700" cy="514" r="6"/>
+      <path d="M700 520 L700 548 M690 528 L712 534 M695 548 L700 562 M705 548 L700 562"/>
+      <rect x="710" y="540" width="26" height="20"/>
+      <circle cx="714" cy="564" r="2"/>
+      <circle cx="732" cy="564" r="2"/>
+      <line x1="710" y1="540" x2="706" y2="528"/>
+
+      <circle cx="870" cy="512" r="6"/>
+      <path d="M870 518 L870 548 M860 528 L882 534 M864 548 L870 562 M876 548 L870 562"/>
+      <rect x="852" y="532" width="10" height="14"/>
+
+      <circle cx="970" cy="514" r="6"/>
+      <path d="M970 520 L970 548 M960 530 L980 530 M965 548 L970 562 M975 548 L970 562"/>
+      <rect x="978" y="534" width="10" height="14"/>
+
+      <circle cx="1070" cy="512" r="6"/>
+      <path d="M1070 518 L1070 548 M1060 528 L1082 534 M1064 548 L1070 562 M1076 548 L1070 562"/>
+
+      <circle cx="1140" cy="514" r="6"/>
+      <path d="M1140 520 L1140 548 M1130 530 L1150 530 M1135 548 L1140 562 M1145 548 L1140 562"/>
+      <rect x="1148" y="534" width="10" height="14"/>
     </g>
   </svg>
 </div>
 
 <div class="picker-section" id="picker-section">
-  <h1 class="search-hero-headline">When are the sales actually good?</h1>
+  <h1 class="search-hero-headline">Every centre has a peak sale day. We&rsquo;ll tell you yours.</h1>
   <div class="centre-search-wrap">
     <input type="search" class="centre-search" id="centre-search" name="centre-search" placeholder="Try Westfield London, Bluewater, Trafford…" oninput="filterCentres(this.value)" onfocus="filterCentres(this.value)" onkeydown="onCentreSearchKey(event)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="centre-suggestions" aria-label="Search any UK shopping centre">
     <ul class="centre-suggestions" id="centre-suggestions" role="listbox" hidden></ul>
@@ -1954,6 +2051,7 @@ function filterCentres(query) {
   }
   list.hidden = false;
   input.setAttribute('aria-expanded', 'true');
+  document.body.classList.add('is-search-open');
 }
 
 function chooseCentreSuggestion(id, name) {
@@ -1964,6 +2062,7 @@ function chooseCentreSuggestion(id, name) {
   input.value = name;
   list.hidden = true;
   input.setAttribute('aria-expanded', 'false');
+  document.body.classList.remove('is-search-open');
   renderCentre(id);
 }
 
@@ -1994,6 +2093,7 @@ function onCentreSearchKey(e) {
   } else if (e.key === 'Escape') {
     list.hidden = true;
     document.getElementById('centre-search').setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('is-search-open');
   }
 }
 
@@ -2005,6 +2105,7 @@ document.addEventListener('click', (e) => {
     if (list) list.hidden = true;
     const input = document.getElementById('centre-search');
     if (input) input.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('is-search-open');
   }
 });
 
@@ -2582,6 +2683,7 @@ function goToCentre(centreId) {
   if (search) search.value = '';
   const list = document.getElementById('centre-suggestions');
   if (list) list.hidden = true;
+  document.body.classList.remove('is-search-open');
   renderCentre(centreId);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -3198,14 +3300,14 @@ function renderHotCentres(opts) {
 function renderLandingHero() {
   const hotHTML = renderHotCentres({ limit: 3 });
   return hotHTML
-       + '<details class="how-it-works">'
-       +   '<summary>How does Tide work?</summary>'
+       + '<section class="how-it-works is-static" aria-label="How does Tide work?">'
+       +   '<div class="how-it-works-title">How does Tide work?</div>'
        +   '<div class="landing-steps">'
        +     '<div class="landing-step"><span class="landing-step-num">1</span><div class="landing-step-text"><strong>We score every UK centre, daily</strong><p>Live sale data across thousands of brands.</p></div></div>'
        +     '<div class="landing-step"><span class="landing-step-num">2</span><div class="landing-step-text"><strong>You see when to go</strong><p>Plain verdicts like "go now" or "wait a few days".</p></div></div>'
        +     '<div class="landing-step"><span class="landing-step-num">3</span><div class="landing-step-text"><strong>We email you when it peaks</strong><p>One short email the morning your centre hits peak sale.</p></div></div>'
        +   '</div>'
-       + '</details>';
+       + '</section>';
 }
 
 async function renderCentre(centreId) {

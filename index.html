@@ -3164,6 +3164,27 @@ function renderHistoryChart(history, color, trajectory=null) {
     const yMid=(yOf(b.to)+yOf(b.from))/2;
     return '<text x="'+(PL+W-4)+'" y="'+(yMid+3).toFixed(1)+'" text-anchor="end" font-family="Inter,sans-serif" font-size="8" font-weight="700" letter-spacing="0.12em" fill="'+b.textColor+'">'+b.label+'</text>';
   }).join('');
+  // Band-crossing markers — subtle vertical dotted line at each point in
+  // time where the smoothed curve crossed a 25/50/75 threshold (i.e.
+  // moved between bands). Lets you read off "this is when it tipped
+  // into Fading / dropped into Quiet" at a glance.
+  const BAND_THRESHOLDS=[25,50,75];
+  const crossingLines=(()=>{
+    const lines=[];
+    for(let i=0;i<n-1;i++){
+      const s0=scores[i], s1=scores[i+1];
+      for(const t of BAND_THRESHOLDS){
+        const crossesUp=s0<t && s1>=t;
+        const crossesDown=s0>=t && s1<t;
+        if(!crossesUp && !crossesDown) continue;
+        if(s1===s0) continue;
+        const frac=(t-s0)/(s1-s0);
+        const x=pts[i][0]+frac*(pts[i+1][0]-pts[i][0]);
+        lines.push('<line x1="'+x.toFixed(2)+'" y1="'+PT+'" x2="'+x.toFixed(2)+'" y2="'+(PT+H)+'" stroke="rgba(245,241,235,0.32)" stroke-width="0.6" stroke-dasharray="2 3"/>');
+      }
+    }
+    return lines.join('');
+  })();
   const midIdx=Math.round((n-1)/2);
   const daysBack=idx=>n-1-idx;
   const xLabels=[[0,'start'],[midIdx,'middle'],[n-1,'end']].map(([idx,pos])=>{
@@ -3174,7 +3195,7 @@ function renderHistoryChart(history, color, trajectory=null) {
   // Glow filter for the neon line + today dot. stdDeviation 1.6 is
   // enough to feel "lit" without bleeding into the gridlines.
   const filterDef='<filter id="hgGlow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
-  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+NEON+'" stop-opacity="0.22"/><stop offset="100%" stop-color="'+NEON+'" stop-opacity="0"/></linearGradient>'+stageGradients+filterDef+'</defs>'+stageRects+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+NEON+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" filter="url(#hgGlow)"/>'+stageLabels+'<text x="'+lx+'" y="'+(ly-11).toFixed(1)+'" text-anchor="middle" font-family="Inter,sans-serif" font-size="9.5" fill="'+NEON+'" font-weight="600">today</text><circle cx="'+lx+'" cy="'+ly+'" r="9" fill="'+NEON+'" opacity="0.18"/><circle cx="'+lx+'" cy="'+ly+'" r="3.6" fill="'+NEON+'" filter="url(#hgGlow)"/>'+xLabels+'</svg></div></div>';
+  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+NEON+'" stop-opacity="0.22"/><stop offset="100%" stop-color="'+NEON+'" stop-opacity="0"/></linearGradient>'+stageGradients+filterDef+'</defs>'+stageRects+gridLines+crossingLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+NEON+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" filter="url(#hgGlow)"/>'+stageLabels+'<text x="'+lx+'" y="'+(ly-11).toFixed(1)+'" text-anchor="middle" font-family="Inter,sans-serif" font-size="9.5" fill="'+NEON+'" font-weight="600">today</text><circle cx="'+lx+'" cy="'+ly+'" r="9" fill="'+NEON+'" opacity="0.18"/><circle cx="'+lx+'" cy="'+ly+'" r="3.6" fill="'+NEON+'" filter="url(#hgGlow)"/>'+xLabels+'</svg></div></div>';
 }
 
 function urlToDomain(url) {

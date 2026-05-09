@@ -138,9 +138,36 @@
   .tide-vessel-hero-label { display: block; font-family: 'Inter', sans-serif; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(245,241,235,0.45); margin-bottom: 8px; }
   /* Subtle right-wall tide-level marks at 25/50/75 — labels are in
      "% of shops" terms so the scale lines up with the headline %. */
-  /* Vessel ladder + tideline strip have been retired — those delineations
-     now live on the history chart as horizontal bands. The CSS rules are
-     kept removed so an accidental re-add of the markup paints nothing. */
+  /* Vessel ladder + tideline strip were retired in spring '26 (delineations
+     moved onto the history chart as horizontal bands). The right-wall
+     ladder below is the May '26 reinstatement — same idea, but ticks
+     anchored to the verdict thresholds (25 / 40 / 60) so the scale doubles
+     as a legend: "where on the tide does this centre sit, and what does
+     that level mean?" Each tick is "X% — VERDICT". The threshold the
+     current wave has reached lights up. */
+  .tide-ladder { position: absolute; right: 0; top: 0; bottom: 0; width: 92px; z-index: 4; pointer-events: none; }
+  .tide-ladder-tick { position: absolute; right: 12px; height: 1px; display: flex; align-items: center; gap: 6px; transform: translateY(50%); }
+  .tide-ladder-tick::after { content: ''; width: 14px; height: 1px; background: rgba(245,241,235,0.20); flex-shrink: 0; transition: background 0.4s ease, box-shadow 0.4s ease; }
+  .tide-ladder-label { font-family: 'Inter', sans-serif; font-size: 9px; letter-spacing: 0.10em; text-transform: uppercase; color: rgba(245,241,235,0.40); white-space: nowrap; line-height: 1; transition: color 0.4s ease; }
+  .tide-ladder-num { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 13px; color: rgba(245,241,235,0.50); letter-spacing: 0; transition: color 0.4s ease; }
+  /* Reached = water level is at or above this tick. Colour reflects
+     trajectory so a lit tick on a falling tide reads as "receded past"
+     not "still here". Rising = neon green (good direction), falling =
+     warm amber (cooling off), flat = neutral cream. */
+  .tide-ladder-tick.is-reached .tide-ladder-label,
+  .tide-ladder-tick.is-reached .tide-ladder-num { color: var(--tide-cream); font-weight: 600; }
+  .tide-vessel--rising .tide-ladder-tick.is-reached::after { background: var(--tide-neon); box-shadow: 0 0 8px rgba(94,255,176,0.55); }
+  .tide-vessel--rising .tide-ladder-tick.is-reached .tide-ladder-num { color: #9FD8B0; }
+  .tide-vessel--falling .tide-ladder-tick.is-reached::after { background: #F4B79F; box-shadow: 0 0 8px rgba(244,183,159,0.45); }
+  .tide-vessel--falling .tide-ladder-tick.is-reached .tide-ladder-num { color: #F4B79F; }
+  .tide-vessel--flat .tide-ladder-tick.is-reached::after { background: var(--tide-cream); box-shadow: 0 0 6px rgba(245,241,235,0.25); }
+  /* Direction glyph on the highest reached tick — answers "which way is
+     the water moving past this line?" at a glance. */
+  .tide-ladder-tick.is-current .tide-ladder-arrow { display: inline-block; }
+  .tide-ladder-arrow { display: none; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700; line-height: 1; margin-right: 2px; }
+  .tide-vessel--rising  .tide-ladder-arrow { color: #9FD8B0; }
+  .tide-vessel--falling .tide-ladder-arrow { color: #F4B79F; }
+  .tide-vessel--flat    .tide-ladder-arrow { color: rgba(245,241,235,0.55); }
   /* Headline number — now "X%" + small "Y of Z shops" subtitle. */
   .tide-score-num { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 42px; line-height: 1; color: var(--tide-cream); }
   .tide-score-unit { display: block; font-family: 'Inter', sans-serif; font-size: 11px; color: rgba(245,241,235,0.55); letter-spacing: 0.04em; margin-top: 5px; white-space: nowrap; }
@@ -299,7 +326,10 @@
      stage ladder it used to share space with was removed; that
      information lives on the history chart now. */
   .tide-vessel.has-verdict .tide-vessel-headline { display: none; }
-  .tide-vessel.has-verdict .tide-vessel-verdict { right: 22px; }
+  /* Leave room on the right for the tide ladder (92px wide). The fact line
+     can wrap to two lines on narrow viewports — that's fine, the verdict
+     word is the loud element and stays one line. */
+  .tide-vessel.has-verdict .tide-vessel-verdict { right: 96px; }
 
   /* ── Auth modal: email-preview card on signup step ────────────── */
   .auth-email-preview { background: var(--leaf-lt); border: 1px solid rgba(61,107,53,0.18); border-radius: 12px; padding: 14px 16px; margin: 14px 0 18px; }
@@ -2909,16 +2939,41 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
   // Stage delineations (PEAK / RISING / EARLY / LOW) and the "TIDE FALLING"
   // arrow used to live on the vessel. They've been moved onto the history
   // chart as horizontal bands so the chart timeline shows where the centre
-  // sat in each phase. The vessel itself now only carries the percentage
-  // signal as the tide mark — verdict, brand count, day-on-day delta,
-  // wave + water level. Cleaner read at a glance.
-  void trajectory;
+  // sat in each phase. The vessel itself now carries the percentage signal
+  // as the tide mark plus a labelled ladder on the right wall (see below).
 
-  return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + '" style="--tide-level:' + pct + '%">'
+  // Tide-line ladder on the right wall. Ticks anchored to the verdict
+  // thresholds so the scale doubles as a legend. Labels use the *neutral*
+  // verdict word for each band (no trajectory variants — those would shift
+  // the scale's meaning between centres). Trajectory is conveyed by the
+  // colour of the lit ticks (.tide-vessel--rising / --falling / --flat),
+  // so a "Go now" tick lit warm-amber on a falling tide reads as "tide
+  // has receded past this line" instead of "still here, jump in".
+  const traj = trajectory === 'RISING' ? 'rising'
+             : trajectory === 'FALLING' ? 'falling'
+             : 'flat';
+  const dirArrow = traj === 'rising' ? '&uarr;' : traj === 'falling' ? '&darr;' : '&middot;';
+  const LADDER = [
+    { level: 60, label: 'Go now'  },
+    { level: 40, label: 'Worth it' },
+    { level: 25, label: 'Early'   },
+  ];
+  const reachedIdx = LADDER.findIndex(t => pct >= t.level); // highest tick the wave has reached
+  const ladderHTML = LADDER.map((t, i) => {
+    const cls = (pct >= t.level ? ' is-reached' : '') + (i === reachedIdx ? ' is-current' : '');
+    return '<div class="tide-ladder-tick' + cls + '" style="bottom:' + t.level + '%">'
+         +   '<span class="tide-ladder-arrow">' + dirArrow + '</span>'
+         +   '<span class="tide-ladder-label">' + t.label + '</span>'
+         +   '<span class="tide-ladder-num">' + t.level + '%</span>'
+         + '</div>';
+  }).join('');
+
+  return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + ' tide-vessel--' + traj + '" style="--tide-level:' + pct + '%">'
        +   '<div class="tide-vessel-verdict">'
        +     '<div class="tide-vessel-verdict-word tone-' + verdict.tone + '">' + verdict.word + '</div>'
        +     '<div class="tide-vessel-fact">' + factText + changeHTML + '</div>'
        +   '</div>'
+       +   '<div class="tide-ladder" aria-hidden="true">' + ladderHTML + '</div>'
        +   '<div class="tide-water">'
        +     '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
        +       '<path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(94,255,176,0.55)"/>'

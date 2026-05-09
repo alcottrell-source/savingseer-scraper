@@ -162,12 +162,14 @@
   .tide-vessel--falling .tide-ladder-tick.is-reached .tide-ladder-num { color: #F4B79F; }
   .tide-vessel--flat .tide-ladder-tick.is-reached::after { background: var(--tide-cream); box-shadow: 0 0 6px rgba(245,241,235,0.25); }
 
-  /* Direction chevron — small, top-right, brand neon green. Shape
-     carries direction (▲ rising / ▼ falling / ➞ steady), colour
-     stays the same so it reads as part of the brand identity, not
-     a traffic-light. Trend pill underneath says it in plain English. */
-  .tide-vessel-direction-bg { position: absolute; top: 14px; right: 14px; font-size: 32px; line-height: 1; font-weight: 900; color: var(--tide-neon); text-shadow: 0 0 14px rgba(94,255,176,0.60); z-index: 7; pointer-events: none; user-select: none; }
-  .tide-vessel--flat .tide-vessel-direction-bg { font-size: 24px; opacity: 0.75; }
+  /* Direction chevron — small, top-right. Shape carries direction
+     (▲ rising / ▼ falling / ➞ steady); colour reinforces it: brand
+     neon green when rising or steady, warm amber when falling so a
+     ▼ reads unambiguously as "tide receding". */
+  .tide-vessel-direction-bg { position: absolute; top: 14px; right: 14px; font-size: 32px; line-height: 1; font-weight: 900; z-index: 7; pointer-events: none; user-select: none; }
+  .tide-vessel--rising  .tide-vessel-direction-bg { color: var(--tide-neon); text-shadow: 0 0 14px rgba(94,255,176,0.60); }
+  .tide-vessel--falling .tide-vessel-direction-bg { color: #F4B79F;          text-shadow: 0 0 14px rgba(244,183,159,0.55); }
+  .tide-vessel--flat    .tide-vessel-direction-bg { color: var(--tide-neon); text-shadow: 0 0 12px rgba(94,255,176,0.45); font-size: 24px; opacity: 0.75; }
 
   /* Plain-English trend pill — sits under the brand-count fact line.
      Says exactly what's happening with sales, in words. Coloured pill

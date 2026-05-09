@@ -138,10 +138,9 @@
   .tide-vessel-hero-label { display: block; font-family: 'Inter', sans-serif; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(245,241,235,0.45); margin-bottom: 8px; }
   /* Subtle right-wall tide-level marks at 25/50/75 — labels are in
      "% of shops" terms so the scale lines up with the headline %. */
-  .tide-vessel-marks { position: absolute; right: 14px; top: 0; bottom: 0; z-index: 4; pointer-events: none; }
-  .tide-vessel-mark { position: absolute; right: 0; display: flex; align-items: center; gap: 6px; transform: translateY(-50%); }
-  .tide-vessel-mark-line { width: 14px; height: 1px; background: rgba(245,241,235,0.18); }
-  .tide-vessel-mark-label { font-family: 'Inter', sans-serif; font-size: 9px; color: rgba(245,241,235,0.30); letter-spacing: 0.04em; }
+  /* Vessel ladder + tideline strip have been retired — those delineations
+     now live on the history chart as horizontal bands. The CSS rules are
+     kept removed so an accidental re-add of the markup paints nothing. */
   /* Headline number — now "X%" + small "Y of Z shops" subtitle. */
   .tide-score-num { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 42px; line-height: 1; color: var(--tide-cream); }
   .tide-score-unit { display: block; font-family: 'Inter', sans-serif; font-size: 11px; color: rgba(245,241,235,0.55); letter-spacing: 0.04em; margin-top: 5px; white-space: nowrap; }
@@ -285,8 +284,7 @@
   .tide-vessel-fact-change.is-up   { color: #9FD8B0; }
   .tide-vessel-fact-change.is-down { color: #F4B79F; }
   .tide-vessel-fact-change.is-flat { color: rgba(245,241,235,0.55); }
-  .tide-vessel-tideline { position: absolute; left: 22px; right: 22px; bottom: 12px; z-index: 6; font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; color: rgba(245,241,235,0.62); display: flex; align-items: center; gap: 6px; }
-  .tide-vessel-tideline-arrow { display: inline-flex; }
+  /* .tide-vessel-tideline retired — moved onto the chart. */
   /* Verdict tints — additive radial overlays so the dark vessel still
      reads as a "tide" but the colour signals action at a glance. */
   .tide-vessel.verdict-go   { background: linear-gradient(135deg, #2a2017 0%, #1A1612 60%); }
@@ -297,17 +295,11 @@
   .tide-vessel.verdict-fall::before { background: radial-gradient(ellipse at 25% 105%, rgba(232,152,130,0.30) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(232,152,130,0.10) 0%, transparent 50%); }
   .tide-vessel.verdict-wait { background: linear-gradient(135deg, #1d1a17 0%, #1A1612 60%); }
   .tide-vessel.verdict-wait::before { background: radial-gradient(ellipse at 50% 105%, rgba(140,128,112,0.25) 0%, transparent 60%); }
-  /* Hide legacy headline structure when the new verdict block is in use,
-     but keep the marks — they're now an active tide-gauge ladder so the
-     wave height reads as a stage (LOW / EARLY / RISING / PEAK), not just
-     a coloured strip. */
+  /* The verdict block now spans the vessel full-width — the right-side
+     stage ladder it used to share space with was removed; that
+     information lives on the history chart now. */
   .tide-vessel.has-verdict .tide-vessel-headline { display: none; }
-  .tide-vessel.has-verdict .tide-vessel-verdict { right: 78px; }
-  .tide-vessel.has-verdict .tide-vessel-mark-line { width: 12px; transition: width 0.2s, background 0.2s; }
-  .tide-vessel.has-verdict .tide-vessel-mark-label { font-size: 8px; letter-spacing: 0.10em; transition: color 0.2s, opacity 0.2s; }
-  .tide-vessel.has-verdict .tide-vessel-mark:not(.is-active) .tide-vessel-mark-label { opacity: 0.55; }
-  .tide-vessel.has-verdict .tide-vessel-mark.is-active .tide-vessel-mark-line { width: 16px; height: 1.5px; background: var(--tide-neon); box-shadow: 0 0 6px rgba(94,255,176,0.55); }
-  .tide-vessel.has-verdict .tide-vessel-mark.is-active .tide-vessel-mark-label { color: var(--tide-neon); font-weight: 600; opacity: 1; }
+  .tide-vessel.has-verdict .tide-vessel-verdict { right: 22px; }
 
   /* ── Auth modal: email-preview card on signup step ────────────── */
   .auth-email-preview { background: var(--leaf-lt); border: 1px solid rgba(61,107,53,0.18); border-radius: 12px; padding: 14px 16px; margin: 14px 0 18px; }
@@ -2914,46 +2906,19 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
     changeHTML = '<span class="tide-vessel-fact-change ' + cls + '">' + text + '</span>';
   }
 
-  const tideArrow = trajectory === 'RISING' ? '↑' : trajectory === 'FALLING' ? '↓' : '';
-  const tideWord  = trajectory === 'RISING' ? 'Tide rising'
-                  : trajectory === 'FALLING' ? 'Tide falling'
-                  : 'Tide steady';
-  const tideLine = '<div class="tide-vessel-tideline"><span>' + tideWord + '</span>'
-                 + (tideArrow ? '<span class="tide-vessel-tideline-arrow">' + tideArrow + '</span>' : '')
-                 + '</div>';
-
-  // Tide-gauge marks down the right edge. Each mark is a fixed level on
-  // the ladder; the active mark is the one the wave height currently
-  // sits in. Banding mirrors the verdict bands (LOW <25, EARLY 25–50,
-  // RISING 50–75, PEAK 75+) so the highlighted mark agrees with the
-  // verdict word at the top of the vessel.
-  const activeMark = pct >= 75 ? 'peak' : pct >= 50 ? 'rising' : pct >= 25 ? 'early' : 'low';
-  // Falling tide reuses the ladder bands but with falling-cycle vocabulary:
-  // RISING → FADING, EARLY → ENDING, LOW → QUIET. Peak is the apex either
-  // way. FLAT keeps the default rising vocabulary.
-  const fallingLadder = trajectory === 'FALLING';
-  const lblRising = fallingLadder ? 'FADING' : 'RISING';
-  const lblEarly  = fallingLadder ? 'ENDING' : 'EARLY';
-  const lblLow    = fallingLadder ? 'QUIET'  : 'LOW';
-  const mk = (m, top, label) =>
-    '<div class="tide-vessel-mark' + (activeMark === m ? ' is-active' : '') + '" style="top:' + top + '%">'
-    + '<span class="tide-vessel-mark-line"></span>'
-    + '<span class="tide-vessel-mark-label">' + label + '</span>'
-    + '</div>';
-  const marksHTML = '<div class="tide-vessel-marks" aria-hidden="true">'
-    + mk('peak',   14, 'PEAK')
-    + mk('rising', 38, lblRising)
-    + mk('early',  62, lblEarly)
-    + mk('low',    86, lblLow)
-    + '</div>';
+  // Stage delineations (PEAK / RISING / EARLY / LOW) and the "TIDE FALLING"
+  // arrow used to live on the vessel. They've been moved onto the history
+  // chart as horizontal bands so the chart timeline shows where the centre
+  // sat in each phase. The vessel itself now only carries the percentage
+  // signal as the tide mark — verdict, brand count, day-on-day delta,
+  // wave + water level. Cleaner read at a glance.
+  void trajectory;
 
   return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + '" style="--tide-level:' + pct + '%">'
        +   '<div class="tide-vessel-verdict">'
        +     '<div class="tide-vessel-verdict-word tone-' + verdict.tone + '">' + verdict.word + '</div>'
        +     '<div class="tide-vessel-fact">' + factText + changeHTML + '</div>'
        +   '</div>'
-       +   marksHTML
-       +   tideLine
        +   '<div class="tide-water">'
        +     '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
        +       '<path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(94,255,176,0.55)"/>'
@@ -3074,7 +3039,35 @@ function renderHistoryChart(history, color, trajectory=null) {
   const trajColor=traj==='RISING'?NEON:traj==='FALLING'?'#F4B79F':'rgba(245,241,235,0.62)';
   const trajArrow=traj==='RISING'?'\u2191':traj==='FALLING'?'\u2193':'\u2192';
   const trajText=traj==='RISING'?'Rising':traj==='FALLING'?'Falling':'Flat';
-  const gridLines=[25,50,75].map(pct=>{const gy=+(PT+(1-pct/100)*H).toFixed(1);return '<line x1="'+PL+'" y1="'+gy+'" x2="'+(PL+W)+'" y2="'+gy+'" stroke="rgba(245,241,235,0.07)" stroke-width="0.5"/>';}).join('');
+  const gridLines=[25,50,75].map(pct=>{const gy=+(PT+(1-pct/100)*H).toFixed(1);return '<line x1="'+PL+'" y1="'+gy+'" x2="'+(PL+W)+'" y2="'+gy+'" stroke="rgba(245,241,235,0.10)" stroke-width="0.5" stroke-dasharray="2 3"/>';}).join('');
+  // Stage delineations — 4 horizontal bands matching the score thresholds
+  // (25/50/75) that used to drive the right-side ladder on the vessel.
+  // The line crossing into a band tells you which phase the centre was in
+  // on that day. Vocabulary flips when the centre is currently FALLING so
+  // the labels read as a descending cycle (RISING→FADING, EARLY→ENDING,
+  // LOW→QUIET). Climbing/flat keeps the default ascending labels.
+  const isFalling=(traj||'').toUpperCase()==='FALLING';
+  const stageBands=[
+    { from:75, to:100, label:'PEAK',                            fillTop:'rgba(255,200,120,0.10)', fillBot:'rgba(255,200,120,0.04)', textColor:'rgba(255,200,120,0.70)' },
+    { from:50, to:75,  label: isFalling ? 'FADING' : 'RISING',  fillTop:'rgba(120,210,150,0.06)', fillBot:'rgba(120,210,150,0.02)', textColor:'rgba(120,210,150,0.60)' },
+    { from:25, to:50,  label: isFalling ? 'ENDING' : 'EARLY',   fillTop:'rgba(245,241,235,0.04)', fillBot:'rgba(245,241,235,0.015)', textColor:'rgba(245,241,235,0.45)' },
+    { from:0,  to:25,  label: isFalling ? 'QUIET'  : 'LOW',     fillTop:'rgba(245,241,235,0.025)', fillBot:'rgba(245,241,235,0.005)', textColor:'rgba(245,241,235,0.35)' },
+  ];
+  const yOf=score=>+(PT+(1-score/100)*H).toFixed(2);
+  const stageGradients=stageBands.map((b,i)=>(
+    '<linearGradient id="sb'+i+'" x1="0" y1="0" x2="0" y2="1">'
+      +'<stop offset="0%" stop-color="'+b.fillTop+'"/>'
+      +'<stop offset="100%" stop-color="'+b.fillBot+'"/>'
+    +'</linearGradient>'
+  )).join('');
+  const stageRects=stageBands.map((b,i)=>{
+    const y0=yOf(b.to), y1=yOf(b.from);
+    return '<rect x="'+PL+'" y="'+y0+'" width="'+W+'" height="'+(y1-y0).toFixed(2)+'" fill="url(#sb'+i+')"/>';
+  }).join('');
+  const stageLabels=stageBands.map(b=>{
+    const yMid=(yOf(b.to)+yOf(b.from))/2;
+    return '<text x="'+(PL+W-4)+'" y="'+(yMid+3).toFixed(1)+'" text-anchor="end" font-family="Inter,sans-serif" font-size="8" font-weight="700" letter-spacing="0.12em" fill="'+b.textColor+'">'+b.label+'</text>';
+  }).join('');
   const midIdx=Math.round((n-1)/2);
   const daysBack=idx=>n-1-idx;
   const xLabels=[[0,'start'],[midIdx,'middle'],[n-1,'end']].map(([idx,pos])=>{
@@ -3085,7 +3078,7 @@ function renderHistoryChart(history, color, trajectory=null) {
   // Glow filter for the neon line + today dot. stdDeviation 1.6 is
   // enough to feel "lit" without bleeding into the gridlines.
   const filterDef='<filter id="hgGlow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
-  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+NEON+'" stop-opacity="0.22"/><stop offset="100%" stop-color="'+NEON+'" stop-opacity="0"/></linearGradient>'+filterDef+'</defs>'+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+NEON+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" filter="url(#hgGlow)"/><text x="'+lx+'" y="'+(ly-11).toFixed(1)+'" text-anchor="middle" font-family="Inter,sans-serif" font-size="9.5" fill="'+NEON+'" font-weight="600">today</text><circle cx="'+lx+'" cy="'+ly+'" r="9" fill="'+NEON+'" opacity="0.18"/><circle cx="'+lx+'" cy="'+ly+'" r="3.6" fill="'+NEON+'" filter="url(#hgGlow)"/>'+xLabels+'</svg></div></div>';
+  return '<div class="history-section" id="history-section"><div class="section-heading">Tide over '+n+' days <span style="text-transform:none;letter-spacing:0;font-weight:500;color:'+trajColor+'">'+trajArrow+' '+trajText+'</span></div><div class="history-card"><svg viewBox="0 0 '+(W+PL+8)+' '+(H+PT+PB)+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+NEON+'" stop-opacity="0.22"/><stop offset="100%" stop-color="'+NEON+'" stop-opacity="0"/></linearGradient>'+stageGradients+filterDef+'</defs>'+stageRects+gridLines+'<path d="'+areaD+'" fill="url(#hg)"/><path d="'+lineD+'" fill="none" stroke="'+NEON+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" filter="url(#hgGlow)"/>'+stageLabels+'<text x="'+lx+'" y="'+(ly-11).toFixed(1)+'" text-anchor="middle" font-family="Inter,sans-serif" font-size="9.5" fill="'+NEON+'" font-weight="600">today</text><circle cx="'+lx+'" cy="'+ly+'" r="9" fill="'+NEON+'" opacity="0.18"/><circle cx="'+lx+'" cy="'+ly+'" r="3.6" fill="'+NEON+'" filter="url(#hgGlow)"/>'+xLabels+'</svg></div></div>';
 }
 
 function urlToDomain(url) {

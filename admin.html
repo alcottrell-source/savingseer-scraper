@@ -606,6 +606,7 @@ async function handleAction(card, btn) {
   setRowBusy(card, true);
   try {
     await applyAction(brandId, action, {});
+    triggerRescore();
     toast(prettyAction(action) + ' · ' + def.name);
     await loadAndRender();
   } catch (err) {
@@ -666,6 +667,7 @@ function openStartForm(card, brandId, def) {
         max_discount_pct: pct ? parseInt(pct, 10) : null,
         sale_type: saleType,
       });
+      triggerRescore();
       toast('Sale cycle saved · ' + def.name);
       await loadAndRender();
     } catch (err) {
@@ -706,6 +708,7 @@ function openEditForm(card, brandId, def) {
         max_discount_pct: pct ? parseInt(pct, 10) : null,
         sale_type: saleType,
       });
+      triggerRescore();
       toast('Updated · ' + def.name);
       await loadAndRender();
     } catch (err) {
@@ -717,6 +720,20 @@ function openEditForm(card, brandId, def) {
 
 // ── Mutations ─────────────────────────────────────────────────────────────
 // Each action does (1) the cycle/event mutation, then (2) the review log row.
+// Fire-and-forget the public-site rescore so the score / vessel / chart on
+// tidego.co reflects the admin edit within a couple of seconds — no waiting
+// for the 08:00 UTC cron. Carry-forward in score.js means only the centres
+// containing this brand actually recompute; everything else mirrors yesterday.
+function triggerRescore() {
+  fetch('/api/rescore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  }).then(async r => {
+    if (!r.ok) console.warn('Rescore returned HTTP', r.status, await r.text().catch(() => ''));
+  }).catch(err => console.warn('Rescore call failed:', err));
+}
+
 async function applyAction(brandId, action, opts) {
   if (action === 'confirm_start') {
     const { data: cycleRows, error: cErr } = await pg.insert('brand_sale_cycles', {

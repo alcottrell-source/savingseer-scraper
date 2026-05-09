@@ -1,19 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 import { brands } from './brands.js';
 
-const SUPABASE_URL  = process.env.SUPABASE_URL;
-const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_KEY;
-const TODAY          = new Date().toISOString().split('T')[0];
-const THREE_DAYS_AGO = new Date(Date.now() - 3  * 86400000).toISOString().split('T')[0];
-const SIXTY_DAYS_AGO = new Date(Date.now() - 60 * 86400000).toISOString().split('T')[0];
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars');
-  process.exit(1);
+const brandNameLookup = Object.fromEntries(brands.map(b => [b.id, b.name]));
+
+// Lazy supabase client — module is imported by /api/rescore.js (Vercel
+// function) as well as run via `node score.js`, so we don't want a
+// missing env var to crash on import in the wrong context.
+let _supabase = null;
+function getSupabase() {
+  if (_supabase) return _supabase;
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars');
+  }
+  _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  return _supabase;
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-const brandNameLookup = Object.fromEntries(brands.map(b => [b.id, b.name]));
+function dateStr(offsetDays = 0) {
+  return new Date(Date.now() + offsetDays * 86400000).toISOString().split('T')[0];
+}
 
 // ── Tunable parameters (spec v2.0 §8) ────────────────────────────────────────
 const DECAY_MAX            = 42;   // Review after 30 days of real scrape data
@@ -133,12 +141,21 @@ function getTrajectory(todayScore, recentScores, yesterdayTrajectory) {
   return 'FLAT';
 }
 
-async function calculateAllCentreScores() {
+async function calculateAllCentreScores(opts = {}) {
+  const supabase = getSupabase();
+  const TODAY          = opts.today || dateStr(0);
+  const YESTERDAY      = dateStr(-1);
+  const THREE_DAYS_AGO = dateStr(-3);
+  const SIXTY_DAYS_AGO = dateStr(-60);
+  const filterCentreIds = Array.isArray(opts.filterCentreIds) && opts.filterCentreIds.length
+    ? new Set(opts.filterCentreIds)
+    : null;
+
   console.log('═══════════════════════════════════════════════');
-  console.log(`  Tide Scorer — ${TODAY}`);
+  console.log(`  Tide Scorer — ${TODAY}${filterCentreIds ? ` (centres: ${[...filterCentreIds].join(', ')})` : ''}`);
   console.log('═══════════════════════════════════════════════');
 
-  const [centresRes, centreBrandsRes, brandSaleRes, recentScoresRes] = await Promise.all([
+  const [centresRes, centreBrandsRes, brandSaleRes, recentScoresRes, yesterdayRowsRes] = await Promise.all([
     supabase.from('centres').select('*').eq('active', true),
     supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
     supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)'),
@@ -147,12 +164,19 @@ async function calculateAllCentreScores() {
       .gte('score_date', THREE_DAYS_AGO)
       .lt('score_date', TODAY)
       .order('score_date', { ascending: false }),
+    // Yesterday's full row per centre — used to carry-forward when no
+    // brand for the centre has been verified today (admin hasn't acted).
+    supabase.from('centre_seer_scores')
+      .select('centre_id, tide_score, phase, verdict, bluf, trajectory, brands_on_sale, total_brands, top_brands, avg_discount_pct')
+      .eq('score_date', YESTERDAY),
   ]);
 
   if (centresRes.error || centreBrandsRes.error || brandSaleRes.error) {
     console.error('Data load failed:', centresRes.error || centreBrandsRes.error || brandSaleRes.error);
-    process.exit(1);
+    throw new Error('Data load failed');
   }
+
+  const yesterdayRowMap = new Map((yesterdayRowsRes.data || []).map(r => [r.centre_id, r]));
 
   const brandSaleMap = new Map(brandSaleRes.data.map(b => [b.brand_id, b]));
 
@@ -182,14 +206,49 @@ async function calculateAllCentreScores() {
   }
 
   const scoreRows = [];
+  let carriedForward = 0;
 
   for (const centre of centresRes.data) {
+    if (filterCentreIds && !filterCentreIds.has(centre.id)) continue;
     const brandIds = centreBrandMap.get(centre.id) || [];
     const totalBrands = brandIds.length;
 
     if (totalBrands === 0) {
       console.log(`  ⚠ ${centre.name}: no brands configured, skipping`);
       continue;
+    }
+
+    // Carry-forward: if no brand at this centre has been verified today,
+    // the admin hasn't acted on this centre yet. Don't recompute (which
+    // would only show freshness decay relative to yesterday); copy
+    // yesterday's row forward so the centre's public numbers stay
+    // exactly as the admin last left them.
+    const adminTouchedToday = brandIds.some(bid => {
+      const sale = brandSaleMap.get(bid);
+      return sale && sale.last_verified_date === TODAY;
+    });
+    if (!adminTouchedToday) {
+      const ystrdy = yesterdayRowMap.get(centre.id);
+      if (ystrdy) {
+        scoreRows.push({
+          centre_id: centre.id,
+          score_date: TODAY,
+          tide_score: ystrdy.tide_score,
+          phase: ystrdy.phase,
+          verdict: ystrdy.verdict,
+          bluf: ystrdy.bluf,
+          trajectory: ystrdy.trajectory,
+          brands_on_sale: ystrdy.brands_on_sale,
+          total_brands: ystrdy.total_brands,
+          top_brands: ystrdy.top_brands,
+          avg_discount_pct: ystrdy.avg_discount_pct,
+        });
+        carriedForward++;
+        console.log(`  ⏸ ${centre.name}: no admin activity today — carried yesterday's row forward`);
+        continue;
+      }
+      // No yesterday row to copy from — fall through to a fresh compute
+      // (e.g. brand-new centre, or first run after a gap).
     }
 
     let totalFreshness = 0;
@@ -272,7 +331,7 @@ async function calculateAllCentreScores() {
     console.log(`  ${icons[stage] ?? '?'} ${centre.name}: ${stage} (${tideScore}) | ${brandsOnSale}/${totalBrands} brands | ${trajectory}`);
   }
 
-  console.log('\nWriting scores...');
+  console.log(`\nWriting scores... (${scoreRows.length - carriedForward} fresh, ${carriedForward} carried forward)`);
 
   const { error } = await supabase
     .from('centre_seer_scores')
@@ -280,7 +339,7 @@ async function calculateAllCentreScores() {
 
   if (error) {
     console.error('Score write error:', error);
-    process.exit(1);
+    throw new Error(`Score write failed: ${error.message}`);
   }
 
   console.log(`  ✓ ${scoreRows.length} centre scores written`);
@@ -348,7 +407,9 @@ function brandMatchesPrefs(brand, prefs) {
   return true;
 }
 
-async function calculatePersonalScores() {
+async function calculatePersonalScores(opts = {}) {
+  const supabase = getSupabase();
+  const TODAY = opts.today || dateStr(0);
   console.log('\nCalculating personal scores...');
 
   const [centresRes, centreBrandsRes, brandSaleRes, prefsRes] = await Promise.all([
@@ -451,18 +512,29 @@ async function calculatePersonalScores() {
   console.log(`  ✓ ${scoreRows.length} personal scores written for ${prefsRes.data.length} user(s)`);
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────────
-
-async function main() {
-  await calculateAllCentreScores();
+// ── Public entry point ─────────────────────────────────────────────────────────
+// Used by the daily cron (`node score.js`) and by /api/rescore.js when the
+// admin saves an edit. `filterCentreIds` lets the API endpoint recompute
+// just the touched centre instead of all 30.
+export async function runScoring(opts = {}) {
+  await calculateAllCentreScores(opts);
   try {
-    await calculatePersonalScores();
+    await calculatePersonalScores(opts);
   } catch (err) {
     console.error('⚠ Personal scores failed (centre scores unaffected):', err.message);
   }
 }
 
-main().catch(err => {
-  console.error('❌ Scorer failed:', err);
-  process.exit(1);
-});
+// CLI entry — only fires when this file is invoked directly via
+// `node score.js`, not when imported as a module by /api/rescore.js.
+const isCli = (() => {
+  try {
+    return import.meta.url === `file://${process.argv[1]}`;
+  } catch { return false; }
+})();
+if (isCli) {
+  runScoring().catch(err => {
+    console.error('❌ Scorer failed:', err);
+    process.exit(1);
+  });
+}

@@ -52,5 +52,15 @@ Key tables:
 - `user_preferences` — one row per user, RLS enforced.
 - `centre_seer_scores` — per-centre, per-day Tide Score + verdict + `narrative` (anon read enabled).
 
+## Instant rescore (May 2026)
+
+`/api/rescore.js` is a Vercel serverless function that wraps `runScoring()` from `score.js`. The admin panel (`admin.html`) fires a fire-and-forget POST to it after every successful `applyAction` / `applyEdit`, so the public site reflects admin edits within a couple of seconds without waiting for the 08:00 UTC cron. Carry-forward in `score.js` (if no brand at the centre has `last_verified_date == today`, copy yesterday's row) keeps the rescore cheap and prevents tide_score freshness-decay drift on centres the admin hasn't touched today.
+
+**Required Vercel env vars** (Project Settings → Environment Variables — mirror the GitHub Actions secrets):
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_KEY`
+
+`score.js` is now safe to import as a module — env-var checks and the supabase client are lazy, and the CLI entry is guarded by an `import.meta.url === file://…argv[1]` check so daily-cron behaviour is unchanged.
+
 ## Deployment
 Vercel, output directory is `.` (repo root). No build command. Preview deployments available per branch.

@@ -2885,7 +2885,7 @@ function deriveVerdict(ctx) {
 // Hero card. Hierarchy is verdict (loudest) → sales fact (bold) → small tide
 // line at the bottom. The wave + water-level visual is decorative — tide is
 // brand flavour, not the message itself.
-function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, onSaleCount, totalCount, serverVerdict) {
+function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, onSaleCount, totalCount, serverVerdict) {
   const pct = Math.max(0, Math.min(100, +pctOnSale || 0));
   void statement;
   const verdict = deriveVerdict({
@@ -2901,12 +2901,16 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, pctChange, on
   const factText = hasCount ? (onSaleCount + ' of ' + totalCount + ' brands on sale')
                             : (pct + '% of brands on sale');
 
+  // Day-on-day change reads as a brand-count delta to match the "X of Y
+  // brands on sale" line above. % change of the underlying tide_score was
+  // misleading — it moves on freshness decay even with no admin action.
   let changeHTML = '';
-  if (pctChange !== null && pctChange !== undefined && Number.isFinite(pctChange)) {
+  if (Number.isFinite(brandsDelta)) {
     let cls, text;
-    if (pctChange > 0)      { cls = 'is-up';   text = '↑ ' + pctChange + '% since yesterday'; }
-    else if (pctChange < 0) { cls = 'is-down'; text = '↓ ' + Math.abs(pctChange) + '% since yesterday'; }
-    else                    { cls = 'is-flat'; text = 'Steady since yesterday'; }
+    const noun = Math.abs(brandsDelta) === 1 ? 'brand' : 'brands';
+    if (brandsDelta > 0)      { cls = 'is-up';   text = '↑ ' + brandsDelta + ' ' + noun + ' since yesterday'; }
+    else if (brandsDelta < 0) { cls = 'is-down'; text = '↓ ' + Math.abs(brandsDelta) + ' ' + noun + ' since yesterday'; }
+    else                      { cls = 'is-flat'; text = 'Steady since yesterday'; }
     changeHTML = '<span class="tide-vessel-fact-change ' + cls + '">' + text + '</span>';
   }
 
@@ -3233,9 +3237,14 @@ function getHotCentres(n, excludeIds) {
     if (!s || !Number.isFinite(+s.tide_score) || +s.tide_score <= 0) continue;
     const history = getServerHistory(idx) || [];
     const today = new Date().toISOString().split('T')[0];
-    const past = history.filter(h => h && h.date && h.date < today && Number.isFinite(+h.score) && +h.score > 0);
-    const lastPast = past[past.length - 1];
-    const pctChange = lastPast ? Math.round(((+s.tide_score - +lastPast.score) / +lastPast.score) * 100) : null;
+    // Brand-count delta vs the most recent historical day that has a
+    // brands_on_sale snapshot (added to tide_history by score.js). Older
+    // rows only have { date, score } so we skip them.
+    const pastWithBrands = history.filter(h => h && h.date && h.date < today && Number.isFinite(+h.brands_on_sale));
+    const lastPastBrands = pastWithBrands[pastWithBrands.length - 1];
+    const brandsDelta = (lastPastBrands && Number.isFinite(+s.brands_on_sale))
+      ? +s.brands_on_sale - +lastPastBrands.brands_on_sale
+      : null;
     const stage = deriveStageFromVerdict(s.verdict) || getTideStage(+s.tide_score, s.trajectory || 'FLAT');
     const verdict = deriveVerdict({
       serverVerdict: s.verdict,
@@ -3254,7 +3263,7 @@ function getHotCentres(n, excludeIds) {
       totalBrands:  Number.isFinite(+s.total_brands)  ? +s.total_brands  : null,
       trajectory: s.trajectory || 'FLAT',
       verdict,
-      pctChange,
+      brandsDelta,
     });
   }
   ranked.sort((a, b) => b.tideScore - a.tideScore);
@@ -3274,11 +3283,11 @@ function renderHotCentres(opts) {
   const rows = hot.map((h, i) => {
     const safeName = h.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     let changeHTML = '';
-    if (h.pctChange !== null && Number.isFinite(h.pctChange)) {
+    if (Number.isFinite(h.brandsDelta)) {
       let cls, text;
-      if (h.pctChange > 0)      { cls = 'is-up';   text = '↑ ' + h.pctChange + '%'; }
-      else if (h.pctChange < 0) { cls = 'is-down'; text = '↓ ' + Math.abs(h.pctChange) + '%'; }
-      else                      { cls = 'is-flat'; text = 'Steady'; }
+      if (h.brandsDelta > 0)      { cls = 'is-up';   text = '↑ ' + h.brandsDelta; }
+      else if (h.brandsDelta < 0) { cls = 'is-down'; text = '↓ ' + Math.abs(h.brandsDelta); }
+      else                        { cls = 'is-flat'; text = 'Steady'; }
       changeHTML = '<span class="hot-centre-row-change ' + cls + '">' + text + '</span>';
     }
     return '<button class="hot-centre-row" onclick="goToCentre(\''+h.cid+'\')" aria-label="'+safeName+', '+h.verdict.word+'">'
@@ -3593,7 +3602,7 @@ async function renderCentre(centreId) {
     +     '<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div></div>'
     +   '</div>'
     +   (() => {
-          // Vessel headline is consumer-friendly "% of shops on sale" — the
+          // Vessel headline is consumer-friendly "X of Y brands on sale" — the
           // internal Tide Score (0-100 quality signal) still drives the
           // verdict / trajectory / bluf above, but isn't surfaced as a
           // bare number. Prefer the server's brands_on_sale / total_brands
@@ -3602,18 +3611,21 @@ async function renderCentre(centreId) {
           const onSaleN = (sScore && sScore.brands_on_sale != null) ? sScore.brands_on_sale : onSale.length;
           const totalN  = (sScore && sScore.total_brands != null) ? sScore.total_brands : (typeof totalAtCentre !== 'undefined' ? totalAtCentre : 0);
           const pctOnSale = totalN > 0 ? Math.round((onSaleN / totalN) * 100) : 0;
-          // % change vs the most recent past score in history. Until we
-          // have a per-day brands_on_sale history, this still uses the
-          // tide_score change (closely tracks direction even if the
-          // magnitude is on a different metric).
-          let pctChange = null;
-          if (history.length) {
+          // Day-on-day change. The number sitting next to it is "X of Y
+          // brands on sale", so the change has to be the brand-count delta —
+          // not the tide_score % change, which moves on freshness decay even
+          // when the admin hasn't touched anything.
+          //
+          // tide_history rows are widened to include brands_on_sale by
+          // score.js; older rows only have { date, score } so we skip them.
+          let brandsDelta = null;
+          if (Number.isFinite(+onSaleN) && history.length) {
             const todayDate = new Date().toISOString().split('T')[0];
-            const past = history.filter(h => h && h.date && h.date < todayDate && Number.isFinite(+h.score) && +h.score > 0);
+            const past = history.filter(h => h && h.date && h.date < todayDate && Number.isFinite(+h.brands_on_sale));
             const lastPast = past[past.length - 1];
-            if (lastPast) pctChange = Math.round(((centreScore - lastPast.score) / lastPast.score) * 100);
+            if (lastPast) brandsDelta = +onSaleN - +lastPast.brands_on_sale;
           }
-          return renderTideVessel(pctOnSale, stage, style.statement, trajectory, pctChange, onSaleN, totalN, sScore && sScore.verdict);
+          return renderTideVessel(pctOnSale, stage, style.statement, trajectory, brandsDelta, onSaleN, totalN, sScore && sScore.verdict);
         })()
     +   evidenceStrip + noMatchMsg + personalVerdictLine
     +   '<div class="score-message">'+verdictMsg+'</div>'

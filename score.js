@@ -286,9 +286,14 @@ async function calculateAllCentreScores() {
   console.log(`  ✓ ${scoreRows.length} centre scores written`);
 
   // Cache up to 60 days of score history per centre for sparkline display
+  // and the day-on-day change line on the centre vessel. We persist the
+  // brand counts per day too so the front-end can compute the actual
+  // "↓ N brands since yesterday" delta — the displayed metric — instead
+  // of falling back to the underlying tide_score % change (which moves
+  // on freshness decay even when the admin hasn't touched anything).
   const { data: historyData, error: historyError } = await supabase
     .from('centre_seer_scores')
-    .select('centre_id, score_date, tide_score')
+    .select('centre_id, score_date, tide_score, brands_on_sale, total_brands')
     .gte('score_date', SIXTY_DAYS_AGO)
     .not('tide_score', 'is', null)
     .order('score_date', { ascending: true });
@@ -299,7 +304,12 @@ async function calculateAllCentreScores() {
     const historyByCentre = new Map();
     for (const row of historyData) {
       if (!historyByCentre.has(row.centre_id)) historyByCentre.set(row.centre_id, []);
-      historyByCentre.get(row.centre_id).push({ date: row.score_date, score: row.tide_score });
+      historyByCentre.get(row.centre_id).push({
+        date: row.score_date,
+        score: row.tide_score,
+        brands_on_sale: row.brands_on_sale,
+        total_brands: row.total_brands,
+      });
     }
 
     const noHistory = centresRes.data.filter(c => !historyByCentre.has(c.id));

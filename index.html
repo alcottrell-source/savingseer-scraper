@@ -161,13 +161,28 @@
   .tide-vessel--falling .tide-ladder-tick.is-reached::after { background: #F4B79F; box-shadow: 0 0 8px rgba(244,183,159,0.45); }
   .tide-vessel--falling .tide-ladder-tick.is-reached .tide-ladder-num { color: #F4B79F; }
   .tide-vessel--flat .tide-ladder-tick.is-reached::after { background: var(--tide-cream); box-shadow: 0 0 6px rgba(245,241,235,0.25); }
-  /* Direction glyph on the highest reached tick — answers "which way is
-     the water moving past this line?" at a glance. */
+  /* Direction glyph on the highest reached tick — small reinforcement,
+     pointing at the current waterline. */
   .tide-ladder-tick.is-current .tide-ladder-arrow { display: inline-block; }
   .tide-ladder-arrow { display: none; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700; line-height: 1; margin-right: 2px; }
   .tide-vessel--rising  .tide-ladder-arrow { color: #9FD8B0; }
   .tide-vessel--falling .tide-ladder-arrow { color: #F4B79F; }
   .tide-vessel--flat    .tide-ladder-arrow { color: rgba(245,241,235,0.55); }
+
+  /* Big direction badge at the top of the ladder — the loud "tide is
+     going UP / DOWN" signal so it registers before the eye lands on
+     the verdict. Arrow bounces in the direction of travel. */
+  .tide-ladder-direction { position: absolute; top: 14px; right: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; line-height: 1; pointer-events: none; }
+  .tide-ladder-direction-arrow { font-size: 28px; line-height: 0.9; font-weight: 700; }
+  .tide-ladder-direction-word { font-family: 'Inter', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; }
+  .tide-vessel--rising .tide-ladder-direction-arrow { color: var(--tide-neon); text-shadow: 0 0 12px rgba(94,255,176,0.65); animation: tideArrowRise 2.2s ease-in-out infinite; }
+  .tide-vessel--rising .tide-ladder-direction-word  { color: #9FD8B0; }
+  .tide-vessel--falling .tide-ladder-direction-arrow { color: #F4B79F; text-shadow: 0 0 12px rgba(244,183,159,0.55); animation: tideArrowFall 2.2s ease-in-out infinite; }
+  .tide-vessel--falling .tide-ladder-direction-word  { color: #F4B79F; }
+  .tide-vessel--flat .tide-ladder-direction-arrow { color: rgba(245,241,235,0.55); font-size: 22px; }
+  .tide-vessel--flat .tide-ladder-direction-word  { color: rgba(245,241,235,0.55); }
+  @keyframes tideArrowRise { 0%, 100% { transform: translateY(0); opacity: 0.85; } 50% { transform: translateY(-4px); opacity: 1; } }
+  @keyframes tideArrowFall { 0%, 100% { transform: translateY(0); opacity: 0.85; } 50% { transform: translateY(4px); opacity: 1; } }
   /* Headline number — now "X%" + small "Y of Z shops" subtitle. */
   .tide-score-num { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 42px; line-height: 1; color: var(--tide-cream); }
   .tide-score-unit { display: block; font-family: 'Inter', sans-serif; font-size: 11px; color: rgba(245,241,235,0.55); letter-spacing: 0.04em; margin-top: 5px; white-space: nowrap; }
@@ -2953,13 +2968,25 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
              : trajectory === 'FALLING' ? 'falling'
              : 'flat';
   const dirArrow = traj === 'rising' ? '&uarr;' : traj === 'falling' ? '&darr;' : '&middot;';
+  // Big top-of-ladder direction badge — "TIDE RISING / FALLING / STEADY"
+  // with a glowing, bouncing chevron in the trajectory colour.
+  const dirChevron = traj === 'rising' ? '&#9650;'   // ▲
+                   : traj === 'falling' ? '&#9660;'  // ▼
+                   : '&mdash;';
+  const dirWord = traj === 'rising' ? 'Tide rising'
+                : traj === 'falling' ? 'Tide falling'
+                : 'Tide steady';
+  const directionHTML = '<div class="tide-ladder-direction">'
+                      +   '<span class="tide-ladder-direction-arrow">' + dirChevron + '</span>'
+                      +   '<span class="tide-ladder-direction-word">' + dirWord + '</span>'
+                      + '</div>';
   const LADDER = [
     { level: 60, label: 'Go now'  },
     { level: 40, label: 'Worth it' },
     { level: 25, label: 'Early'   },
   ];
   const reachedIdx = LADDER.findIndex(t => pct >= t.level); // highest tick the wave has reached
-  const ladderHTML = LADDER.map((t, i) => {
+  const ticksHTML = LADDER.map((t, i) => {
     const cls = (pct >= t.level ? ' is-reached' : '') + (i === reachedIdx ? ' is-current' : '');
     return '<div class="tide-ladder-tick' + cls + '" style="bottom:' + t.level + '%">'
          +   '<span class="tide-ladder-arrow">' + dirArrow + '</span>'
@@ -2967,6 +2994,7 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
          +   '<span class="tide-ladder-num">' + t.level + '%</span>'
          + '</div>';
   }).join('');
+  const ladderHTML = directionHTML + ticksHTML;
 
   return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + ' tide-vessel--' + traj + '" style="--tide-level:' + pct + '%">'
        +   '<div class="tide-vessel-verdict">'

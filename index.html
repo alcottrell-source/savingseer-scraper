@@ -3189,14 +3189,39 @@ function buildTide60Series(realHistory) {
       series.push({ date: ymd, score: synth, synth, real: false });
     }
   }
-  const offsets = series.filter(p => p.real).map(p => p.score - p.synth);
-  if (offsets.length) {
-    offsets.sort((a, b) => a - b);
-    let off = offsets[Math.floor(offsets.length / 2)];
-    if (off >  15) off =  15;
-    if (off < -15) off = -15;
-    for (const p of series) {
-      if (!p.real) p.score = Math.max(0, Math.min(100, p.score + off));
+  // Per-centre amplitude rescaling. The raw synthetic curve is the national
+  // UK retail calendar — a quiet centre that never breaks 30 shouldn't show
+  // a wild Easter peak in its history. Map raw synthetic [synthMin..synthMax]
+  // onto a target range built from the centre's own observed min/max plus a
+  // small headroom, hard-capped below the "Go Now" threshold (75) so a
+  // synthetic backfill never crosses into HIGH TIDE territory.
+  const realScores = series.filter(p => p.real).map(p => p.score);
+  const synthVals  = series.map(p => p.synth);
+  const synthMax   = Math.max.apply(null, synthVals);
+  const synthMin   = Math.min.apply(null, synthVals);
+  const synthRange = Math.max(1, synthMax - synthMin);
+  let targetMin, targetMax;
+  if (realScores.length) {
+    const realMax = Math.max.apply(null, realScores);
+    const realMin = Math.min.apply(null, realScores);
+    const observedRange = realMax - realMin;
+    // Modest headroom — synth peaks shouldn't overshoot the centre's real
+    // ceiling by much. A flat centre still gets a small bump so the
+    // seasonal shape stays visible. Hard-capped at 70 (below HIGH TIDE).
+    const headroom = Math.max(4, Math.min(12, observedRange * 0.5 + 4));
+    targetMax = Math.min(70, realMax + headroom);
+    targetMin = Math.max(0, realMin - 3);
+  } else {
+    // No real data yet (new centre) — moderated synthetic so the chart is
+    // meaningful but never claims a HIGH TIDE / Go Now past.
+    targetMax = 50;
+    targetMin = 16;
+  }
+  const targetRange = Math.max(8, targetMax - targetMin);
+  for (const p of series) {
+    if (!p.real) {
+      const t = (p.synth - synthMin) / synthRange;
+      p.score = Math.max(0, Math.min(100, targetMin + t * targetRange));
     }
   }
   return series;
@@ -3246,9 +3271,22 @@ function renderHistoryChart(history, color, trajectory, currentScore, currentSta
   const trendText  = traj === 'RISING' ? 'Rising' : traj === 'FALLING' ? 'Falling' : 'Holding';
   const trendCls   = traj === 'FALLING' ? ' is-down' : '';
   const numCls     = traj === 'FALLING' ? ' is-down' : '';
-  const gridLines = [25, 50, 75].map(pct => {
-    const gy = +(PT + (1 - pct / 100) * H).toFixed(1);
-    return '<line x1="' + PL + '" y1="' + gy + '" x2="' + (PL + W) + '" y2="' + gy + '" stroke="rgba(245,241,235,0.06)" stroke-width="0.5"/>';
+  // Threshold reference lines — anchor the score number for the reader.
+  // 75 is the HIGH TIDE / "Go Now" threshold (highlighted, dashed amber);
+  // 25 is the QUIET threshold (dashed). 50 is a neutral mid-line.
+  const thresholds = [
+    { pct: 75, label: 'HIGH TIDE', stroke: 'rgba(255,200,120,0.32)', dash: '4 4', textFill: 'rgba(255,200,120,0.62)' },
+    { pct: 50, label: null,        stroke: 'rgba(245,241,235,0.10)', dash: '0',   textFill: null },
+    { pct: 25, label: 'QUIET',     stroke: 'rgba(245,241,235,0.20)', dash: '4 4', textFill: 'rgba(245,241,235,0.45)' },
+  ];
+  const gridLines = thresholds.map(g => {
+    const gy = +(PT + (1 - g.pct / 100) * H).toFixed(1);
+    const dashAttr = g.dash !== '0' ? ' stroke-dasharray="' + g.dash + '"' : '';
+    let line = '<line x1="' + PL + '" y1="' + gy + '" x2="' + (PL + W) + '" y2="' + gy + '" stroke="' + g.stroke + '" stroke-width="0.7"' + dashAttr + '/>';
+    if (g.label) {
+      line += '<text x="' + (PL + 4) + '" y="' + (gy - 3).toFixed(1) + '" font-family="Inter,sans-serif" font-size="8" font-weight="700" letter-spacing="0.14em" fill="' + g.textFill + '">' + g.label + '</text>';
+    }
+    return line;
   }).join('');
   const midIdx = Math.round((n - 1) / 2);
   const xLabels = [

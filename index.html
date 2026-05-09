@@ -2877,7 +2877,7 @@ function deriveVerdict(ctx) {
   // Trust the server's confident peak: stage hysteresis lives there.
   if (ctx.serverVerdict === 'Go now') return { word: 'GO NOW', tone: 'go' };
   if (ctx.serverVerdict && /^Last chance/.test(ctx.serverVerdict)) return { word: 'LAST CHANCE', tone: 'fall' };
-  if (ctx.serverVerdict === "It's over") return { word: 'WAIT', tone: 'wait' };
+  if (ctx.serverVerdict === "It's over") return { word: 'QUIET', tone: 'wait' };
 
   // Compute on-sale % from counts where possible — that's the authoritative
   // visible-signal denominator. Fall back to a pre-rounded pctOnSale arg.
@@ -2899,7 +2899,7 @@ function deriveVerdict(ctx) {
     switch (ctx.stage) {
       case 'High Tide': return { word: 'GO NOW',      tone: 'go'   };
       case 'Falling':   return { word: 'LAST CHANCE', tone: 'fall' };
-      case 'Low':       return { word: 'WAIT',        tone: 'wait' };
+      case 'Low':       return { word: 'QUIET',       tone: 'wait' };
       case 'Rising':    return rising  ? { word: 'BUILDING', tone: 'rise' } : { word: 'WORTH IT', tone: 'rise' };
       default:          return { word: 'NOT YET',     tone: 'wait' };
     }
@@ -2916,7 +2916,7 @@ function deriveVerdict(ctx) {
     if (rising)  return { word: 'BUILDING', tone: 'rise' };
     return                 { word: 'EARLY',    tone: 'wait' };
   }
-  return { word: 'WAIT', tone: 'wait' };
+  return { word: 'QUIET', tone: 'wait' };
 }
 
 // Hero card. Hierarchy is verdict (loudest) → sales fact (bold) → small tide

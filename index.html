@@ -31,7 +31,7 @@
     --tide-neon-glow: 0 0 10px rgba(94,255,176,0.55), 0 0 22px rgba(94,255,176,0.22);
   }
   html { font-size: 16px; }
-  body { background: var(--cream); color: var(--ink); font-family: 'Inter', sans-serif; font-weight: 400; font-size: 17px; line-height: 1.5; min-height: 100vh; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; letter-spacing: -0.005em; }
+  body { background: var(--cream); color: var(--ink); font-family: 'Inter', sans-serif; font-weight: 400; font-size: 17px; line-height: 1.5; min-height: 100vh; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; letter-spacing: -0.005em; isolation: isolate; }
   /* Faint mall line-art tint behind the home page only. Hidden on centre views. */
   body::before { content: ''; position: fixed; inset: 0; background: url('bg-mall.jpg') center / cover no-repeat; opacity: 0.55; pointer-events: none; z-index: -1; }
   body.is-centre-view::before { display: none; }

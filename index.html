@@ -70,10 +70,15 @@
   .centre-suggestions .no-match:hover { background: transparent; color: var(--stone); }
   /* While the dropdown is open, dim the page behind so the suggestions
      read as a focused floating panel rather than overlapping the saved-
-     centres / hot-centres blocks below. */
+     centres / hot-centres blocks below. The picker section also gets
+     lifted above the other z-index:1 stacking contexts so the dropdown
+     (z-index 200 inside .picker-section) actually paints above them —
+     without this, #main-content renders on top in document order and
+     bleeds through the dropdown's white background. */
+  body.is-search-open .picker-section { z-index: 250; }
   body.is-search-open #main-content,
   body.is-search-open .home-info,
-  body.is-search-open .survey-card { opacity: 0.18; pointer-events: none; transition: opacity 0.15s; }
+  body.is-search-open .survey-card { opacity: 0.12; pointer-events: none; transition: opacity 0.15s; }
   .picker-or { display: none; }
   .centre-select { display: none; }
   .score-section { padding: 24px 24px 0; }

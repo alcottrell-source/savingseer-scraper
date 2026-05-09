@@ -162,18 +162,12 @@
   .tide-vessel--falling .tide-ladder-tick.is-reached .tide-ladder-num { color: #F4B79F; }
   .tide-vessel--flat .tide-ladder-tick.is-reached::after { background: var(--tide-cream); box-shadow: 0 0 6px rgba(245,241,235,0.25); }
 
-  /* GIANT backdrop arrow behind the verdict word — the loud, unmissable
-     "tide is going UP / DOWN" signal. Bigger and bolder than a typical
-     watermark: 220px chevron at ~36% opacity with a strong glow. The
-     verdict word at z-index 6 sits cleanly on top because it's a solid
-     light-cream colour. Flat tides get a horizontal arrow so every card
-     has one — "no arrow" was indistinguishable from "broken". */
-  .tide-vessel-direction-bg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 220px; line-height: 0.8; font-weight: 900; z-index: 3; pointer-events: none; user-select: none; opacity: 0.42; }
-  .tide-vessel--rising .tide-vessel-direction-bg { color: var(--tide-neon); text-shadow: 0 0 50px rgba(94,255,176,0.55), 0 0 120px rgba(94,255,176,0.30); animation: tideBgArrowRise 2.8s ease-in-out infinite; }
-  .tide-vessel--falling .tide-vessel-direction-bg { color: #F4B79F; text-shadow: 0 0 50px rgba(244,183,159,0.50), 0 0 120px rgba(244,183,159,0.25); animation: tideBgArrowFall 2.8s ease-in-out infinite; }
-  .tide-vessel--flat .tide-vessel-direction-bg { color: rgba(245,241,235,0.55); font-size: 160px; opacity: 0.32; }
-  @keyframes tideBgArrowRise { 0%, 100% { transform: translate(-50%, -46%); } 50% { transform: translate(-50%, -56%); } }
-  @keyframes tideBgArrowFall { 0%, 100% { transform: translate(-50%, -54%); } 50% { transform: translate(-50%, -44%); } }
+  /* Direction chevron — small, top-right, brand neon green. Shape
+     carries direction (▲ rising / ▼ falling / ➞ steady), colour
+     stays the same so it reads as part of the brand identity, not
+     a traffic-light. Trend pill underneath says it in plain English. */
+  .tide-vessel-direction-bg { position: absolute; top: 14px; right: 14px; font-size: 32px; line-height: 1; font-weight: 900; color: var(--tide-neon); text-shadow: 0 0 14px rgba(94,255,176,0.60); z-index: 7; pointer-events: none; user-select: none; }
+  .tide-vessel--flat .tide-vessel-direction-bg { font-size: 24px; opacity: 0.75; }
 
   /* Plain-English trend pill — sits under the brand-count fact line.
      Says exactly what's happening with sales, in words. Coloured pill

@@ -282,6 +282,7 @@ const pg = {
   insert: (table, body, returnRow) => pgFetch('POST', table + (returnRow ? '?select=*' : ''), body, returnRow ? 'return=representation' : null),
   update: (table, query, body) => pgFetch('PATCH', table + '?' + query, body),
   upsert: (table, body, onConflict) => pgFetch('POST', table + (onConflict ? '?on_conflict=' + onConflict : ''), body, 'resolution=merge-duplicates'),
+  delete: (table, query) => pgFetch('DELETE', table + '?' + query),
 };
 
 const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B011','B012']);
@@ -543,15 +544,17 @@ function renderRow({ ev, def, cycle, review }, isConfirmed) {
 }
 
 function renderActionButtons(ev, cycle) {
-  // If there's an active cycle, the relevant verbs are: "Confirm ended" or
-  // "Dismiss" (still on, scraper just blipped). "Confirm on sale" is hidden
-  // because we already have a cycle open — editing the existing one would be
-  // a separate flow.
+  // If there's an active cycle, the relevant verbs are: "Still on" / "Sale
+  // ended" / "Dismiss" (scraper blipped) — plus an Edit button so an admin
+  // can correct a wrong % or start_date on an existing cycle without first
+  // having to re-confirm it (which used to be the only way to expose the
+  // editor that lives in renderConfirmedNote).
   if (cycle) {
     return '<div class="row-actions with-end">' +
       '<button class="action-btn primary" data-action="confirm_on">Still on</button>' +
       '<button class="action-btn danger"  data-action="confirm_end">Sale ended</button>' +
       '<button class="action-btn ghost"   data-action="dismiss">Dismiss</button>' +
+      '<button class="action-btn ghost"   data-action="edit_cycle" style="width:auto;padding:5px 12px;margin:0;font-size:11px;">Edit</button>' +
     '</div>';
   }
   // No active cycle — choose between starting one or confirming no sale.
@@ -570,6 +573,7 @@ function renderConfirmedNote(review, cycle) {
     confirmed_off:   'Confirmed no sale',
     dismissed:       'Dismissed',
     edited:          'Edited',
+    deleted:         'Cycle deleted',
   }[review.action] || review.action;
   const time = new Date(review.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const editBtn = cycle
@@ -693,6 +697,7 @@ function openEditForm(card, brandId, def) {
       '<div class="inline-form-actions">' +
         '<button class="btn btn-primary" id="edit-save">Save changes</button>' +
         '<button class="btn" id="edit-cancel" style="background:var(--stone-lt);color:var(--bark)">Cancel</button>' +
+        (cycleId ? '<button class="btn" id="edit-delete" style="margin-left:auto;background:transparent;color:var(--red);border:1px solid var(--red)">Delete cycle</button>' : '') +
       '</div>' +
     '</div>';
   mount.querySelector('#edit-cancel').addEventListener('click', () => { mount.innerHTML = ''; });
@@ -716,6 +721,22 @@ function openEditForm(card, brandId, def) {
       setRowBusy(card, false);
     }
   });
+  const deleteBtn = mount.querySelector('#edit-delete');
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', async () => {
+      if (!confirm('Delete this sale cycle entirely?\n\nThe brand will be reset to "no active sale" and the cycle row will be removed.')) return;
+      setRowBusy(card, true);
+      try {
+        await deleteCycle(brandId, cycleId);
+        triggerRescore();
+        toast('Cycle deleted · ' + def.name);
+        await loadAndRender();
+      } catch (err) {
+        showStatus('Delete failed: ' + err.message, true);
+        setRowBusy(card, false);
+      }
+    });
+  }
 }
 
 // ── Mutations ─────────────────────────────────────────────────────────────
@@ -826,6 +847,29 @@ async function applyEdit(brandId, cycleId, opts) {
   });
   if (uErr) throw uErr;
   await logReview(brandId, 'edited', cycleId);
+}
+
+// Hard-delete a cycle the admin created by mistake. Clears the FK on
+// brand_sale_events first (set NULL would otherwise be needed at the DB
+// level), resets the verification state to "no sale today" so the brand
+// goes back to "Needs review", then removes the brand_sale_cycles row.
+async function deleteCycle(brandId, cycleId) {
+  // 1. Clear the FK + verification state on brand_sale_events so deleting
+  //    the cycle doesn't violate any relational constraints, and so the
+  //    score pipeline immediately stops counting this brand as on-sale.
+  const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
+    active_cycle_id: null,
+    last_verified_status: false,
+    last_verified_date: TODAY,
+    max_discount_pct: null,
+    sale_type: null,
+  });
+  if (uErr) throw uErr;
+  // 2. Delete the cycle row itself.
+  const { error: dErr } = await pg.delete('brand_sale_cycles', 'id=eq.' + cycleId);
+  if (dErr) throw dErr;
+  // 3. Log the action so the brand leaves "needs review" today.
+  await logReview(brandId, 'deleted', cycleId);
 }
 
 async function logReview(brandId, action, cycleId) {

@@ -163,16 +163,17 @@
   .tide-vessel--flat .tide-ladder-tick.is-reached::after { background: var(--tide-cream); box-shadow: 0 0 6px rgba(245,241,235,0.25); }
 
   /* GIANT backdrop arrow behind the verdict word — the loud, unmissable
-     "tide is going UP / DOWN" signal. Sits at low opacity so the verdict
-     word still reads cleanly on top of it. Drifts up/down to reinforce
-     direction without being distracting. Hidden when trajectory is flat
-     (no movement = no arrow to draw). */
-  .tide-vessel-direction-bg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 200px; line-height: 0.8; font-weight: 900; z-index: 3; pointer-events: none; user-select: none; }
-  .tide-vessel--rising .tide-vessel-direction-bg { color: rgba(94,255,176,0.16); text-shadow: 0 0 60px rgba(94,255,176,0.30); animation: tideBgArrowRise 3.2s ease-in-out infinite; }
-  .tide-vessel--falling .tide-vessel-direction-bg { color: rgba(244,183,159,0.16); text-shadow: 0 0 60px rgba(244,183,159,0.28); animation: tideBgArrowFall 3.2s ease-in-out infinite; }
-  .tide-vessel--flat .tide-vessel-direction-bg { display: none; }
-  @keyframes tideBgArrowRise { 0%, 100% { transform: translate(-50%, -48%); } 50% { transform: translate(-50%, -54%); } }
-  @keyframes tideBgArrowFall { 0%, 100% { transform: translate(-50%, -52%); } 50% { transform: translate(-50%, -46%); } }
+     "tide is going UP / DOWN" signal. Bigger and bolder than a typical
+     watermark: 220px chevron at ~36% opacity with a strong glow. The
+     verdict word at z-index 6 sits cleanly on top because it's a solid
+     light-cream colour. Flat tides get a horizontal arrow so every card
+     has one — "no arrow" was indistinguishable from "broken". */
+  .tide-vessel-direction-bg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 220px; line-height: 0.8; font-weight: 900; z-index: 3; pointer-events: none; user-select: none; opacity: 0.42; }
+  .tide-vessel--rising .tide-vessel-direction-bg { color: var(--tide-neon); text-shadow: 0 0 50px rgba(94,255,176,0.55), 0 0 120px rgba(94,255,176,0.30); animation: tideBgArrowRise 2.8s ease-in-out infinite; }
+  .tide-vessel--falling .tide-vessel-direction-bg { color: #F4B79F; text-shadow: 0 0 50px rgba(244,183,159,0.50), 0 0 120px rgba(244,183,159,0.25); animation: tideBgArrowFall 2.8s ease-in-out infinite; }
+  .tide-vessel--flat .tide-vessel-direction-bg { color: rgba(245,241,235,0.55); font-size: 160px; opacity: 0.32; }
+  @keyframes tideBgArrowRise { 0%, 100% { transform: translate(-50%, -46%); } 50% { transform: translate(-50%, -56%); } }
+  @keyframes tideBgArrowFall { 0%, 100% { transform: translate(-50%, -54%); } 50% { transform: translate(-50%, -44%); } }
 
   /* Plain-English trend pill — sits under the brand-count fact line.
      Says exactly what's happening with sales, in words. Coloured pill
@@ -2967,8 +2968,8 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
              : 'flat';
   const bgChevron = traj === 'rising' ? '&#9650;'   // ▲
                   : traj === 'falling' ? '&#9660;'  // ▼
-                  : '';
-  const bgArrowHTML = traj === 'flat' ? '' : '<div class="tide-vessel-direction-bg" aria-hidden="true">' + bgChevron + '</div>';
+                  : '&#10142;';                      // ➞ (drift, no clear direction)
+  const bgArrowHTML = '<div class="tide-vessel-direction-bg" aria-hidden="true">' + bgChevron + '</div>';
 
   // Plain-English trend pill — explicit "what's happening with sales".
   // The "fast" qualifier kicks in when today's brand-count delta agrees

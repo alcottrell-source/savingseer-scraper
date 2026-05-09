@@ -648,6 +648,15 @@
 </style>
 <script defer data-domain="tidego.co" src="https://plausible.io/js/script.js"></script>
 <script>
+  // Disable the browser's scroll-position restoration. Tide rebuilds the
+  // main panel after auth + data load, which changes content height — the
+  // browser's saved scroll position would then land the user mid-page
+  // (often at the bottom of the brand list). Manual mode means every
+  // load and back-navigation starts at the top.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+</script>
+
+<script>
   // Skimlinks (affiliate tracker, drops a cookie) only loads after the user
   // accepts in the consent banner — PECR requires explicit opt-in for non-
   // essential cookies. Plausible is cookieless so it loads unconditionally.
@@ -1255,6 +1264,11 @@ sb.auth.onAuthStateChange(async (event, session) => {
     const last = userPrefs.saved_centres[userPrefs.saved_centres.length - 1];
     sel.value = last;
     renderCentre(last);
+    // The browser tries to restore the prior scroll position onto the new,
+    // freshly-rendered centre page — but the content height has changed so
+    // the user ends up mid-page (typically at the bottom of the brand
+    // list). Force the viewport back to the top.
+    window.scrollTo(0, 0);
   } else {
     // Empty state — promo card and (if any) saved-centre cards appear here.
     renderCentre('');

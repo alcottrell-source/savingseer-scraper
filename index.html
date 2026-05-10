@@ -287,10 +287,6 @@
   .tide60-trend-arrow { color: rgba(245,241,235,0.40); margin-right: 6px; font-weight: 400; }
   .tide60-chart { position: relative; z-index: 1; margin-top: 10px; }
   .tide60-chart svg { width: 100%; height: auto; display: block; overflow: visible; }
-  .tide60-state { position: relative; z-index: 1; margin-top: 4px; display: flex; align-items: baseline; gap: 12px; }
-  .tide60-state-num { font-family: 'Cormorant Garamond', serif; font-weight: 400; font-size: 56px; line-height: 0.95; color: var(--tide-neon); letter-spacing: -0.02em; }
-  .tide60-state-num.is-down { color: #F4B79F; }
-  .tide60-state-label { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 400; color: rgba(245,241,235,0.55); letter-spacing: 0.01em; padding-bottom: 6px; }
 
   /* Light variant of the TIDE OVER 60 DAYS card — used on the landing
      page as a marketing preview. Same geometry as the dark card but on
@@ -2719,7 +2715,14 @@ function formatTodayHours(centreIdx) {
 // missing — first run on a new centre, summariser skipped, API key absent
 // — we fall back to a template narrative built from the same real data.
 function renderCentreNarrativeCard(centreIdx, onSale, history) {
-  const onSaleCount = onSale.length;
+  // Headline count is the server's literal brands-on-sale value so it
+  // matches the dark vessel ("X of Y brands on sale") above. The local
+  // `onSale` array is the freshness-filtered scoring subset — useful
+  // for picking *which* deals to surface in "Today's freshest deals",
+  // but its length isn't a user-facing concept.
+  const sScore = (typeof getServerScore === 'function') ? getServerScore(centreIdx) : null;
+  const serverOnSale = sScore && Number.isFinite(+sScore.brands_on_sale) ? +sScore.brands_on_sale : null;
+  const onSaleCount = serverOnSale != null ? serverOnSale : onSale.length;
   const fresh = onSale.length
     ? onSale.slice().sort((a, b) => (a.days || 0) - (b.days || 0))[0]
     : null;
@@ -2769,11 +2772,16 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
     narrative = escapeHtml(aiNarrative.trim());
   } else if (onSaleCount === 0) {
     narrative = 'No brands on sale at this centre today. Check back — the score updates every morning at 07:00.';
-  } else {
+  } else if (fresh) {
     narrative = '<strong>' + onSaleCount + ' brand' + (onSaleCount === 1 ? '' : 's') + ' on sale today.</strong> '
       + 'Stocks are fullest in the first 5 days of a sale — '
       + '<span class="highlight">' + escapeHtml(fresh.name) + '</span> started '
       + (fresh.days <= 1 ? 'today' : (fresh.days + ' days ago')) + '.';
+  } else {
+    // onSaleCount > 0 from the server but local `onSale` is empty —
+    // every brand at the centre has decayed past the freshness window.
+    // No fresh deal to call out, so just state the count.
+    narrative = '<strong>' + onSaleCount + ' brand' + (onSaleCount === 1 ? '' : 's') + ' on sale today.</strong>';
   }
 
   const hours = formatTodayHours(centreIdx);
@@ -3309,7 +3317,7 @@ function smoothCurvePath(pts) {
 // shifted to this centre's recent baseline so the seam is invisible. As
 // real scores arrive each morning the synthetic segment shrinks; once 60
 // days of real scores exist the chart is fully real.
-function renderHistoryChart(history, color, trajectory, currentScore, currentStage) {
+function renderHistoryChart(history, color, trajectory) {
   void color;
   const series = buildTide60Series(history);
   const n = series.length;
@@ -3335,7 +3343,6 @@ function renderHistoryChart(history, color, trajectory, currentScore, currentSta
   const trendArrow = traj === 'RISING' ? '↑' : traj === 'FALLING' ? '↓' : '→';
   const trendText  = traj === 'RISING' ? 'Rising' : traj === 'FALLING' ? 'Falling' : 'Holding';
   const trendCls   = traj === 'FALLING' ? ' is-down' : '';
-  const numCls     = traj === 'FALLING' ? ' is-down' : '';
   // Threshold reference lines — anchor the score number for the reader.
   // 75 is the HIGH TIDE / "Go Now" threshold (highlighted, dashed amber);
   // 25 is the QUIET threshold (dashed). 50 is a neutral mid-line.
@@ -3362,8 +3369,6 @@ function renderHistoryChart(history, color, trajectory, currentScore, currentSta
     '<text x="' + l.x + '" y="' + (PT + H + 16) + '" font-family="Inter,sans-serif" font-size="9.5" fill="rgba(245,241,235,0.45)" letter-spacing="0.04em" text-anchor="' + l.anchor + '">' + l.text + '</text>'
   )).join('');
   const filterDef = '<filter id="t60Glow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
-  const score = Number.isFinite(+currentScore) ? Math.round(+currentScore) : 0;
-  const safeStage = String(currentStage || 'Building').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   return '<div class="history-section" id="history-section">'
     + '<div class="tide60-card">'
     +   '<div class="tide60-header">'
@@ -3380,10 +3385,6 @@ function renderHistoryChart(history, color, trajectory, currentScore, currentSta
     +       '<circle cx="' + lx + '" cy="' + ly + '" r="3.6" fill="' + NEON + '" filter="url(#t60Glow)"/>'
     +       xLabels
     +     '</svg>'
-    +   '</div>'
-    +   '<div class="tide60-state">'
-    +     '<span class="tide60-state-num' + numCls + '">' + score + '</span>'
-    +     '<span class="tide60-state-label">' + safeStage + '</span>'
     +   '</div>'
     + '</div>'
     + '</div>';
@@ -4102,7 +4103,7 @@ async function renderCentre(centreId) {
   const visibleOnSaleCount = onSaleBrands.length;
 
   content.innerHTML = heroHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
-    + renderHistoryChart(history,style.color,trajectory,centreScore,style.label)
+    + renderHistoryChart(history,style.color,trajectory)
     + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>';
 
   // Detail content is in the DOM — only now flip the chrome into centre-view.

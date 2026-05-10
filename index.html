@@ -3703,7 +3703,7 @@ async function renderCentre(centreId) {
       // then a small "search above" prompt.
       const savedHTML = renderSavedCentresLanding(savedIds);
       const hotHTML = renderHotCentres({ limit: 3, excludeIds: savedIds });
-      content.innerHTML = personaliseHTML + savedHTML + hotHTML;
+      content.innerHTML = personaliseHTML + savedHTML + hotHTML + renderTide60Light();
     } else {
       // No saved centres — show the proof hero (sample card + 3-step + CTA).
       content.innerHTML = personaliseHTML + renderLandingHero();

@@ -2163,15 +2163,14 @@ function filterCentres(query) {
       matches.push({ id: opt.value, name: opt.textContent });
     }
   }
-  // Sort matches by total_brands desc so the biggest centres surface
-  // first. Done here (not on the underlying <select>) so option order
-  // never changes between gestures.
-  const _brandsForOpt = (v) => {
+  // Sort by total shops at the centre desc, matching the count shown on
+  // each centre's detail page (BRANDS x PRESENCE). Done here, not on the
+  // underlying <select>, so option order never changes between gestures.
+  const _shopsForOpt = (v) => {
     const idx = parseInt(v.replace('C', ''), 10) - 1;
-    const sid = CENTRE_ID_BY_IDX[idx];
-    return (sid && CENTRE_SCORES[sid] && CENTRE_SCORES[sid].total_brands) || 0;
+    return BRANDS.filter(b => (PRESENCE[b.id] || [])[idx] === 1).length;
   };
-  matches.sort((a, b) => _brandsForOpt(b.id) - _brandsForOpt(a.id));
+  matches.sort((a, b) => _shopsForOpt(b.id) - _shopsForOpt(a.id));
   if (!matches.length) {
     const li = document.createElement('li');
     li.className = 'no-match';

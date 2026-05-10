@@ -222,6 +222,47 @@ test.describe('A. Anonymous flows', () => {
       await expect(page.locator('body')).toHaveClass(/is-centre-view/);
     });
   }
+
+  test('A12: Centre render with brand chips does not throw (escapeHtml scope regression)', async ({ page }) => {
+    // Reproduces the in-the-wild bug: clicking a centre on the live deploy
+    // closed the dropdown without navigating because `renderChip()` threw
+    // `ReferenceError: escapeHtml is not defined` (escapeHtml was scope-
+    // trapped inside `renderCentreNarrativeCard()`). The throw was caught
+    // by `renderCentre`'s try/catch which silently reset to landing.
+    //
+    // The earlier A11 / D6 tests missed it because the local serve env
+    // doesn't have brand data populated, so `renderChip` is never called.
+    // Here we inject one fake brand into the in-memory globals before
+    // calling renderCentre, force the SALE_TYPE branch so escapeHtml is
+    // hit, and assert no `renderCentre failed` line surfaces.
+    await gotoFresh(page);
+    const inject = await page.evaluate(() => {
+      try {
+        // Lexically-scoped consts/lets from the index.html script tag are
+        // reachable here because page.evaluate runs in the same global
+        // execution context. We must set every flag the renderChip path
+        // checks: PRESENCE (brand-at-centre), SALE_STATUS (drives isOnSale
+        // → typeKey branch), SALE_TYPE (must map to a key in
+        // SALE_TYPE_SHORT so typeLabel is truthy and escapeHtml is called).
+        BRANDS.push({ id: 'B-test-escape', name: 'TestBrandEscape' });
+        PRESENCE['B-test-escape'] = Array(CENTRE_NAMES.length).fill(1);
+        SALE_STATUS['TestBrandEscape'] = true;
+        SALE_TYPE['TestBrandEscape'] = 'flash';
+        DAYS_RUNNING['TestBrandEscape'] = 5;
+        MAX_DISCOUNT_PCT['TestBrandEscape'] = 50;
+        return { ok: true, shortLabel: SALE_TYPE_SHORT['flash'] };
+      } catch (e) { return { ok: false, error: String(e) }; }
+    });
+    expect(inject.ok, `injection failed: ${inject.error}`).toBe(true);
+    // Sanity-check: the SALE_TYPE we set ('flash') must map to a non-empty
+    // short label, otherwise typeLabel is falsy and escapeHtml is skipped.
+    expect(inject.shortLabel).toBeTruthy();
+    await page.evaluate(() => window.renderCentre('C01'));
+    await page.waitForTimeout(500);
+    const failures = page._consoleErrors.filter(e => /renderCentre failed/i.test(e));
+    expect(failures, `renderCentre threw: ${JSON.stringify(failures, null, 2)}`).toEqual([]);
+    expect(page._pageErrors, `Uncaught: ${JSON.stringify(page._pageErrors, null, 2)}`).toEqual([]);
+  });
 });
 
 test.describe('B. Auth modal state machine (no Supabase round-trip)', () => {

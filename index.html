@@ -2727,6 +2727,7 @@ function formatTodayHours(centreIdx) {
 // centre_seer_scores.narrative (written by summarise.js). When that's
 // missing — first run on a new centre, summariser skipped, API key absent
 // — we fall back to a template narrative built from the same real data.
+const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 function renderCentreNarrativeCard(centreIdx, onSale, history) {
   // Headline count is the local on-sale count so it matches the chips
   // visible in the brand list (and the vessel headline above, which
@@ -2736,7 +2737,6 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
     ? onSale.slice().sort((a, b) => (a.days || 0) - (b.days || 0))[0]
     : null;
   const histCount = history.length;
-  const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
   // Stat row — 2 cells now: the count on the left, and a multi-row
   // "today's freshest deals" list on the right (replaces the old

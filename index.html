@@ -77,7 +77,11 @@
      (z-index 200 inside .picker-section) actually paints above them —
      without this, #main-content renders on top in document order and
      bleeds through the dropdown's white background. */
-  body.is-search-open .picker-section { z-index: 250; }
+  /* Lift above the cookie banner (z-index 700) so the suggestions dropdown
+     stays tappable on mobile, where the lower portion of the list overlaps
+     the bottom-fixed banner. Stays below any future modal layer (modals
+     close the search before opening). */
+  body.is-search-open .picker-section { z-index: 800; }
   body.is-search-open #main-content,
   body.is-search-open .home-info,
   body.is-search-open .survey-card { opacity: 0.12; pointer-events: none; transition: opacity 0.15s; }

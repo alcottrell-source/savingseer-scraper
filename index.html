@@ -2715,14 +2715,10 @@ function formatTodayHours(centreIdx) {
 // missing — first run on a new centre, summariser skipped, API key absent
 // — we fall back to a template narrative built from the same real data.
 function renderCentreNarrativeCard(centreIdx, onSale, history) {
-  // Headline count is the server's literal brands-on-sale value so it
-  // matches the dark vessel ("X of Y brands on sale") above. The local
-  // `onSale` array is the freshness-filtered scoring subset — useful
-  // for picking *which* deals to surface in "Today's freshest deals",
-  // but its length isn't a user-facing concept.
-  const sScore = (typeof getServerScore === 'function') ? getServerScore(centreIdx) : null;
-  const serverOnSale = sScore && Number.isFinite(+sScore.brands_on_sale) ? +sScore.brands_on_sale : null;
-  const onSaleCount = serverOnSale != null ? serverOnSale : onSale.length;
+  // Headline count is the local on-sale count so it matches the chips
+  // visible in the brand list (and the vessel headline above, which
+  // also uses the local count).
+  const onSaleCount = onSale.length;
   const fresh = onSale.length
     ? onSale.slice().sort((a, b) => (a.days || 0) - (b.days || 0))[0]
     : null;
@@ -4050,14 +4046,15 @@ async function renderCentre(centreId) {
     +     '<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div></div>'
     +   '</div>'
     +   (() => {
-          // Vessel headline is consumer-friendly "X of Y brands on sale" — the
-          // internal Tide Score (0-100 quality signal) still drives the
-          // verdict / trajectory / bluf above, but isn't surfaced as a
-          // bare number. Prefer the server's brands_on_sale / total_brands
-          // when today's row exists; fall back to the local CSV count.
+          // Vessel headline is consumer-friendly "X of Y brands on sale".
+          // Counts are derived from the local CSV / inline presence matrix
+          // so they match the brand chips rendered below (using the server
+          // counts could disagree with what the user can actually see).
+          // The internal Tide Score (0-100 quality signal) still drives the
+          // verdict word via sScore, just not the visible numbers.
           const sScore = (typeof getServerScore === 'function') ? getServerScore(centreIdx) : null;
-          const onSaleN = (sScore && sScore.brands_on_sale != null) ? sScore.brands_on_sale : onSale.length;
-          const totalN  = (sScore && sScore.total_brands != null) ? sScore.total_brands : (typeof totalAtCentre !== 'undefined' ? totalAtCentre : 0);
+          const onSaleN = onSale.length;
+          const totalN  = total;
           const pctOnSale = totalN > 0 ? Math.round((onSaleN / totalN) * 100) : 0;
           // Day-on-day change. The number sitting next to it is "X of Y
           // brands on sale", so the change has to be the brand-count delta —

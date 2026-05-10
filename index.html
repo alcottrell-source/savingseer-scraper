@@ -3930,7 +3930,7 @@ async function renderCentre(centreId) {
   const hasFullFloors = !!floorsForCentre
     && allCentreBrands.length > 0
     && allCentreBrands.every(b => Array.isArray(floorsForCentre[b.name]) && floorsForCentre[b.name].length > 0);
-  const escapeFloor = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
   // Group a brand list into floors. A brand on two floors yields a chip in
   // each floor (the floor rows in centre_brand_floors already encode this —
@@ -3952,14 +3952,14 @@ async function renderCentre(centreId) {
     if (onSaleBrands.length) {
       brandHTML += '<div class="cluster-label">On sale &middot; by floor</div>';
       for (const f of groupByFloor(onSaleBrands)) {
-        brandHTML += '<div class="cluster-sublabel">'+escapeFloor(f.label)+' <span class="cluster-sublabel-count">'+f.brands.length+'</span></div>';
+        brandHTML += '<div class="cluster-sublabel">'+escapeHtml(f.label)+' <span class="cluster-sublabel-count">'+f.brands.length+'</span></div>';
         for (const b of f.brands) brandHTML += renderChip(b);
       }
     }
     if (offSaleBrands.length) {
       brandHTML += '<div class="cluster-label">Not on sale &middot; by floor</div>';
       for (const f of groupByFloor(offSaleBrands)) {
-        brandHTML += '<div class="cluster-sublabel">'+escapeFloor(f.label)+' <span class="cluster-sublabel-count">'+f.brands.length+'</span></div>';
+        brandHTML += '<div class="cluster-sublabel">'+escapeHtml(f.label)+' <span class="cluster-sublabel-count">'+f.brands.length+'</span></div>';
         for (const b of f.brands) brandHTML += renderChip(b);
       }
     }

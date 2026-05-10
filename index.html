@@ -2138,6 +2138,21 @@ async function loadTideData() {
       .toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 
     const sel = document.getElementById('centre-select');
+    // Reorder the hidden <select> options by total_brands desc so the
+    // search suggestion list (built from sel.options in DOM order by
+    // filterCentres) shows the biggest centres first. Options without a
+    // score row keep relative order at the bottom.
+    const optsToSort = Array.from(sel.options).filter(o => o.value);
+    optsToSort.sort((a, b) => {
+      const aIdx = parseInt(a.value.replace('C', ''), 10) - 1;
+      const bIdx = parseInt(b.value.replace('C', ''), 10) - 1;
+      const aSid = CENTRE_ID_BY_IDX[aIdx];
+      const bSid = CENTRE_ID_BY_IDX[bIdx];
+      const aBrands = (aSid && CENTRE_SCORES[aSid] && CENTRE_SCORES[aSid].total_brands) || 0;
+      const bBrands = (bSid && CENTRE_SCORES[bSid] && CENTRE_SCORES[bSid].total_brands) || 0;
+      return bBrands - aBrands;
+    });
+    optsToSort.forEach(o => sel.appendChild(o));
     if (sel.value) renderCentre(sel.value);
     // No centre picked — re-render the landing so the "Hot right now" top 3
     // populates with live data now that scores are loaded. Initial paint

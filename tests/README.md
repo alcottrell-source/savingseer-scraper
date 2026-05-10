@@ -36,6 +36,7 @@ so `npm test` in a clean checkout works without separate setup.
 | Feedback bar dismiss persists                     | A4        |                                                      |
 | Footer renders                                    | A5        |                                                      |
 | Sign in opens auth modal at email step            | A10       |                                                      |
+| Bottom-of-list centre stays tappable on mobile    | A11       | Regression for "can't get through" with cookie banner showing. |
 | Auth state machine: email → signin                | B1a       | No Supabase round-trip.                              |
 | Auth state machine: signin ↔ signup escape paths | B1b       |                                                      |
 | Auth: invalid email shows error                   | B1c       |                                                      |
@@ -45,48 +46,43 @@ so `npm test` in a clean checkout works without separate setup.
 | Reload from a centre view                         | D5        | Records observation, doesn't fail.                   |
 | No uncaught page errors                           | D6        | Distinguishes uncaught throws from deliberate logs.  |
 | Mobile viewport: no horizontal scroll             | D7        |                                                      |
-| Cookie + feedback overlap                         | D8        | **Mobile-only `test.fail`** — see Findings below.    |
+| Feedback bar hidden until cookies decided         | D8        | New contract — bar is suppressed during the cookie banner. |
+| Notify-banner / feedback-bar mutual exclusion     | D9        |                                                      |
 | Initial load within budget                        | F1        |                                                      |
 | Centre selection within budget                    | F2        |                                                      |
+| Page recovers when Supabase CDN is blocked        | F3        | Vendor fallback at `vendor/supabase.js`.             |
 
 ## CDN interception
 
 `gotoFresh()` routes `cdn.jsdelivr.net/npm/@supabase/supabase-js` to the
-locally-bundled UMD copy in `node_modules/`. This means the suite runs in
-sandboxed / offline environments — and a CDN outage doesn't break local CI.
-Production-time loading from jsdelivr still happens normally for end users.
+locally-bundled UMD copy in `node_modules/`. Defence-in-depth — `index.html`
+now also has a `vendor/supabase.js` fallback, but keeping the test
+interception means the suite runs in sandboxed / offline environments
+without depending on either.
 
-## Findings
+## Fixed bugs (formerly the Findings list)
 
-Real bugs / drift surfaced while writing the suite:
+These were surfaced by the suite and have since landed on this branch.
+Kept here as a record so reviewers can trace which test maps to which fix.
 
-1. **(D8) Mobile cookie banner overlaps feedback bar** — `index.html`'s
-   `#cookie-banner` (z-index 700, `bottom: 12px`) covers the feedback bar
-   (`#feedback-bar`, `bottom: 0`) on viewports ≤ ~600px. A first-time visitor
-   trying to dismiss the feedback bar clicks the cookie banner instead. Fix
-   options: hide the feedback bar while cookies are pending, or stack the
-   feedback bar above 12px so it sits clear of the cookie banner. Test is
-   marked `test.fail()` on mobile only.
-
-2. **CLAUDE.md drift** — the project notes describe the prefs wizard as
-   4 steps (gender → style clusters → notifications + saved centres → preview),
-   but `index.html` actually renders **5 steps** (audiences → categories →
-   brand grid → centres → notifications). Update CLAUDE.md, or simplify the
-   wizard.
-
-3. **CLAUDE.md drift** — the project notes describe `onAuthStateChange`
-   firing `openPrefsModal()` for new users. Code at line ~1239 of
-   `index.html` was changed to **not** auto-open onboarding; new users see a
-   "Personalise your Tide Score" promo card instead. CLAUDE.md should
-   reflect that.
-
-4. **No defence against jsdelivr being down** — `index.html` loads
-   `@supabase/supabase-js` via `<script src="https://cdn.jsdelivr.net/...">`.
-   When that fails (we triggered it via cert errors in the sandbox), the
-   inline script throws at `supabase.createClient(...)` and the page is
-   completely broken — clicking Sign in throws a TDZ error because the
-   script body never reached `let currentUser = null;`. Bundling the SDK
-   locally (or shipping a fallback `<script>`) would harden this.
+1. **Centre at the bottom of the suggestion list untappable on mobile first
+   visit** (user-reported, A11). Cookie banner z-index 700 covered the
+   lower portion of the dropdown. Fix: bump `body.is-search-open
+   .picker-section` to z-index 800 (`index.html:80`) and skip the desktop
+   search auto-focus while cookies are pending.
+2. **Cookie banner overlapped feedback bar dismiss × on mobile** (D8). New
+   contract: `#feedback-bar` is gated on `localStorage.tide_cookies_skimlinks`
+   being set, so the overlap can't happen. Driven by a new
+   `tide:cookies-decided` CustomEvent fired from `acceptCookies` and
+   `rejectCookies`.
+3. **Notify-banner / feedback-bar overlapped on mobile** (D9). Mutual
+   exclusion: `showNotifyBanner` hides the feedback bar; the matching
+   hide / dismiss helpers re-call `showFeedbackBarIfReady`.
+4. **Page broke entirely if jsdelivr was unreachable** (F3). Bundle now
+   ships in `vendor/`. `index.html` falls back via document.write when the
+   CDN fails; `admin.html` uses the local importmap path directly.
+5. **CLAUDE.md drift** — corrected: prefs wizard is 5 steps, and
+   onboarding no longer auto-opens for new users.
 
 ## Out-of-scope reminders
 

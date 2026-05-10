@@ -189,31 +189,39 @@ test.describe('A. Anonymous flows', () => {
     await expect(page.locator('#auth-email')).toBeVisible();
   });
 
-  test('A11: Centre at the bottom of the suggestions stays tappable while cookie banner is visible (mobile-only regression)', async ({ page }) => {
-    // Reproduces the in-the-wild "can't get through when you select a
-    // shopping centre" bug. On first-visit mobile, the cookie banner
-    // (z-index 700) overlapped the lower portion of the suggestions
-    // dropdown — so the LAST item in the list landed on the cookie
-    // banner instead of the centre. Now picker-section lifts to z-index
-    // 800 when search is open, so the dropdown wins.
-    await gotoFresh(page, { freshCookies: true });
-    await page.setViewportSize({ width: 375, height: 667 });
-    await expect(page.locator('#cookie-banner')).toBeVisible({ timeout: 3_000 });
-    const search = page.locator('#centre-search');
-    await search.click();
-    await search.fill('e'); // single letter — matches a long list of centres
-    const list = page.locator('#centre-suggestions');
-    await expect(list).toBeVisible();
-    const items = list.locator('[role="option"]');
-    const count = await items.count();
-    expect(count).toBeGreaterThan(0);
-    // Pick a suggestion deep enough in the list to overlap the cookie
-    // banner zone — the last visible one.
-    const target = items.nth(count - 1);
-    await target.scrollIntoViewIfNeeded();
-    await target.click();
-    await expect(page.locator('body')).toHaveClass(/is-centre-view/);
-  });
+  // Reproduces the in-the-wild "can't get through when you select a
+  // shopping centre" bug. The cookie banner (z-index 700) overlapped the
+  // LOWER portion of the suggestions dropdown — clicks landed on the
+  // banner, the document-level click handler at index.html:2246 saw the
+  // target wasn't inside .centre-search-wrap, and closed the dropdown
+  // without navigating. Reproduces on:
+  //   - mobile (any viewport ≤ 600px wide): full overlap
+  //   - desktop with a short window: vertical overlap at the dropdown's
+  //     lower rows
+  // Now picker-section lifts to z-index 800 when search is open, so the
+  // dropdown sits above the cookie banner regardless of viewport.
+  for (const vp of [
+    { width: 375, height: 667, label: 'mobile-portrait' },
+    { width: 1280, height: 700, label: 'desktop-shortwindow' },
+  ]) {
+    test(`A11 (${vp.label}): bottom-of-list centre stays tappable while cookie banner is visible`, async ({ page }) => {
+      await gotoFresh(page, { freshCookies: true });
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await expect(page.locator('#cookie-banner')).toBeVisible({ timeout: 3_000 });
+      const search = page.locator('#centre-search');
+      await search.click();
+      await search.fill('e'); // single letter — matches a long list of centres
+      const list = page.locator('#centre-suggestions');
+      await expect(list).toBeVisible();
+      const items = list.locator('[role="option"]');
+      const count = await items.count();
+      expect(count).toBeGreaterThan(0);
+      const target = items.nth(count - 1);
+      await target.scrollIntoViewIfNeeded();
+      await target.click();
+      await expect(page.locator('body')).toHaveClass(/is-centre-view/);
+    });
+  }
 });
 
 test.describe('B. Auth modal state machine (no Supabase round-trip)', () => {

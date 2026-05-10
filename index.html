@@ -2163,11 +2163,12 @@ function filterCentres(query) {
       matches.push({ id: opt.value, name: opt.textContent });
     }
   }
-  matches.sort((a, b) => {
-    const aBrands = (CENTRE_SCORES[a.id] && CENTRE_SCORES[a.id].total_brands) || 0;
-    const bBrands = (CENTRE_SCORES[b.id] && CENTRE_SCORES[b.id].total_brands) || 0;
-    return bBrands - aBrands;
-  });
+  const brandsForOptValue = (v) => {
+    const idx = parseInt(v.replace('C', ''), 10) - 1;
+    const sid = CENTRE_ID_BY_IDX[idx];
+    return (sid && CENTRE_SCORES[sid] && CENTRE_SCORES[sid].total_brands) || 0;
+  };
+  matches.sort((a, b) => brandsForOptValue(b.id) - brandsForOptValue(a.id));
   if (!matches.length) {
     const li = document.createElement('li');
     li.className = 'no-match';

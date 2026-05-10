@@ -1978,6 +1978,12 @@ const SALE_TYPE_LABEL = {
 let CENTRE_SCORES = {};      // supabase centre_id -> { tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands }
 let CENTRE_HISTORY = {};     // supabase centre_id -> [{date, score}, ...]
 let CENTRE_ID_BY_IDX = [];   // centreIdx (0-based, matches CENTRE_NAMES) -> supabase centre_id
+// supabase centre_id -> { [dashboard_brand_name]: [{label, order}, ...] }.
+// Populated from centre_brand_floors only for centres that have been through
+// extract-floors.js. Centres absent from this map render with the legacy
+// cluster grouping; centres present only render by floor when EVERY brand at
+// the centre has at least one floor row (the renderer enforces 100% coverage).
+let FLOORS = {};
 
 async function loadTideData() {
   try {
@@ -1988,15 +1994,35 @@ async function loadTideData() {
     // hasn't picked up the active_cycle_id FK, which leaves the dashboard
     // falling back to the stale Google Sheet — so admin confirmations never
     // surface. Two flat queries + a JS join is what admin.html does.
-    const [centresRes, salesRes, cyclesRes, scoresRes] = await Promise.all([
+    const [centresRes, salesRes, cyclesRes, scoresRes, floorsRes] = await Promise.all([
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,last_verified_status,last_verified_date,active_cycle_id'),
       pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type&end_date=is.null'),
       pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,narrative&score_date=eq.' + today),
+      pgRead('centre_brand_floors?select=centre_id,brand_id,floor_label,floor_order'),
     ]);
     if (centresRes.error || salesRes.error || cyclesRes.error || scoresRes.error) {
       console.error('Tide data load failed:', { centres: centresRes.error, sales: salesRes.error, cycles: cyclesRes.error, scores: scoresRes.error });
       return false;
+    }
+    // Floor data is optional — a missing table or RLS block shouldn't break
+    // the dashboard. The renderer treats an empty FLOORS map as "no floor
+    // grouping anywhere" and falls back to clusters.
+    if (floorsRes.error) {
+      console.warn('centre_brand_floors load failed (will fall back to cluster grouping):', floorsRes.error);
+    } else {
+      FLOORS = {};
+      for (const row of floorsRes.data || []) {
+        // centre_brand_floors is keyed by scraper brand_id (B001…), but the
+        // dashboard's BRANDS array uses a different id space and joins on
+        // brand name. Translate here so the renderer can look up by name.
+        const name = DASHBOARD_NAME_BY_SCRAPER_ID[row.brand_id];
+        if (!name) continue;
+        const cid = row.centre_id;
+        if (!FLOORS[cid]) FLOORS[cid] = {};
+        if (!FLOORS[cid][name]) FLOORS[cid][name] = [];
+        FLOORS[cid][name].push({ label: row.floor_label, order: row.floor_order });
+      }
     }
     const centresList = centresRes.data || [];
     if (!centresList.length) { console.warn('No centres returned from Supabase'); return false; }
@@ -3829,41 +3855,87 @@ async function renderCentre(centreId) {
       : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+'>'+inner+'</div>';
   }
 
-  let brandHTML='';
-  if (onSaleBrands.length) {
-    brandHTML += '<div class="cluster-label">On sale &middot; newest first</div>';
-    for (const b of onSaleBrands) brandHTML += renderChip(b);
+  // Floor-aware grouping. We render brands grouped by floor only when the
+  // centre has 100% floor coverage for every brand present at it — the
+  // user's rule is "all or nothing", so a partial dataset reverts the whole
+  // centre to the legacy cluster grouping. The coverage check uses
+  // BRANDS-at-centre (not the visible/filtered subset) so toggling the
+  // My/All brand filter cannot flip the rendering style mid-session.
+  const supabaseCentreId = CENTRE_ID_BY_IDX[centreIdx];
+  const floorsForCentre = (supabaseCentreId && FLOORS[supabaseCentreId]) || null;
+  const allCentreBrands = BRANDS.filter(b => (PRESENCE[b.id]||[])[centreIdx] === 1);
+  const hasFullFloors = !!floorsForCentre
+    && allCentreBrands.length > 0
+    && allCentreBrands.every(b => Array.isArray(floorsForCentre[b.name]) && floorsForCentre[b.name].length > 0);
+  const escapeFloor = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // Group a brand list into floors. A brand on two floors yields a chip in
+  // each floor (the floor rows in centre_brand_floors already encode this —
+  // we just iterate and don't dedupe).
+  function groupByFloor(brandList) {
+    const buckets = new Map(); // floor_label -> {label, order, brands:[]}
+    for (const b of brandList) {
+      const floors = floorsForCentre[b.name] || [];
+      for (const f of floors) {
+        if (!buckets.has(f.label)) buckets.set(f.label, { label: f.label, order: f.order, brands: [] });
+        buckets.get(f.label).brands.push(b);
+      }
+    }
+    return Array.from(buckets.values()).sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
   }
-  if (offSaleBrands.length) {
-    brandHTML += '<div class="cluster-label">Not on sale</div>';
-    // Group by cluster so the long not-on-sale list reads as chunked
-    // categories (Activewear / Footwear / High Street / etc.) rather
-    // than a single alphabetical wall. One brand maps to one cluster,
-    // so no duplication. Order is broadest-first.
-    const CLUSTER_DISPLAY = {
-      'High Street':     'High Street',
-      'Contemporary':    'Contemporary',
-      'Premium Casual':  'Premium Casual',
-      'Classic British': 'Classic British',
-      'Smart/Occasion':  'Smart & Occasion',
-      'Active':          'Activewear',
-      'Footwear':        'Footwear',
-      'Accessories':     'Accessories',
-    };
-    const CLUSTER_ORDER = ['High Street','Contemporary','Premium Casual','Classic British','Smart/Occasion','Active','Footwear','Accessories'];
-    const grouped = {};
-    for (const b of offSaleBrands) {
-      const k = b.cluster || 'Other';
-      (grouped[k] ||= []).push(b);
+
+  let brandHTML='';
+  if (hasFullFloors) {
+    if (onSaleBrands.length) {
+      brandHTML += '<div class="cluster-label">On sale &middot; by floor</div>';
+      for (const f of groupByFloor(onSaleBrands)) {
+        brandHTML += '<div class="cluster-sublabel">'+escapeFloor(f.label)+' <span class="cluster-sublabel-count">'+f.brands.length+'</span></div>';
+        for (const b of f.brands) brandHTML += renderChip(b);
+      }
     }
-    const orderedKeys = CLUSTER_ORDER.filter(k => grouped[k]);
-    for (const k of Object.keys(grouped)) {
-      if (!orderedKeys.includes(k)) orderedKeys.push(k);
+    if (offSaleBrands.length) {
+      brandHTML += '<div class="cluster-label">Not on sale &middot; by floor</div>';
+      for (const f of groupByFloor(offSaleBrands)) {
+        brandHTML += '<div class="cluster-sublabel">'+escapeFloor(f.label)+' <span class="cluster-sublabel-count">'+f.brands.length+'</span></div>';
+        for (const b of f.brands) brandHTML += renderChip(b);
+      }
     }
-    for (const k of orderedKeys) {
-      const label = CLUSTER_DISPLAY[k] || k;
-      brandHTML += '<div class="cluster-sublabel">'+label+' <span class="cluster-sublabel-count">'+grouped[k].length+'</span></div>';
-      for (const b of grouped[k]) brandHTML += renderChip(b);
+  } else {
+    if (onSaleBrands.length) {
+      brandHTML += '<div class="cluster-label">On sale &middot; newest first</div>';
+      for (const b of onSaleBrands) brandHTML += renderChip(b);
+    }
+    if (offSaleBrands.length) {
+      brandHTML += '<div class="cluster-label">Not on sale</div>';
+      // Group by cluster so the long not-on-sale list reads as chunked
+      // categories (Activewear / Footwear / High Street / etc.) rather
+      // than a single alphabetical wall. One brand maps to one cluster,
+      // so no duplication. Order is broadest-first.
+      const CLUSTER_DISPLAY = {
+        'High Street':     'High Street',
+        'Contemporary':    'Contemporary',
+        'Premium Casual':  'Premium Casual',
+        'Classic British': 'Classic British',
+        'Smart/Occasion':  'Smart & Occasion',
+        'Active':          'Activewear',
+        'Footwear':        'Footwear',
+        'Accessories':     'Accessories',
+      };
+      const CLUSTER_ORDER = ['High Street','Contemporary','Premium Casual','Classic British','Smart/Occasion','Active','Footwear','Accessories'];
+      const grouped = {};
+      for (const b of offSaleBrands) {
+        const k = b.cluster || 'Other';
+        (grouped[k] ||= []).push(b);
+      }
+      const orderedKeys = CLUSTER_ORDER.filter(k => grouped[k]);
+      for (const k of Object.keys(grouped)) {
+        if (!orderedKeys.includes(k)) orderedKeys.push(k);
+      }
+      for (const k of orderedKeys) {
+        const label = CLUSTER_DISPLAY[k] || k;
+        brandHTML += '<div class="cluster-sublabel">'+label+' <span class="cluster-sublabel-count">'+grouped[k].length+'</span></div>';
+        for (const b of grouped[k]) brandHTML += renderChip(b);
+      }
     }
   }
 

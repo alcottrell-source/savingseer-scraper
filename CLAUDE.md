@@ -34,10 +34,10 @@ Signed-in users clicking the nav button open `#account-panel` (not the prefs wiz
 `onAuthBtnClick()` routes to `openAccountPanel()` if signed in, `openAuthModal()` if not.
 
 ### First-time onboarding
-`onAuthStateChange` fires `openPrefsModal()` only when `!userPrefs` (no row in `user_preferences` table). Previously used a fragile gender-field check — don't revert to that.
+New users (no row in `user_preferences`) **do not** auto-open the prefs modal anymore. Instead, signed-in users without saved prefs see a "Personalise your Tide Score" promo card on the empty-state landing (rendered in `renderCentre('')` at index.html:3716). Tapping the card opens the wizard. The earlier auto-open via `onAuthStateChange` was removed because users who hit a save error or accidentally dismissed the modal got stuck never seeing onboarding again. Don't reintroduce auto-open without addressing that recovery path.
 
 ### Preferences wizard (`#prefs-modal`)
-4-step wizard: gender → style clusters → notifications + saved centres → preview. Opens automatically for new users and via "Edit shopping preferences" in the account panel. Saves via upsert on `user_preferences` with `onConflict: 'user_id'`.
+5-step wizard driven by `obRender()` (index.html:1683): audiences → categories → brand grid (clusters) → saved centres → notifications. Opens via the promo card and via "Edit shopping preferences" in the account panel. Saves via upsert on `user_preferences` with `onConflict: 'user_id'`.
 
 ## Centre Intelligence narrative (May 2026)
 The card under each centre's score shows a 1–2 sentence trend narrative. It's generated daily by `summarise.js` (Gemini 2.0 Flash-Lite, free tier — 1500 RPD, 15 RPM) and stored in `centre_seer_scores.narrative` for that centre+date. The front-end reads the column and falls back to a template narrative when the column is null (first run on a new centre, summariser skipped, or `GEMINI_API_KEY` absent). Don't add live API calls from the browser — keep generation in the daily pipeline.

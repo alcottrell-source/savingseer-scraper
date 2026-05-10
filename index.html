@@ -1177,12 +1177,14 @@ function hideCookieBanner() {
 function acceptCookies() {
   try { localStorage.setItem('tide_cookies_skimlinks', 'accepted'); } catch(e) {}
   hideCookieBanner();
+  document.dispatchEvent(new CustomEvent('tide:cookies-decided'));
   // Skimlinks isn't loaded yet on this page-view; reload so it picks up.
   if (!window._tideSkimlinksLoaded) location.reload();
 }
 function rejectCookies() {
   try { localStorage.setItem('tide_cookies_skimlinks', 'rejected'); } catch(e) {}
   hideCookieBanner();
+  document.dispatchEvent(new CustomEvent('tide:cookies-decided'));
 }
 (function showCookieBannerOnFirstVisit() {
   try {
@@ -1508,11 +1510,17 @@ function showNotifyBanner() {
   try { if (localStorage.getItem('tide_notify_dismissed') === '1') return; } catch(e) {}
   const el = document.getElementById('notify-banner');
   if (el) el.classList.add('visible');
+  // Mutual exclusion with the feedback bar: both pin to bottom and overlap
+  // on mobile, with the notify banner (z-index 250) on top, blocking the
+  // feedback bar's dismiss × beneath it.
+  const fb = document.getElementById('feedback-bar');
+  if (fb) fb.style.display = 'none';
 }
 
 function hideNotifyBanner() {
   const el = document.getElementById('notify-banner');
   if (el) el.classList.remove('visible');
+  if (typeof showFeedbackBarIfReady === 'function') showFeedbackBarIfReady();
 }
 
 function dismissNotifyBanner() {
@@ -4174,9 +4182,13 @@ try {
   const _hi = document.getElementById('home-info-section');
   if (_hi) _hi.style.display = 'none';
   // Autofocus the search on desktop only. Touch devices skip it so the
-  // iOS/Android keyboard doesn't pop up the moment the page loads.
+  // iOS/Android keyboard doesn't pop up the moment the page loads. Also
+  // skip while the cookie banner is pending — the dropdown's stacking lift
+  // (z-index 800 when search is open) sits above the cookie banner, which
+  // would block the dismiss buttons on first visit.
   const _fineHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-  if (_fineHover) {
+  const _cookiesDecided = (() => { try { return !!localStorage.getItem('tide_cookies_skimlinks'); } catch (e) { return true; } })();
+  if (_fineHover && _cookiesDecided) {
     const _picker = document.getElementById('picker-section');
     const _input = document.getElementById('centre-search');
     if (_input && _picker && !_picker.classList.contains('is-hidden')) {
@@ -4220,24 +4232,40 @@ setInterval(() => loadTideData(), 15000);
       Share feedback →
     </a>
   </span>
-  <button onclick="document.getElementById('feedback-bar').style.display='none'; localStorage.setItem('fb-dismissed','1')"
+  <button onclick="document.getElementById('feedback-bar').style.display='none'; try{localStorage.setItem('fb-dismissed','1')}catch(e){}"
     style="background:none;border:none;cursor:pointer;color:var(--stone);font-size:16px;padding:0 0 0 16px;">
     ✕
   </button>
 </div>
 
 <script>
-  // Show after score loads, once per session unless permanently dismissed
+  // Show after score loads, once per session unless permanently dismissed.
+  //
+  // Two extra gates beyond the simple "fb-dismissed" check:
+  //   1. Don't show until the user has decided on cookies. The cookie banner
+  //      is z-index 700 and on mobile fully overlaps the feedback bar at
+  //      bottom — overlapping the dismiss × so the user can't get rid of
+  //      either. Wait for `tide:cookies-decided` before appearing.
+  //   2. Don't show while the notify-banner (logged-out, post-centre-pick)
+  //      is visible — same overlap, same problem. Mutual exclusion is
+  //      handled by showNotifyBanner / hideNotifyBanner re-running this
+  //      check.
+  function showFeedbackBarIfReady() {
+    if (localStorage.getItem('fb-dismissed') === '1') return;
+    if (!localStorage.getItem('tide_cookies_skimlinks')) return;
+    const notify = document.getElementById('notify-banner');
+    if (notify && notify.classList.contains('visible')) return;
+    const bar = document.getElementById('feedback-bar');
+    if (bar) bar.style.display = 'flex';
+  }
+  window.showFeedbackBarIfReady = showFeedbackBarIfReady;
   if (!localStorage.getItem('fb-dismissed')) {
-    document.addEventListener('centreScoreLoaded', () => {
-      document.getElementById('feedback-bar').style.display = 'flex';
-    });
-    // Fallback: show 4s after page load if no event fires
-    setTimeout(() => {
-      if (document.getElementById('feedback-bar').style.display !== 'flex') {
-        document.getElementById('feedback-bar').style.display = 'flex';
-      }
-    }, 4000);
+    document.addEventListener('centreScoreLoaded', showFeedbackBarIfReady);
+    document.addEventListener('tide:cookies-decided', showFeedbackBarIfReady);
+    // Fallback: try 4s after page load if no event fires (e.g. user lingers
+    // on the empty-state landing). Still gated by showFeedbackBarIfReady so
+    // first-visit users don't see the bar before handling cookies.
+    setTimeout(showFeedbackBarIfReady, 4000);
   }
 </script>
 

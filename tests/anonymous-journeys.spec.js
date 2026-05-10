@@ -40,13 +40,17 @@ async function gotoFresh(page, opts = {}) {
     );
   }
   const { freshCookies = false, freshFeedback = false } = opts;
-  // Wipe state so dismissals don't carry between tests, then re-seed the
-  // banner-suppression flags. This mirrors a returning visitor whose UI is
-  // calm. Tests that specifically exercise first-visit behaviour pass
-  // `freshCookies: true` / `freshFeedback: true` to leave the relevant state
-  // unset and let the banner / bar appear naturally.
+  // Seed banner-suppression flags so returning-visitor tests don't fight
+  // first-visit UI. Idempotent across reloads — addInitScript runs on every
+  // navigation including reload, so we use a sessionStorage marker to ensure
+  // we only seed once. That way a click that writes to localStorage actually
+  // persists across `await page.reload()` instead of being wiped on the next
+  // initScript pass. Tests that specifically exercise first-visit behaviour
+  // pass `freshCookies: true` / `freshFeedback: true`.
   await page.addInitScript(({ freshCookies, freshFeedback }) => {
     try {
+      if (sessionStorage.getItem('_tide_test_seeded') === '1') return;
+      sessionStorage.setItem('_tide_test_seeded', '1');
       localStorage.clear();
       if (!freshCookies) localStorage.setItem('tide_cookies_skimlinks', 'rejected');
       if (!freshFeedback) localStorage.setItem('fb-dismissed', '1');
@@ -144,37 +148,24 @@ test.describe('A. Anonymous flows', () => {
     await expect(fb).toBeHidden();
   });
 
-  test('D8: Cookie banner does not block the feedback bar dismiss button', async ({ page }, testInfo) => {
-    // Known mobile-only regression: the cookie banner (z-index 700) covers
-    // the feedback bar (#feedback-bar, fixed bottom:0) on narrow viewports.
-    // On desktop the banner is 480px centred and the feedback bar's dismiss
-    // × is at the right edge, so they don't overlap. On mobile they do —
-    // a first-time visitor who tries to dismiss the feedback bar before
-    // handling cookies clicks the cookie banner instead.
-    const vp = page.viewportSize();
-    if (vp && vp.width <= 600) {
-      // Mark expected-failure on mobile so the suite stays green while
-      // flagging the regression. Drop this when the overlap is fixed.
-      test.fail();
-    }
+  test('D8: Feedback bar stays hidden until cookies are decided', async ({ page }) => {
+    // Was: a layout assertion that the cookie banner didn't overlap the
+    // feedback bar (which it did, on mobile). New contract: the feedback
+    // bar simply doesn't appear until the user has handled the cookie
+    // banner, so the overlap can't happen. Once they've decided, the bar
+    // appears as before — and survives a reload.
     await gotoFresh(page, { freshCookies: true, freshFeedback: true });
     const cookie = page.locator('#cookie-banner');
     const fb = page.locator('#feedback-bar');
     await expect(cookie).toBeVisible({ timeout: 3_000 });
-    await expect(fb).toBeVisible({ timeout: 6_000 });
-    const cookieBox = await cookie.boundingBox();
-    const fbDismissBox = await fb.locator('button').boundingBox();
-    if (!cookieBox || !fbDismissBox) test.fail(true, 'Could not measure layout');
-    const overlaps =
-      cookieBox.x < fbDismissBox.x + fbDismissBox.width &&
-      cookieBox.x + cookieBox.width > fbDismissBox.x &&
-      cookieBox.y < fbDismissBox.y + fbDismissBox.height &&
-      cookieBox.y + cookieBox.height > fbDismissBox.y;
-    test.info().annotations.push({
-      type: 'layout',
-      description: `cookie ${JSON.stringify(cookieBox)} vs feedback-dismiss ${JSON.stringify(fbDismissBox)} — overlaps=${overlaps}`,
-    });
-    expect(overlaps, 'Cookie banner overlaps feedback bar dismiss button').toBe(false);
+    // Bar must not appear during the 4s fallback window while cookies
+    // are still pending.
+    await page.waitForTimeout(4500);
+    await expect(fb).toBeHidden();
+    // Decide cookies → bar should appear.
+    await cookie.getByRole('button', { name: /strictly necessary|reject/i }).click();
+    await expect(cookie).toBeHidden();
+    await expect(fb).toBeVisible({ timeout: 2_000 });
   });
 
   test('A5: Footer renders with privacy / cookies / contact links', async ({ page }) => {
@@ -196,6 +187,32 @@ test.describe('A. Anonymous flows', () => {
     await expect(page.locator('#auth-step-signup')).toBeHidden();
     await expect(page.locator('#auth-step-magic')).toBeHidden();
     await expect(page.locator('#auth-email')).toBeVisible();
+  });
+
+  test('A11: Centre at the bottom of the suggestions stays tappable while cookie banner is visible (mobile-only regression)', async ({ page }) => {
+    // Reproduces the in-the-wild "can't get through when you select a
+    // shopping centre" bug. On first-visit mobile, the cookie banner
+    // (z-index 700) overlapped the lower portion of the suggestions
+    // dropdown — so the LAST item in the list landed on the cookie
+    // banner instead of the centre. Now picker-section lifts to z-index
+    // 800 when search is open, so the dropdown wins.
+    await gotoFresh(page, { freshCookies: true });
+    await page.setViewportSize({ width: 375, height: 667 });
+    await expect(page.locator('#cookie-banner')).toBeVisible({ timeout: 3_000 });
+    const search = page.locator('#centre-search');
+    await search.click();
+    await search.fill('e'); // single letter — matches a long list of centres
+    const list = page.locator('#centre-suggestions');
+    await expect(list).toBeVisible();
+    const items = list.locator('[role="option"]');
+    const count = await items.count();
+    expect(count).toBeGreaterThan(0);
+    // Pick a suggestion deep enough in the list to overlap the cookie
+    // banner zone — the last visible one.
+    const target = items.nth(count - 1);
+    await target.scrollIntoViewIfNeeded();
+    await target.click();
+    await expect(page.locator('body')).toHaveClass(/is-centre-view/);
   });
 });
 
@@ -314,6 +331,22 @@ test.describe('D. Resilience / edge cases (signed-out)', () => {
       return document.documentElement.scrollWidth - document.documentElement.clientWidth;
     });
     expect(overflow, 'Document horizontal overflow').toBeLessThanOrEqual(1);
+  });
+
+  test('D9: Notify-banner and feedback-bar are mutually exclusive', async ({ page }) => {
+    // Both pin to bottom and overlap on mobile. With cookies already
+    // decided, the feedback bar should be visible by default — but as soon
+    // as showNotifyBanner() runs, it must hide; and when notify dismisses,
+    // it must come back.
+    await gotoFresh(page, { freshFeedback: true });
+    const fb = page.locator('#feedback-bar');
+    await expect(fb).toBeVisible({ timeout: 6_000 });
+    await page.evaluate(() => window.showNotifyBanner());
+    await expect(page.locator('#notify-banner')).toBeVisible();
+    await expect(fb).toBeHidden();
+    await page.evaluate(() => window.dismissNotifyBanner());
+    await expect(page.locator('#notify-banner')).toBeHidden();
+    await expect(fb).toBeVisible({ timeout: 2_000 });
   });
 });
 

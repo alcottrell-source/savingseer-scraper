@@ -2004,6 +2004,7 @@ const SALE_TYPE_LABEL = {
 let CENTRE_SCORES = {};      // supabase centre_id -> { tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands }
 let CENTRE_HISTORY = {};     // supabase centre_id -> [{date, score}, ...]
 let CENTRE_ID_BY_IDX = [];   // centreIdx (0-based, matches CENTRE_NAMES) -> supabase centre_id
+let _centreOptsSorted = false; // dropdown options reordered once after first score load
 // supabase centre_id -> { [dashboard_brand_name]: [{label, order}, ...] }.
 // Populated from centre_brand_floors only for centres that have been through
 // extract-floors.js. Centres absent from this map render with the legacy
@@ -2142,17 +2143,27 @@ async function loadTideData() {
     // search suggestion list (built from sel.options in DOM order by
     // filterCentres) shows the biggest centres first. Options without a
     // score row keep relative order at the bottom.
-    const optsToSort = Array.from(sel.options).filter(o => o.value);
-    optsToSort.sort((a, b) => {
-      const aIdx = parseInt(a.value.replace('C', ''), 10) - 1;
-      const bIdx = parseInt(b.value.replace('C', ''), 10) - 1;
-      const aSid = CENTRE_ID_BY_IDX[aIdx];
-      const bSid = CENTRE_ID_BY_IDX[bIdx];
-      const aBrands = (aSid && CENTRE_SCORES[aSid] && CENTRE_SCORES[aSid].total_brands) || 0;
-      const bBrands = (bSid && CENTRE_SCORES[bSid] && CENTRE_SCORES[bSid].total_brands) || 0;
-      return bBrands - aBrands;
-    });
-    optsToSort.forEach(o => sel.appendChild(o));
+    // Only sort once per session — loadTideData also runs on a 15s
+    // setInterval poll, and remutating sel.options during a user gesture
+    // can desync iOS Safari's pointer/touch handling on the suggestion
+    // list (sel.value briefly resets to "", routing them back to the
+    // landing) and strand the user mid-selection.
+    if (!_centreOptsSorted) {
+      const _prevSelValue = sel.value;
+      const optsToSort = Array.from(sel.options).filter(o => o.value);
+      optsToSort.sort((a, b) => {
+        const aIdx = parseInt(a.value.replace('C', ''), 10) - 1;
+        const bIdx = parseInt(b.value.replace('C', ''), 10) - 1;
+        const aSid = CENTRE_ID_BY_IDX[aIdx];
+        const bSid = CENTRE_ID_BY_IDX[bIdx];
+        const aBrands = (aSid && CENTRE_SCORES[aSid] && CENTRE_SCORES[aSid].total_brands) || 0;
+        const bBrands = (bSid && CENTRE_SCORES[bSid] && CENTRE_SCORES[bSid].total_brands) || 0;
+        return bBrands - aBrands;
+      });
+      optsToSort.forEach(o => sel.appendChild(o));
+      if (_prevSelValue) sel.value = _prevSelValue;
+      _centreOptsSorted = true;
+    }
     if (sel.value) renderCentre(sel.value);
     // No centre picked — re-render the landing so the "Hot right now" top 3
     // populates with live data now that scores are loaded. Initial paint

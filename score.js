@@ -77,9 +77,17 @@ function deriveStageFromVerdict(verdict) {
   return verdict ? (STAGE_FROM_VERDICT[verdict] || null) : null;
 }
 
-function getTideStage(score, yesterdayStage) {
+// Trajectory shapes the bluf sentence only — the stage and verdict noun stay
+// pinned to the hysteresis state machine so the STAGE_FROM_VERDICT lookup and
+// downstream consumers (admin panel filters, summariser prompt) keep working
+// unchanged. Climbing stages (Turning / Rising) gain a falling-flavoured copy
+// for the case where score is below the stage's natural ceiling but trajectory
+// has already turned over — without it the bluf reads "Worth watching" while
+// the trend line right below says "Tide easing off".
+function getTideStage(score, yesterdayStage, trajectory) {
   const wasHighTide = yesterdayStage === 'High Tide';
   const wasDescent  = yesterdayStage === 'Falling' || yesterdayStage === 'Low';
+  const falling     = trajectory === 'FALLING';
 
   if (score === 0) {
     if (wasHighTide || wasDescent) {
@@ -102,8 +110,22 @@ function getTideStage(score, yesterdayStage) {
   }
 
   // Climb path: working up toward peak (or first day of a new centre)
-  if (score >= 25) return { stage: 'Rising',  verdict: 'Worth watching',   bluf: 'Sales building and fresh. Plan your visit soon.' };
-  return            { stage: 'Turning', verdict: 'Starting to build', bluf: 'A few brands are breaking into sale. Worth watching.' };
+  if (score >= 25) {
+    return {
+      stage: 'Rising',
+      verdict: 'Worth watching',
+      bluf: falling
+        ? 'Sales easing back from peak. Still worth a visit, but don’t wait.'
+        : 'Sales building and fresh. Plan your visit soon.',
+    };
+  }
+  return {
+    stage: 'Turning',
+    verdict: 'Starting to build',
+    bluf: falling
+      ? 'Sales thin and easing off. Probably not worth a trip today.'
+      : 'A few brands are breaking into sale. Worth watching.',
+  };
 }
 
 // ── Trajectory (spec §5, with hysteresis) ────────────────────────────────────
@@ -300,7 +322,7 @@ async function calculateAllCentreScores(opts = {}) {
     const yesterdayTrajectory = yesterdayTrajectoryMap.get(centre.id) ?? null;
     const trajectory = getTrajectory(tideScore, recent, yesterdayTrajectory);
     const yesterdayStage = yesterdayStageMap.get(centre.id) ?? null;
-    const { stage, verdict, bluf } = getTideStage(tideScore, yesterdayStage);
+    const { stage, verdict, bluf } = getTideStage(tideScore, yesterdayStage, trajectory);
 
     const topBrands = saleDetails
       .sort((a, b) => (b.freshness * b.weight) - (a.freshness * a.weight))
@@ -491,8 +513,9 @@ async function calculatePersonalScores(opts = {}) {
 
       const personalScore = Math.round((totalFreshness / matchingBrandIds.length) * 10) / 10;
       // Personal scores aren't tracked across days, so no yesterdayStage —
-      // the verdict reflects the score alone (no hysteresis).
-      const { verdict } = getTideStage(personalScore, null);
+      // the verdict reflects the score alone (no hysteresis). Trajectory is
+      // also unavailable per-user; pass FLAT so the bluf branch is neutral.
+      const { verdict } = getTideStage(personalScore, null, 'FLAT');
 
       scoreRows.push({
         user_id:             pref.user_id,

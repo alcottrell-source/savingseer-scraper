@@ -372,6 +372,29 @@ test.describe('F. Performance (light)', () => {
   });
 });
 
+test.describe('F. Performance / resilience', () => {
+  test('F3: Page recovers when the Supabase CDN is unreachable', async ({ page }) => {
+    // Block jsdelivr at the network layer — simulates a CDN outage or a
+    // corporate proxy / VPN that drops third-party hosts. The vendor/
+    // fallback at index.html:11 should pick up via document.write.
+    await page.route(/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js/, route => route.abort('failed'));
+    page._pageErrors = [];
+    page.on('pageerror', err => page._pageErrors.push(String(err)));
+    await page.addInitScript(() => {
+      try { localStorage.clear(); localStorage.setItem('tide_cookies_skimlinks', 'rejected'); } catch (e) {}
+    });
+    await page.goto('/');
+    await page.waitForFunction(
+      () => typeof window.supabase === 'object' && typeof window.renderCentre === 'function',
+      { timeout: 8_000 },
+    );
+    // Sign-in still wires up because currentUser was actually initialized.
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.locator('#auth-modal')).toBeVisible();
+    expect(page._pageErrors, `Uncaught errors with CDN blocked: ${JSON.stringify(page._pageErrors)}`).toEqual([]);
+  });
+});
+
 test.describe('B. Authenticated flows — out of scope (need test user)', () => {
   test.fixme('B3: After sign-in, nav button changes to "My Tide" and opens account panel', async () => {});
   test.fixme('B4: Account panel shows email, saved centres, toggles, sign-out', async () => {});

@@ -59,10 +59,13 @@ The Tide Score (0-100) measures density × freshness of brand sales at the centr
 - Falling: tide going out, picked-over
 - Low: cycle ended
 
-Brand "days running" matters: stocks are fullest in the first 5-7 days of a sale; from week 3 onwards a brand is picked-over even if still discounting.
+Stocks are fullest in the first week of a sale; from week 3 onwards a brand is picked-over even if still discounting.
+
+What to write about: the brands that have most recently arrived on sale. Name 1-3 of them. If the tide is falling, you can mention which brands are looking picked-over. Keep it concrete.
 
 Voice rules:
-- Factual and concrete. Cite specific brand names and day counts when they help.
+- NO NUMBERS of any kind. Don't write digits, don't spell out counts ("ten brands"), don't say "day 4" or "4 days ago" or "20% off". Use words like "newly", "just arrived", "fresh", "recently", "still picked-over".
+- Factual and concrete — name specific brands.
 - No hype words ("amazing", "incredible", "huge"), no marketing tone, no exclamation marks.
 - No predictions about tomorrow or future days.
 - No second-guessing the score — describe what the data shows, don't editorialise.
@@ -224,10 +227,12 @@ async function main() {
       skipped++;
       continue;
     }
-    if (score.narrative) {
-      // Idempotency: if the row already has a narrative for today, leave it
-      // alone. Re-runs cost nothing.
-      console.log(`  · ${centre.name}: narrative already present, skipping`);
+    if (score.narrative && !/\d/.test(score.narrative)) {
+      // Idempotency: if today's row already has a digit-free narrative,
+      // leave it alone. Narratives that contain digits are either stale
+      // (carry-forward from a day with different counts) or violate the
+      // no-numbers rule, so regenerate them.
+      console.log(`  · ${centre.name}: clean narrative already present, skipping`);
       skipped++;
       continue;
     }

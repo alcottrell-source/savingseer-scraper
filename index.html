@@ -173,15 +173,6 @@
   .tide-vessel--falling .tide-vessel-direction-bg { color: #F4B79F;          text-shadow: 0 0 14px rgba(244,183,159,0.55); }
   .tide-vessel--flat    .tide-vessel-direction-bg { color: var(--tide-neon); text-shadow: 0 0 12px rgba(94,255,176,0.45); font-size: 24px; opacity: 0.75; }
 
-  /* Plain-English trend pill — sits under the brand-count fact line.
-     Says exactly what's happening with sales, in words. Coloured pill
-     so it carries weight at a glance. */
-  .tide-vessel-trend { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 6px 12px; border-radius: 100px; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1; }
-  .tide-vessel-trend.is-up   { background: rgba(94,255,176,0.18);  color: #9FD8B0; }
-  .tide-vessel-trend.is-down { background: rgba(244,183,159,0.18); color: #F4B79F; }
-  .tide-vessel-trend.is-flat { background: rgba(245,241,235,0.10); color: rgba(245,241,235,0.65); }
-  .tide-vessel-trend-arrow { font-size: 14px; font-weight: 700; line-height: 1; }
-  .tide-vessel-trend-detail { font-weight: 400; opacity: 0.75; text-transform: none; letter-spacing: 0; margin-left: 2px; }
   /* Headline number — now "X%" + small "Y of Z shops" subtitle. */
   .tide-score-num { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 42px; line-height: 1; color: var(--tide-cream); }
   .tide-score-unit { display: block; font-family: 'Inter', sans-serif; font-size: 11px; color: rgba(245,241,235,0.55); letter-spacing: 0.04em; margin-top: 5px; white-space: nowrap; }
@@ -3018,33 +3009,6 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
                   : '&#10142;';                      // ➞ (drift, no clear direction)
   const bgArrowHTML = '<div class="tide-vessel-direction-bg" aria-hidden="true">' + bgChevron + '</div>';
 
-  // Plain-English trend pill — explicit "what's happening with sales".
-  // The "fast" qualifier kicks in when today's brand-count delta agrees
-  // with the medium-term trajectory by more than one brand, so we only
-  // shout "fast" when both signals point the same way strongly.
-  let trendCls, trendArrow, trendText, trendDetail = '';
-  const fastUp   = traj === 'rising'  && Number.isFinite(brandsDelta) && brandsDelta >=  2;
-  const fastDown = traj === 'falling' && Number.isFinite(brandsDelta) && brandsDelta <= -2;
-  if (traj === 'rising') {
-    trendCls = 'is-up'; trendArrow = '&uarr;';
-    trendText = fastUp ? 'Sales rising fast' : 'Sales rising';
-  } else if (traj === 'falling') {
-    trendCls = 'is-down'; trendArrow = '&darr;';
-    trendText = fastDown ? 'Sales falling fast' : 'Sales falling';
-  } else {
-    trendCls = 'is-flat'; trendArrow = '&rarr;';
-    trendText = 'Sales steady';
-  }
-  if (Number.isFinite(brandsDelta) && brandsDelta !== 0) {
-    const noun = Math.abs(brandsDelta) === 1 ? 'brand' : 'brands';
-    trendDetail = '<span class="tide-vessel-trend-detail">&middot; ' + (brandsDelta > 0 ? '+' : '') + brandsDelta + ' ' + noun + ' today</span>';
-  }
-  const trendHTML = '<div class="tide-vessel-trend ' + trendCls + '">'
-                  +   '<span class="tide-vessel-trend-arrow">' + trendArrow + '</span>'
-                  +   trendText
-                  +   trendDetail
-                  + '</div>';
-
   const LADDER = [
     { level: 60, label: 'Go now'  },
     { level: 40, label: 'Worth it' },
@@ -3063,7 +3027,6 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
        +   '<div class="tide-vessel-verdict">'
        +     '<div class="tide-vessel-verdict-word tone-' + verdict.tone + '">' + verdict.word + '</div>'
        +     '<div class="tide-vessel-fact">' + factText + changeHTML + '</div>'
-       +     trendHTML
        +   '</div>'
        +   '<div class="tide-ladder" aria-hidden="true">' + ladderHTML + '</div>'
        +   '<div class="tide-water">'

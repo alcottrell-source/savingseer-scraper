@@ -2761,10 +2761,17 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
               + '</div>';
   void histCount; // narrative still uses `fresh` below
 
-  // Narrative — Claude-written if available, otherwise template fallback.
-  const aiNarrative = (getServerScore(centreIdx) || {}).narrative;
+  // Narrative — Gemini-written if available, otherwise template fallback.
+  // Only use the AI narrative when the server brand-count it was generated
+  // from agrees with our local count. Otherwise the AI text reflects the
+  // server's view (e.g. "10 brands on sale today") while the chips below
+  // show 6, and the user catches the contradiction.
+  const sScore = getServerScore(centreIdx) || {};
+  const aiNarrative = sScore.narrative;
+  const serverOnSale = Number.isFinite(+sScore.brands_on_sale) ? +sScore.brands_on_sale : null;
+  const aiCountAgrees = serverOnSale === null || serverOnSale === onSaleCount;
   let narrative;
-  if (aiNarrative && aiNarrative.trim()) {
+  if (aiNarrative && aiNarrative.trim() && aiCountAgrees) {
     narrative = escapeHtml(aiNarrative.trim());
   } else if (onSaleCount === 0) {
     narrative = 'No brands on sale at this centre today. Check back — the score updates every morning at 07:00.';

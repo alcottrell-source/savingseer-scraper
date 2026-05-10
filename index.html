@@ -385,11 +385,9 @@
   .hot-centre-row { display: flex; align-items: center; gap: 12px; padding: 14px 4px; background: transparent; border: none; border-bottom: 1px solid var(--border); border-radius: 0; cursor: pointer; transition: background 0.15s; text-align: left; font-family: inherit; width: 100%; }
   .hot-centre-row:hover { background: var(--stone-lt); }
   .hot-centre-row-rank { flex-shrink: 0; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; color: var(--stone); width: 14px; text-align: left; line-height: 1; }
-  .hot-centre-row-name { flex: 1; min-width: 0; font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600; color: var(--ink); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .hot-centre-row-change { flex-shrink: 0; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; line-height: 1; letter-spacing: 0; }
-  .hot-centre-row-change.is-up   { color: var(--green-bright); }
-  .hot-centre-row-change.is-down { color: var(--red); }
-  .hot-centre-row-change.is-flat { color: var(--stone); }
+  .hot-centre-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .hot-centre-row-name { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600; color: var(--ink); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hot-centre-row-reason { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 400; color: var(--stone); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hot-centre-row-verdict { flex-shrink: 0; font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 10px; border-radius: 100px; white-space: nowrap; }
   .hot-centre-row-verdict.tone-go   { background: var(--amber-lt); color: var(--amber); }
   .hot-centre-row-verdict.tone-rise { background: var(--leaf-lt);  color: var(--leaf); }
@@ -3610,6 +3608,11 @@ function renderSavedCentresLanding(savedIds) {
 // Top N centres by Tide Score, with everything needed to render a row.
 // `excludeIds` optionally filters out saved centres so signed-in users see
 // "what else is good" rather than duplicating their own list.
+// Ranks centres by momentum, not absolute level: the share of the centre's
+// brands that newly went on sale today (brandsDelta / totalBrands). Centres
+// with no historical snapshot or no positive day-over-day change are
+// excluded — "hot" means sales are growing here, not just that the score
+// happens to be high. tideScore is kept as a tiebreaker.
 function getHotCentres(n, excludeIds) {
   const exclude = new Set(Array.isArray(excludeIds) ? excludeIds : []);
   const ranked = [];
@@ -3618,6 +3621,9 @@ function getHotCentres(n, excludeIds) {
     if (exclude.has(cid)) continue;
     const s = getServerScore(idx);
     if (!s || !Number.isFinite(+s.tide_score) || +s.tide_score <= 0) continue;
+    const totalBrands  = Number.isFinite(+s.total_brands)   ? +s.total_brands   : 0;
+    const brandsOnSale = Number.isFinite(+s.brands_on_sale) ? +s.brands_on_sale : null;
+    if (totalBrands <= 0 || brandsOnSale === null) continue;
     const history = getServerHistory(idx) || [];
     const today = new Date().toISOString().split('T')[0];
     // Brand-count delta vs the most recent historical day that has a
@@ -3625,14 +3631,15 @@ function getHotCentres(n, excludeIds) {
     // rows only have { date, score } so we skip them.
     const pastWithBrands = history.filter(h => h && h.date && h.date < today && Number.isFinite(+h.brands_on_sale));
     const lastPastBrands = pastWithBrands[pastWithBrands.length - 1];
-    const brandsDelta = (lastPastBrands && Number.isFinite(+s.brands_on_sale))
-      ? +s.brands_on_sale - +lastPastBrands.brands_on_sale
-      : null;
+    if (!lastPastBrands) continue;
+    const brandsDelta = brandsOnSale - +lastPastBrands.brands_on_sale;
+    if (brandsDelta <= 0) continue;
+    const proportionalDelta = brandsDelta / totalBrands;
     const stage = deriveStageFromVerdict(s.verdict) || getTideStage(+s.tide_score, s.trajectory || 'FLAT');
     const verdict = deriveVerdict({
       serverVerdict: s.verdict,
-      brandsOnSale: s.brands_on_sale,
-      totalBrands:  s.total_brands,
+      brandsOnSale,
+      totalBrands,
       trajectory:   s.trajectory || 'FLAT',
       stage,
     });
@@ -3642,20 +3649,22 @@ function getHotCentres(n, excludeIds) {
       name: CENTRE_NAMES[idx] || cid,
       location: (CENTRE_LOCATIONS && CENTRE_LOCATIONS[idx]) || '',
       tideScore: +s.tide_score,
-      brandsOnSale: Number.isFinite(+s.brands_on_sale) ? +s.brands_on_sale : null,
-      totalBrands:  Number.isFinite(+s.total_brands)  ? +s.total_brands  : null,
+      brandsOnSale,
+      totalBrands,
       trajectory: s.trajectory || 'FLAT',
       verdict,
       brandsDelta,
+      proportionalDelta,
     });
   }
-  ranked.sort((a, b) => b.tideScore - a.tideScore);
+  ranked.sort((a, b) => (b.proportionalDelta - a.proportionalDelta) || (b.tideScore - a.tideScore));
   return ranked.slice(0, n);
 }
 
-// "Hot right now" — top 3 by Tide Score with a visible timestamp so it reads
-// as a shared, dated snapshot. Returns '' when no scores have loaded yet so
-// the section gracefully no-shows rather than rendering empty rows.
+// "Hot right now" — top centres by today's proportional sales increase, with
+// a visible timestamp so it reads as a shared, dated snapshot. Returns ''
+// when no centres are growing (or scores haven't loaded yet) so the section
+// gracefully no-shows rather than rendering empty rows.
 function renderHotCentres(opts) {
   opts = opts || {};
   const limit = opts.limit || 3;
@@ -3665,18 +3674,13 @@ function renderHotCentres(opts) {
   const stamp = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const rows = hot.map((h, i) => {
     const safeName = h.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    let changeHTML = '';
-    if (Number.isFinite(h.brandsDelta)) {
-      let cls, text;
-      if (h.brandsDelta > 0)      { cls = 'is-up';   text = '↑ ' + h.brandsDelta; }
-      else if (h.brandsDelta < 0) { cls = 'is-down'; text = '↓ ' + Math.abs(h.brandsDelta); }
-      else                        { cls = 'is-flat'; text = 'Steady'; }
-      changeHTML = '<span class="hot-centre-row-change ' + cls + '">' + text + '</span>';
-    }
-    return '<button class="hot-centre-row" onclick="goToCentre(\''+h.cid+'\')" aria-label="'+safeName+', '+h.verdict.word+'">'
+    const reasonText = h.brandsDelta === 1 ? '1 new sale today' : (h.brandsDelta + ' new sales today');
+    return '<button class="hot-centre-row" onclick="goToCentre(\''+h.cid+'\')" aria-label="'+safeName+', '+reasonText+', '+h.verdict.word+'">'
          +   '<div class="hot-centre-row-rank">'+(i+1)+'</div>'
-         +   '<div class="hot-centre-row-name">'+safeName+'</div>'
-         +   changeHTML
+         +   '<div class="hot-centre-row-text">'
+         +     '<div class="hot-centre-row-name">'+safeName+'</div>'
+         +     '<div class="hot-centre-row-reason">'+reasonText+'</div>'
+         +   '</div>'
          +   '<span class="hot-centre-row-verdict tone-'+h.verdict.tone+'">'+h.verdict.word+'</span>'
          + '</button>';
   }).join('');

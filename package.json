@@ -3,6 +3,9 @@
   "version": "2.0.0",
   "description": "Tide — daily brand scraper and Tide scorer",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "scrape": "node scraper.js",
     "score": "node score.js",

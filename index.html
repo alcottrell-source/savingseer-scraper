@@ -224,6 +224,7 @@
   footer { padding: 32px 24px; margin-top: 40px; border-top: 1px solid var(--border); font-size: 11px; color: var(--stone); text-align: center; letter-spacing: 0.04em; }
   .updated-at { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11px; color: var(--stone); }
   .live-dot { width: 6px; height: 6px; background: var(--leaf); border-radius: 50%; animation: pulse 2s ease-in-out infinite; }
+  .scoring-status:not(:empty) { color: #B45309; font-weight: 500; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
   @keyframes tideMark { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.55); } }
   .cluster-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); padding: 12px 0 6px; grid-column: 1 / -1; border-top: 1px solid var(--border); margin-top: 4px; }
@@ -946,6 +947,7 @@
   <div class="updated-at">
     <span class="live-dot"></span>
     Live sale data &middot; <span id="today-date"></span>
+    <span id="scoring-status" class="scoring-status" aria-live="polite"></span>
   </div>
   <div class="footer-links">
     <a href="privacy.html">Privacy Policy</a>
@@ -2134,6 +2136,7 @@ async function loadTideData() {
 
     document.getElementById('today-date').textContent = new Date(latestDate+'T12:00:00')
       .toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+    updateScoringStatus(latestDate);
 
     const sel = document.getElementById('centre-select');
     if (sel.value) renderCentre(sel.value);
@@ -2146,6 +2149,19 @@ async function loadTideData() {
     console.warn('Tide data load exception:', err);
     return false;
   }
+}
+
+// Surfaces a freshness signal under the footer date when the scoring job
+// hasn't run today. Operator + sighted user both see the same thing; the
+// aria-live="polite" on the host span makes it audible too. Today's data
+// is silent (the date itself is the success signal).
+function updateScoringStatus(latestDate) {
+  const el = document.getElementById('scoring-status');
+  if (!el || !latestDate) return;
+  const today = new Date().toISOString().slice(0,10);
+  if (latestDate >= today) { el.textContent = ''; return; }
+  const daysBehind = Math.max(1, Math.round((new Date(today) - new Date(latestDate)) / 86400000));
+  el.textContent = ' · scoring is ' + daysBehind + ' day' + (daysBehind === 1 ? '' : 's') + ' behind';
 }
 
 function filterCentres(query) {
@@ -2311,6 +2327,7 @@ async function loadSheetData() {
     document.getElementById('today-date').textContent = latestDate
       ? new Date(latestDate+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})
       : new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+    updateScoringStatus(latestDate);
     const sel = document.getElementById('centre-select');
     if (sel.value) renderCentre(sel.value);
   } catch(e) { console.warn('Sheet load failed:', e); }
@@ -3091,7 +3108,14 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
          + '</div>';
   }).join('');
 
-  return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + ' tide-vessel--' + traj + '" style="--tide-level:' + pct + '%">'
+  // Single aria-label collapses the decorative vessel into one cohesive
+  // sentence for screen readers; role="img" stops SR from walking the inner
+  // ladder/wave divs as separate fragments. The verdict word + fact text
+  // mirror what a sighted user sees.
+  const trajWord = traj === 'rising' ? 'tide rising' : traj === 'falling' ? 'tide falling' : 'tide steady';
+  const ariaLabel = (verdict.word + '. ' + factText + '. ' + trajWord + '.')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + ' tide-vessel--' + traj + '" style="--tide-level:' + pct + '%" role="img" aria-label="' + ariaLabel + '">'
        +   bgArrowHTML
        +   '<div class="tide-vessel-verdict">'
        +     '<div class="tide-vessel-verdict-word tone-' + verdict.tone + '">' + verdict.word + '</div>'
@@ -3150,7 +3174,8 @@ function renderArcWidget(stage, color) {
   }).join('');
   const needleRot = (90 - cur.center).toFixed(1);
   const tipY = cy - NEEDLE_LEN;
-  return '<svg class="gauge-svg gauge-mount" viewBox="0 0 360 180" xmlns="http://www.w3.org/2000/svg">'
+  return '<svg class="gauge-svg gauge-mount" viewBox="0 0 360 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="gauge-title-' + uid + '">'
+    + '<title id="gauge-title-' + uid + '">Tide stage: ' + (cur.s || stage || 'unknown') + '</title>'
     + '<defs>'
       + '<linearGradient id="gauge-grad-'+uid+'" x1="'+(cx-R)+'" y1="'+cy+'" x2="'+(cx+R)+'" y2="'+cy+'" gradientUnits="userSpaceOnUse">'
         + '<stop offset="0%" stop-color="#3D6B35" stop-opacity="0.5"/>'

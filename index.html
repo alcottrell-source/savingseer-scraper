@@ -1011,8 +1011,7 @@
       <button class="auth-back-btn" onclick="authShowStep('email')">&#8592; Back</button>
       <h2 class="modal-title">Welcome back</h2>
       <p class="auth-email-confirm">Signing in as <strong id="auth-signin-email-label"></strong></p>
-      <input class="auth-input" id="auth-password-signin" type="password" placeholder="Password" autocomplete="current-password"
-             onkeydown="if(event.key==='Enter')authSignIn()">
+      <div id="auth-password-signin-slot"></div>
       <button class="btn btn-primary" id="btn-signin" onclick="authSignIn()">Sign in</button>
       <button class="auth-text-link" onclick="authMagicLink()">Forgot password? Email me a link instead</button>
       <button class="auth-text-link" onclick="authShowStep('signup')">New here? Create a free account &#8594;</button>
@@ -1029,8 +1028,7 @@
         <div class="auth-email-preview-meta">Tide &middot; the morning your centre hits peak sale</div>
         <div class="auth-email-preview-caption">One short email when sales peak at your saved centre. About 1&ndash;2 a month. Off any time.</div>
       </div>
-      <input class="auth-input" id="auth-password-signup" type="password" placeholder="Create a password (8+ characters)" autocomplete="new-password"
-             onkeydown="if(event.key==='Enter')authSignUp()">
+      <div id="auth-password-signup-slot"></div>
       <button class="btn btn-primary" id="btn-signup" onclick="authSignUp()">Create account &amp; email me when to go</button>
       <button class="auth-text-link" onclick="authShowStep('signin')">Already have an account? Sign in &#8594;</button>
     </div>
@@ -1289,20 +1287,51 @@ function onAuthBtnClick() {
 
 // ── Auth modal state machine ──
 
+// Password inputs are injected on demand and removed when the modal leaves
+// signin/signup. Keeping <input type="password"> in the DOM at all times
+// triggers iOS Safari's "Passwords" autofill keyboard on every other input
+// on the page — including the centre search on the landing.
+function authMountPasswordInput(slotId, inputId, autocomplete, placeholder, onEnterFn) {
+  const slot = document.getElementById(slotId);
+  if (!slot) return null;
+  slot.innerHTML = '';
+  const input = document.createElement('input');
+  input.className = 'auth-input';
+  input.id = inputId;
+  input.type = 'password';
+  input.placeholder = placeholder;
+  input.autocomplete = autocomplete;
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') onEnterFn(); });
+  slot.appendChild(input);
+  return input;
+}
+function authUnmountPasswordInputs() {
+  const slots = ['auth-password-signin-slot', 'auth-password-signup-slot'];
+  for (const id of slots) {
+    const slot = document.getElementById(id);
+    if (slot) slot.innerHTML = '';
+  }
+}
+
 function authShowStep(step) {
   clearAuthError(); clearAuthSuccess();
   ['email','signin','signup','magic'].forEach(s => {
     document.getElementById('auth-step-' + s).style.display = s === step ? '' : 'none';
   });
   const email = document.getElementById('auth-email').value.trim();
+  // Tear down any previously-mounted password inputs so we never have
+  // <input type="password"> sitting in the DOM unless this step needs it.
+  authUnmountPasswordInputs();
   if (step === 'email') { setTimeout(() => document.getElementById('auth-email').focus(), 50); }
   if (step === 'signin') {
     document.getElementById('auth-signin-email-label').textContent = email;
-    setTimeout(() => document.getElementById('auth-password-signin').focus(), 50);
+    const input = authMountPasswordInput('auth-password-signin-slot', 'auth-password-signin', 'current-password', 'Password', authSignIn);
+    if (input) setTimeout(() => input.focus(), 50);
   }
   if (step === 'signup') {
     document.getElementById('auth-signup-email-label').textContent = email;
-    setTimeout(() => document.getElementById('auth-password-signup').focus(), 50);
+    const input = authMountPasswordInput('auth-password-signup-slot', 'auth-password-signup', 'new-password', 'Create a password (8+ characters)', authSignUp);
+    if (input) setTimeout(() => input.focus(), 50);
   }
   if (step === 'magic') {
     document.getElementById('auth-magic-email-label').textContent = email;
@@ -1318,6 +1347,7 @@ function openAuthModal() {
 function closeAuthModal(e) {
   if (e && e.target !== document.getElementById('auth-modal')) return;
   document.getElementById('auth-modal').style.display = 'none';
+  authUnmountPasswordInputs();
 }
 
 function clearAuthError() {
@@ -2123,7 +2153,20 @@ function filterCentres(query) {
       li.setAttribute('role', 'option');
       li.dataset.id = m.id;
       if (i === 0) li.classList.add('active');
-      li.addEventListener('mousedown', (e) => { e.preventDefault(); chooseCentreSuggestion(m.id, m.name); });
+      // Pick the centre on the earliest possible tap event so iOS Safari's
+      // password-autofill suggestion (or any other native UI) can't steal
+      // the gesture before it lands. Guard against double-firing across
+      // pointerdown/touchend/mousedown by deduping on dataset.id.
+      let _picked = false;
+      const pick = (e) => {
+        if (_picked) return;
+        _picked = true;
+        e.preventDefault();
+        chooseCentreSuggestion(m.id, m.name);
+      };
+      li.addEventListener('pointerdown', pick);
+      li.addEventListener('mousedown', pick);
+      li.addEventListener('touchend', pick);
       list.appendChild(li);
     });
   }
@@ -3584,17 +3627,17 @@ function renderLandingHero() {
 
 async function renderCentre(centreId) {
   const content=document.getElementById('main-content');
-  // Picker is only useful before a centre is chosen — once one is selected,
-  // collapse it so the page leads with the centre's name + score, not a
-  // "choose a centre" prompt. The hero's "< Centres" back button restores it.
   const picker = document.getElementById('picker-section');
-  if (picker) picker.classList.toggle('is-hidden', !!centreId);
-  document.body.classList.toggle('is-centre-view', !!centreId);
-  // Show the install / "add to home screen" prompt only on centre views — the
-  // landing has its own value prop and shouldn't double up.
-  const homeInfo = document.getElementById('home-info-section');
-  if (homeInfo) homeInfo.style.display = centreId ? '' : 'none';
+  // For the empty-state landing we can flip the chrome immediately — no
+  // way to fail rendering the static landing hero. For centre detail we
+  // defer hiding the picker until innerHTML is actually set, so that any
+  // throw mid-render leaves the search bar visible and the user can retry
+  // instead of being stranded on a half-rendered page.
   if (!centreId) {
+    if (picker) picker.classList.remove('is-hidden');
+    document.body.classList.remove('is-centre-view');
+    const homeInfo = document.getElementById('home-info-section');
+    if (homeInfo) homeInfo.style.display = 'none';
     // Personalise-your-Tide promo — value-first prompt for signed-in users
     // without saved prefs. Less intrusive than auto-opening onboarding and
     // lets the user see the app first. Dismissed state persists in
@@ -3634,6 +3677,10 @@ async function renderCentre(centreId) {
     hideNotifyBanner();
     return;
   }
+  // Centre detail branch — wrap the whole thing so any throw lands the
+  // user back on the picker instead of a half-rendered page (the dreaded
+  // "picker hidden, main-content unchanged" stuck state on mobile).
+  try {
   // No auto-save on browse — saved centres are intentional, set during
   // onboarding (step 4) or by editing prefs in My Tide. Just browsing a
   // centre doesn't add it to your tracked list.
@@ -3944,6 +3991,14 @@ async function renderCentre(centreId) {
     + renderHistoryChart(history,style.color,trajectory,centreScore,style.label)
     + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>';
 
+  // Detail content is in the DOM — only now flip the chrome into centre-view.
+  // If anything above threw, the catch below restores the picker so the user
+  // isn't stranded.
+  if (picker) picker.classList.add('is-hidden');
+  document.body.classList.add('is-centre-view');
+  const homeInfo = document.getElementById('home-info-section');
+  if (homeInfo) homeInfo.style.display = '';
+
   requestAnimationFrame(()=>{
     document.getElementById('score-card').classList.add('visible');
     const narr=document.getElementById('narrative-section');
@@ -3953,6 +4008,20 @@ async function renderCentre(centreId) {
     document.getElementById('brands-section').classList.add('visible');
     document.dispatchEvent(new CustomEvent('centreScoreLoaded'));
   });
+  } catch (err) {
+    console.error('renderCentre failed for', centreId, err);
+    // Reset chrome to the landing state so the user sees the search bar
+    // and can try again, instead of a stuck half-rendered page.
+    if (picker) picker.classList.remove('is-hidden');
+    document.body.classList.remove('is-centre-view');
+    const sel = document.getElementById('centre-select');
+    if (sel) sel.value = '';
+    const search = document.getElementById('centre-search');
+    if (search) search.value = '';
+    hideNotifyBanner();
+    // Re-run the empty-state path so main-content shows the landing again.
+    renderCentre('');
+  }
 }
 
 // Debug surface: lets us inspect what the dashboard thinks the world looks

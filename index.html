@@ -2678,7 +2678,7 @@ const CENTRE_HOURS = [
   ['10:00-20:00','10:00-20:00','10:00-20:00','10:00-20:00','10:00-20:00','10:00-19:00','11:00-18:00'],
 ];
 
-// Returns { todayLabel, statusLine, statusClass } for the hours strip.
+// Returns { hoursLabel, hoursPrefix, statusLine, statusClass } for the hours strip.
 // Pure local-time computation against new Date(); Mon = 0 ... Sun = 6.
 function formatTodayHours(centreIdx) {
   const week = CENTRE_HOURS[centreIdx];
@@ -2695,22 +2695,29 @@ function formatTodayHours(centreIdx) {
     const h12 = ((h + 11) % 12) + 1;
     return m === 0 ? `${h12}${ap}` : `${h12}:${String(m).padStart(2,'0')}${ap}`;
   };
-  const todayLabel = `${fmtTime(openH, openM)}–${fmtTime(closeH, closeM)}`;
+  const hoursLabel = `${fmtTime(openH, openM)}–${fmtTime(closeH, closeM)}`;
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const openMin = openH * 60 + openM;
   const closeMin = closeH * 60 + closeM;
-  let statusLine, statusClass = '';
+  // Status leads with the current open/closed state; hoursLabel below is
+  // supporting info. Anchoring the status to "now" (not "today") avoids the
+  // "Today 12pm–6pm · Closed today" stutter when the page is loaded after
+  // closing time.
+  let statusLine, statusClass = '', hoursPrefix = 'Hours';
   if (nowMin < openMin) {
     const diff = openMin - nowMin;
-    statusLine = `Opens in ${Math.floor(diff/60)}h ${diff%60}m`;
+    const h = Math.floor(diff / 60);
+    const m = diff % 60;
+    statusLine = h > 0 ? `Opens in ${h}h ${m}m` : `Opens in ${m}m`;
   } else if (nowMin >= closeMin) {
-    statusLine = 'Closed today';
+    statusLine = 'Closed now';
     statusClass = 'closed';
+    hoursPrefix = 'Hours were';
   } else {
     const diff = closeMin - nowMin;
     statusLine = diff < 60 ? `Closes in ${diff}m` : `${Math.floor(diff/60)}h ${diff%60}m left today`;
   }
-  return { todayLabel, statusLine, statusClass };
+  return { hoursLabel, hoursPrefix, statusLine, statusClass };
 }
 
 // Stat row + narrative + opening hours. All numbers are derived from real
@@ -2805,7 +2812,7 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
       +   '<circle cx="7" cy="7" r="5.5" stroke="#8C8070" stroke-width="1.2"/>'
       +   '<path d="M7 4.5V7l2 1.5" stroke="#8C8070" stroke-width="1.2" stroke-linecap="round"/>'
       + '</svg>'
-      + '<span class="hours-text">Today ' + hours.todayLabel + '</span>'
+      + '<span class="hours-text">' + hours.hoursPrefix + ' ' + hours.hoursLabel + '</span>'
       + '</div>'
       + '<span class="hours-time-left ' + hours.statusClass + '">' + hours.statusLine + '</span>'
       + '</div>';
@@ -2983,68 +2990,41 @@ function computeHistoricalScores(centreIdx) {
 // number is the percentage; the trajectory word + arrow says which way.
 // Verdict word + tone for the dark hero card and Hot-right-now rows.
 //
-// Banding is on the VISIBLE signal — % of brands on sale at the centre —
-// so the verdict word matches what users can read on the row. Tide Score
-// (freshness-weighted, internal) drives ranking, but not the label.
+// The server's verdict (centre_seer_scores.verdict, written by score.js) is
+// the single source of truth. Stage hysteresis, freshness weighting, and
+// trajectory awareness all live there — the hero just maps the long-form
+// verdict string to a short uppercase word + tone class for display. This
+// guarantees the big hero word, the small pill (which renders the raw
+// server string), and the bluf below all agree about where the centre is
+// in its cycle.
 //
-// "GO NOW" only fires on high % on sale OR the server's confident peak
-// signal (verdict === 'Go now', which has hysteresis built in: enter at
-// Tide Score 75, hold until below 65). That keeps GO NOW honest — it
-// never fires on a single rising day.
-//
-// ctx fields (any may be null):
-//   serverVerdict   — raw verdict from centre_seer_scores
-//   brandsOnSale    — count today
-//   totalBrands     — total brands at centre
-//   pctOnSale       — pre-computed %, used if brands_on_sale missing
-//   trajectory      — RISING / FLAT / FALLING
-//   stage           — legacy stage label, used as fallback only
+// ctx fields:
+//   serverVerdict — raw verdict from centre_seer_scores (required for the
+//                   primary path; falls back to stage when missing)
+//   stage         — legacy stage label, used only when serverVerdict is
+//                   absent (sample renders, sparse data, first scrape)
+const SERVER_VERDICT_DISPLAY = {
+  'Go now':                       { word: 'GO NOW',      tone: 'go'   },
+  'Last chance — tide going out': { word: 'LAST CHANCE', tone: 'fall' },
+  'Last chance':                  { word: 'LAST CHANCE', tone: 'fall' },
+  'Worth watching':               { word: 'WORTH IT',    tone: 'rise' },
+  'Starting to build':            { word: 'EARLY',       tone: 'wait' },
+  "It's over":                    { word: 'QUIET',       tone: 'wait' },
+  'Nothing on':                   { word: 'QUIET',       tone: 'wait' },
+};
 function deriveVerdict(ctx) {
   ctx = ctx || {};
-
-  // Trust the server's confident peak: stage hysteresis lives there.
-  if (ctx.serverVerdict === 'Go now') return { word: 'GO NOW', tone: 'go' };
-  if (ctx.serverVerdict && /^Last chance/.test(ctx.serverVerdict)) return { word: 'LAST CHANCE', tone: 'fall' };
-  if (ctx.serverVerdict === "It's over") return { word: 'QUIET', tone: 'wait' };
-
-  // Compute on-sale % from counts where possible — that's the authoritative
-  // visible-signal denominator. Fall back to a pre-rounded pctOnSale arg.
-  let pct = null;
-  if (Number.isFinite(+ctx.brandsOnSale) && Number.isFinite(+ctx.totalBrands) && +ctx.totalBrands > 0) {
-    pct = (+ctx.brandsOnSale / +ctx.totalBrands) * 100;
-  } else if (Number.isFinite(+ctx.pctOnSale)) {
-    pct = +ctx.pctOnSale;
+  const mapped = ctx.serverVerdict && SERVER_VERDICT_DISPLAY[ctx.serverVerdict];
+  if (mapped) return mapped;
+  // No server verdict (sparse data / sample render) — fall back to stage.
+  switch (ctx.stage) {
+    case 'High Tide': return { word: 'GO NOW',      tone: 'go'   };
+    case 'Falling':   return { word: 'LAST CHANCE', tone: 'fall' };
+    case 'Low':       return { word: 'QUIET',       tone: 'wait' };
+    case 'Rising':    return { word: 'WORTH IT',    tone: 'rise' };
+    case 'Turning':   return { word: 'EARLY',       tone: 'wait' };
+    default:          return { word: 'NOT YET',     tone: 'wait' };
   }
-
-  const traj = ctx.trajectory || 'FLAT';
-  const rising  = traj === 'RISING';
-  const falling = traj === 'FALLING';
-
-  if (pct === null) {
-    // No on-sale info — fall back to legacy stage-based label so callers
-    // without count data (sample renders, sparse data) still get sensible
-    // copy. Kept conservative: never returns GO NOW from this path.
-    switch (ctx.stage) {
-      case 'High Tide': return { word: 'GO NOW',      tone: 'go'   };
-      case 'Falling':   return { word: 'LAST CHANCE', tone: 'fall' };
-      case 'Low':       return { word: 'QUIET',       tone: 'wait' };
-      case 'Rising':    return rising  ? { word: 'BUILDING', tone: 'rise' } : { word: 'WORTH IT', tone: 'rise' };
-      default:          return { word: 'NOT YET',     tone: 'wait' };
-    }
-  }
-
-  if (pct >= 60) return { word: 'GO NOW', tone: 'go' };
-  if (pct >= 40) {
-    if (falling) return { word: 'LAST CHANCE', tone: 'fall' };
-    if (rising)  return { word: 'GO SOON',     tone: 'rise' };
-    return                 { word: 'WORTH IT',     tone: 'rise' };
-  }
-  if (pct >= 25) {
-    if (falling) return { word: 'FADING',   tone: 'fall' };
-    if (rising)  return { word: 'BUILDING', tone: 'rise' };
-    return                 { word: 'EARLY',    tone: 'wait' };
-  }
-  return { word: 'QUIET', tone: 'wait' };
 }
 
 // Hero card. Hierarchy is verdict (loudest) → sales fact (bold) → small tide

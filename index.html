@@ -4132,6 +4132,18 @@ async function renderCentre(centreId) {
   });
   } catch (err) {
     console.error('renderCentre failed for', centreId, err);
+    // TEMP DIAGNOSTIC: surface the error on-screen so mobile users (no
+    // devtools) can read it and report. Remove once the anon-bounce bug
+    // is diagnosed.
+    try {
+      const banner = document.createElement('div');
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#7a1c1c;color:#fff;font:12px/1.4 monospace;padding:10px 14px;white-space:pre-wrap;word-break:break-word;max-height:50vh;overflow:auto;';
+      const stack = (err && err.stack) ? String(err.stack) : String(err);
+      banner.textContent = 'renderCentre crashed for ' + centreId + ':\n' + stack;
+      banner.onclick = () => banner.remove();
+      banner.title = 'tap to dismiss';
+      document.body.appendChild(banner);
+    } catch (_) {}
     // Reset chrome to the landing state so the user sees the search bar
     // and can try again, instead of a stuck half-rendered page.
     if (picker) picker.classList.remove('is-hidden');

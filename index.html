@@ -2020,13 +2020,12 @@ async function loadTideData() {
     // hasn't picked up the active_cycle_id FK, which leaves the dashboard
     // falling back to the stale Google Sheet — so admin confirmations never
     // surface. Two flat queries + a JS join is what admin.html does.
-    const [centresRes, salesRes, cyclesRes, scoresRes, floorsRes, centreBrandsRes] = await Promise.all([
+    const [centresRes, salesRes, cyclesRes, scoresRes, floorsRes] = await Promise.all([
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,last_verified_status,last_verified_date,active_cycle_id'),
       pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type&end_date=is.null'),
       pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,narrative&score_date=eq.' + today),
       pgRead('centre_brand_floors?select=centre_id,brand_id,floor_label,floor_order'),
-      pgRead('centre_brands?select=centre_id,brand_id'),
     ]);
     if (centresRes.error || salesRes.error || cyclesRes.error || scoresRes.error) {
       console.error('Tide data load failed:', { centres: centresRes.error, sales: salesRes.error, cycles: cyclesRes.error, scores: scoresRes.error });
@@ -2090,29 +2089,6 @@ async function loadTideData() {
       if (id) _seen.add(id);
     }
     for (const c of centresList) CENTRE_HISTORY[c.id] = Array.isArray(c.tide_history) ? c.tide_history : [];
-
-    // Reconcile the inline PRESENCE matrix with the live centre_brands
-    // table. The inline matrix at the top of this file is a snapshot —
-    // it drifts as brands are added/removed at centres on Supabase. We
-    // only flip 0 → 1 here, never the other way: the inline list also
-    // includes manual-check brands the scraper doesn't track (so they
-    // won't appear in centre_brands at all), and clearing them would
-    // hide them from the brand list. Additive merge keeps the union.
-    if (centreBrandsRes && !centreBrandsRes.error) {
-      const dashIdByName = Object.fromEntries(BRANDS.map(b => [b.name, b.id]));
-      for (const row of (centreBrandsRes.data || [])) {
-        const idx = CENTRE_ID_BY_IDX.indexOf(row.centre_id);
-        if (idx < 0) continue;
-        const name = DASHBOARD_NAME_BY_SCRAPER_ID[row.brand_id];
-        if (!name) continue;
-        const dashId = dashIdByName[name];
-        if (!dashId) continue;
-        if (!PRESENCE[dashId]) PRESENCE[dashId] = new Array(CENTRE_NAMES.length).fill(0);
-        PRESENCE[dashId][idx] = 1;
-      }
-    } else if (centreBrandsRes && centreBrandsRes.error) {
-      console.warn('centre_brands load failed (brand list may show stale presence):', centreBrandsRes.error);
-    }
 
     let latestDate = today;
     for (const row of (scoresRes.data || [])) {

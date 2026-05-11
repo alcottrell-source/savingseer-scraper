@@ -248,7 +248,13 @@ import { brands as BRAND_DEFS } from './brands.js';
 // ── Supabase client (anon key — RLS does the gating) ───────────────────────
 const SUPABASE_URL = 'https://vrezzwadwzrmumjpdgge.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_qid8Ej6biCOmKLjLIY5DfA_nzJXmc9G';
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Separate storageKey: the admin console must NOT inherit the customer
+// session from index.html. Without this, anyone signed into tidego.co who
+// navigates to /admin would auto-render the admin UI (RLS still blocks
+// writes, but the panel itself should be off-limits).
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { storageKey: 'tide-admin-auth', persistSession: true, autoRefreshToken: true },
+});
 
 // supabase-js's PostgREST calls hang silently in some browser/extension
 // combinations. Use raw fetch for table reads/writes; keep supabase-js for
@@ -334,13 +340,20 @@ async function start() {
   }
 }
 
-function showLogin() {
+function showLogin(errorMsg) {
   $('loading-screen').style.display = 'none';
   $('app').style.display = 'none';
   $('login-screen').style.display = 'flex';
   $('signout-btn').style.display = 'none';
   $('who').style.display = 'none';
   showStatus(null);
+  const errEl = $('login-err');
+  if (errorMsg) {
+    errEl.textContent = errorMsg;
+    errEl.style.display = 'block';
+  } else {
+    errEl.style.display = 'none';
+  }
 }
 
 $('login-form').addEventListener('submit', async (e) => {
@@ -362,11 +375,31 @@ $('login-form').addEventListener('submit', async (e) => {
 
 $('signout-btn').addEventListener('click', async () => {
   await sb.auth.signOut();
+  CURRENT_TOKEN = null;
   showLogin();
 });
 
+// Server-side admin check: calls the is_admin() SQL function via PostgREST
+// RPC. Returns true only when the configured admin email matches the JWT.
+// The whole admin UI is gated on this — RLS is still the source of truth
+// for writes, but the panel itself should never render for non-admins.
+async function verifyAdmin() {
+  const res = await pgFetch('POST', 'rpc/is_admin', {});
+  if (res.error) return { ok: false, message: res.error.message || 'Admin check failed' };
+  return { ok: res.data === true, message: null };
+}
+
 async function onSignedIn(session) {
   CURRENT_TOKEN = session.access_token;
+  const admin = await verifyAdmin();
+  if (!admin.ok) {
+    await sb.auth.signOut();
+    CURRENT_TOKEN = null;
+    showLogin(admin.message
+      ? 'Admin access denied: ' + admin.message
+      : 'This account is not authorised for the admin console.');
+    return;
+  }
   $('loading-screen').style.display = 'none';
   $('login-screen').style.display = 'none';
   $('app').style.display = 'block';
@@ -374,23 +407,10 @@ async function onSignedIn(session) {
   $('who').style.display = 'inline';
   $('who').textContent = session.user.email;
 
-  // Probe admin_review_log to confirm admin access. Run in parallel with
-  // the main data load — a failed probe shows a warning but does NOT block
-  // the UI. Mutations will still fail via RLS if the user lacks admin rights.
-  const [probeRes] = await Promise.all([
-    pg.read('admin_review_log?select=id&limit=1'),
-    loadAndRender().catch(err => {
-      console.error('loadAndRender failed:', err);
-      showStatus('Could not load brand data: ' + (err.message || err), true);
-    }),
-  ]);
-  if (probeRes.error) {
-    showStatus(
-      'Admin access check failed (' + probeRes.error.message + '). '
-      + 'If brands loaded below, you can still review — mutations will fail if your account lacks admin rights.',
-      true
-    );
-  }
+  await loadAndRender().catch(err => {
+    console.error('loadAndRender failed:', err);
+    showStatus('Could not load brand data: ' + (err.message || err), true);
+  });
 }
 
 // ── Data load ──────────────────────────────────────────────────────────────

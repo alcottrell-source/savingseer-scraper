@@ -1009,7 +1009,18 @@ function rejectCookies() {
 let currentUser = null;
 let userPrefs   = null;
 
+// Captured at script load, BEFORE supabase-js consumes the URL hash on a
+// magic-link callback. Used to distinguish "this page-load started with
+// a fresh sign-in" from "this is a returning user's session restore".
+const _tideFromAuthCallback = /[#&](access_token|refresh_token|error_code)=/.test(window.location.hash || '');
+// First onAuthStateChange call after page load is always Supabase's
+// session-restore probe — never treat it as a fresh sign-in (unless we
+// know we just came back from a magic-link redirect).
+let _tideAuthFirstEventConsumed = false;
+
 sb.auth.onAuthStateChange(async (event, session) => {
+  const isFirstEvent = !_tideAuthFirstEventConsumed;
+  _tideAuthFirstEventConsumed = true;
   currentUser = session?.user ?? null;
   CURRENT_TOKEN = session?.access_token ?? null;
   if (currentUser) {
@@ -1040,12 +1051,14 @@ sb.auth.onAuthStateChange(async (event, session) => {
       !(Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length) &&
       !userPrefs.womenswear && !userPrefs.menswear && !userPrefs.childrenswear
     );
-    // Auto-open the prefs wizard on a real SIGNED_IN event when the user
-    // hasn't saved any prefs yet. Gate is the user_preferences row check
-    // (noPrefsYet), not a localStorage "seen" flag — a user who dismisses
-    // or errors mid-wizard sees it again on next sign-in until they
-    // actually save prefs. window flag prevents double-open per page-load.
-    if (event === 'SIGNED_IN' && noPrefsYet && !window._tideOnboardingAutoOpened) {
+    // Auto-open the prefs wizard ONLY on a fresh sign-in this page-load —
+    // never on session restore for returning users. The first SIGNED_IN
+    // after page load is Supabase replaying the stored session, which
+    // would otherwise blast every returning prefs-less user with the
+    // wizard on every visit. Exception: a magic-link callback also
+    // arrives as the first SIGNED_IN, but the URL hash gives it away.
+    const isFreshSignIn = !isFirstEvent || _tideFromAuthCallback;
+    if (event === 'SIGNED_IN' && isFreshSignIn && noPrefsYet && !window._tideOnboardingAutoOpened) {
       window._tideOnboardingAutoOpened = true;
       openOnboarding();
     }

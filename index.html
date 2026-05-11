@@ -1040,13 +1040,15 @@ sb.auth.onAuthStateChange(async (event, session) => {
       !(Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length) &&
       !userPrefs.womenswear && !userPrefs.menswear && !userPrefs.childrenswear
     );
-    // Onboarding no longer auto-opens. Instead, signed-in users without
-    // saved prefs see a "Personalise your Tide Score" promo card on the
-    // empty-state landing (rendered in renderCentre when centreId='').
-    // They tap that to enter onboarding — value-first, less intrusive.
-    // Reading noPrefsYet here is kept for future use (e.g. an inline
-    // banner on the centre view).
-    void noPrefsYet;
+    // Auto-open the prefs wizard on a real SIGNED_IN event when the user
+    // hasn't saved any prefs yet. Gate is the user_preferences row check
+    // (noPrefsYet), not a localStorage "seen" flag — a user who dismisses
+    // or errors mid-wizard sees it again on next sign-in until they
+    // actually save prefs. window flag prevents double-open per page-load.
+    if (event === 'SIGNED_IN' && noPrefsYet && !window._tideOnboardingAutoOpened) {
+      window._tideOnboardingAutoOpened = true;
+      openOnboarding();
+    }
   } else {
     userPrefs = null;
     document.getElementById('auth-btn').textContent = 'Sign in';
@@ -1528,13 +1530,13 @@ function obRenderStep2() {
   document.getElementById('ob-body').innerHTML =
     '<div class="ob-eyebrow">Step 2 of 5</div>'
     + '<h1 class="ob-title">What do you actually buy?</h1>'
-    + '<p class="ob-sub">All selected by default. Tap to remove anything that\'s not you.</p>'
+    + '<p class="ob-sub">Tap each one you actually buy &mdash; pick at least one to continue.</p>'
     + '<div class="cat-help"><b>Why this matters:</b> we\'ll only count brands that sell what you wear when calculating your personal Tide Score.</div>'
     + sections;
   const next = document.getElementById('ob-next');
   next.textContent = 'Next';
   next.disabled = onb.categories.size === 0;
-  document.getElementById('ob-help').textContent = onb.categories.size === 0 ? 'Keep at least one category' : '';
+  document.getElementById('ob-help').textContent = onb.categories.size === 0 ? 'Pick at least one category' : '';
 }
 
 function obMatchingBrands() {
@@ -1675,8 +1677,6 @@ function obToggleAudience(k) {
     [...onb.categories].forEach(c => { if (c.startsWith(k+':')) onb.categories.delete(c); });
   } else {
     onb.audiences.add(k);
-    // Default-fill categories for the audience (user can deselect).
-    (CATEGORIES_BY_AUDIENCE[k] || []).forEach(c => onb.categories.add(k+':'+c));
   }
   obRender();
 }
@@ -2670,6 +2670,53 @@ function dismissPersonaliseCard() {
   }
   // Re-render the empty state without the card.
   renderCentre('');
+}
+
+// Inline prefs nudge that appears on the centre-detail page when the
+// viewer hasn't personalised yet — separate dismiss from the landing
+// card so dismissing one doesn't silently hide the other.
+function dismissCentreNudge() {
+  const key = currentUser
+    ? 'tide_centre_nudge_dismissed_' + currentUser.id
+    : 'tide_centre_nudge_dismissed_anon';
+  try { localStorage.setItem(key, '1'); } catch(e) {}
+  const sel = document.getElementById('centre-select');
+  if (sel && sel.value) renderCentre(sel.value);
+}
+
+// Build the centre-page prefs nudge. Two variants:
+//   - logged-out  → push to sign up (opens auth modal)
+//   - signed-in without prefs → push into the wizard
+// Hidden when the user already has prefs or has dismissed it.
+function renderCentrePrefsNudge() {
+  if (currentUser) {
+    const hasPrefs = userPrefs && (
+      (Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length > 0) ||
+      userPrefs.womenswear || userPrefs.menswear || userPrefs.childrenswear
+    );
+    if (hasPrefs) return '';
+    let dismissed = false;
+    try { dismissed = localStorage.getItem('tide_centre_nudge_dismissed_' + currentUser.id) === '1'; } catch(e) {}
+    if (dismissed) return '';
+    return '<div class="personalise-card centre-prefs-nudge">'
+      + '<button class="personalise-card-dismiss" onclick="dismissCentreNudge()" aria-label="Dismiss">&times;</button>'
+      + '<div class="personalise-card-eyebrow">Personalise this centre</div>'
+      + '<div class="personalise-card-title">See your personal score</div>'
+      + '<div class="personalise-card-body">Tell us the brands you actually shop and we\'ll score this centre for you &mdash; plus email you the moment one of yours goes on sale.</div>'
+      + '<button class="personalise-card-cta" onclick="openOnboarding()">Set my preferences &rarr;</button>'
+      + '</div>';
+  }
+  // Logged-out variant.
+  let dismissed = false;
+  try { dismissed = localStorage.getItem('tide_centre_nudge_dismissed_anon') === '1'; } catch(e) {}
+  if (dismissed) return '';
+  return '<div class="personalise-card centre-prefs-nudge">'
+    + '<button class="personalise-card-dismiss" onclick="dismissCentreNudge()" aria-label="Dismiss">&times;</button>'
+    + '<div class="personalise-card-eyebrow">60 seconds &middot; free</div>'
+    + '<div class="personalise-card-title">Personalise this Tide Score</div>'
+    + '<div class="personalise-card-body">Sign up free to score this centre against the brands you actually shop &mdash; and get an email the moment one of yours goes on sale.</div>'
+    + '<button class="personalise-card-cta" onclick="openAuthModal()">Sign up &rarr;</button>'
+    + '</div>';
 }
 
 // Single entry point for navigating to a centre — keeps the picker, search
@@ -3938,7 +3985,9 @@ async function renderCentre(centreId) {
   // tab the user is on), not always the centre-wide count.
   const visibleOnSaleCount = onSaleBrands.length;
 
-  content.innerHTML = heroHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
+  const centreNudgeHTML = renderCentrePrefsNudge();
+
+  content.innerHTML = heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
     + renderHistoryChart(history,style.color,trajectory)
     + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>';
 
@@ -4045,25 +4094,20 @@ setInterval(() => loadTideData(), 15000);
       Share feedback →
     </a>
   </span>
-  <button onclick="document.getElementById('feedback-bar').style.display='none'; localStorage.setItem('fb-dismissed','1')"
-    style="background:none;border:none;cursor:pointer;color:var(--stone);font-size:16px;padding:0 0 0 16px;">
-    ✕
-  </button>
 </div>
 
 <script>
-  // Show after score loads, once per session unless permanently dismissed
-  if (!localStorage.getItem('fb-dismissed')) {
-    document.addEventListener('centreScoreLoaded', () => {
+  // Always-on feedback bar — show as soon as the score loads, with a 4s
+  // fallback in case the event never fires. No dismiss button: while Tide
+  // is in early access we want every page to invite feedback.
+  document.addEventListener('centreScoreLoaded', () => {
+    document.getElementById('feedback-bar').style.display = 'flex';
+  });
+  setTimeout(() => {
+    if (document.getElementById('feedback-bar').style.display !== 'flex') {
       document.getElementById('feedback-bar').style.display = 'flex';
-    });
-    // Fallback: show 4s after page load if no event fires
-    setTimeout(() => {
-      if (document.getElementById('feedback-bar').style.display !== 'flex') {
-        document.getElementById('feedback-bar').style.display = 'flex';
-      }
-    }, 4000);
-  }
+    }
+  }, 4000);
 </script>
 
 </body>

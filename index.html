@@ -4282,25 +4282,20 @@ setInterval(() => loadTideData(), 15000);
       Share feedback →
     </a>
   </span>
-  <button onclick="document.getElementById('feedback-bar').style.display='none'; localStorage.setItem('fb-dismissed','1')"
-    style="background:none;border:none;cursor:pointer;color:var(--stone);font-size:16px;padding:0 0 0 16px;">
-    ✕
-  </button>
 </div>
 
 <script>
-  // Show after score loads, once per session unless permanently dismissed
-  if (!localStorage.getItem('fb-dismissed')) {
-    document.addEventListener('centreScoreLoaded', () => {
+  // Always-on feedback bar — show as soon as the score loads, with a 4s
+  // fallback in case the event never fires. No dismiss button: while Tide
+  // is in early access we want every page to invite feedback.
+  document.addEventListener('centreScoreLoaded', () => {
+    document.getElementById('feedback-bar').style.display = 'flex';
+  });
+  setTimeout(() => {
+    if (document.getElementById('feedback-bar').style.display !== 'flex') {
       document.getElementById('feedback-bar').style.display = 'flex';
-    });
-    // Fallback: show 4s after page load if no event fires
-    setTimeout(() => {
-      if (document.getElementById('feedback-bar').style.display !== 'flex') {
-        document.getElementById('feedback-bar').style.display = 'flex';
-      }
-    }, 4000);
-  }
+    }
+  }, 4000);
 </script>
 
 </body>

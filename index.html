@@ -201,7 +201,7 @@
   a.brand-chip:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
   .brand-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .brand-days { font-size: 12px; color: var(--green-bright); font-weight: 600; letter-spacing: 0.01em; text-align: right; white-space: nowrap; }
-  .brand-pct { font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink-mid); font-weight: 500; letter-spacing: 0; background: transparent; padding: 0; min-width: 76px; box-sizing: border-box; text-align: right; white-space: nowrap; }
+  .brand-pct { font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink-mid); font-weight: 500; letter-spacing: 0; background: transparent; padding: 0; min-width: 76px; box-sizing: border-box; text-align: right; }
   .brand-pct.empty { background: transparent; padding: 2px 0; }
   .brand-type { font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--bark); background: rgba(61,107,53,0.10); border: 1px solid rgba(61,107,53,0.25); border-radius: 3px; padding: 1px 5px; white-space: nowrap; flex-shrink: 0; font-weight: 500; }
   .brand-arrow { font-size: 11px; color: var(--stone); margin-left: 6px; opacity: 0.55; flex-shrink: 0; }
@@ -3709,23 +3709,20 @@ async function renderCentre(centreId) {
     // verified cycle, which records the maximum discount the admin saw
     // (typically a banner like "Up to 70% off" rather than a single item
     // discount). "Up to" is honest regardless.
-    // Render type badge + pct inside the SAME .brand-pct slot so the badge
-    // (or the pct text) always sits at the slot's right edge — keeping the
-    // badge column consistent across rows. When both exist, pct text then
-    // badge, both right-aligned together inside the slot.
-    const typeBadge = typeLabel ? '<span class="brand-type">'+escapeHtml(typeLabel)+'</span>' : '';
-    const pctText = pct ? 'Up to '+pct+'%' : '';
-    let pctSpan;
-    if (pct && typeLabel) {
-      pctSpan = '<span class="brand-pct">'+pctText+' '+typeBadge+'</span>';
-    } else if (pct) {
-      pctSpan = '<span class="brand-pct">'+pctText+'</span>';
+    // For typed deals without a numeric pct (e.g. "2nd ½"), the badge sits
+    // INSIDE the pct slot so it occupies that column instead of stacking
+    // before it — otherwise long brand names get truncated.
+    let pctSpan, typeSpan;
+    if (pct) {
+      pctSpan = '<span class="brand-pct">Up to '+pct+'%</span>';
+      typeSpan = typeLabel ? '<span class="brand-type">'+escapeHtml(typeLabel)+'</span>' : '';
     } else if (typeLabel) {
-      pctSpan = '<span class="brand-pct">'+typeBadge+'</span>';
+      pctSpan = '<span class="brand-pct"><span class="brand-type">'+escapeHtml(typeLabel)+'</span></span>';
+      typeSpan = '';
     } else {
       pctSpan = '<span class="brand-pct empty"></span>';
+      typeSpan = '';
     }
-    const typeSpan = '';
     const daysSpan = '<span class="brand-days">'+(daysLabel||'')+'</span>';
     const dotSpan = b.isOnSale
       ? '<span class="sale-dot"></span>'

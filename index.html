@@ -3701,20 +3701,28 @@ async function renderCentre(centreId) {
                               : 'late';
     const freshAttr = fresh ? ' data-fresh="'+fresh+'"' : '';
     const pct = b.isOnSale ? MAX_DISCOUNT_PCT[b.name] : null;
+    const typeKey = b.isOnSale ? SALE_TYPE[b.name] : null;
+    const typeLabel = (typeKey && SALE_TYPE_SHORT[typeKey]) || '';
     // Always render pct/days/dot spans (with empty placeholders when no
     // content) so the right side of every chip lines up. min-widths in CSS.
     // "Up to N% off" rather than "N% off" — the percentage comes from the
     // verified cycle, which records the maximum discount the admin saw
     // (typically a banner like "Up to 70% off" rather than a single item
     // discount). "Up to" is honest regardless.
-    const pctSpan = pct
-      ? '<span class="brand-pct">Up to '+pct+'%</span>'
-      : '<span class="brand-pct empty"></span>';
-    const typeKey = b.isOnSale ? SALE_TYPE[b.name] : null;
-    const typeLabel = (typeKey && SALE_TYPE_SHORT[typeKey]) || '';
-    const typeSpan = typeLabel
-      ? '<span class="brand-type">'+escapeHtml(typeLabel)+'</span>'
-      : '';
+    // For typed deals without a numeric pct (e.g. "2nd ½"), the badge sits
+    // INSIDE the pct slot so it occupies that column instead of stacking
+    // before it — otherwise long brand names get truncated.
+    let pctSpan, typeSpan;
+    if (pct) {
+      pctSpan = '<span class="brand-pct">Up to '+pct+'%</span>';
+      typeSpan = typeLabel ? '<span class="brand-type">'+escapeHtml(typeLabel)+'</span>' : '';
+    } else if (typeLabel) {
+      pctSpan = '<span class="brand-pct"><span class="brand-type">'+escapeHtml(typeLabel)+'</span></span>';
+      typeSpan = '';
+    } else {
+      pctSpan = '<span class="brand-pct empty"></span>';
+      typeSpan = '';
+    }
     const daysSpan = '<span class="brand-days">'+(daysLabel||'')+'</span>';
     const dotSpan = b.isOnSale
       ? '<span class="sale-dot"></span>'

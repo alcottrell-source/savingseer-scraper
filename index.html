@@ -1726,13 +1726,13 @@ function obRenderStep2() {
   document.getElementById('ob-body').innerHTML =
     '<div class="ob-eyebrow">Step 2 of 5</div>'
     + '<h1 class="ob-title">What do you actually buy?</h1>'
-    + '<p class="ob-sub">All selected by default. Tap to remove anything that\'s not you.</p>'
+    + '<p class="ob-sub">Tap each one you actually buy &mdash; pick at least one to continue.</p>'
     + '<div class="cat-help"><b>Why this matters:</b> we\'ll only count brands that sell what you wear when calculating your personal Tide Score.</div>'
     + sections;
   const next = document.getElementById('ob-next');
   next.textContent = 'Next';
   next.disabled = onb.categories.size === 0;
-  document.getElementById('ob-help').textContent = onb.categories.size === 0 ? 'Keep at least one category' : '';
+  document.getElementById('ob-help').textContent = onb.categories.size === 0 ? 'Pick at least one category' : '';
 }
 
 function obMatchingBrands() {
@@ -1873,8 +1873,6 @@ function obToggleAudience(k) {
     [...onb.categories].forEach(c => { if (c.startsWith(k+':')) onb.categories.delete(c); });
   } else {
     onb.audiences.add(k);
-    // Default-fill categories for the audience (user can deselect).
-    (CATEGORIES_BY_AUDIENCE[k] || []).forEach(c => onb.categories.add(k+':'+c));
   }
   obRender();
 }

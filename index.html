@@ -3709,20 +3709,20 @@ async function renderCentre(centreId) {
     // verified cycle, which records the maximum discount the admin saw
     // (typically a banner like "Up to 70% off" rather than a single item
     // discount). "Up to" is honest regardless.
-    // For typed deals without a numeric pct (e.g. "2nd ½"), the badge sits
-    // INSIDE the pct slot so it occupies that column instead of stacking
-    // before it — otherwise long brand names get truncated.
-    let pctSpan, typeSpan;
-    if (pct) {
-      pctSpan = '<span class="brand-pct">Up to '+pct+'%</span>';
-      typeSpan = typeLabel ? '<span class="brand-type">'+escapeHtml(typeLabel)+'</span>' : '';
-    } else if (typeLabel) {
+    // Show ONE thing in the right-side slot per row. The type badge wins
+    // when present — for flat_discount/£-off, bogo etc. the percent field
+    // is either meaningless or actually stores a £ amount, so showing
+    // "Up to 10% £ OFF" is contradictory. When there's no type, fall back
+    // to "Up to N%" for plain percent_off deals.
+    let pctSpan;
+    if (typeLabel) {
       pctSpan = '<span class="brand-pct"><span class="brand-type">'+escapeHtml(typeLabel)+'</span></span>';
-      typeSpan = '';
+    } else if (pct) {
+      pctSpan = '<span class="brand-pct">Up to '+pct+'%</span>';
     } else {
       pctSpan = '<span class="brand-pct empty"></span>';
-      typeSpan = '';
     }
+    const typeSpan = '';
     const daysSpan = '<span class="brand-days">'+(daysLabel||'')+'</span>';
     const dotSpan = b.isOnSale
       ? '<span class="sale-dot"></span>'

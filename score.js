@@ -120,7 +120,7 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   // Low (cycle ended) by the 25-point boundary.
   if (wasHighTide || wasDescent) {
     if (score < 25) return { stage: 'Low',     verdict: 'Over',   bluf: "Sale's over here. Try again in a few weeks." };
-    return           { stage: 'Falling', verdict: 'Easing', bluf: 'Sales winding down — choice getting thinner.' };
+    return           { stage: 'Falling', verdict: 'Easing', bluf: 'Sales winding down. Choice getting thinner.' };
   }
 
   // Climb path. A trajectory turn-over while we're still in the climb (score
@@ -133,14 +133,14 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
       return {
         stage: 'High Tide',
         verdict: 'Peak',
-        bluf: 'This centre just peaked. Go now while picks are fresh — sales will start thinning from tomorrow.',
+        bluf: 'This centre just peaked. Go now while picks are fresh. Sales will start thinning from tomorrow.',
       };
     }
     return {
       stage: 'Rising',
       verdict: 'Rising',
       bluf: falling
-        ? 'Sales winding down — choice getting thinner.'
+        ? 'Sales winding down. Choice getting thinner.'
         : 'More brands joining in. Not peak yet.',
     };
   }
@@ -149,7 +149,7 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
     verdict: 'Turning',
     bluf: falling
       ? 'Sales thinning out. Wait for the next wave.'
-      : 'Sales just starting — a few brands kicked off.',
+      : 'Sales just starting. A few brands kicked off.',
   };
 }
 

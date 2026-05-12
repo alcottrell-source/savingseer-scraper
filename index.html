@@ -890,8 +890,8 @@
       </div>
       <div class="pref-toggle-row">
         <div class="pref-toggle-text">
-          <div class="pref-toggle-label">Daily morning digest at 7am</div>
-          <div class="pref-toggle-sub">A round-up of your saved centres.</div>
+          <div class="pref-toggle-label">Weekend Digest</div>
+          <div class="pref-toggle-sub">Sent every Friday at 7pm — only when at least one of your saved centres is Rising or above.</div>
         </div>
         <label class="pref-switch">
           <input type="checkbox" id="account-toggle-digest" onchange="quickSavePref('daily_digest', this.checked)">
@@ -1673,7 +1673,7 @@ function obRenderStep5Notifications() {
     +     '<label class="pref-switch"><input type="checkbox" id="ob-toggle-alerts" '+(onb.email_alerts?'checked':'')+' onchange="onb.email_alerts=this.checked"><span class="pref-switch-track"></span><span class="pref-switch-thumb"></span></label></div>'
     +   '<div class="pref-toggle-row"><div class="pref-toggle-text"><div class="pref-toggle-label">Alert me when one of my shops goes into sale</div><div class="pref-toggle-sub">A heads-up the moment any tracked brand starts a new sale.</div></div>'
     +     '<label class="pref-switch"><input type="checkbox" id="ob-toggle-brand-alerts" '+(onb.brand_sale_alerts?'checked':'')+' onchange="onb.brand_sale_alerts=this.checked"><span class="pref-switch-track"></span><span class="pref-switch-thumb"></span></label></div>'
-    +   '<div class="pref-toggle-row"><div class="pref-toggle-text"><div class="pref-toggle-label">Daily morning digest at 7am</div><div class="pref-toggle-sub">A round-up of your saved centres.</div></div>'
+    +   '<div class="pref-toggle-row"><div class="pref-toggle-text"><div class="pref-toggle-label">Weekend Digest</div><div class="pref-toggle-sub">Sent every Friday at 7pm — only when at least one of your saved centres is Rising or above.</div></div>'
     +     '<label class="pref-switch"><input type="checkbox" id="ob-toggle-digest" '+(onb.daily_digest?'checked':'')+' onchange="onb.daily_digest=this.checked"><span class="pref-switch-track"></span><span class="pref-switch-thumb"></span></label></div>'
     + '</div>'
     + preview;

@@ -2917,14 +2917,27 @@ const SERVER_VERDICT_DISPLAY = {
 };
 function deriveVerdict(ctx) {
   ctx = ctx || {};
-  const mapped = ctx.serverVerdict && SERVER_VERDICT_DISPLAY[ctx.serverVerdict];
+  let serverVerdict = ctx.serverVerdict;
+  // Display override for the minor-cycle case: a centre that climbed into
+  // the Rising stage but never hit Peak, and whose trajectory has since
+  // turned over. The state machine (and the DB) keeps it as `Rising` so
+  // hysteresis doesn't trap it in descent forever, but the headline must
+  // tell the truth the user can see in the trend arrow and brand counts.
+  // Without this override the card reads RISING while the tide is easing.
+  if ((serverVerdict === 'Rising' || serverVerdict === 'Worth watching')
+      && ctx.trajectory === 'FALLING') {
+    serverVerdict = 'Easing';
+  }
+  const mapped = serverVerdict && SERVER_VERDICT_DISPLAY[serverVerdict];
   if (mapped) return mapped;
   // No server verdict (sparse data / sample render) — fall back to stage.
   switch (ctx.stage) {
     case 'High Tide': return { word: 'PEAK',    tone: 'go'   };
     case 'Falling':   return { word: 'EASING',  tone: 'fall' };
     case 'Low':       return { word: 'OVER',    tone: 'wait' };
-    case 'Rising':    return { word: 'RISING',  tone: 'rise' };
+    case 'Rising':    return ctx.trajectory === 'FALLING'
+                        ? { word: 'EASING', tone: 'fall' }
+                        : { word: 'RISING', tone: 'rise' };
     case 'Turning':   return { word: 'TURNING', tone: 'wait' };
     default:          return { word: 'QUIET',   tone: 'wait' };
   }

@@ -119,13 +119,17 @@ function getTideStage(score, yesterdayStage, trajectory) {
     return           { stage: 'Falling', verdict: 'Easing', bluf: 'Sales tapering off. Picks getting thinner.' };
   }
 
-  // Climb path: working up toward peak (or first day of a new centre)
+  // Climb path: working up toward peak (or first day of a new centre).
+  // When trajectory has already turned over (a minor cycle that didn't hit
+  // Peak), keep the stage as Rising so hysteresis stays consistent but
+  // hand the front-end an easing bluf — the display verdict will be
+  // EASING so the supporting copy must match.
   if (score >= 25) {
     return {
       stage: 'Rising',
       verdict: 'Rising',
       bluf: falling
-        ? 'Sales mixed today — score holding but recent days quieter.'
+        ? 'Sales tapering off. Picks getting thinner.'
         : 'Sales building across the centre. Not at peak yet.',
     };
   }

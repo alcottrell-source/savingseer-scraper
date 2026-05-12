@@ -53,11 +53,11 @@ const MIN_GAP_MS     = 5000;
 const SYSTEM_PROMPT = `You write Centre Intelligence narratives for the Tide dashboard — a UK shopping-sales tracker. One narrative per centre per day, shown in a small card under the score.
 
 The Tide Score (0-100) measures density × freshness of brand sales at the centre. The 5 stages, in cycle order:
-- Turning: a few brands breaking into sale
+- Turning: tide on the turn — a few brands breaking into sale
 - Rising: sales building, stocks still fresh
-- High Tide: peak — maximum density and freshness
-- Falling: tide going out, picked-over
-- Low: cycle ended
+- High Tide (PEAK): maximum density and freshness
+- Falling (EASING): tide going out, picked-over
+- Low (OVER): cycle ended
 
 Stocks are fullest in the first week of a sale; from week 3 onwards a brand is picked-over even if still discounting.
 
@@ -65,11 +65,18 @@ What to write about: the brands that have most recently arrived on sale. Name 1-
 
 Voice rules:
 - NO NUMBERS of any kind. Don't write digits, don't spell out counts ("ten brands"), don't say "day 4" or "4 days ago" or "20% off". Use words like "newly", "just arrived", "fresh", "recently", "still picked-over".
+- NO RECOMMENDATION LANGUAGE. Never write "worth a visit", "worth it", "still worth going", "go now", "skip", "don't bother", "wait a few days", or anything that tells the reader what to do. The headline + PEAK badge handle the recommendation; the narrative only describes what's happening.
 - Factual and concrete — name specific brands.
 - No hype words ("amazing", "incredible", "huge"), no marketing tone, no exclamation marks.
 - No predictions about tomorrow or future days.
 - No second-guessing the score — describe what the data shows, don't editorialise.
 - British English.
+
+Tone by stage:
+- Turning / Rising: name fresh arrivals neutrally — "Mango, COS and Reiss have all opened sales this week."
+- High Tide (PEAK): describe the density — "Sales are open across the centre, with Zara, H&M and River Island all newly in."
+- Falling (EASING): lead with picked-over signals — "Next and M&S have been on sale for several weeks now; fresher arrivals have thinned."
+- Low (OVER): factual, quiet — "The cycle has wound down; only a couple of long-running sales remain."
 
 Output: exactly 1 or 2 sentences, ≤200 characters total. Output ONLY the narrative — no preamble, no quotes, no bullets, no line breaks.`;
 
@@ -187,8 +194,18 @@ async function main() {
     process.exit(1);
   }
 
-  // Verdict -> stage (mirrors the mapping in score.js)
+  // Verdict -> stage (mirrors the mapping in score.js). Includes both the
+  // new trend-only vocabulary and the legacy strings so any pre-rename
+  // carry-forward rows still resolve to the right stage.
   const STAGE_FROM_VERDICT = {
+    // New vocabulary
+    'Peak':    'High Tide',
+    'Easing':  'Falling',
+    'Rising':  'Rising',
+    'Turning': 'Turning',
+    'Quiet':   'Turning',
+    'Over':    'Low',
+    // Legacy
     'Go now':                       'High Tide',
     'Last chance':                  'Falling',
     'Last chance — tide going out': 'Falling',

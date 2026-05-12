@@ -57,14 +57,25 @@ function brandFreshnessScore(daysRunning) {
 // where we are in the cycle.
 //
 // Why hysteresis (not a fixed N-day window): a centre that hits peak should
-// hold "Go now" until the score genuinely retreats, not auto-time-out after
+// hold "Peak" until the score genuinely retreats, not auto-time-out after
 // a fixed window. The 65 floor gives a 10-point cushion against day-to-day
 // noise around the 75 entry without freezing the verdict if sales actually
 // collapse.
 const HIGH_TIDE_ENTER = 75;
 const HIGH_TIDE_EXIT  = 65;
 
+// Trend-only verdict vocabulary. Headlines describe the cycle direction;
+// the PEAK badge is the only recommendation language the dashboard shows.
+// Legacy verdict strings are retained so the lookup still resolves yesterday's
+// stage when reading rows written before the rename.
 const STAGE_FROM_VERDICT = {
+  'Peak':    'High Tide',
+  'Easing':  'Falling',
+  'Rising':  'Rising',
+  'Turning': 'Turning',
+  'Quiet':   'Turning',
+  'Over':    'Low',
+  // Legacy strings (pre-rename) — keep so historical rows still map.
   'Go now':                       'High Tide',
   'Last chance':                  'Falling',
   'Last chance — tide going out': 'Falling',
@@ -80,10 +91,9 @@ function deriveStageFromVerdict(verdict) {
 // Trajectory shapes the bluf sentence only — the stage and verdict noun stay
 // pinned to the hysteresis state machine so the STAGE_FROM_VERDICT lookup and
 // downstream consumers (admin panel filters, summariser prompt) keep working
-// unchanged. Climbing stages (Turning / Rising) gain a falling-flavoured copy
-// for the case where score is below the stage's natural ceiling but trajectory
-// has already turned over — without it the bluf reads "Worth watching" while
-// the trend line right below says "Tide easing off".
+// unchanged. Climbing stages (Turning / Rising) get a neutral copy when
+// trajectory has softened — no recommendation language, just an honest read
+// that the score is holding but the trend has cooled.
 function getTideStage(score, yesterdayStage, trajectory) {
   const wasHighTide = yesterdayStage === 'High Tide';
   const wasDescent  = yesterdayStage === 'Falling' || yesterdayStage === 'Low';
@@ -91,40 +101,40 @@ function getTideStage(score, yesterdayStage, trajectory) {
 
   if (score === 0) {
     if (wasHighTide || wasDescent) {
-      return { stage: 'Low', verdict: "It's over", bluf: 'Cycle ended. Check back when brands start their next sale.' };
+      return { stage: 'Low', verdict: 'Over', bluf: 'Sale cycle ended. Check back in a few weeks.' };
     }
-    return { stage: 'Turning', verdict: 'Nothing on', bluf: 'No meaningful sales at this centre right now. Check back soon.' };
+    return { stage: 'Turning', verdict: 'Quiet', bluf: 'Nothing major on right now.' };
   }
 
   // Hysteresis: enter High Tide at 75, hold until score drops below 65
   if (score >= HIGH_TIDE_ENTER || (wasHighTide && score >= HIGH_TIDE_EXIT)) {
-    return { stage: 'High Tide', verdict: 'Go now', bluf: 'Maximum density, maximum freshness. This is the moment.' };
+    return { stage: 'High Tide', verdict: 'Peak', bluf: 'Maximum sales density. This is the moment.' };
   }
 
   // Descent path: was at peak yesterday and has now dropped below the hold,
   // or was already descending. Distinguishes Falling (still meaningful) from
   // Low (cycle ended) by the 25-point boundary.
   if (wasHighTide || wasDescent) {
-    if (score < 25) return { stage: 'Low',     verdict: "It's over",              bluf: 'Cycle ended. Check back when brands start their next sale.' };
-    return           { stage: 'Falling', verdict: 'Last chance — tide going out', bluf: 'Tide going out. Go now or miss out.' };
+    if (score < 25) return { stage: 'Low',     verdict: 'Over',   bluf: 'Sale cycle ended. Check back in a few weeks.' };
+    return           { stage: 'Falling', verdict: 'Easing', bluf: 'Sales tapering off. Picks getting thinner.' };
   }
 
   // Climb path: working up toward peak (or first day of a new centre)
   if (score >= 25) {
     return {
       stage: 'Rising',
-      verdict: 'Worth watching',
+      verdict: 'Rising',
       bluf: falling
-        ? 'Sales easing back from peak. Still worth a visit, but don’t wait.'
-        : 'Sales building and fresh. Plan your visit soon.',
+        ? 'Sales mixed today — score holding but recent days quieter.'
+        : 'Sales building across the centre. Not at peak yet.',
     };
   }
   return {
     stage: 'Turning',
-    verdict: 'Starting to build',
+    verdict: 'Turning',
     bluf: falling
-      ? 'Sales thin and easing off. Probably not worth a trip today.'
-      : 'A few brands are breaking into sale. Worth watching.',
+      ? 'Sales thin and quieting. Wait for the next cycle to build.'
+      : 'Tide on the turn. First brands opening sales.',
   };
 }
 

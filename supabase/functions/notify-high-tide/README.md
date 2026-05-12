@@ -2,9 +2,10 @@
 
 Daily email job. Two passes per run:
 
-1. **High-tide alerts** — for each centre at "Go now" today, email every user
-   who has saved that centre. The "top 3 brands on sale" list is filtered to
-   the user's preferences (gender + style cluster) when they have any set.
+1. **Peak alerts** — for each centre at "Peak" today (verdict `Peak`; legacy
+   `Go now` still matches), email every user who has saved that centre. The
+   "top 3 brands on sale" list is filtered to the user's preferences (gender
+   + style cluster) when they have any set.
 2. **Daily digest** — for each user with saved centres, list each saved
    centre's stage. Only sent when at least one of their saved centres is at
    Rising or above.
@@ -127,7 +128,7 @@ curl -X POST 'https://vrezzwadwzrmumjpdgge.functions.supabase.co/notify-high-tid
 ```
 
 Real send to one test address: sign yourself up via the web app, save a
-centre that's currently at Rising or above, and invoke the function with no
+centre that's currently at Rising or Peak, and invoke the function with no
 `dryRun` flag.
 
 ---
@@ -138,10 +139,10 @@ centre that's currently at Rising or above, and invoke the function with no
   `centre_brands`, `user_preferences`. Resolves user emails via
   `auth.admin.getUserById` — needs the service-role key, which the runtime
   injects automatically.
-- The "Go now" detection uses `verdict.toLowerCase().includes('go now')`,
-  matching the wording your scorer writes today. If you change the verdict
-  copy, update `stageFromVerdict()` in `index.ts`.
+- Peak detection matches the new `Peak` verdict (and the legacy `Go now`
+  string for back-compat) — see `stageFromVerdict()` in `index.ts`. Update
+  that function when verdict copy changes.
 - "Top 3 brands" is sorted by days-on-sale ascending (newest sales first),
   the same way the dashboard sorts on-sale chips.
 - A user can receive both an alert _and_ a digest on the same day if a
-  saved centre is at "Go now" — that's intentional (different value).
+  saved centre is at Peak — that's intentional (different value).

@@ -3,9 +3,10 @@
 // Runs once a day (07:00 UTC, scheduled via pg_cron — see README in this dir).
 // Two passes:
 //
-//   1. HIGH-TIDE ALERTS — for every centre where today's verdict is "Go now",
-//      find users who have that centre in user_preferences.saved_centres and
-//      send them a "go today" email.
+//   1. PEAK ALERTS — for every centre where today's verdict is "Peak"
+//      (formerly "Go now" — legacy strings still match), find users who
+//      have that centre in user_preferences.saved_centres and send them a
+//      "go today" email. PEAK is the one state that earns a recommendation.
 //
 //   2. DAILY DIGEST — for every user with saved_centres, list each saved
 //      centre with its current stage. Only sent if at least one of their
@@ -86,11 +87,19 @@ function brandMatchesPrefs(b: BrandRow, p: PrefsRow): boolean {
 function stageFromVerdict(verdict: string | null): string {
   if (!verdict) return "Unknown";
   const v = verdict.toLowerCase();
+  // New trend-only vocabulary
+  if (v === "peak")            return "High Tide";
+  if (v === "easing")          return "Falling";
+  if (v === "rising")          return "Rising";
+  if (v === "turning")         return "Turning";
+  if (v === "quiet")           return "Turning";
+  if (v === "over")            return "Low";
+  // Legacy verdict strings (pre-rename)
   if (v.includes("go now"))    return "High Tide";
   if (v.includes("last chance")) return "Falling";
   if (v.includes("worth"))     return "Rising";
   if (v.includes("starting"))  return "Turning";
-  if (v.includes("over"))      return "Low";
+  if (v.includes("it's over")) return "Low";
   if (v.includes("nothing"))   return "Turning";
   return "Unknown";
 }
@@ -102,15 +111,27 @@ function stageColor(stage: string): string {
   return STONE;
 }
 
+// User-facing display word for an internal stage. Mirrors the dashboard's
+// SERVER_VERDICT_DISPLAY mapping so emails and the web app speak the same
+// trend-only vocabulary.
+function stageDisplay(stage: string): string {
+  if (stage === "High Tide") return "Peak";
+  if (stage === "Rising")    return "Rising";
+  if (stage === "Falling")   return "Easing";
+  if (stage === "Turning")   return "Turning";
+  if (stage === "Low")       return "Over";
+  return stage;
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Email rendering — kept inline so the whole function is one file.
 
 function renderHighTideEmail(centreName: string, brands: { name: string; days: number; pct: number | null }[]): { subject: string; html: string; text: string } {
-  const subject = `High Tide at ${centreName} — go today`;
+  const subject = `${centreName} is at peak — go today`;
   const top3 = brands.slice(0, 3);
   const brandLine = top3.length === 0
-    ? `${centreName} just hit Go Now — peak sales density today.`
-    : `${centreName} just hit Go Now. ${top3.map(b => b.name).join(", ").replace(/, ([^,]*)$/, " and $1")} ${top3.length === 1 ? "is" : "are"} on sale at peak freshness.`;
+    ? `${centreName} just hit peak — maximum sales density today.`
+    : `${centreName} just hit peak. ${top3.map(b => b.name).join(", ").replace(/, ([^,]*)$/, " and $1")} ${top3.length === 1 ? "is" : "are"} on sale at peak freshness.`;
 
   const pillsHtml = top3.map(b => {
     const daysLabel = b.days <= 1 ? "New today" : b.days <= 7 ? `Fresh · ${b.days}d` : `${b.days}d in`;
@@ -119,7 +140,7 @@ function renderHighTideEmail(centreName: string, brands: { name: string; days: n
   }).join("");
 
   const html = baseEmailWrap({
-    bannerText:  "HIGH TIDE — GO NOW",
+    bannerText:  "PEAK — GO NOW",
     bannerColor: AMBER,
     bodyHtml: `
       <p style="margin:0 0 18px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;line-height:1.55;color:${BARK}">${escapeHtml(brandLine)}</p>
@@ -137,9 +158,10 @@ function renderDigestEmail(date: string, rows: { centreName: string; stage: stri
   const subject = `Your Tide update — ${date}`;
   const items = rows.map(r => {
     const color = stageColor(r.stage);
+    const display = stageDisplay(r.stage);
     return `<tr><td style="padding:10px 0;border-bottom:1px solid rgba(44,24,16,0.08);font-family:'DM Sans',Arial,sans-serif;font-size:14px;color:${BARK}">
       <strong>${escapeHtml(r.centreName)}</strong>
-      <span style="display:inline-block;margin-left:10px;padding:2px 10px;border-radius:10px;background:${color}1A;color:${color};font-size:11px;letter-spacing:0.06em;text-transform:uppercase">${escapeHtml(r.stage)}</span>
+      <span style="display:inline-block;margin-left:10px;padding:2px 10px;border-radius:10px;background:${color}1A;color:${color};font-size:11px;letter-spacing:0.06em;text-transform:uppercase">${escapeHtml(display)}</span>
       <div style="color:${STONE};font-size:12px;margin-top:2px">${escapeHtml(r.verdict)}</div>
     </td></tr>`;
   }).join("");
@@ -154,7 +176,7 @@ function renderDigestEmail(date: string, rows: { centreName: string; stage: stri
     ctaUrl: APP_URL,
   });
 
-  const text = `Your Tide update — ${date}\n\n${rows.map(r => `${r.centreName}: ${r.stage} — ${r.verdict}`).join("\n")}\n\nSee today's score: ${APP_URL}`;
+  const text = `Your Tide update — ${date}\n\n${rows.map(r => `${r.centreName}: ${stageDisplay(r.stage)} — ${r.verdict}`).join("\n")}\n\nSee today's score: ${APP_URL}`;
   return { subject, html, text };
 }
 

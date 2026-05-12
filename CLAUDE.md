@@ -27,7 +27,7 @@ Key functions: `authContinue()`, `authSignIn()`, `authSignUp()`, `authMagicLink(
 Signed-in users clicking the nav button open `#account-panel` (not the prefs wizard). It shows:
 - Their email
 - Saved centres list
-- Go Now alert + daily digest toggles (inline quick-save via `quickSavePref(key, value)`)
+- Peak alert + daily digest toggles (inline quick-save via `quickSavePref(key, value)`)
 - "Edit shopping preferences" → opens prefs wizard
 - Sign out
 
@@ -39,12 +39,37 @@ Signed-in users clicking the nav button open `#account-panel` (not the prefs wiz
 ### Preferences wizard (`#prefs-modal`)
 4-step wizard: gender → style clusters → notifications + saved centres → preview. Opens automatically for new users and via "Edit shopping preferences" in the account panel. Saves via upsert on `user_preferences` with `onConflict: 'user_id'`.
 
+## Verdict vocabulary (May 2026 — trend-only headlines)
+
+Headlines on the centre card are **pure trend signals**. Recommendation language (`go`, `worth it`, `worth a visit`, `don't wait`, `skip`) is reserved for the **PEAK badge** — the only state where the dashboard tells the user to act. Every other state describes direction, not prescription.
+
+| Stage (internal) | Score | Verdict (stored in `centre_seer_scores.verdict`) | Headline word | Badge |
+|---|---|---|---|---|
+| Turning (cycle hasn't started) | 0 | `Quiet` | **QUIET** | — |
+| Turning (early — tide on the turn) | >0, <25 | `Turning` | **TURNING** | — |
+| Rising | 25–<75 | `Rising` | **RISING** | — |
+| High Tide | ≥75 (hyst. 65) | `Peak` | **PEAK** | **GO NOW** |
+| Falling | 25–<65 post-peak | `Easing` | **EASING** | — |
+| Low | <25 post-peak | `Over` | **OVER** | — |
+
+Legacy verdict strings (`Go now`, `Worth watching`, `Last chance — tide going out`, `Starting to build`, `It's over`, `Nothing on`) still resolve in every consumer (`score.js`, `index.html`, `summarise.js`, `notify-high-tide/index.ts`) so pre-rename rows render correctly. The next daily run rewrites the column with the new vocabulary — no migration needed.
+
+**Alignment rules every consumer must obey:**
+- The brand-delta arrow (`↑ N more brands on sale than yesterday` / `↓ N fewer …`) follows the **stage direction**, never the raw signed delta. If they disagree (e.g. brand count up on an easing tide), suppress the row.
+- The trend arrow under the bluf shows direction only — no "still worth a visit" tail.
+- Narrative copy (`summarise.js`) is forbidden from using recommendation language — see the system prompt in that file.
+
 ## Centre Intelligence narrative (May 2026)
 The card under each centre's score shows a 1–2 sentence trend narrative. It's generated daily by `summarise.js` (Gemini 2.0 Flash-Lite, free tier — 1500 RPD, 15 RPM) and stored in `centre_seer_scores.narrative` for that centre+date. The front-end reads the column and falls back to a template narrative when the column is null (first run on a new centre, summariser skipped, or `GEMINI_API_KEY` absent). Don't add live API calls from the browser — keep generation in the daily pipeline.
+
+The Gemini prompt forbids numbers AND recommendation language — narratives describe what's happening (which brands just arrived, which are picked-over) but never tell the reader what to do. The headline + PEAK badge are the only places the dashboard prescribes action.
 
 Don't switch the model to `gemini-2.5-flash-lite`: its free-tier daily cap is 20 RPD, below our 30+ centre count, and the script will dead-end halfway through. `gemini-2.0-flash-lite` is the only Gemini free-tier model with enough headroom for this workload as of May 2026.
 
 Required env var on the GitHub Action's `score` job: `GEMINI_API_KEY` (repo secret).
+
+## Peak alert (May 2026)
+Daily Supabase Edge function `notify-high-tide` emails users when a saved centre hits **Peak** (verdict `Peak`). Two passes: peak alerts + an optional daily digest. UI toggle: "Alert me when a centre hits peak sale" in the account panel. Internally still files under `email_alerts` in `user_preferences`. Don't rename the column — just the human-readable copy.
 
 ## Database
 Supabase project: `vrezzwadwzrmumjpdgge.supabase.co`

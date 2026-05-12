@@ -48,9 +48,12 @@ Headlines on the centre card are **pure trend signals**. Recommendation language
 | Turning (cycle hasn't started) | 0 | `Quiet` | **QUIET** | — |
 | Turning (early — tide on the turn) | >0, <25 | `Turning` | **TURNING** | — |
 | Rising | 25–<75 | `Rising` | **RISING** | — |
-| High Tide | ≥75 (hyst. 65) | `Peak` | **PEAK** | **GO NOW** |
+| High Tide (global) | ≥75 (hyst. 65) | `Peak` | **PEAK** | **GO NOW** |
+| High Tide (local peak) | ≥25, day trajectory flips RISING → FALLING | `Peak` | **PEAK** | **GO NOW** |
 | Falling | 25–<65 post-peak | `Easing` | **EASING** | — |
 | Low | <25 post-peak | `Over` | **OVER** | — |
+
+**Local peak:** every centre has a peak sale day, even ones that never break 75. `score.js` detects this as a one-shot trajectory flip (RISING → FALLING) inside the climb path and emits `verdict='Peak'` for that single day; the front-end shows PEAK + GO NOW and the peak-alert email fires. The next day, `STAGE_FROM_VERDICT['Peak']='High Tide'` routes the centre through the descent branch and we transition to Easing automatically. Genuine ≥75 cycles still hold PEAK through the 75/65 hysteresis band as before.
 
 Legacy verdict strings (`Go now`, `Worth watching`, `Last chance — tide going out`, `Starting to build`, `It's over`, `Nothing on`) still resolve in every consumer (`score.js`, `index.html`, `summarise.js`, `notify-high-tide/index.ts`) so pre-rename rows render correctly. The next daily run rewrites the column with the new vocabulary — no migration needed.
 

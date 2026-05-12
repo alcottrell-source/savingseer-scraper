@@ -88,16 +88,20 @@ function deriveStageFromVerdict(verdict) {
   return verdict ? (STAGE_FROM_VERDICT[verdict] || null) : null;
 }
 
-// Trajectory shapes the bluf sentence only — the stage and verdict noun stay
-// pinned to the hysteresis state machine so the STAGE_FROM_VERDICT lookup and
-// downstream consumers (admin panel filters, summariser prompt) keep working
-// unchanged. Climbing stages (Turning / Rising) get a neutral copy when
-// trajectory has softened — no recommendation language, just an honest read
-// that the score is holding but the trend has cooled.
-function getTideStage(score, yesterdayStage, trajectory) {
+// Trajectory shapes the bluf sentence and triggers the local-peak verdict.
+// Every centre has its own peak day, even ones that never break 75 — the
+// moment a climbing centre turns over, that day's verdict is `Peak` (one-shot)
+// so users get the GO NOW signal at their centre's natural maximum. The day
+// after, the descent path picks it up and we transition to Easing.
+function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   const wasHighTide = yesterdayStage === 'High Tide';
   const wasDescent  = yesterdayStage === 'Falling' || yesterdayStage === 'Low';
   const falling     = trajectory === 'FALLING';
+  // Local-peak detection: the centre was climbing (trajectory RISING) and
+  // has just turned over (trajectory FALLING today). This is its natural
+  // high tide whether or not the score crossed the 75 hysteresis line —
+  // every centre has a peak day, and this is how we catch the minor cycles.
+  const localPeak   = yesterdayTrajectory === 'RISING' && trajectory === 'FALLING';
 
   if (score === 0) {
     if (wasHighTide || wasDescent) {
@@ -119,12 +123,19 @@ function getTideStage(score, yesterdayStage, trajectory) {
     return           { stage: 'Falling', verdict: 'Easing', bluf: 'Sales tapering off. Picks getting thinner.' };
   }
 
-  // Climb path: working up toward peak (or first day of a new centre).
-  // When trajectory has already turned over (a minor cycle that didn't hit
-  // Peak), keep the stage as Rising so hysteresis stays consistent but
-  // hand the front-end an easing bluf — the display verdict will be
-  // EASING so the supporting copy must match.
+  // Climb path. A trajectory turn-over while we're still in the climb (score
+  // hasn't crossed 75) means this centre just hit its OWN peak — fire the
+  // Peak verdict for this one day. Tomorrow STAGE_FROM_VERDICT will map
+  // 'Peak' → 'High Tide' so the descent branch above takes over and
+  // transitions the centre to Easing on day 2.
   if (score >= 25) {
+    if (localPeak) {
+      return {
+        stage: 'High Tide',
+        verdict: 'Peak',
+        bluf: 'This centre just peaked. Go now while picks are fresh — sales will start thinning from tomorrow.',
+      };
+    }
     return {
       stage: 'Rising',
       verdict: 'Rising',
@@ -336,7 +347,7 @@ async function calculateAllCentreScores(opts = {}) {
     const yesterdayTrajectory = yesterdayTrajectoryMap.get(centre.id) ?? null;
     const trajectory = getTrajectory(tideScore, recent, yesterdayTrajectory);
     const yesterdayStage = yesterdayStageMap.get(centre.id) ?? null;
-    const { stage, verdict, bluf } = getTideStage(tideScore, yesterdayStage, trajectory);
+    const { stage, verdict, bluf } = getTideStage(tideScore, yesterdayStage, trajectory, yesterdayTrajectory);
 
     const topBrands = saleDetails
       .sort((a, b) => (b.freshness * b.weight) - (a.freshness * a.weight))
@@ -528,8 +539,9 @@ async function calculatePersonalScores(opts = {}) {
       const personalScore = Math.round((totalFreshness / matchingBrandIds.length) * 10) / 10;
       // Personal scores aren't tracked across days, so no yesterdayStage —
       // the verdict reflects the score alone (no hysteresis). Trajectory is
-      // also unavailable per-user; pass FLAT so the bluf branch is neutral.
-      const { verdict } = getTideStage(personalScore, null, 'FLAT');
+      // also unavailable per-user; pass FLAT so the bluf branch is neutral
+      // and null yesterdayTrajectory so localPeak detection is suppressed.
+      const { verdict } = getTideStage(personalScore, null, 'FLAT', null);
 
       scoreRows.push({
         user_id:             pref.user_id,

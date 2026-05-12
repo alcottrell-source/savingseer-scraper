@@ -68,6 +68,7 @@ Voice rules:
 - NO RECOMMENDATION LANGUAGE. Never write "worth a visit", "worth it", "still worth going", "go now", "skip", "don't bother", "wait a few days", or anything that tells the reader what to do. The headline + PEAK badge handle the recommendation; the narrative only describes what's happening.
 - Factual and concrete — name specific brands.
 - No hype words ("amazing", "incredible", "huge"), no marketing tone, no exclamation marks.
+- NO EM DASHES OR EN DASHES. Don't use "—" or "–" to join clauses. Use a full stop, a comma, or "and" instead. A regular hyphen inside a word (e.g. "picked-over") is fine.
 - No predictions about tomorrow or future days.
 - No second-guessing the score — describe what the data shows, don't editorialise.
 - British English.
@@ -118,7 +119,12 @@ async function generateNarrative(centre) {
   const text = (resp.text || '')
     .trim()
     .replace(/^["']|["']$/g, '')
-    .replace(/\s+/g, ' ');
+    .replace(/\s+/g, ' ')
+    // Defensive: prompt forbids em/en dashes but Gemini occasionally
+    // ignores it. Replace any " — " or " – " with ". " so the narrative
+    // doesn't read as AI-generated.
+    .replace(/\s*[—–]\s*/g, '. ')
+    .replace(/\.\s*\./g, '.');
 
   if (!text) return null;
   // Hard cap — model usually obeys but we don't trust it unconditionally

@@ -57,14 +57,25 @@ function brandFreshnessScore(daysRunning) {
 // where we are in the cycle.
 //
 // Why hysteresis (not a fixed N-day window): a centre that hits peak should
-// hold "Go now" until the score genuinely retreats, not auto-time-out after
+// hold "Peak" until the score genuinely retreats, not auto-time-out after
 // a fixed window. The 65 floor gives a 10-point cushion against day-to-day
 // noise around the 75 entry without freezing the verdict if sales actually
 // collapse.
 const HIGH_TIDE_ENTER = 75;
 const HIGH_TIDE_EXIT  = 65;
 
+// Trend-only verdict vocabulary. Headlines describe the cycle direction;
+// the PEAK badge is the only recommendation language the dashboard shows.
+// Legacy verdict strings are retained so the lookup still resolves yesterday's
+// stage when reading rows written before the rename.
 const STAGE_FROM_VERDICT = {
+  'Peak':    'High Tide',
+  'Easing':  'Falling',
+  'Rising':  'Rising',
+  'Turning': 'Turning',
+  'Quiet':   'Turning',
+  'Over':    'Low',
+  // Legacy strings (pre-rename) — keep so historical rows still map.
   'Go now':                       'High Tide',
   'Last chance':                  'Falling',
   'Last chance — tide going out': 'Falling',
@@ -77,54 +88,68 @@ function deriveStageFromVerdict(verdict) {
   return verdict ? (STAGE_FROM_VERDICT[verdict] || null) : null;
 }
 
-// Trajectory shapes the bluf sentence only — the stage and verdict noun stay
-// pinned to the hysteresis state machine so the STAGE_FROM_VERDICT lookup and
-// downstream consumers (admin panel filters, summariser prompt) keep working
-// unchanged. Climbing stages (Turning / Rising) gain a falling-flavoured copy
-// for the case where score is below the stage's natural ceiling but trajectory
-// has already turned over — without it the bluf reads "Worth watching" while
-// the trend line right below says "Tide easing off".
-function getTideStage(score, yesterdayStage, trajectory) {
+// Trajectory shapes the bluf sentence and triggers the local-peak verdict.
+// Every centre has its own peak day, even ones that never break 75 — the
+// moment a climbing centre turns over, that day's verdict is `Peak` (one-shot)
+// so users get the GO NOW signal at their centre's natural maximum. The day
+// after, the descent path picks it up and we transition to Easing.
+function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   const wasHighTide = yesterdayStage === 'High Tide';
   const wasDescent  = yesterdayStage === 'Falling' || yesterdayStage === 'Low';
   const falling     = trajectory === 'FALLING';
+  // Local-peak detection: the centre was climbing (trajectory RISING) and
+  // has just turned over (trajectory FALLING today). This is its natural
+  // high tide whether or not the score crossed the 75 hysteresis line —
+  // every centre has a peak day, and this is how we catch the minor cycles.
+  const localPeak   = yesterdayTrajectory === 'RISING' && trajectory === 'FALLING';
 
   if (score === 0) {
     if (wasHighTide || wasDescent) {
-      return { stage: 'Low', verdict: "It's over", bluf: 'Cycle ended. Check back when brands start their next sale.' };
+      return { stage: 'Low', verdict: 'Over', bluf: 'Sale cycle ended. Check back in a few weeks.' };
     }
-    return { stage: 'Turning', verdict: 'Nothing on', bluf: 'No meaningful sales at this centre right now. Check back soon.' };
+    return { stage: 'Turning', verdict: 'Quiet', bluf: 'Nothing major on right now.' };
   }
 
   // Hysteresis: enter High Tide at 75, hold until score drops below 65
   if (score >= HIGH_TIDE_ENTER || (wasHighTide && score >= HIGH_TIDE_EXIT)) {
-    return { stage: 'High Tide', verdict: 'Go now', bluf: 'Maximum density, maximum freshness. This is the moment.' };
+    return { stage: 'High Tide', verdict: 'Peak', bluf: 'Maximum sales density. This is the moment.' };
   }
 
   // Descent path: was at peak yesterday and has now dropped below the hold,
   // or was already descending. Distinguishes Falling (still meaningful) from
   // Low (cycle ended) by the 25-point boundary.
   if (wasHighTide || wasDescent) {
-    if (score < 25) return { stage: 'Low',     verdict: "It's over",              bluf: 'Cycle ended. Check back when brands start their next sale.' };
-    return           { stage: 'Falling', verdict: 'Last chance — tide going out', bluf: 'Tide going out. Go now or miss out.' };
+    if (score < 25) return { stage: 'Low',     verdict: 'Over',   bluf: 'Sale cycle ended. Check back in a few weeks.' };
+    return           { stage: 'Falling', verdict: 'Easing', bluf: 'Sales tapering off. Picks getting thinner.' };
   }
 
-  // Climb path: working up toward peak (or first day of a new centre)
+  // Climb path. A trajectory turn-over while we're still in the climb (score
+  // hasn't crossed 75) means this centre just hit its OWN peak — fire the
+  // Peak verdict for this one day. Tomorrow STAGE_FROM_VERDICT will map
+  // 'Peak' → 'High Tide' so the descent branch above takes over and
+  // transitions the centre to Easing on day 2.
   if (score >= 25) {
+    if (localPeak) {
+      return {
+        stage: 'High Tide',
+        verdict: 'Peak',
+        bluf: 'This centre just peaked. Go now while picks are fresh — sales will start thinning from tomorrow.',
+      };
+    }
     return {
       stage: 'Rising',
-      verdict: 'Worth watching',
+      verdict: 'Rising',
       bluf: falling
-        ? 'Sales easing back from peak. Still worth a visit, but don’t wait.'
-        : 'Sales building and fresh. Plan your visit soon.',
+        ? 'Sales tapering off. Picks getting thinner.'
+        : 'Sales building across the centre. Not at peak yet.',
     };
   }
   return {
     stage: 'Turning',
-    verdict: 'Starting to build',
+    verdict: 'Turning',
     bluf: falling
-      ? 'Sales thin and easing off. Probably not worth a trip today.'
-      : 'A few brands are breaking into sale. Worth watching.',
+      ? 'Sales thin and quieting. Wait for the next cycle to build.'
+      : 'Tide on the turn. First brands opening sales.',
   };
 }
 
@@ -322,7 +347,7 @@ async function calculateAllCentreScores(opts = {}) {
     const yesterdayTrajectory = yesterdayTrajectoryMap.get(centre.id) ?? null;
     const trajectory = getTrajectory(tideScore, recent, yesterdayTrajectory);
     const yesterdayStage = yesterdayStageMap.get(centre.id) ?? null;
-    const { stage, verdict, bluf } = getTideStage(tideScore, yesterdayStage, trajectory);
+    const { stage, verdict, bluf } = getTideStage(tideScore, yesterdayStage, trajectory, yesterdayTrajectory);
 
     const topBrands = saleDetails
       .sort((a, b) => (b.freshness * b.weight) - (a.freshness * a.weight))
@@ -514,8 +539,9 @@ async function calculatePersonalScores(opts = {}) {
       const personalScore = Math.round((totalFreshness / matchingBrandIds.length) * 10) / 10;
       // Personal scores aren't tracked across days, so no yesterdayStage —
       // the verdict reflects the score alone (no hysteresis). Trajectory is
-      // also unavailable per-user; pass FLAT so the bluf branch is neutral.
-      const { verdict } = getTideStage(personalScore, null, 'FLAT');
+      // also unavailable per-user; pass FLAT so the bluf branch is neutral
+      // and null yesterdayTrajectory so localPeak detection is suppressed.
+      const { verdict } = getTideStage(personalScore, null, 'FLAT', null);
 
       scoreRows.push({
         user_id:             pref.user_id,

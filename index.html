@@ -182,7 +182,6 @@
   .brands-section { padding: 24px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.15s, transform 0.4s ease 0.15s; }
   .brands-section.visible { opacity: 1; transform: translateY(0); }
   .section-heading { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
-  .on-sale-count { background: var(--leaf-lt); color: var(--leaf); font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
   .brand-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
   .brand-chip { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px 12px 18px; background: white; border: 1px solid var(--border); border-radius: 12px; font-size: 18px; font-weight: 600; color: var(--ink); transition: border-color 0.2s, background 0.2s; text-decoration: none; overflow: hidden; }
   .brand-chip.on-sale { border-color: rgba(61,107,53,0.25); background: var(--leaf-lt); }
@@ -2635,13 +2634,13 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
   } else if (onSaleCount === 0) {
     narrative = 'No brands on sale at this centre today. Check back — the score updates every morning at 07:00.';
   } else if (fresh) {
-    narrative = 'Stocks are fullest in the first 5 days of a sale — '
-      + '<strong>' + escapeHtml(fresh.name) + ' started '
-      + (fresh.days <= 1 ? 'today' : (fresh.days + ' days ago')) + '</strong>.';
+    narrative = 'The best picks are in the first few days — '
+      + '<strong>' + escapeHtml(fresh.name) + ' '
+      + (fresh.days <= 1 ? 'just started' : ('started ' + fresh.days + ' days ago')) + '</strong>.';
   } else {
     // onSaleCount > 0 from the server but local `onSale` is empty —
     // every brand at the centre has decayed past the freshness window.
-    narrative = 'No fresh arrivals today — every brand on sale has been running for a while.';
+    narrative = 'Nothing new today — every sale here has been running a while.';
   }
 
   const hours = formatTodayHours(centreIdx);
@@ -2795,11 +2794,11 @@ function getTideStage(score, trajectory) {
 
 function stageStyle(stage) {
   const s = {
-    'Turning':   {label:'Turning',   statement:'Tide on\nthe turn',   color:'#3D6B35',bg:'#EEF4EC',msg:'Tide on the turn. First brands opening sales.'},
-    'Rising':    {label:'Rising',    statement:'Sales\nbuilding',     color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building across the centre. Not at peak yet.'},
+    'Turning':   {label:'Turning',   statement:'Tide on\nthe turn',   color:'#3D6B35',bg:'#EEF4EC',msg:'Sales just starting — a few brands kicked off.'},
+    'Rising':    {label:'Rising',    statement:'Sales\nbuilding',     color:'#3D6B35',bg:'#EEF4EC',msg:'More brands joining in. Not peak yet.'},
     'High Tide': {label:'Peak',      statement:'Peak\nsales',         color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum sales density. This is the moment.'},
-    'Falling':   {label:'Easing',    statement:'Sales\neasing',       color:'#B84C3A',bg:'#FAEAE7',msg:'Sales tapering off. Picks getting thinner.'},
-    'Low':       {label:'Over',      statement:'Cycle\nended',        color:'#8C8070',bg:'#F2EFE9',msg:'Sale cycle ended. Check back in a few weeks.'},
+    'Falling':   {label:'Easing',    statement:'Sales\neasing',       color:'#B84C3A',bg:'#FAEAE7',msg:'Sales winding down — choice getting thinner.'},
+    'Low':       {label:'Over',      statement:'Cycle\nended',        color:'#8C8070',bg:'#F2EFE9',msg:"Sale's over here. Try again in a few weeks."},
   };
   return s[stage]||s['Turning'];
 }
@@ -4061,7 +4060,7 @@ async function renderCentre(centreId) {
 
   content.innerHTML = heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
     + renderHistoryChart(history,style.color,trajectory)
-    + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>';
+    + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre</div>'+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>';
 
   // Detail content is in the DOM — only now flip the chrome into centre-view.
   // If anything above threw, the catch below restores the picker so the user

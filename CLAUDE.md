@@ -46,12 +46,16 @@ Headlines on the centre card are **pure trend signals**. Recommendation language
 | Stage (internal) | Score | Verdict (stored in `centre_seer_scores.verdict`) | Headline word | Badge |
 |---|---|---|---|---|
 | Turning (cycle hasn't started) | 0 | `Quiet` | **QUIET** | — |
-| Turning (early — tide on the turn) | >0, <25 | `Turning` | **TURNING** | — |
+| Turning (early — small handful of brands) | >0, <25 | `Quiet` | **QUIET** | — |
 | Rising | 25–<75 | `Rising` | **RISING** | — |
 | High Tide (global) | ≥75 (hyst. 65) | `Peak` | **PEAK** | **GO NOW** |
 | High Tide (local peak) | ≥25, day trajectory flips RISING → FALLING | `Peak` | **PEAK** | **GO NOW** |
 | Falling | 25–<65 post-peak | `Easing` | **EASING** | — |
 | Low | <25 post-peak | `Over` | **OVER** | — |
+
+**Quiet covers both score = 0 and 0 < score < 25.** Previously the >0,<25 band was a separate "Turning" headline; merging it into Quiet means a centre with one or two brands on sale reads the same as a centre with none — both are "nothing meaningful yet". The internal `stage` value is still `'Turning'` for back-compat with all the call sites that switch on stage, but every user-facing surface (vessel headline, ladder, gauge arc, 60-day chart badge) shows **QUIET**. The legacy `'Turning'` verdict string still maps correctly when reading historical rows.
+
+**The 60-day chart corner badge is synced to the headline.** `renderHistoryChart` takes `stage` + `serverVerdict` and runs them through `deriveVerdict` so the badge word and arrow always match the vessel headline. Don't reintroduce a separate trajectory-derived label ("Rising / Holding / Falling") in the chart corner — the same view was showing two contradictory state words and confused readers.
 
 **Local peak:** every centre has a peak sale day, even ones that never break 75. `score.js` detects this as a one-shot trajectory flip (RISING → FALLING) inside the climb path and emits `verdict='Peak'` for that single day; the front-end shows PEAK + GO NOW and the peak-alert email fires. The next day, `STAGE_FROM_VERDICT['Peak']='High Tide'` routes the centre through the descent branch and we transition to Easing automatically. Genuine ≥75 cycles still hold PEAK through the 75/65 hysteresis band as before.
 

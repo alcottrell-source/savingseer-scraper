@@ -146,10 +146,10 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   }
   return {
     stage: 'Turning',
-    verdict: 'Turning',
+    verdict: 'Quiet',
     bluf: falling
       ? 'Sales thin and quieting. Wait for the next cycle to build.'
-      : 'Tide on the turn. First brands opening sales.',
+      : 'Quiet — only a handful of brands on sale right now.',
   };
 }
 

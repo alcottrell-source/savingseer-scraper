@@ -219,7 +219,7 @@
   .scoring-status:not(:empty) { color: #B45309; font-weight: 500; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
   @keyframes tideMark { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.55); } }
-  .cluster-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); padding: 12px 0 6px; grid-column: 1 / -1; border-top: 1px solid var(--border); margin-top: 4px; }
+  .cluster-label { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bark); padding: 14px 0 8px; grid-column: 1 / -1; border-top: 1px solid var(--border); margin-top: 4px; }
   .cluster-label:first-child { border-top: none; padding-top: 0; margin-top: 0; }
   /* Sub-label nested inside the "Not on sale" section — smaller, no top
      border, just a faint divider to chunk the list by cluster. */
@@ -610,7 +610,7 @@
   .narrative-headline-num { color: var(--leaf); font-weight: 600; }
   .narrative-headline-num.muted { color: var(--stone); }
   .rank-list { list-style: none; margin: 0; padding: 0; }
-  .rank-row { display: grid; grid-template-columns: 28px 1fr auto auto; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+  .rank-row { display: grid; grid-template-columns: 24px 1fr auto auto; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--border); }
   .rank-row:last-child { border-bottom: none; }
   .rank-num { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--stone); font-variant-numeric: tabular-nums; }
   .rank-name { font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -620,10 +620,9 @@
   .rank-pill-old { color: var(--stone); border-color: var(--border); background: transparent; }
   .rank-empty { font-size: 12px; color: var(--stone); font-style: italic; padding: 14px 20px; border-bottom: 1px solid var(--border); }
   .narrative-body { padding: 16px 20px; position: relative; }
-  .narrative-insight { font-size: 14px; color: var(--ink-mid); line-height: 1.65; margin: 0; padding-left: 28px; font-style: italic; position: relative; }
-  .narrative-insight::before { content: '\201C'; position: absolute; left: 0; top: -8px; font-family: 'Playfair Display', serif; font-size: 36px; color: var(--leaf); line-height: 1; font-style: normal; }
-  .narrative-insight strong { font-weight: 600; color: var(--ink); font-style: normal; }
-  .narrative-insight .highlight { color: var(--amber); font-weight: 500; font-style: normal; }
+  .narrative-insight { font-size: 14px; color: var(--ink-mid); line-height: 1.65; margin: 0; position: relative; }
+  .narrative-insight strong { font-weight: 600; color: var(--ink); }
+  .narrative-insight .highlight { color: var(--amber); font-weight: 500; }
   .hours-strip { border-top: 1px solid var(--border); padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .hours-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .hours-icon { color: var(--stone); flex-shrink: 0; }
@@ -2557,37 +2556,35 @@ function formatTodayHours(centreIdx) {
 // missing — first run on a new centre, summariser skipped, API key absent
 // — we fall back to a template narrative built from the same real data.
 function renderCentreNarrativeCard(centreIdx, onSale, history) {
-  // Headline count is the local on-sale count so it matches the chips
-  // visible in the brand list (and the vessel headline above, which
-  // also uses the local count).
+  // The panel shows the newest sales at this centre — brands whose sale
+  // started in the last FRESH_WINDOW_DAYS days. Headline count + ranked
+  // list both honour the same window so what's counted is what's shown.
+  const FRESH_WINDOW_DAYS = 5;
   const onSaleCount = onSale.length;
+  const freshDeals = onSale.filter(b => (b.days || 0) <= FRESH_WINDOW_DAYS);
+  const freshCount = freshDeals.length;
   const fresh = onSale.length
     ? onSale.slice().sort((a, b) => (a.days || 0) - (b.days || 0))[0]
     : null;
   const histCount = history.length;
   const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // Hero block — eyebrow row (Centre Intelligence + Live pulse) and the
-  // big "{N} brands on sale" headline. Headline number is green when there
-  // are sales today and muted gray when the centre is quiet, mirroring the
-  // old .stat-value positive/muted contract.
-  const numClass = onSaleCount > 0 ? 'narrative-headline-num' : 'narrative-headline-num muted';
+  const numClass = freshCount > 0 ? 'narrative-headline-num' : 'narrative-headline-num muted';
   const heroBlock = '<div class="narrative-hero">'
       + '<div class="narrative-hero-top">'
-      +   '<span class="narrative-title">Centre Intelligence</span>'
+      +   '<span class="narrative-title">Newest Sales</span>'
       +   '<span class="narrative-live"><span class="narrative-live-dot"></span>Live</span>'
       + '</div>'
       + '<h2 class="narrative-headline">'
-      +   '<span class="' + numClass + '">' + onSaleCount + '</span> brand' + (onSaleCount === 1 ? '' : 's') + ' on sale'
+      +   '<span class="' + numClass + '">' + freshCount + '</span> new sale' + (freshCount === 1 ? '' : 's')
       + '</h2>'
     + '</div>';
 
-  // Ranked deals list — same sort and dealTxt derivation as before, but
-  // emitted as a 1/2/3 ranked roster with a NEW/Nd pill instead of the
-  // two-column stat row's right cell.
-  const topDeals = onSale.slice()
+  // Ranked deals list — newest first (days asc), tie-broken by discount
+  // desc. Top 5 within the freshness window (matches FRESH_WINDOW_DAYS).
+  const topDeals = freshDeals.slice()
     .sort((a, b) => (a.days || 0) - (b.days || 0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)))
-    .slice(0, 3);
+    .slice(0, 5);
   const rankList = topDeals.length
     ? '<ul class="rank-list">' + topDeals.map((b, i) => {
         const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
@@ -2603,7 +2600,7 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
           dealTxt = hasPct ? ('Up to ' + pct + '%') : '—';
         }
         const pillClass = (b.days <= 1) ? 'rank-pill rank-pill-new' : 'rank-pill rank-pill-old';
-        const pillTxt = (b.days <= 1) ? 'NEW' : (b.days + 'D');
+        const pillTxt = (b.days <= 1) ? 'NEW' : (b.days + (b.days === 1 ? ' day' : ' days'));
         return '<li class="rank-row">'
              +   '<span class="rank-num">' + (i + 1) + '</span>'
              +   '<span class="rank-name">' + escapeHtml(b.name) + '</span>'
@@ -2611,7 +2608,9 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
              +   '<span class="' + pillClass + '">' + pillTxt + '</span>'
              + '</li>';
       }).join('') + '</ul>'
-    : '<div class="rank-empty">No verified sales today.</div>';
+    : '<div class="rank-empty">' + (onSaleCount > 0
+        ? 'No new sales in the last ' + FRESH_WINDOW_DAYS + ' days.'
+        : 'No sales today.') + '</div>';
   void histCount; // narrative still uses `fresh` below
 
   // Narrative — Gemini-written if available, otherwise template fallback.
@@ -2795,7 +2794,7 @@ function getTideStage(score, trajectory) {
 
 function stageStyle(stage) {
   const s = {
-    'Turning':   {label:'Turning',   statement:'Tide on\nthe turn',   color:'#3D6B35',bg:'#EEF4EC',msg:'Tide on the turn. First brands opening sales.'},
+    'Turning':   {label:'Quiet',     statement:'Quiet',                color:'#8C8070',bg:'#F2EFE9',msg:'Quiet — only a handful of brands on sale right now.'},
     'Rising':    {label:'Rising',    statement:'Sales\nbuilding',     color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building across the centre. Not at peak yet.'},
     'High Tide': {label:'Peak',      statement:'Peak\nsales',         color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum sales density. This is the moment.'},
     'Falling':   {label:'Easing',    statement:'Sales\neasing',       color:'#B84C3A',bg:'#FAEAE7',msg:'Sales tapering off. Picks getting thinner.'},
@@ -2904,7 +2903,7 @@ const SERVER_VERDICT_DISPLAY = {
   'Peak':    { word: 'PEAK',    tone: 'go'   },
   'Easing':  { word: 'EASING',  tone: 'fall' },
   'Rising':  { word: 'RISING',  tone: 'rise' },
-  'Turning': { word: 'TURNING', tone: 'wait' },
+  'Turning': { word: 'QUIET',   tone: 'wait' },
   'Quiet':   { word: 'QUIET',   tone: 'wait' },
   'Over':    { word: 'OVER',    tone: 'wait' },
   // Legacy verdict strings (pre-rename) — keep so any cached/yesterday rows
@@ -2914,7 +2913,7 @@ const SERVER_VERDICT_DISPLAY = {
   'Last chance — tide going out': { word: 'EASING',  tone: 'fall' },
   'Last chance':                  { word: 'EASING',  tone: 'fall' },
   'Worth watching':               { word: 'RISING',  tone: 'rise' },
-  'Starting to build':            { word: 'TURNING', tone: 'wait' },
+  'Starting to build':            { word: 'QUIET',   tone: 'wait' },
   "It's over":                    { word: 'OVER',    tone: 'wait' },
   'Nothing on':                   { word: 'QUIET',   tone: 'wait' },
 };
@@ -2941,7 +2940,7 @@ function deriveVerdict(ctx) {
     case 'Rising':    return ctx.trajectory === 'FALLING'
                         ? { word: 'EASING', tone: 'fall' }
                         : { word: 'RISING', tone: 'rise' };
-    case 'Turning':   return { word: 'TURNING', tone: 'wait' };
+    case 'Turning':   return { word: 'QUIET',   tone: 'wait' };
     default:          return { word: 'QUIET',   tone: 'wait' };
   }
 }
@@ -2974,8 +2973,11 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
   let changeHTML = '';
   if (Number.isFinite(brandsDelta)) {
     const stageWord     = (verdict && verdict.word) || '';
-    const isRisingStage = stageWord === 'PEAK' || stageWord === 'RISING' || stageWord === 'TURNING';
-    const isFallingStage = stageWord === 'EASING' || stageWord === 'OVER';
+    // QUIET shows either direction — a stirring or fading low-volume centre
+    // is still factually interesting, just not directional in the way
+    // RISING/EASING are.
+    const isRisingStage = stageWord === 'PEAK' || stageWord === 'RISING' || stageWord === 'QUIET';
+    const isFallingStage = stageWord === 'EASING' || stageWord === 'OVER' || stageWord === 'QUIET';
     const mag  = Math.abs(brandsDelta);
     const noun = mag === 1 ? 'brand' : 'brands';
     if (brandsDelta === 0) {
@@ -3011,7 +3013,7 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
   const LADDER = [
     { level: 60, label: 'Peak'    },
     { level: 40, label: 'Rising'  },
-    { level: 25, label: 'Turning' },
+    { level: 25, label: 'Quiet'   },
   ];
   const ladderHTML = LADDER.map(t => {
     const reached = pct >= t.level ? ' is-reached' : '';
@@ -3062,7 +3064,7 @@ function renderArcWidget(stage, color) {
   const cx = 180, cy = 160, R = 130, R_LABEL = 148;
   const TICK_INNER = 118, TICK_OUTER = 130, NEEDLE_LEN = 108;
   const STAGES = [
-    { s:'Turning',   t:'TURNING', center:162, color:'#3D6B35', muted:true,  size:9 },
+    { s:'Turning',   t:'QUIET',   center:162, color:'#8C8070', muted:true,  size:9 },
     { s:'Rising',    t:'RISING',  center:126, color:'#3D6B35', muted:false, size:9 },
     { s:'High Tide', t:'PEAK',    center:90,  color:'#C17A2B', muted:false, size:10.5 },
     { s:'Falling',   t:'EASING',  center:54,  color:'#B84C3A', muted:false, size:9 },
@@ -3256,7 +3258,7 @@ function smoothCurvePath(pts) {
 // shifted to this centre's recent baseline so the seam is invisible. As
 // real scores arrive each morning the synthetic segment shrinks; once 60
 // days of real scores exist the chart is fully real.
-function renderHistoryChart(history, color, trajectory) {
+function renderHistoryChart(history, color, trajectory, stage, serverVerdict) {
   void color;
   const series = buildTide60Series(history);
   const n = series.length;
@@ -3279,9 +3281,17 @@ function renderHistoryChart(history, color, trajectory) {
   const [lx, ly] = pts[n - 1];
   const NEON = '#5EFFB0';
   const traj = (trajectory || 'FLAT').toUpperCase();
-  const trendArrow = traj === 'RISING' ? '↑' : traj === 'FALLING' ? '↓' : '→';
-  const trendText  = traj === 'RISING' ? 'Rising' : traj === 'FALLING' ? 'Falling' : 'Holding';
-  const trendCls   = traj === 'FALLING' ? ' is-down' : '';
+  // Badge mirrors the headline word AND arrow so the same stage isn't
+  // named two different things on one page. Arrow follows the verdict tone
+  // (not raw trajectory) — otherwise a QUIET stage with a rising trajectory
+  // would still read "QUIET ↑" and re-introduce the contradiction.
+  const verdict = deriveVerdict({ serverVerdict, stage, trajectory: traj });
+  const trendArrow = verdict.tone === 'rise' ? '↑'
+                   : verdict.tone === 'fall' ? '↓'
+                   : verdict.tone === 'go'   ? '★'
+                   : '→';
+  const trendText  = verdict.word.charAt(0) + verdict.word.slice(1).toLowerCase();
+  const trendCls   = verdict.tone === 'fall' ? ' is-down' : '';
   // Threshold reference lines — anchor the score number for the reader.
   // 75 is the PEAK threshold (highlighted, dashed amber); 25 is the QUIET
   // threshold (dashed). 50 is a neutral mid-line.
@@ -3709,7 +3719,7 @@ async function renderCentre(centreId) {
   // direction-flavoured wording (trajectory, stage label, statement, bluf).
   // The server's verdict/bluf reflect pre-reset history and would otherwise
   // bleed through with phrases like "More sales building" or "Rising".
-  const sparseHistory = history.length < 4;
+  const sparseHistory = history.length < 2;
   const trajectory = sparseHistory
     ? 'FLAT'
     : (serverScore&&serverScore.trajectory) || computeTrajectory(centreScore,history);
@@ -4060,7 +4070,7 @@ async function renderCentre(centreId) {
   const centreNudgeHTML = renderCentrePrefsNudge();
 
   content.innerHTML = heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
-    + renderHistoryChart(history,style.color,trajectory)
+    + renderHistoryChart(history,style.color,trajectory,stage,serverScore&&serverScore.verdict)
     + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>';
 
   // Detail content is in the DOM — only now flip the chrome into centre-view.

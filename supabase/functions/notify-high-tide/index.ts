@@ -128,7 +128,7 @@ function stageDisplay(stage: string): string {
   if (stage === "High Tide") return "Peak";
   if (stage === "Rising")    return "Rising";
   if (stage === "Falling")   return "Easing";
-  if (stage === "Turning")   return "Turning";
+  if (stage === "Turning")   return "Quiet";
   if (stage === "Low")       return "Over";
   return stage;
 }

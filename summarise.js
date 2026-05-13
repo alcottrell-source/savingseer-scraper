@@ -53,7 +53,7 @@ const MIN_GAP_MS     = 5000;
 const SYSTEM_PROMPT = `You write Centre Intelligence narratives for the Tide dashboard — a UK shopping-sales tracker. One narrative per centre per day, shown in a small card under the score.
 
 The Tide Score (0-100) measures density × freshness of brand sales at the centre. The 5 stages, in cycle order:
-- Turning: tide on the turn — a few brands breaking into sale
+- Quiet: minimal sale activity — nothing major running, a handful of brands at most
 - Rising: sales building, stocks still fresh
 - High Tide (PEAK): maximum density and freshness
 - Falling (EASING): tide going out, picked-over
@@ -73,7 +73,8 @@ Voice rules:
 - British English.
 
 Tone by stage:
-- Turning / Rising: name fresh arrivals neutrally — "Mango, COS and Reiss have all opened sales this week."
+- Quiet: factual and brief — note the absence or the one or two brands that are running, no urgency.
+- Rising: name fresh arrivals neutrally — "Mango, COS and Reiss have all opened sales this week."
 - High Tide (PEAK): describe the density — "Sales are open across the centre, with Zara, H&M and River Island all newly in."
 - Falling (EASING): lead with picked-over signals — "Next and M&S have been on sale for several weeks now; fresher arrivals have thinned."
 - Low (OVER): factual, quiet — "The cycle has wound down; only a couple of long-running sales remain."

@@ -3,9 +3,10 @@
 // Runs once a day (07:00 UTC, scheduled via pg_cron — see README in this dir).
 // Two passes:
 //
-//   1. HIGH-TIDE ALERTS — for every centre where today's verdict is "Go now",
-//      find users who have that centre in user_preferences.saved_centres and
-//      send them a "go today" email.
+//   1. PEAK ALERTS — for every centre where today's verdict is "Peak"
+//      (formerly "Go now" — legacy strings still match), find users who
+//      have that centre in user_preferences.saved_centres and send them a
+//      "go today" email. PEAK is the one state that earns a recommendation.
 //
 //   2. DAILY DIGEST — for every user with saved_centres, list each saved
 //      centre with its current stage. Only sent if at least one of their
@@ -87,11 +88,19 @@ function brandMatchesPrefs(b: BrandRow, p: PrefsRow): boolean {
 function stageFromVerdict(verdict: string | null): string {
   if (!verdict) return "Unknown";
   const v = verdict.toLowerCase();
+  // New trend-only vocabulary
+  if (v === "peak")            return "High Tide";
+  if (v === "easing")          return "Falling";
+  if (v === "rising")          return "Rising";
+  if (v === "turning")         return "Turning";
+  if (v === "quiet")           return "Turning";
+  if (v === "over")            return "Low";
+  // Legacy verdict strings (pre-rename)
   if (v.includes("go now"))    return "High Tide";
   if (v.includes("last chance")) return "Falling";
   if (v.includes("worth"))     return "Rising";
   if (v.includes("starting"))  return "Turning";
-  if (v.includes("over"))      return "Low";
+  if (v.includes("it's over")) return "Low";
   if (v.includes("nothing"))   return "Turning";
   return "Unknown";
 }
@@ -110,6 +119,18 @@ function stageLabelFor(bucket: DigestStage): string {
   if (bucket === "rising")  return "Rising";
   if (bucket === "falling") return "Falling";
   return "Low Tide";
+}
+
+// User-facing display word for an internal stage. Mirrors the dashboard's
+// SERVER_VERDICT_DISPLAY mapping so emails and the web app speak the same
+// trend-only vocabulary.
+function stageDisplay(stage: string): string {
+  if (stage === "High Tide") return "Peak";
+  if (stage === "Rising")    return "Rising";
+  if (stage === "Falling")   return "Easing";
+  if (stage === "Turning")   return "Turning";
+  if (stage === "Low")       return "Over";
+  return stage;
 }
 
 // ──────────────────────────────────────────────────────────────────────────

@@ -41,15 +41,16 @@ const FROM_EMAIL = Deno.env.get("TIDE_FROM_EMAIL") ?? "Tide <hello@tidego.co>";
 const APP_URL    = Deno.env.get("TIDE_APP_URL")    ?? "https://v0-tide-sale-timing.vercel.app";
 const RESEND_URL = "https://api.resend.com/emails";
 
-const CREAM = "#FAF7F2";
-const BARK  = "#2C1810";
-const LEAF  = "#3D6B35";
-const AMBER = "#C17A2B";
-const STONE = "#8C8070";
+const CREAM      = "#FAF7F2";
+const CREAM_DARK = "#F0EBE3";
+const BARK       = "#2C1810";
+const LEAF       = "#3D6B35";
+const AMBER      = "#C17A2B";
+const STONE      = "#8C8070";
 
 interface CentreRow      { id: string; name: string }
 interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null }
-interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; email_alerts: boolean; daily_digest: boolean }
+interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; brand_ids: string[] | null; email_alerts: boolean; daily_digest: boolean }
 interface BrandRow       { id: string; name: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; cluster: string | null }
 interface SaleEventRow   { brand_id: string; sale_status: boolean | null; date_first_detected: string | null; max_discount_pct: number | null; scraper_error: boolean | null; last_verified_status: boolean | null; last_verified_date: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null } | null }
 interface CentreBrandRow { centre_id: string; brand_id: string }
@@ -104,11 +105,20 @@ function stageFromVerdict(verdict: string | null): string {
   return "Unknown";
 }
 
-function stageColor(stage: string): string {
-  if (stage === "High Tide") return AMBER;
-  if (stage === "Rising")    return LEAF;
-  if (stage === "Falling")   return "#B84C3A";
-  return STONE;
+type DigestStage = "high" | "rising" | "falling" | "low";
+
+function stageBucket(stage: string): DigestStage {
+  if (stage === "High Tide") return "high";
+  if (stage === "Rising")    return "rising";
+  if (stage === "Falling")   return "falling";
+  return "low";
+}
+
+function stageLabelFor(bucket: DigestStage): string {
+  if (bucket === "high")    return "High Tide";
+  if (bucket === "rising")  return "Rising";
+  if (bucket === "falling") return "Falling";
+  return "Low Tide";
 }
 
 // User-facing display word for an internal stage. Mirrors the dashboard's
@@ -125,80 +135,191 @@ function stageDisplay(stage: string): string {
 
 // ──────────────────────────────────────────────────────────────────────────
 // Email rendering — kept inline so the whole function is one file.
+//
+// Templates follow the Tide Transactional Email Master v1 spec:
+//   - Peak Sale Alert  — AMBER hero, two brand lists, optional Centre Intelligence
+//   - Brand Sale Alert — LEAF  hero, single-paragraph body (template only; no
+//                        sender loop wired yet — exported for the future caller)
+//   - Weekend Digest   — BARK  hero, stage-pilled centre scorecard
+// All three share baseEmailWrap, which injects the preheader, TIDE wordmark,
+// and per-email footer with a labelled unsubscribe link.
 
-function renderHighTideEmail(centreName: string, brands: { name: string; days: number; pct: number | null }[]): { subject: string; html: string; text: string } {
-  const subject = `${centreName} is at peak — go today`;
-  const top3 = brands.slice(0, 3);
-  const brandLine = top3.length === 0
-    ? `${centreName} just hit peak — maximum sales density today.`
-    : `${centreName} just hit peak. ${top3.map(b => b.name).join(", ").replace(/, ([^,]*)$/, " and $1")} ${top3.length === 1 ? "is" : "are"} on sale at peak freshness.`;
+export function renderHighTideEmail(opts: {
+  centreName: string;
+  onSaleCount: number;
+  userBrandsOnSale: { name: string; discount?: string }[];
+  otherBrandsOnSale: string[];
+  remainingCount: number;
+  narrative?: string;
+}): { subject: string; html: string; text: string } {
+  const { centreName, onSaleCount, userBrandsOnSale, otherBrandsOnSale, remainingCount, narrative } = opts;
+  const subject = `${centreName} is at High Tide today`;
+  const previewText = `${onSaleCount} brands on sale at the same time. This doesn't happen often.`;
 
-  const pillsHtml = top3.map(b => {
-    const daysLabel = b.days <= 1 ? "New today" : b.days <= 7 ? `Fresh · ${b.days}d` : `${b.days}d in`;
-    const pctLabel  = b.pct ? ` · Up to ${b.pct}% off` : "";
-    return `<tr><td style="padding:8px 0;border-bottom:1px solid rgba(44,24,16,0.08);font-family:'DM Sans',Arial,sans-serif;font-size:14px;color:${BARK}"><strong>${escapeHtml(b.name)}</strong><span style="color:${STONE};font-size:12px;margin-left:8px">${escapeHtml(daysLabel)}${escapeHtml(pctLabel)}</span></td></tr>`;
-  }).join("");
+  const yourBrandsBlock = userBrandsOnSale.length > 0 ? `
+    <div style="font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${STONE};margin-bottom:14px">Your brands on sale</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px">
+      ${userBrandsOnSale.map((b, i, arr) => `
+        <tr><td style="padding:10px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}font-family:'DM Sans',Arial,sans-serif;font-size:14px;color:${BARK};font-weight:500">
+          <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${AMBER};margin-right:8px;vertical-align:middle"></span>${escapeHtml(b.name)}${b.discount ? `<span style="float:right;font-weight:300;color:${STONE};font-size:13px">up to ${escapeHtml(b.discount)} off</span>` : ''}
+        </td></tr>
+      `).join('')}
+    </table>` : '';
+
+  const otherBrandsBlock = otherBrandsOnSale.length > 0 ? `
+    <div style="font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${STONE};margin:24px 0 12px">Also on sale at ${escapeHtml(centreName)}</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px">
+      ${otherBrandsOnSale.slice(0, 4).map((name, i, arr) => `
+        <tr><td style="padding:10px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}font-family:'DM Sans',Arial,sans-serif;font-size:14px;color:${BARK};font-weight:500">
+          <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${STONE};margin-right:8px;vertical-align:middle"></span>${escapeHtml(name)}
+        </td></tr>
+      `).join('')}
+    </table>
+    ${remainingCount > 0 ? `<div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};padding:10px 0 0 13px;font-style:italic">and ${remainingCount} more</div>` : ''}` : '';
+
+  const intelligenceBlock = narrative ? `
+    <div style="background:${CREAM_DARK};padding:16px 20px;border-left:2px solid ${STONE};margin:24px 0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};line-height:1.65;font-style:italic">${escapeHtml(narrative)}</div>` : '';
+
+  const bodyHtml = `
+    <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${AMBER};margin:0 0 16px;line-height:1.25">The tide is in at ${escapeHtml(centreName)}.</div>
+    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">Right now, <strong>${onSaleCount} brands</strong> are on sale at the same time. That doesn't happen often.</p>
+    <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:28px 0">
+    ${yourBrandsBlock}${otherBrandsBlock}${intelligenceBlock}
+    <a href="${APP_URL}" style="display:block;background:${AMBER};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See today's score &rarr;</a>`;
 
   const html = baseEmailWrap({
-    bannerText:  "PEAK — GO NOW",
-    bannerColor: AMBER,
-    bodyHtml: `
-      <p style="margin:0 0 18px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;line-height:1.55;color:${BARK}">${escapeHtml(brandLine)}</p>
-      ${top3.length ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px">${pillsHtml}</table>` : ""}
-      <p style="margin:0 0 22px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;line-height:1.5;color:${STONE}">Best in the first week — stocks fall fast after that.</p>
-    `,
-    ctaUrl: APP_URL,
+    previewText,
+    bodyHtml,
+    footerReason: `You're receiving this because ${centreName} is saved in your Tide account and Peak Sale Alerts are switched on. You can turn them off any time — it takes one tap.`,
+    unsubLabel: 'Peak Sale Alerts',
   });
 
-  const text = `${brandLine}\n\nTop brands on sale:\n${top3.map(b => `- ${b.name} (${b.days <= 1 ? "new today" : `${b.days}d in`}${b.pct ? `, up to ${b.pct}% off` : ""})`).join("\n")}\n\nSee today's score: ${APP_URL}`;
+  const textParts: string[] = [
+    `The tide is in at ${centreName}.`,
+    `Right now, ${onSaleCount} brands are on sale at the same time. That doesn't happen often.`,
+    '',
+  ];
+  if (userBrandsOnSale.length > 0) {
+    textParts.push('Your brands on sale:');
+    userBrandsOnSale.forEach(b => textParts.push(`- ${b.name}${b.discount ? ` (up to ${b.discount} off)` : ''}`));
+    textParts.push('');
+  }
+  if (otherBrandsOnSale.length > 0) {
+    textParts.push(`Also on sale at ${centreName}:`);
+    otherBrandsOnSale.slice(0, 4).forEach(n => textParts.push(`- ${n}`));
+    if (remainingCount > 0) textParts.push(`...and ${remainingCount} more`);
+    textParts.push('');
+  }
+  if (narrative) { textParts.push(narrative); textParts.push(''); }
+  textParts.push(`See today's score: ${APP_URL}`);
+
+  return { subject, html, text: textParts.join('\n') };
+}
+
+export function renderBrandSaleEmail(opts: {
+  brandName: string;
+  centre1: string;
+  centre2?: string;
+  discount?: string;
+}): { subject: string; html: string; text: string } {
+  const { brandName, centre1, centre2, discount } = opts;
+  const subject = `${brandName} just started a sale`;
+  const locationPhrase = centre2 ? `${centre1} and ${centre2}` : centre1;
+  const previewText = `On now at ${locationPhrase}.${discount ? ` Up to ${discount} off.` : ''}`;
+
+  const bodyParagraph = `${discount ? `Up to ${escapeHtml(discount)} off. ` : ''}On now at ${escapeHtml(centre1)}${centre2 ? ` and ${escapeHtml(centre2)}` : ''}. Worth knowing early in the cycle.`;
+
+  const bodyHtml = `
+    <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${LEAF};margin:0 0 16px;line-height:1.25">${escapeHtml(brandName)} just went on sale.</div>
+    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">${bodyParagraph}</p>
+    <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See the full picture &rarr;</a>`;
+
+  const html = baseEmailWrap({
+    previewText,
+    bodyHtml,
+    footerReason: `You're receiving this because you follow ${brandName} on Tide and Brand Sale Alerts are switched on. Unsubscribing here turns off alerts for all followed brands.`,
+    unsubLabel: 'Brand Sale Alerts',
+  });
+
+  const text = `${brandName} just went on sale.\n\n${discount ? `Up to ${discount} off. ` : ''}On now at ${locationPhrase}. Worth knowing early in the cycle.\n\nSee the full picture: ${APP_URL}`;
+
   return { subject, html, text };
 }
 
-function renderDigestEmail(date: string, rows: { centreName: string; stage: string; verdict: string }[]): { subject: string; html: string; text: string } {
-  const subject = `Your Tide update — ${date}`;
-  const items = rows.map(r => {
-    const color = stageColor(r.stage);
-    const display = stageDisplay(r.stage);
-    return `<tr><td style="padding:10px 0;border-bottom:1px solid rgba(44,24,16,0.08);font-family:'DM Sans',Arial,sans-serif;font-size:14px;color:${BARK}">
-      <strong>${escapeHtml(r.centreName)}</strong>
-      <span style="display:inline-block;margin-left:10px;padding:2px 10px;border-radius:10px;background:${color}1A;color:${color};font-size:11px;letter-spacing:0.06em;text-transform:uppercase">${escapeHtml(display)}</span>
-      <div style="color:${STONE};font-size:12px;margin-top:2px">${escapeHtml(r.verdict)}</div>
-    </td></tr>`;
-  }).join("");
-
-  const html = baseEmailWrap({
-    bannerText:  "YOUR DAILY TIDE",
-    bannerColor: LEAF,
-    bodyHtml: `
-      <p style="margin:0 0 18px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;line-height:1.55;color:${BARK}">Here's where your saved centres stand today.</p>
-      <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px">${items}</table>
-    `,
-    ctaUrl: APP_URL,
-  });
-
-  const text = `Your Tide update — ${date}\n\n${rows.map(r => `${r.centreName}: ${stageDisplay(r.stage)} — ${r.verdict}`).join("\n")}\n\nSee today's score: ${APP_URL}`;
-  return { subject, html, text };
+function digestVerdictFor(stage: DigestStage): string {
+  if (stage === 'high')    return 'Go now — peak alignment across your brands.';
+  if (stage === 'rising')  return 'Worth watching — building momentum.';
+  if (stage === 'falling') return 'Starting to fade — not the weekend for it.';
+  return 'Quiet for now.';
 }
 
-function baseEmailWrap(opts: { bannerText: string; bannerColor: string; bodyHtml: string; ctaUrl: string }): string {
+function digestStagePill(stage: DigestStage, stageLabel: string): string {
+  const styles = stage === 'high'
+    ? `background:rgba(193,122,43,0.15);color:${AMBER}`
+    : stage === 'rising'
+    ? `background:rgba(61,107,53,0.12);color:${LEAF}`
+    : `background:rgba(140,128,112,0.12);color:${STONE}`;
+  return `<span style="display:inline-block;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;padding:3px 10px;border-radius:20px;font-weight:500;${styles};margin-left:10px;vertical-align:middle">${escapeHtml(stageLabel)}</span>`;
+}
+
+export function renderDigestEmail(opts: {
+  dateLabel: string;
+  highTideCount: number;
+  centres: { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string }[];
+}): { subject: string; html: string; text: string } {
+  const { dateLabel, highTideCount, centres } = opts;
+  const subject = 'Your Tide briefing — this weekend';
+  const previewText = `${highTideCount} of your saved centres at High Tide or Rising. Here's the full picture.`;
+
+  const cards = centres.map((c, i, arr) => `
+    <div style="padding:16px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}">
+      <div style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:500;color:${BARK};margin-bottom:6px">${escapeHtml(c.name)}${digestStagePill(c.stage, c.stageLabel)}</div>
+      <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};margin-bottom:4px">${escapeHtml(c.verdict)}</div>
+      ${c.narrative ? `<div style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${STONE};font-style:italic;line-height:1.5">${escapeHtml(c.narrative)}</div>` : ''}
+    </div>`).join('');
+
+  const bodyHtml = `
+    <div style="font-family:Georgia,serif;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:${STONE};margin:0 0 20px;font-style:italic">Friday, ${escapeHtml(dateLabel)}</div>
+    <div style="font-family:Georgia,serif;font-size:22px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">Here's how your centres are looking this weekend.</div>
+    <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:28px 0">
+    ${cards}
+    <a href="${APP_URL}" style="display:block;background:${BARK};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">Open Tide &rarr;</a>`;
+
+  const html = baseEmailWrap({
+    previewText,
+    bodyHtml,
+    footerReason: "You're receiving this every Friday evening because you opted in to Tide's Weekend Digest. We only send it when at least one of your saved centres is Rising or above — so if it's in your inbox, it's worth a look. You can turn it off any time.",
+    unsubLabel: 'Weekend Digest',
+  });
+
+  const textLines = [
+    `Friday, ${dateLabel}`,
+    "Here's how your centres are looking this weekend.",
+    '',
+    ...centres.map(c => `${c.name} — ${c.stageLabel}\n  ${c.verdict}${c.narrative ? `\n  ${c.narrative}` : ''}`),
+    '',
+    `Open Tide: ${APP_URL}`,
+  ];
+
+  return { subject, html, text: textLines.join('\n') };
+}
+
+function baseEmailWrap(opts: { previewText: string; bodyHtml: string; footerReason: string; unsubLabel: string }): string {
   return `<!doctype html><html><body style="margin:0;padding:0;background:${CREAM}">
+    <div style="display:none;font-size:1px;color:${CREAM};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden">${escapeHtml(opts.previewText)}</div>
     <table width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};padding:32px 16px">
       <tr><td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:white;border-radius:16px;overflow:hidden;border:1px solid rgba(44,24,16,0.08)">
-          <tr><td style="background:${BARK};padding:18px 22px">
-            <span style="font-family:'Georgia',serif;font-size:22px;font-weight:600;letter-spacing:0.18em;color:white">TIDE</span>
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:${CREAM};border-radius:4px;overflow:hidden;border:1px solid rgba(44,24,16,0.06)">
+          <tr><td style="background:${BARK};padding:28px 40px;text-align:center">
+            <span style="font-family:Georgia,serif;font-size:22px;font-weight:600;letter-spacing:0.3em;text-transform:uppercase;color:${CREAM}">Tide</span>
           </td></tr>
-          <tr><td style="background:${opts.bannerColor};padding:10px 22px">
-            <span style="font-family:'DM Sans',Arial,sans-serif;font-size:11px;font-weight:600;letter-spacing:0.16em;color:white">${escapeHtml(opts.bannerText)}</span>
-          </td></tr>
-          <tr><td style="padding:24px 22px 8px">${opts.bodyHtml}</td></tr>
-          <tr><td style="padding:0 22px 28px" align="left">
-            <a href="${opts.ctaUrl}" style="display:inline-block;background:${BARK};color:white;text-decoration:none;font-family:'DM Sans',Arial,sans-serif;font-size:14px;font-weight:500;padding:11px 22px;border-radius:8px">See today's score</a>
-          </td></tr>
-          <tr><td style="padding:14px 22px 22px;border-top:1px solid rgba(44,24,16,0.08);font-family:'DM Sans',Arial,sans-serif;font-size:11px;color:${STONE};letter-spacing:0.04em">
-            <a href="${APP_URL}" style="color:${STONE}">Manage preferences</a>
-            &nbsp;&middot;&nbsp;
-            <a href="${APP_URL}#unsubscribe" style="color:${STONE}">Unsubscribe</a>
+          <tr><td style="background:${CREAM};padding:48px 40px">${opts.bodyHtml}</td></tr>
+          <tr><td style="background:${CREAM_DARK};padding:24px 40px;border-top:1px solid #E5DFD6">
+            <p style="margin:0 0 12px;font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${STONE};line-height:1.6">${escapeHtml(opts.footerReason)}</p>
+            <div style="font-family:'DM Sans',Arial,sans-serif;font-size:12px">
+              <a href="${APP_URL}#account" style="color:${STONE};text-decoration:underline;margin-right:16px">Manage preferences</a>
+              <a href="${APP_URL}#unsubscribe" style="color:${STONE};text-decoration:underline">Unsubscribe from ${escapeHtml(opts.unsubLabel)}</a>
+            </div>
           </td></tr>
         </table>
       </td></tr>
@@ -265,7 +386,7 @@ Deno.serve(async (req: Request) => {
       .select("brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)"),
     sb.from("centre_brands").select("centre_id, brand_id"),
     sb.from("user_preferences")
-      .select("user_id, womenswear, menswear, childrenswear, style_clusters, saved_centres, email_alerts, daily_digest")
+      .select("user_id, womenswear, menswear, childrenswear, style_clusters, saved_centres, brand_ids, email_alerts, daily_digest")
       .not("saved_centres", "eq", "{}"),
   ]);
 
@@ -320,13 +441,28 @@ Deno.serve(async (req: Request) => {
     for (const p of recipients) {
       const to = emailById.get(p.user_id);
       if (!to) { log.push({ type: "alert", centre: centreName, skipped: `no email for user ${p.user_id}` }); continue; }
-      const hasPrefs = p.womenswear || p.menswear || p.childrenswear;
-      const personal = hasPrefs ? onSaleHere.filter(x => brandMatchesPrefs(x.brand, p)) : onSaleHere;
-      const top = personal.length ? personal : onSaleHere;
-      const { subject, html, text } = renderHighTideEmail(
+      // "Followed" = brands the user explicitly opted into. Fall back to
+      // category-matching when brand_ids isn't populated (legacy accounts).
+      const followedIds = new Set(p.brand_ids || []);
+      const isFollowed = followedIds.size > 0
+        ? (x: typeof onSaleHere[0]) => followedIds.has(x.brand.id)
+        : (x: typeof onSaleHere[0]) => brandMatchesPrefs(x.brand, p);
+      const followed = onSaleHere.filter(isFollowed);
+      const others   = onSaleHere.filter(x => !isFollowed(x));
+      const userBrandsOnSale = followed.slice(0, 4).map(x => ({
+        name: x.brand.name,
+        discount: x.pct ? `${x.pct}%` : undefined,
+      }));
+      const otherBrandsOnSale = others.slice(0, 4).map(x => x.brand.name);
+      const remainingCount = Math.max(0, others.length - 4);
+      const { subject, html, text } = renderHighTideEmail({
         centreName,
-        top.slice(0, 3).map(x => ({ name: x.brand.name, days: x.days, pct: x.pct })),
-      );
+        onSaleCount: onSaleHere.length,
+        userBrandsOnSale,
+        otherBrandsOnSale,
+        remainingCount,
+        narrative: score.bluf || undefined,
+      });
       if (dryRun) { log.push({ type: "alert", to, centre: centreName, ok: true, skipped: "dryRun" }); continue; }
       const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
       log.push({ type: "alert", to, centre: centreName, ok: result.ok, status: result.status });
@@ -334,23 +470,34 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // 3. DAILY DIGEST.
+  // 3. WEEKEND DIGEST. Schedule note: still fires via the existing daily
+  //    07:00 UTC cron — Friday-only cadence is a separate follow-up.
   const scoreByCentre = new Map<string, ScoreRow>(scores.map(s => [s.centre_id, s]));
+  const dateLabel = new Date(today + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+  const stagePriority: Record<DigestStage, number> = { high: 0, rising: 1, falling: 2, low: 3 };
   for (const p of allPrefs) {
     if (p.daily_digest !== true) { log.push({ type: "digest", to: emailById.get(p.user_id), skipped: "daily_digest opt-out" }); continue; }
     const to = emailById.get(p.user_id);
     if (!to) continue;
-    const rows = p.saved_centres
+    const cards = p.saved_centres
       .map(cid => {
         const s = scoreByCentre.get(cid);
         const name = centres.get(cid);
         if (!s || !name) return null;
-        return { centreName: name, stage: stageFromVerdict(s.verdict), verdict: s.verdict || "" };
+        const bucket: DigestStage = stageBucket(stageFromVerdict(s.verdict));
+        return {
+          name,
+          stage: bucket,
+          stageLabel: stageLabelFor(bucket),
+          verdict: digestVerdictFor(bucket),
+          narrative: s.bluf || undefined,
+        };
       })
-      .filter((r): r is { centreName: string; stage: string; verdict: string } => r !== null);
-    const hasRisingOrAbove = rows.some(r => r.stage === "Rising" || r.stage === "High Tide");
-    if (!hasRisingOrAbove) { log.push({ type: "digest", to, skipped: "no centre at Rising or above" }); continue; }
-    const { subject, html, text } = renderDigestEmail(today, rows);
+      .filter((r): r is { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string } => r !== null)
+      .sort((a, b) => stagePriority[a.stage] - stagePriority[b.stage]);
+    const highTideCount = cards.filter(c => c.stage === "high" || c.stage === "rising").length;
+    if (highTideCount === 0) { log.push({ type: "digest", to, skipped: "no centre at Rising or above" }); continue; }
+    const { subject, html, text } = renderDigestEmail({ dateLabel, highTideCount, centres: cards });
     if (dryRun) { log.push({ type: "digest", to, ok: true, skipped: "dryRun" }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
     log.push({ type: "digest", to, ok: result.ok, status: result.status });

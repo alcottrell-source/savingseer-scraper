@@ -2557,35 +2557,33 @@ function formatTodayHours(centreIdx) {
 // missing — first run on a new centre, summariser skipped, API key absent
 // — we fall back to a template narrative built from the same real data.
 function renderCentreNarrativeCard(centreIdx, onSale, history) {
-  // Headline count is the local on-sale count so it matches the chips
-  // visible in the brand list (and the vessel headline above, which
-  // also uses the local count).
+  // The panel shows the newest sales at this centre — brands whose sale
+  // started in the last FRESH_WINDOW_DAYS days. Headline count + ranked
+  // list both honour the same window so what's counted is what's shown.
+  const FRESH_WINDOW_DAYS = 5;
   const onSaleCount = onSale.length;
+  const freshDeals = onSale.filter(b => (b.days || 0) <= FRESH_WINDOW_DAYS);
+  const freshCount = freshDeals.length;
   const fresh = onSale.length
     ? onSale.slice().sort((a, b) => (a.days || 0) - (b.days || 0))[0]
     : null;
   const histCount = history.length;
   const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // Hero block — eyebrow row (Centre Intelligence + Live pulse) and the
-  // big "{N} brands on sale" headline. Headline number is green when there
-  // are sales today and muted gray when the centre is quiet, mirroring the
-  // old .stat-value positive/muted contract.
-  const numClass = onSaleCount > 0 ? 'narrative-headline-num' : 'narrative-headline-num muted';
+  const numClass = freshCount > 0 ? 'narrative-headline-num' : 'narrative-headline-num muted';
   const heroBlock = '<div class="narrative-hero">'
       + '<div class="narrative-hero-top">'
-      +   '<span class="narrative-title">Centre Intelligence</span>'
+      +   '<span class="narrative-title">Newest Sales</span>'
       +   '<span class="narrative-live"><span class="narrative-live-dot"></span>Live</span>'
       + '</div>'
       + '<h2 class="narrative-headline">'
-      +   '<span class="' + numClass + '">' + onSaleCount + '</span> brand' + (onSaleCount === 1 ? '' : 's') + ' on sale'
+      +   '<span class="' + numClass + '">' + freshCount + '</span> new sale' + (freshCount === 1 ? '' : 's')
       + '</h2>'
     + '</div>';
 
-  // Ranked deals list — same sort and dealTxt derivation as before, but
-  // emitted as a 1/2/3 ranked roster with a NEW/Nd pill instead of the
-  // two-column stat row's right cell.
-  const topDeals = onSale.slice()
+  // Ranked deals list — newest first (days asc), tie-broken by discount
+  // desc. Top 3 within the freshness window.
+  const topDeals = freshDeals.slice()
     .sort((a, b) => (a.days || 0) - (b.days || 0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)))
     .slice(0, 3);
   const rankList = topDeals.length
@@ -2603,7 +2601,7 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
           dealTxt = hasPct ? ('Up to ' + pct + '%') : '—';
         }
         const pillClass = (b.days <= 1) ? 'rank-pill rank-pill-new' : 'rank-pill rank-pill-old';
-        const pillTxt = (b.days <= 1) ? 'NEW' : (b.days + 'D');
+        const pillTxt = (b.days <= 1) ? 'NEW' : (b.days + (b.days === 1 ? ' day' : ' days'));
         return '<li class="rank-row">'
              +   '<span class="rank-num">' + (i + 1) + '</span>'
              +   '<span class="rank-name">' + escapeHtml(b.name) + '</span>'
@@ -2611,7 +2609,9 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
              +   '<span class="' + pillClass + '">' + pillTxt + '</span>'
              + '</li>';
       }).join('') + '</ul>'
-    : '<div class="rank-empty">No verified sales today.</div>';
+    : '<div class="rank-empty">' + (onSaleCount > 0
+        ? 'No new sales in the last ' + FRESH_WINDOW_DAYS + ' days.'
+        : 'No sales today.') + '</div>';
   void histCount; // narrative still uses `fresh` below
 
   // Narrative — Gemini-written if available, otherwise template fallback.

@@ -610,7 +610,7 @@
   .narrative-headline-num { color: var(--leaf); font-weight: 600; }
   .narrative-headline-num.muted { color: var(--stone); }
   .rank-list { list-style: none; margin: 0; padding: 0; }
-  .rank-row { display: grid; grid-template-columns: 28px 1fr auto auto; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+  .rank-row { display: grid; grid-template-columns: 24px 1fr auto auto; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--border); }
   .rank-row:last-child { border-bottom: none; }
   .rank-num { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--stone); font-variant-numeric: tabular-nums; }
   .rank-name { font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -2582,10 +2582,10 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
     + '</div>';
 
   // Ranked deals list — newest first (days asc), tie-broken by discount
-  // desc. Top 3 within the freshness window.
+  // desc. Top 5 within the freshness window (matches FRESH_WINDOW_DAYS).
   const topDeals = freshDeals.slice()
     .sort((a, b) => (a.days || 0) - (b.days || 0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)))
-    .slice(0, 3);
+    .slice(0, 5);
   const rankList = topDeals.length
     ? '<ul class="rank-list">' + topDeals.map((b, i) => {
         const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
@@ -3709,7 +3709,7 @@ async function renderCentre(centreId) {
   // direction-flavoured wording (trajectory, stage label, statement, bluf).
   // The server's verdict/bluf reflect pre-reset history and would otherwise
   // bleed through with phrases like "More sales building" or "Rising".
-  const sparseHistory = history.length < 4;
+  const sparseHistory = history.length < 2;
   const trajectory = sparseHistory
     ? 'FLAT'
     : (serverScore&&serverScore.trajectory) || computeTrajectory(centreScore,history);

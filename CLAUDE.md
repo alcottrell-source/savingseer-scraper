@@ -84,6 +84,8 @@ Key tables:
 - `user_preferences` — one row per user, RLS enforced.
 - `centre_seer_scores` — per-centre, per-day Tide Score + verdict + `narrative` (anon read enabled).
 
+**Data API grants (May 2026 Supabase change).** Supabase is removing the default `public` → Data API exposure: new projects from 30 May 2026, existing projects from 30 October 2026. Existing tables keep their grants, but every new migration that creates a `public` table MUST include an explicit `GRANT` for the roles that need to reach it via supabase-js / PostgREST / GraphQL (anon for public reads, authenticated for per-user reads/writes). RLS policies are not a substitute — Postgres evaluates GRANT before RLS. See `supabase/migrations/20260514_grant_data_api_access.sql` for the back-fill of `user_preferences` and `personal_tide_scores`, which had previously relied on the old default.
+
 ## Instant rescore (May 2026)
 
 `/api/rescore.js` is a Vercel serverless function that wraps `runScoring()` from `score.js`. The admin panel (`admin.html`) fires a fire-and-forget POST to it after every successful `applyAction` / `applyEdit`, so the public site reflects admin edits within a couple of seconds without waiting for the 08:00 UTC cron. Carry-forward in `score.js` (if no brand at the centre has `last_verified_date == today`, copy yesterday's row) keeps the rescore cheap and prevents tide_score freshness-decay drift on centres the admin hasn't touched today.

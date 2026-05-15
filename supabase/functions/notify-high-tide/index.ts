@@ -4,7 +4,7 @@
 // dir). MUST run after the 10:00 UTC scorer: it reads today's
 // centre_seer_scores rows, and if those don't exist yet every pass finds
 // nothing and no email is sent.
-// Two passes:
+// Three passes:
 //
 //   1. PEAK ALERTS — for every centre where today's verdict is "Peak"
 //      (formerly "Go now" — legacy strings still match), find users who
@@ -15,8 +15,15 @@
 //      centre with its current stage. Only sent if at least one of their
 //      saved centres is at Rising or above (stages: Rising, High Tide).
 //
-// Each user receives at most one alert email per centre per day, plus at
-// most one digest per day. The same email may be sent twice if a centre is
+//   3. BRAND SALE ALERTS — for every user with followed brands
+//      (user_preferences.brand_ids) and brand_sale_alerts on, email them
+//      the moment one of those brands starts a NEW sale today. "New" =
+//      the verified cycle's start_date (or last_verified_date) is today,
+//      mirroring score.js — never the scraper's date_first_detected.
+//
+// Each user receives at most one alert email per centre per day, at most
+// one digest per day, and at most one brand-sale email per followed brand
+// that started today. The same email may be sent twice if a centre is
 // in both the alert and the digest passes — by design, the digest only
 // kicks in when there's something to say.
 //
@@ -53,7 +60,7 @@ const STONE      = "#8C8070";
 
 interface CentreRow      { id: string; name: string }
 interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null }
-interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; brand_ids: string[] | null; email_alerts: boolean; daily_digest: boolean }
+interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; brand_ids: string[] | null; email_alerts: boolean; daily_digest: boolean; brand_sale_alerts: boolean }
 interface BrandRow       { id: string; name: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; cluster: string | null }
 interface SaleEventRow   { brand_id: string; sale_status: boolean | null; date_first_detected: string | null; max_discount_pct: number | null; scraper_error: boolean | null; last_verified_status: boolean | null; last_verified_date: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null } | null }
 interface CentreBrandRow { centre_id: string; brand_id: string }
@@ -141,8 +148,8 @@ function stageDisplay(stage: string): string {
 //
 // Templates follow the Tide Transactional Email Master v1 spec:
 //   - Peak Sale Alert  — AMBER hero, two brand lists, optional Centre Intelligence
-//   - Brand Sale Alert — LEAF  hero, single-paragraph body (template only; no
-//                        sender loop wired yet — exported for the future caller)
+//   - Brand Sale Alert — LEAF  hero, single-paragraph body (sent by pass 4
+//                        when a followed brand starts a new sale today)
 //   - Weekend Digest   — BARK  hero, stage-pilled centre scorecard
 // All three share baseEmailWrap, which injects the preheader, TIDE wordmark,
 // and per-email footer with a labelled unsubscribe link.
@@ -389,8 +396,8 @@ Deno.serve(async (req: Request) => {
       .select("brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)"),
     sb.from("centre_brands").select("centre_id, brand_id"),
     sb.from("user_preferences")
-      .select("user_id, womenswear, menswear, childrenswear, style_clusters, saved_centres, brand_ids, email_alerts, daily_digest")
-      .not("saved_centres", "eq", "{}"),
+      .select("user_id, womenswear, menswear, childrenswear, style_clusters, saved_centres, brand_ids, email_alerts, daily_digest, brand_sale_alerts")
+      .or("saved_centres.neq.{},brand_ids.neq.{}"),
   ]);
 
   for (const [name, r] of [["scores", scoresRes], ["centres", centresRes], ["brands", brandsRes], ["sales", salesRes], ["centre_brands", centreBrandsRes], ["prefs", prefsRes]] as const) {
@@ -434,8 +441,8 @@ Deno.serve(async (req: Request) => {
     emailById.set(uid, data.user.email);
   }
 
-  const log: { type: string; to?: string; centre?: string; status?: number; ok?: boolean; skipped?: string; error?: unknown }[] = [];
-  let alertsSent = 0, digestsSent = 0;
+  const log: { type: string; to?: string; centre?: string; brand?: string; status?: number; ok?: boolean; skipped?: string; error?: unknown }[] = [];
+  let alertsSent = 0, digestsSent = 0, brandAlertsSent = 0;
 
   // 2. HIGH-TIDE ALERTS.
   const highTideCentres = scores.filter(s => stageFromVerdict(s.verdict) === "High Tide");
@@ -522,12 +529,64 @@ Deno.serve(async (req: Request) => {
     if (result.ok) digestsSent++;
   }
 
+  // 4. BRAND SALE ALERTS. Fire when a brand the user follows starts a NEW
+  //    sale today. "New" mirrors score.js's ripeness origin — the verified
+  //    cycle's start_date, falling back to last_verified_date. The
+  //    scraper's date_first_detected is deliberately NOT used: unverified
+  //    scraper reads never reach the public site, so they mustn't trigger
+  //    an email either.
+  const centresForBrand = new Map<string, string[]>();
+  for (const [centreId, bids] of brandsAtCentre) {
+    const cname = centres.get(centreId);
+    if (!cname) continue;
+    for (const bid of bids) {
+      const arr = centresForBrand.get(bid) || [];
+      arr.push(cname);
+      centresForBrand.set(bid, arr);
+    }
+  }
+  const startedTodayBrandIds = new Set<string>();
+  for (const [bid, r] of salesById) {
+    if (!isOnSale(r)) continue;
+    const start = r.cycle?.start_date || r.last_verified_date;
+    if (start && start.slice(0, 10) === today) startedTodayBrandIds.add(bid);
+  }
+  for (const p of allPrefs) {
+    const followed = new Set(p.brand_ids || []);
+    if (followed.size === 0) continue;
+    const to = emailById.get(p.user_id);
+    if (!to) continue;
+    if (p.brand_sale_alerts === false) { log.push({ type: "brand", to, skipped: "brand_sale_alerts opt-out" }); continue; }
+    for (const bid of startedTodayBrandIds) {
+      if (!followed.has(bid)) continue;
+      const brand = brandsById.get(bid);
+      const sale = salesById.get(bid);
+      if (!brand || !sale) continue;
+      const where = centresForBrand.get(bid) || [];
+      if (where.length === 0) { log.push({ type: "brand", to, brand: brand.name, skipped: "no centre carries this brand" }); continue; }
+      const pct = (sale.active_cycle_id && sale.cycle?.max_discount_pct != null)
+        ? sale.cycle.max_discount_pct
+        : (sale.max_discount_pct ?? null);
+      const { subject, html, text } = renderBrandSaleEmail({
+        brandName: brand.name,
+        centre1: where[0],
+        centre2: where[1],
+        discount: pct ? `${pct}%` : undefined,
+      });
+      if (dryRun) { log.push({ type: "brand", to, brand: brand.name, ok: true, skipped: "dryRun" }); continue; }
+      const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
+      log.push({ type: "brand", to, brand: brand.name, ok: result.ok, status: result.status, error: result.ok ? undefined : result.body });
+      if (result.ok) brandAlertsSent++;
+    }
+  }
+
   return new Response(JSON.stringify({
     ok: true,
     today,
     dryRun,
     alertsSent,
     digestsSent,
+    brandAlertsSent,
     highTideCentres: highTideCentres.length,
     eligibleUsers: allPrefs.length,
     log,

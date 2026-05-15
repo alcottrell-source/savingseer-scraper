@@ -1,6 +1,6 @@
 # notify-high-tide
 
-Daily email job. Two passes per run:
+Daily email job. Three passes per run:
 
 1. **Peak alerts** — for each centre at "Peak" today (verdict `Peak`; legacy
    `Go now` still matches), email every user who has saved that centre. The
@@ -9,6 +9,12 @@ Daily email job. Two passes per run:
 2. **Daily digest** — for each user with saved centres, list each saved
    centre's stage. Only sent when at least one of their saved centres is at
    Rising or above.
+3. **Brand sale alerts** — for each user with followed brands
+   (`brand_ids`) and `brand_sale_alerts` on, email them the moment one of
+   those brands starts a *new* sale today. "New" = the verified cycle's
+   `start_date` (or `last_verified_date`) is today — the scraper's
+   `date_first_detected` is deliberately not used, matching score.js so
+   unverified scraper reads never trigger an email.
 
 Trigger: cron, daily at **11:00 UTC**. This MUST run _after_ the scorer,
 otherwise today's `centre_seer_scores` rows don't exist yet and every pass

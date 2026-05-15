@@ -1,6 +1,9 @@
 // Tide — daily email job
 //
-// Runs once a day (07:00 UTC, scheduled via pg_cron — see README in this dir).
+// Runs once a day (11:00 UTC, scheduled via pg_cron — see README in this
+// dir). MUST run after the 10:00 UTC scorer: it reads today's
+// centre_seer_scores rows, and if those don't exist yet every pass finds
+// nothing and no email is sent.
 // Two passes:
 //
 //   1. PEAK ALERTS — for every centre where today's verdict is "Peak"
@@ -395,6 +398,21 @@ Deno.serve(async (req: Request) => {
   }
 
   const scores: ScoreRow[]                = scoresRes.data || [];
+
+  // No scores for today means the scorer hasn't run yet — almost always a
+  // scheduling bug (this job is cronned before the 10:00 UTC scorer). Bail
+  // loudly with a 503 so it shows up in pg_net/cron logs instead of
+  // silently "succeeding" with zero emails sent.
+  if (scores.length === 0) {
+    return new Response(JSON.stringify({
+      ok: false,
+      today,
+      reason: `No centre_seer_scores rows for score_date=${today}. The scorer (10:00 UTC) likely hasn't run yet — schedule this job AFTER it (11:00 UTC). See the README.`,
+      alertsSent: 0,
+      digestsSent: 0,
+    }, null, 2), { status: 503, headers: { "content-type": "application/json" } });
+  }
+
   const centres = new Map<string, string>((centresRes.data || []).map((c: CentreRow) => [c.id, c.name]));
   const brandsById = new Map<string, BrandRow>((brandsRes.data || []).map((b: BrandRow) => [b.id, b]));
   const salesById = new Map<string, SaleEventRow>((salesRes.data || []).map((s: SaleEventRow) => [s.brand_id, s]));
@@ -416,7 +434,7 @@ Deno.serve(async (req: Request) => {
     emailById.set(uid, data.user.email);
   }
 
-  const log: { type: string; to?: string; centre?: string; status?: number; ok?: boolean; skipped?: string }[] = [];
+  const log: { type: string; to?: string; centre?: string; status?: number; ok?: boolean; skipped?: string; error?: unknown }[] = [];
   let alertsSent = 0, digestsSent = 0;
 
   // 2. HIGH-TIDE ALERTS.
@@ -465,7 +483,7 @@ Deno.serve(async (req: Request) => {
       });
       if (dryRun) { log.push({ type: "alert", to, centre: centreName, ok: true, skipped: "dryRun" }); continue; }
       const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
-      log.push({ type: "alert", to, centre: centreName, ok: result.ok, status: result.status });
+      log.push({ type: "alert", to, centre: centreName, ok: result.ok, status: result.status, error: result.ok ? undefined : result.body });
       if (result.ok) alertsSent++;
     }
   }
@@ -500,7 +518,7 @@ Deno.serve(async (req: Request) => {
     const { subject, html, text } = renderDigestEmail({ dateLabel, highTideCount, centres: cards });
     if (dryRun) { log.push({ type: "digest", to, ok: true, skipped: "dryRun" }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
-    log.push({ type: "digest", to, ok: result.ok, status: result.status });
+    log.push({ type: "digest", to, ok: result.ok, status: result.status, error: result.ok ? undefined : result.body });
     if (result.ok) digestsSent++;
   }
 

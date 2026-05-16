@@ -1,17 +1,15 @@
 name: E2E — verdict alignment (read-only)
 
-# Read-only §A/§J verification against the Vercel PREVIEW deploy of this
+# Read-only §A/§J verification against the Vercel PREVIEW deploy of the audit
 # branch. Never authenticates, never writes to Supabase — safe against prod.
 #
-# Runs automatically on push to this branch (no clicks needed) and on manual
-# dispatch. On completion it writes e2e-result.md back to the branch with a
-# [skip ci] commit (which GitHub auto-skips, so no loop) — that file is how
-# the result is read back without GitHub Actions API access.
+# Runs on any PR into main (so the result is a visible, API-readable PR check)
+# and on manual dispatch. The job exit code IS the signal: green check = §A/§J
+# pass; red check + uploaded Playwright artifact = the failure detail.
 
 on:
-  push:
-    branches: ['claude/pre-launch-audit-7pYfk']
-    paths-ignore: ['e2e-result.md']
+  pull_request:
+    branches: ['main']
   workflow_dispatch:
     inputs:
       preview_url:
@@ -20,7 +18,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: e2e-${{ github.ref }}
@@ -50,12 +48,11 @@ jobs:
           echo "Target: $URL"
 
       - name: Wait for the preview to serve the audit build
-        id: wait
         env:
           URL: ${{ steps.url.outputs.preview_url }}
         run: |
           # Poll until the deploy carrying the P0 security headers is live
-          # (handles Vercel still rebuilding after the push). Max ~6 min.
+          # (handles Vercel still rebuilding). Max ~6 min.
           ok=0
           for i in $(seq 1 36); do
             xfo=$(curl -fsS -m 15 -D - -o /dev/null "$URL/" 2>/dev/null | tr -d '\r' | awk -F': ' 'tolower($1)=="x-frame-options"{print $2}')
@@ -63,7 +60,6 @@ jobs:
             echo "attempt $i: X-Frame-Options='$xfo' — waiting 10s"
             sleep 10
           done
-          echo "ready=$ok" >> "$GITHUB_OUTPUT"
           if [ "$ok" != "1" ]; then
             echo "::warning::Preview never served X-Frame-Options:DENY — the header test will fail and pinpoint it."
           fi
@@ -83,62 +79,9 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Run read-only E2E suite
-        id: e2e
-        continue-on-error: true
         env:
           PREVIEW_URL: ${{ steps.url.outputs.preview_url }}
         run: npx playwright test
-
-      - name: Build result summary
-        if: ${{ always() }}
-        env:
-          URL: ${{ steps.url.outputs.preview_url }}
-        run: |
-          node - <<'NODE'
-          const fs = require('fs');
-          let r; try { r = JSON.parse(fs.readFileSync('playwright-report/results.json','utf8')); } catch { r = null; }
-          const lines = [];
-          lines.push('# E2E result — verdict alignment (read-only)');
-          lines.push('');
-          lines.push(`- Target: ${process.env.URL}`);
-          lines.push(`- Commit: ${process.env.GITHUB_SHA}`);
-          lines.push(`- Run: ${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`);
-          lines.push('');
-          if (!r) {
-            lines.push('**No Playwright JSON report** — the run failed before tests executed (see the run log / Install steps).');
-          } else {
-            const tests = [];
-            const walk = (s) => { (s.suites||[]).forEach(walk); (s.specs||[]).forEach(sp => sp.tests.forEach(t => tests.push({ title: sp.title, status: t.results.at(-1)?.status, err: t.results.at(-1)?.error?.message }))); };
-            (r.suites||[]).forEach(walk);
-            const pass = tests.filter(t => t.status === 'passed').length;
-            const fail = tests.filter(t => t.status && t.status !== 'passed').length;
-            lines.push(`**${pass} passed, ${fail} failed** of ${tests.length}`);
-            lines.push('');
-            for (const t of tests) {
-              lines.push(`- ${t.status === 'passed' ? '✅' : '❌'} ${t.title}`);
-              if (t.status !== 'passed' && t.err) {
-                lines.push('  ```');
-                lines.push('  ' + String(t.err).split('\n').slice(0,12).join('\n  '));
-                lines.push('  ```');
-              }
-            }
-          }
-          fs.writeFileSync('e2e-result.md', lines.join('\n') + '\n');
-          NODE
-          cat e2e-result.md
-
-      - name: Commit result back to the branch
-        if: ${{ always() }}
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add e2e-result.md
-          if git diff --staged --quiet; then
-            echo "No change to e2e-result.md"
-          else
-            git commit -m "E2E result: verdict alignment [skip ci]"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
 
       - name: Upload Playwright report
         if: ${{ always() }}
@@ -150,9 +93,3 @@ jobs:
             test-results/
           retention-days: 14
           if-no-files-found: ignore
-
-      - name: Reflect test outcome
-        if: ${{ always() && steps.e2e.outcome != 'success' }}
-        run: |
-          echo "E2E suite reported failures — see e2e-result.md (committed to the branch)."
-          exit 1

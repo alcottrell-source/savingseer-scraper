@@ -31,6 +31,16 @@ export default defineConfig({
   ],
   use: {
     baseURL: PREVIEW_URL,
+    // Vercel Deployment Protection: send the automation bypass on every
+    // request (browser navigations + page.request) so CI reaches the
+    // protected preview. Set the cookie too, so same-origin asset requests
+    // continue to bypass after the first navigation.
+    extraHTTPHeaders: process.env.VERCEL_BYPASS
+      ? {
+          'x-vercel-protection-bypass': process.env.VERCEL_BYPASS,
+          'x-vercel-set-bypass-cookie': 'true',
+        }
+      : {},
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
     video: 'off',

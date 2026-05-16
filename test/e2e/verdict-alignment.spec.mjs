@@ -23,7 +23,7 @@
 //   .tide-vessel-fact-change.is-up/.is-down/.is-flat   delta row
 //   .tide60-trend .tide60-trend-arrow + text           chart corner badge
 //   #narrative-section .narrative-insight              narrative copy
-//   window.CENTRE_SCORES { id: { verdict, ... } }      data
+//   window.__tide.CENTRE_SCORES { id: {verdict,...} }  data (live getter)
 //   window.renderCentre(id)                            render a centre
 
 import { test, expect } from '@playwright/test';
@@ -67,23 +67,23 @@ test('preview is built from the audit branch (P0 security headers present)', asy
 test('app loads and CENTRE_SCORES populates', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' });
   await page.waitForFunction(
-    () => window.CENTRE_SCORES && Object.keys(window.CENTRE_SCORES).length > 0,
+    () => window.__tide?.CENTRE_SCORES && Object.keys(window.__tide.CENTRE_SCORES).length > 0,
     null,
     { timeout: 30_000 },
   );
-  const n = await page.evaluate(() => Object.keys(window.CENTRE_SCORES).length);
+  const n = await page.evaluate(() => Object.keys(window.__tide.CENTRE_SCORES).length);
   expect(n, 'at least one scored centre should load from Supabase').toBeGreaterThan(0);
 });
 
 test('DOM discovery — dump one rendered centre to the report', async ({ page }, testInfo) => {
   await page.goto('/', { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => window.CENTRE_SCORES && Object.keys(window.CENTRE_SCORES).length > 0);
-  const firstId = await page.evaluate(() => Object.keys(window.CENTRE_SCORES)[0]);
+  await page.waitForFunction(() => window.__tide?.CENTRE_SCORES && Object.keys(window.__tide.CENTRE_SCORES).length > 0);
+  const firstId = await page.evaluate(() => Object.keys(window.__tide.CENTRE_SCORES)[0]);
   await page.evaluate((id) => window.renderCentre(id), firstId);
   await page.waitForSelector('.tide-vessel-verdict-word', { timeout: 20_000 }).catch(() => {});
   const dump = await page.evaluate(() => ({
-    centreId: Object.keys(window.CENTRE_SCORES)[0],
-    score: window.CENTRE_SCORES[Object.keys(window.CENTRE_SCORES)[0]],
+    centreId: Object.keys(window.__tide.CENTRE_SCORES)[0],
+    score: window.__tide.CENTRE_SCORES[Object.keys(window.__tide.CENTRE_SCORES)[0]],
     vesselHTML: document.querySelector('.tide-vessel-verdict')?.outerHTML || '(none)',
     chartHTML: document.querySelector('.tide60-trend')?.outerHTML || '(none)',
     narrative: document.querySelector('.narrative-insight')?.textContent || '(none)',
@@ -97,10 +97,10 @@ test('DOM discovery — dump one rendered centre to the report', async ({ page }
 
 test('verdict alignment holds for every scored centre', async ({ page }, testInfo) => {
   await page.goto('/', { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => window.CENTRE_SCORES && Object.keys(window.CENTRE_SCORES).length > 0);
+  await page.waitForFunction(() => window.__tide?.CENTRE_SCORES && Object.keys(window.__tide.CENTRE_SCORES).length > 0);
 
   const ids = await page.evaluate(() =>
-    Object.entries(window.CENTRE_SCORES)
+    Object.entries(window.__tide.CENTRE_SCORES)
       .filter(([, s]) => s && (s.verdict != null))
       .map(([id]) => id),
   );
@@ -130,7 +130,7 @@ test('verdict alignment holds for every scored centre', async ({ page }, testInf
       return { vWord, goNow, deltaClass, chartWord, narrative };
     });
 
-    const sv = await page.evaluate((cid) => window.CENTRE_SCORES[cid]?.verdict, id);
+    const sv = await page.evaluate((cid) => window.__tide.CENTRE_SCORES[cid]?.verdict, id);
     const why = [];
 
     // headline word must be one of the five

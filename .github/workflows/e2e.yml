@@ -1,0 +1,79 @@
+name: E2E — verdict alignment (read-only)
+
+# Manual-trigger only. Runs the read-only §A/§J verification suite against a
+# Vercel PREVIEW deployment. It never authenticates and never writes to
+# Supabase, so it is safe to point at the live project.
+#
+# Trigger from the Actions tab → "Run workflow" → paste the preview URL,
+# or set a repo secret PREVIEW_URL and leave the input blank.
+#
+# Playwright is installed standalone (not added to package.json/lockfile) so
+# `npm ci` keeps verifying the audited dependency set unchanged.
+
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: 'Vercel preview URL (e.g. https://tide-git-claude-pre-launch-audit-7pyfk-....vercel.app)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Verdict alignment
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve preview URL
+        id: url
+        env:
+          INPUT_URL: ${{ github.event.inputs.preview_url }}
+          SECRET_URL: ${{ secrets.PREVIEW_URL }}
+        run: |
+          URL="${INPUT_URL:-$SECRET_URL}"
+          if [ -z "$URL" ]; then
+            echo "::error::No preview URL. Pass the 'preview_url' input or set the PREVIEW_URL repo secret."
+            exit 1
+          fi
+          echo "preview_url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Testing against: $URL"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (standalone) + Chromium
+        run: |
+          npm i --no-save @playwright/test@latest
+          npx playwright install --with-deps chromium
+
+      - name: Run read-only E2E suite
+        env:
+          PREVIEW_URL: ${{ steps.url.outputs.preview_url }}
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore

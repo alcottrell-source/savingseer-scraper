@@ -631,6 +631,110 @@
   .hours-time-left { font-size: 12px; font-weight: 500; color: var(--amber); letter-spacing: 0.02em; flex-shrink: 0; }
   .hours-time-left.closed { color: var(--stone); }
 
+  /* ── User reporting (⋯ + bottom sheet) ───────────────────────────── */
+  .brand-chip-wrap { position: relative; display: flex; align-items: stretch; gap: 4px; }
+  .brand-chip-wrap > .brand-chip { flex: 1 1 auto; min-width: 0; }
+  .report-dots {
+    flex: 0 0 auto; width: 34px; align-self: stretch;
+    background: none; border: none; cursor: pointer; padding: 0;
+    color: var(--stone); opacity: 0; transition: opacity 0.15s, color 0.15s;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 10px;
+  }
+  .report-dots svg { fill: currentColor; }
+  .report-dots:hover { color: var(--bark); background: var(--stone-lt); }
+  .brand-chip-wrap:hover .report-dots,
+  .brand-chip-wrap:focus-within .report-dots { opacity: 0.6; }
+  @media (hover: none) {
+    .report-dots { opacity: 0.45; }
+  }
+
+  .report-overlay {
+    position: fixed; inset: 0; background: rgba(44,24,16,0.45);
+    display: flex; align-items: flex-end; justify-content: center;
+    z-index: 800; opacity: 0; transition: opacity 0.2s;
+  }
+  .report-overlay.is-open { opacity: 1; }
+  .report-sheet {
+    background: var(--cream); width: 100%; max-width: 480px;
+    border-radius: 22px 22px 0 0; padding: 10px 22px 28px;
+    max-height: 88vh; overflow-y: auto;
+    transform: translateY(100%); transition: transform 0.28s cubic-bezier(0.34,1.1,0.64,1);
+    box-shadow: 0 -8px 40px rgba(28,26,20,0.22);
+  }
+  .report-overlay.is-open .report-sheet { transform: translateY(0); }
+  .report-grab { width: 38px; height: 4px; border-radius: 2px; background: rgba(44,24,16,0.16); margin: 4px auto 16px; }
+  .report-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .report-badge {
+    width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0;
+    background: white; border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Playfair Display', serif; font-weight: 600; font-size: 13px; color: var(--bark);
+  }
+  .report-brand { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 600; color: var(--bark); line-height: 1.2; }
+  .report-brand-sub { font-size: 13px; color: var(--stone); margin-top: 2px; }
+  .report-title { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; color: var(--bark); margin: 0 0 6px; line-height: 1.2; }
+  .report-sub { font-size: 14px; color: var(--stone); margin: 0 0 16px; line-height: 1.5; }
+  .report-divider { height: 1px; background: var(--border); margin: 0 0 16px; }
+  .report-options { display: flex; flex-direction: column; gap: 10px; }
+  .report-option {
+    display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+    background: white; border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px 16px; cursor: pointer; font: inherit;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .report-option:hover { border-color: var(--bark); }
+  .report-option:active { background: var(--stone-lt); }
+  .report-opt-icon {
+    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 17px;
+  }
+  .report-opt-icon.ended   { background: var(--red-lt);   color: var(--red); }
+  .report-opt-icon.diff    { background: var(--amber-lt); color: var(--amber); }
+  .report-opt-icon.confirm { background: var(--leaf-lt);  color: var(--leaf); }
+  .report-opt-icon.started { background: var(--amber-lt); color: var(--amber); }
+  .report-opt-title { font-size: 15px; font-weight: 600; color: var(--bark); }
+  .report-opt-sub { font-size: 13px; color: var(--stone); margin-top: 1px; }
+  .report-back {
+    background: none; border: none; cursor: pointer; font: inherit;
+    font-size: 14px; color: var(--stone); padding: 0; margin: 4px 0 10px;
+  }
+  .report-back:hover { color: var(--bark); }
+  .report-chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 4px 0 14px; }
+  .report-chip {
+    background: white; border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px 6px; cursor: pointer; font: inherit; text-align: center;
+    transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+  }
+  .report-chip:hover { border-color: var(--bark); }
+  .report-chip.is-selected { border-color: var(--leaf); background: var(--leaf-lt); box-shadow: 0 0 0 1px var(--leaf); }
+  .report-chip-pct { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; color: var(--bark); line-height: 1; }
+  .report-chip-cap { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-top: 5px; }
+  .report-hint { font-size: 12px; color: var(--stone); font-style: italic; margin: 0 0 16px; line-height: 1.5; }
+  .report-send {
+    width: 100%; background: var(--leaf); color: white; border: none;
+    border-radius: 26px; padding: 15px; font: inherit; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: background 0.15s, opacity 0.15s;
+  }
+  .report-send:hover:not(:disabled) { background: #2f5428; }
+  .report-send:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .report-toast {
+    position: fixed; left: 16px; right: 16px; bottom: 20px; margin: 0 auto;
+    max-width: 420px; background: var(--bark); color: var(--cream);
+    border-radius: 16px; padding: 14px 18px; display: flex; align-items: center; gap: 12px;
+    z-index: 900; opacity: 0; transform: translateY(12px);
+    transition: opacity 0.25s, transform 0.25s; pointer-events: none;
+    box-shadow: 0 10px 30px rgba(28,26,20,0.28);
+  }
+  .report-toast.is-open { opacity: 1; transform: translateY(0); }
+  .report-toast-icon {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    background: var(--leaf); color: white;
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .report-toast-msg { font-size: 14px; font-weight: 600; }
+  .report-toast-sub { font-size: 12px; color: rgba(250,247,242,0.7); margin-top: 1px; }
 </style>
 <script defer data-domain="tidego.co" src="https://plausible.io/js/script.js"></script>
 <script>
@@ -2231,6 +2335,13 @@ const DASHBOARD_NAME_BY_SCRAPER_ID = {
   'B090':'Mint Velvet', 'B091':'Miss Selfridge', 'B092':'Primark',
   'B093':'Uniqlo', 'B094':'Foot Locker',
 };
+
+// Reverse of DASHBOARD_NAME_BY_SCRAPER_ID: dashboard brand name -> scraper
+// brand_id (the key used in brand_sale_events / user_reports). Inline
+// BRANDS[].id is a different id space, so user reports must resolve by name.
+const SCRAPER_ID_BY_DASHBOARD_NAME = Object.fromEntries(
+  Object.entries(DASHBOARD_NAME_BY_SCRAPER_ID).map(([sid, name]) => [name, sid])
+);
 
 const BRANDS = [
   {id:'B001',name:'Marks & Spencer',cluster:'High Street',womenswear:true,menswear:true,childrenswear:true},
@@ -3861,9 +3972,28 @@ async function renderCentre(centreId) {
     // Always render arrow so the right edge aligns; hide it for unlinked chips.
     const arrow = '<span class="brand-arrow'+(url?'':' invisible')+'" aria-hidden="true">↗</span>';
     const inner = '<span class="brand-left">'+logoImg+'<span class="brand-name">'+b.name+'</span></span>'+meta+arrow;
-    return url
+    const chip = url
       ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+' href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
       : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+'>'+inner+'</div>';
+
+    // Report affordance — logged-in only (spec §2.5 / §3.B). The ⋯ button and
+    // long-press both open the report sheet. Logged-out users see the app
+    // exactly as before (no wrapper, no button).
+    const reportBrandId = SCRAPER_ID_BY_DASHBOARD_NAME[b.name];
+    if (!currentUser || !reportBrandId || !supabaseCentreId) return chip;
+    const ra = 'data-report-brand="'+escapeHtml(reportBrandId)+'"'
+      + ' data-report-name="'+escapeHtml(b.name)+'"'
+      + ' data-report-centre="'+escapeHtml(supabaseCentreId)+'"'
+      + ' data-report-onsale="'+(b.isOnSale?'1':'0')+'"'
+      + ' data-report-pct="'+(b.isOnSale&&pct?escapeHtml(pct):'')+'"'
+      + ' data-report-days="'+escapeHtml(days)+'"'
+      + ' data-report-type="'+escapeHtml(typeKey||'percent_off')+'"';
+    return '<div class="brand-chip-wrap" '+ra+'>'+chip
+      + '<button type="button" class="report-dots" aria-label="Report what you saw">'
+      +   '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">'
+      +     '<circle cx="9" cy="4" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="9" cy="14" r="1.5"/>'
+      +   '</svg>'
+      + '</button></div>';
   }
 
   // Floor-aware grouping. We render brands grouped by floor only when the
@@ -4190,6 +4320,243 @@ setInterval(() => loadTideData(), 15000);
       document.getElementById('feedback-bar').style.display = 'flex';
     }
   }, 4000);
+</script>
+
+<!-- User report bottom sheet (logged-in only; opened from a brand row's ⋯) -->
+<div id="report-overlay" class="report-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="report-sheet-title">
+  <div class="report-sheet">
+    <div class="report-grab"></div>
+    <div class="report-head">
+      <div class="report-badge" id="report-badge"></div>
+      <div>
+        <div class="report-brand" id="report-brand-name"></div>
+        <div class="report-brand-sub" id="report-brand-sub"></div>
+      </div>
+    </div>
+    <div id="report-step1">
+      <h3 class="report-title" id="report-sheet-title">What did you see in store?</h3>
+      <p class="report-sub">Your report helps everyone else know what's actually happening.</p>
+      <div class="report-divider"></div>
+      <div class="report-options" id="report-options"></div>
+    </div>
+    <div id="report-step2" style="display:none">
+      <button type="button" class="report-back" id="report-back">&larr; Back</button>
+      <h3 class="report-title">What discount did you see?</h3>
+      <p class="report-sub" id="report-step2-sub"></p>
+      <div class="report-chips" id="report-chips"></div>
+      <p class="report-hint">We'll round it up to the nearest banner.</p>
+      <button type="button" class="report-send" id="report-send" disabled>Send report</button>
+    </div>
+  </div>
+</div>
+<div id="report-toast" class="report-toast" style="display:none">
+  <div class="report-toast-icon">&#10003;</div>
+  <div>
+    <div class="report-toast-msg" id="report-toast-msg"></div>
+    <div class="report-toast-sub" id="report-toast-sub"></div>
+  </div>
+</div>
+
+<script>
+// ── User reporting flow (Deliverable B) ──────────────────────────────────
+// Advisory only. Writes to user_reports via the same raw-fetch path the rest
+// of index.html uses (pgFetch). Never mutates public sale state.
+(function () {
+  const overlay = document.getElementById('report-overlay');
+  const toastEl = document.getElementById('report-toast');
+  let ctx = null;            // { brandId, brandName, centreId, onSale, pct, days }
+  let pendingType = null;    // report_type awaiting a discount pick
+  let selectedPct = null;
+
+  const REASONS = {
+    onSale: [
+      { type: 'sale_ended',            cls: 'ended',   icon: '&#8856;', title: "Sale's ended here",   sub: 'No discount signs in store today', step2: false },
+      { type: 'discount_different',    cls: 'diff',    icon: '&#8599;', title: 'Discount is different', sub: 'Pick the % you saw in store',     step2: true  },
+      { type: 'sale_active_confirmed', cls: 'confirm', icon: '&#10003;', title: "Confirms what's shown", sub: null,                              step2: false },
+    ],
+    offSale: [
+      { type: 'sale_started',          cls: 'started', icon: '&#8599;', title: 'This shop IS on sale',  sub: 'Tell us the discount you saw',    step2: true  },
+      { type: 'no_sale_confirmed',     cls: 'confirm', icon: '&#10003;', title: 'Confirms no sale',     sub: 'No discount here today',          step2: false },
+    ],
+  };
+  const CHIPS = [
+    { v: 20, cap: 'Up to' }, { v: 30, cap: 'Up to' }, { v: 40, cap: 'Up to' },
+    { v: 50, cap: 'Up to' }, { v: 60, cap: 'Up to' }, { v: 70, cap: 'or more', plus: true },
+  ];
+
+  function initials(name) {
+    return name.replace(/[^A-Za-z0-9 &]/g, '').split(/\s+/).filter(Boolean)
+      .slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+  }
+  function ctxFromWrap(el) {
+    return {
+      brandId:   el.getAttribute('data-report-brand'),
+      brandName: el.getAttribute('data-report-name'),
+      centreId:  el.getAttribute('data-report-centre'),
+      onSale:    el.getAttribute('data-report-onsale') === '1',
+      pct:       el.getAttribute('data-report-pct') || null,
+      days:      el.getAttribute('data-report-days') || null,
+    };
+  }
+
+  function openSheet(c) {
+    if (!currentUser) return;                 // belt-and-braces; ⋯ is hidden anyway
+    ctx = c; pendingType = null; selectedPct = null;
+    document.getElementById('report-badge').textContent = initials(c.brandName);
+    document.getElementById('report-brand-name').textContent = c.brandName;
+    const sub = c.onSale
+      ? ('On sale' + (c.pct ? ' ' + c.pct + '%' : '') + (c.days ? ' · day ' + c.days : ''))
+      : 'Not on sale here';
+    document.getElementById('report-brand-sub').textContent = sub;
+    buildStep1();
+    showStep(1);
+    overlay.style.display = 'flex';
+    requestAnimationFrame(() => overlay.classList.add('is-open'));
+  }
+  function closeSheet() {
+    overlay.classList.remove('is-open');
+    setTimeout(() => { overlay.style.display = 'none'; }, 280);
+  }
+  function showStep(n) {
+    document.getElementById('report-step1').style.display = n === 1 ? '' : 'none';
+    document.getElementById('report-step2').style.display = n === 2 ? '' : 'none';
+  }
+
+  function buildStep1() {
+    const list = ctx.onSale ? REASONS.onSale : REASONS.offSale;
+    const html = list.map((r, i) => {
+      let sub = r.sub;
+      if (r.type === 'sale_active_confirmed') sub = ctx.pct ? ('Sale active, ' + ctx.pct + '% matches') : 'Sale is active';
+      return '<button type="button" class="report-option" data-ri="' + i + '">'
+        + '<span class="report-opt-icon ' + r.cls + '">' + r.icon + '</span>'
+        + '<span><span class="report-opt-title">' + escHtml(r.title) + '</span>'
+        + (sub ? '<span class="report-opt-sub">' + escHtml(sub) + '</span>' : '') + '</span>'
+        + '</button>';
+    }).join('');
+    document.getElementById('report-options').innerHTML = html;
+  }
+  function buildStep2() {
+    document.getElementById('report-step2-sub').textContent = ctx.pct
+      ? (ctx.brandName + ' is currently shown as up to ' + ctx.pct + '%. Pick the biggest you saw advertised in store.')
+      : ('Pick the biggest discount you saw advertised in store for ' + ctx.brandName + '.');
+    document.getElementById('report-chips').innerHTML = CHIPS.map(c =>
+      '<button type="button" class="report-chip" data-pct="' + c.v + '">'
+      + '<div class="report-chip-pct">' + c.v + '%' + (c.plus ? '+' : '') + '</div>'
+      + '<div class="report-chip-cap">' + c.cap + '</div></button>'
+    ).join('');
+    selectedPct = null;
+    document.getElementById('report-send').disabled = true;
+  }
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  async function submitUserReport(reportType, discountPct) {
+    if (!currentUser) return { ok: false, reason: 'not_authenticated' };
+    const body = {
+      user_id: currentUser.id,
+      brand_id: ctx.brandId,
+      centre_id: ctx.centreId,
+      report_type: reportType,
+      discount_pct: discountPct ?? null,
+      reported_state_at_time: {
+        scraper_says: ctx.onSale ? 'on_sale' : 'off',
+        discount_shown: ctx.pct != null && ctx.pct !== '' ? Number(ctx.pct) : null,
+        day: ctx.days != null && ctx.days !== '' ? Number(ctx.days) : null,
+      },
+    };
+    const { error } = await pgFetch('POST', 'user_reports', body);
+    if (error) {
+      const msg = String(error.message || '');
+      if (error.status === 409 || /23505|duplicate key/i.test(msg)) {
+        return { ok: false, reason: 'already_reported_today' };
+      }
+      return { ok: false, reason: 'unknown', error };
+    }
+    return { ok: true };
+  }
+
+  function showToast(msg, sub) {
+    document.getElementById('report-toast-msg').textContent = msg;
+    const subEl = document.getElementById('report-toast-sub');
+    subEl.textContent = sub || '';
+    subEl.style.display = sub ? '' : 'none';
+    toastEl.style.display = 'flex';
+    requestAnimationFrame(() => toastEl.classList.add('is-open'));
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => {
+      toastEl.classList.remove('is-open');
+      setTimeout(() => { toastEl.style.display = 'none'; }, 280);
+    }, 3500);
+  }
+
+  async function finish(reportType, discountPct, sendBtn) {
+    if (sendBtn) sendBtn.disabled = true;
+    const res = await submitUserReport(reportType, discountPct);
+    closeSheet();
+    if (res.ok) {
+      showToast("Thanks — we've logged your report", "If more shoppers see the same, we'll update the Tide");
+    } else if (res.reason === 'already_reported_today') {
+      showToast("Already logged — we'll only count one report per shop per day.");
+    } else {
+      showToast("Couldn't send — please try again in a moment.");
+    }
+  }
+
+  // Step 1 option click
+  document.getElementById('report-options').addEventListener('click', (e) => {
+    const btn = e.target.closest('.report-option'); if (!btn) return;
+    const list = ctx.onSale ? REASONS.onSale : REASONS.offSale;
+    const r = list[+btn.dataset.ri];
+    if (r.step2) { pendingType = r.type; buildStep2(); showStep(2); }
+    else finish(r.type, null);
+  });
+  // Step 2 chip select
+  document.getElementById('report-chips').addEventListener('click', (e) => {
+    const chip = e.target.closest('.report-chip'); if (!chip) return;
+    document.querySelectorAll('#report-chips .report-chip').forEach(c => c.classList.remove('is-selected'));
+    chip.classList.add('is-selected');
+    selectedPct = Number(chip.dataset.pct);
+    document.getElementById('report-send').disabled = false;
+  });
+  document.getElementById('report-send').addEventListener('click', (e) => {
+    if (selectedPct == null) return;
+    finish(pendingType, selectedPct, e.currentTarget);
+  });
+  document.getElementById('report-back').addEventListener('click', () => showStep(1));
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeSheet(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay.style.display === 'flex') closeSheet();
+  });
+
+  // ⋯ button (delegated — chips are re-rendered on every centre change)
+  document.addEventListener('click', (e) => {
+    const dots = e.target.closest('.report-dots');
+    if (!dots) return;
+    e.preventDefault(); e.stopPropagation();
+    const wrap = dots.closest('.brand-chip-wrap');
+    if (wrap) openSheet(ctxFromWrap(wrap));
+  });
+
+  // Long-press anywhere on a brand row also opens the sheet (mobile).
+  let lpTimer = null, lpFired = false;
+  function clearLP() { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } }
+  document.addEventListener('touchstart', (e) => {
+    const wrap = e.target.closest('.brand-chip-wrap[data-report-brand]');
+    if (!wrap) return;
+    lpFired = false;
+    clearLP();
+    lpTimer = setTimeout(() => {
+      lpFired = true;
+      openSheet(ctxFromWrap(wrap));
+    }, 500);
+  }, { passive: true });
+  document.addEventListener('touchend', clearLP, { passive: true });
+  document.addEventListener('touchmove', clearLP, { passive: true });
+  document.addEventListener('touchcancel', clearLP, { passive: true });
+  // Swallow the click that follows a long-press so the brand link doesn't open.
+  document.addEventListener('click', (e) => {
+    if (lpFired) { e.preventDefault(); e.stopPropagation(); lpFired = false; }
+  }, true);
+})();
 </script>
 
 </body>

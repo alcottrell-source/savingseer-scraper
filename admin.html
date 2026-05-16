@@ -550,7 +550,12 @@ async function loadAndRender() {
   $('n-routine').textContent = queueCounts.routine;
   $('filter-bar').style.display = needs.length ? 'flex' : 'none';
   wireFilterChips();
-  applyQueueFilter(currentQueueFilter);
+  // Urgent-first (spec §3.C.4), but never strand the admin on an empty tab:
+  // when there's no urgent work, drop to the first band that has rows.
+  const initialFilter = queueCounts.urgent ? 'urgent'
+                      : queueCounts.easy   ? 'easy'
+                      : 'routine';
+  applyQueueFilter(initialFilter);
 
   wireRowActions();
 }

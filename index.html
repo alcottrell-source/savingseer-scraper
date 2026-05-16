@@ -1300,6 +1300,25 @@ function authContinue() {
   authShowStep('signin');
 }
 
+// True when Supabase Auth accepted the request but its email backend
+// failed to deliver (custom SMTP misconfigured / sender domain unverified)
+// or the built-in sender's hourly cap is exhausted. These surface as the
+// raw "Error sending magic link email" string, a *_rate_limit code, or a
+// 429/5xx — none of which the user can act on, so we route them to the
+// password path instead of dead-ending on a server error.
+function isEmailDeliveryError(error) {
+  if (!error) return false;
+  const code = (error.code || '').toLowerCase();
+  const msg = (error.message || '').toLowerCase();
+  if (error.status === 429 || error.status >= 500) return true;
+  if (code.includes('rate_limit')) return true;
+  return msg.includes('error sending')
+      || msg.includes('sending magic link')
+      || msg.includes('sending confirmation')
+      || msg.includes('rate limit')
+      || msg.includes('smtp');
+}
+
 async function authMagicLink() {
   clearAuthError();
   const email = document.getElementById('auth-email').value.trim();
@@ -1310,7 +1329,15 @@ async function authMagicLink() {
     options: { emailRedirectTo: window.location.origin + window.location.pathname },
   });
   setAuthBusy(false);
-  if (error) { showAuthError(error.message); return; }
+  if (error) {
+    if (isEmailDeliveryError(error)) {
+      authShowStep('signin');
+      showAuthError("We're having trouble sending sign-in emails right now. Enter your password below to sign in — or tap “New here?” to create a free account.");
+    } else {
+      showAuthError(error.message);
+    }
+    return;
+  }
   authShowStep('magic');
 }
 
@@ -1453,7 +1480,9 @@ async function submitNotifySignup() {
   });
   btn.disabled = false;
   if (error) {
-    msg.textContent = error.message;
+    msg.textContent = isEmailDeliveryError(error)
+      ? "We can't email sign-in links right now. Please try again shortly, or sign in with a password from the menu."
+      : error.message;
     msg.classList.add('error');
     msg.style.display = 'block';
     return;

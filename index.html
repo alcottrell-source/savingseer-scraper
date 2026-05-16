@@ -1242,16 +1242,20 @@ function authShowStep(step) {
   if (step === 'signin') {
     document.getElementById('auth-signin-email-label').textContent = email;
     const input = authMountPasswordInput('auth-password-signin-slot', 'auth-password-signin', 'current-password', 'Password', authSignIn);
+    if (input && _authCarryPassword) input.value = _authCarryPassword;
     if (input) setTimeout(() => input.focus(), 50);
   }
   if (step === 'signup') {
     document.getElementById('auth-signup-email-label').textContent = email;
     const input = authMountPasswordInput('auth-password-signup-slot', 'auth-password-signup', 'new-password', 'Create a password (8+ characters)', authSignUp);
+    if (input && _authCarryPassword) input.value = _authCarryPassword;
     if (input) setTimeout(() => input.focus(), 50);
   }
   if (step === 'magic') {
     document.getElementById('auth-magic-email-label').textContent = email;
   }
+  // Carried password is consumed once, on the next signin/signup render.
+  _authCarryPassword = '';
 }
 
 function openAuthModal() {
@@ -1294,10 +1298,39 @@ function setAuthBusy(busy) {
   });
 }
 
+// Password typed on one step, carried across a signin<->signup switch so a
+// new user who landed on "Welcome back" (or a returning user who landed on
+// "Create account") isn't forced to re-type it. Consumed once by authShowStep.
+let _authCarryPassword = '';
+
 function authContinue() {
   const email = document.getElementById('auth-email').value.trim();
   if (!email || !email.includes('@')) { showAuthError('Enter a valid email address.'); return; }
   authShowStep('signin');
+}
+
+// Supabase returns this when the email has no account / wrong password. We
+// can't tell "no account" from "wrong password" (deliberate, anti-enumeration),
+// so on the signin step we offer the user the create-account path instead of
+// dead-ending on a raw error.
+function isInvalidCredentials(error) {
+  if (!error) return false;
+  const code = (error.code || '').toLowerCase();
+  const msg = (error.message || '').toLowerCase();
+  return code === 'invalid_credentials'
+      || msg.includes('invalid login credentials');
+}
+
+// Supabase returns this from signUp when the email already has an account.
+function isAlreadyRegistered(error) {
+  if (!error) return false;
+  const code = (error.code || '').toLowerCase();
+  const msg = (error.message || '').toLowerCase();
+  return code === 'user_already_exists'
+      || code === 'email_exists'
+      || msg.includes('already registered')
+      || msg.includes('already been registered')
+      || msg.includes('user already exists');
 }
 
 // True when Supabase Auth accepted the request but its email backend
@@ -1349,7 +1382,21 @@ async function authSignIn() {
   setAuthBusy(true);
   const { error } = await sb.auth.signInWithPassword({ email, password });
   setAuthBusy(false);
-  if (error) { showAuthError(error.message); return; }
+  if (error) {
+    if (isInvalidCredentials(error)) {
+      // New here, or wrong password. Carry the password to the signup step
+      // so a brand-new user just taps "Create account" and they're in.
+      _authCarryPassword = password;
+      authShowStep('signup');
+      showAuthError("No account with that email and password yet. Create your free account below — or go back and check your password if you've signed up before.");
+      return;
+    }
+    if ((error.message || '').toLowerCase().includes('not confirmed')) {
+      showAuthError("Please confirm your email first — check your inbox for the link we sent.");
+      return;
+    }
+    showAuthError(error.message); return;
+  }
   document.getElementById('auth-modal').style.display = 'none';
 }
 
@@ -1359,9 +1406,23 @@ async function authSignUp() {
   const password = document.getElementById('auth-password-signup').value;
   if (password.length < 8) { showAuthError('Password must be at least 8 characters.'); return; }
   setAuthBusy(true);
-  const { data, error } = await sb.auth.signUp({ email, password });
+  const { data, error } = await sb.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: window.location.origin + window.location.pathname },
+  });
   setAuthBusy(false);
-  if (error) { showAuthError(error.message); return; }
+  if (error) {
+    if (isAlreadyRegistered(error)) {
+      // They already have an account — carry the password to the signin
+      // step so the common "I forgot I'd signed up" case is one tap.
+      _authCarryPassword = password;
+      authShowStep('signin');
+      showAuthError("You already have a Tide account. Enter your password to sign in — or use “Forgot password?” to get a link.");
+      return;
+    }
+    showAuthError(error.message); return;
+  }
   if (data?.session) {
     document.getElementById('auth-modal').style.display = 'none';
   } else {

@@ -1,21 +1,30 @@
 // Tide — daily email job
 //
-// Runs once a day (07:00 UTC, scheduled via pg_cron — see README in this dir).
-// Two passes:
+// Scheduled via pg_cron (see README): daily at 07:00 UTC for the two alert
+// passes, and Fridays at 19:00 UTC for the digest. The digest pass also
+// self-gates to Friday so an off-schedule invoke can't send it early.
+// Three passes:
 //
 //   1. PEAK ALERTS — for every centre where today's verdict is "Peak"
 //      (formerly "Go now" — legacy strings still match), find users who
-//      have that centre in user_preferences.saved_centres and send them a
-//      "go today" email. PEAK is the one state that earns a recommendation.
+//      have that centre in user_preferences.saved_centres with
+//      email_alerts on, and send them a "go today" email.
 //
-//   2. DAILY DIGEST — for every user with saved_centres, list each saved
-//      centre with its current stage. Only sent if at least one of their
-//      saved centres is at Rising or above (stages: Rising, High Tide).
+//   2. BRAND SALE ALERTS ("your shop") — for every user with
+//      brand_sale_alerts on, find brands they follow that have just
+//      started a new sale at one of their saved centres and send a
+//      heads-up. De-duplicated per sale cycle so an ongoing sale never
+//      re-alerts on subsequent runs.
 //
-// Each user receives at most one alert email per centre per day, plus at
-// most one digest per day. The same email may be sent twice if a centre is
-// in both the alert and the digest passes — by design, the digest only
-// kicks in when there's something to say.
+//   3. WEEKEND DIGEST — Fridays only. For every user with daily_digest on
+//      and at least one saved centre at Rising or above, send a weekend
+//      briefing of their saved centres.
+//
+// De-duplication is enforced via the email_log table: peak/digest are
+// capped at one per user per ref per day; brand-sale alerts at one per
+// user per brand per sale cycle (so re-runs and multi-day cycles don't
+// spam). A user can still receive a peak alert and a digest the same day
+// — by design, they carry different value.
 //
 // Env vars (set as Supabase secrets):
 //   SUPABASE_URL                 (auto-provided by the runtime)
@@ -34,11 +43,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 // deno-lint-ignore no-explicit-any
 declare const Deno: any;
 
-// Defaults can be overridden by Supabase secrets — see README. Defaults
-// match the production Vercel URL so emails work before the tidego.co DNS
-// is pointed at the deployment.
+// Defaults can be overridden by Supabase secrets — see README.
 const FROM_EMAIL = Deno.env.get("TIDE_FROM_EMAIL") ?? "Tide <hello@tidego.co>";
-const APP_URL    = Deno.env.get("TIDE_APP_URL")    ?? "https://v0-tide-sale-timing.vercel.app";
+const APP_URL    = Deno.env.get("TIDE_APP_URL")    ?? "https://tidego.co";
 const RESEND_URL = "https://api.resend.com/emails";
 
 const CREAM      = "#FAF7F2";
@@ -50,7 +57,7 @@ const STONE      = "#8C8070";
 
 interface CentreRow      { id: string; name: string }
 interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null }
-interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; brand_ids: string[] | null; email_alerts: boolean; daily_digest: boolean }
+interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; brand_ids: string[] | null; email_alerts: boolean; brand_sale_alerts: boolean; daily_digest: boolean }
 interface BrandRow       { id: string; name: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; cluster: string | null }
 interface SaleEventRow   { brand_id: string; sale_status: boolean | null; date_first_detected: string | null; max_discount_pct: number | null; scraper_error: boolean | null; last_verified_status: boolean | null; last_verified_date: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null } | null }
 interface CentreBrandRow { centre_id: string; brand_id: string }
@@ -355,10 +362,17 @@ async function sendEmail(to: string, subject: string, html: string, text: string
 
 Deno.serve(async (req: Request) => {
   let dryRun = false;
+  let forceFriday = false;
+  let skipDigest = false;
   try {
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
       dryRun = !!body.dryRun;
+      // Test hook: lets a dry-run preview the digest pass on any weekday.
+      forceFriday = !!body.forceFriday;
+      // The daily 07:00 alert cron passes this so the digest only ever
+      // goes out via the dedicated Friday 19:00 cron (UI promises 7pm).
+      skipDigest = !!body.skipDigest;
     }
   } catch { /* empty body — fine */ }
 
@@ -386,7 +400,7 @@ Deno.serve(async (req: Request) => {
       .select("brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)"),
     sb.from("centre_brands").select("centre_id, brand_id"),
     sb.from("user_preferences")
-      .select("user_id, womenswear, menswear, childrenswear, style_clusters, saved_centres, brand_ids, email_alerts, daily_digest")
+      .select("user_id, womenswear, menswear, childrenswear, style_clusters, saved_centres, brand_ids, email_alerts, brand_sale_alerts, daily_digest")
       .not("saved_centres", "eq", "{}"),
   ]);
 
@@ -416,8 +430,40 @@ Deno.serve(async (req: Request) => {
     emailById.set(uid, data.user.email);
   }
 
+  // De-dup state from email_log. Two views:
+  //   sentToday     — `${user}|${type}|${ref}` for rows already sent today
+  //                   (caps peak + digest at one per ref per day, and makes
+  //                   a same-day re-invoke a no-op).
+  //   sentBrandEver — `${user}|${ref}` for ANY brand_sale row, so an ongoing
+  //                   sale cycle never re-alerts on later runs.
+  // If the email_log table is missing (migration not yet applied) these
+  // reads/writes fail silently — sends still go out, just without dedup.
+  const sentToday = new Set<string>();
+  const sentBrandEver = new Set<string>();
+  {
+    const { data: logTodayData } = await sb.from("email_log")
+      .select("user_id, email_type, ref_key")
+      .eq("sent_date", today);
+    for (const r of (logTodayData || []) as { user_id: string; email_type: string; ref_key: string }[]) {
+      sentToday.add(`${r.user_id}|${r.email_type}|${r.ref_key}`);
+    }
+    const { data: logBrandData } = await sb.from("email_log")
+      .select("user_id, ref_key")
+      .eq("email_type", "brand_sale");
+    for (const r of (logBrandData || []) as { user_id: string; ref_key: string }[]) {
+      sentBrandEver.add(`${r.user_id}|${r.ref_key}`);
+    }
+  }
+  async function recordSent(userId: string, emailType: string, refKey: string) {
+    sentToday.add(`${userId}|${emailType}|${refKey}`);
+    if (emailType === "brand_sale") sentBrandEver.add(`${userId}|${refKey}`);
+    await sb.from("email_log")
+      .upsert({ user_id: userId, email_type: emailType, ref_key: refKey, sent_date: today },
+              { onConflict: "user_id,email_type,ref_key,sent_date", ignoreDuplicates: true });
+  }
+
   const log: { type: string; to?: string; centre?: string; status?: number; ok?: boolean; skipped?: string }[] = [];
-  let alertsSent = 0, digestsSent = 0;
+  let alertsSent = 0, brandAlertsSent = 0, digestsSent = 0;
 
   // 2. HIGH-TIDE ALERTS.
   const highTideCentres = scores.filter(s => stageFromVerdict(s.verdict) === "High Tide");
@@ -441,6 +487,9 @@ Deno.serve(async (req: Request) => {
     for (const p of recipients) {
       const to = emailById.get(p.user_id);
       if (!to) { log.push({ type: "alert", centre: centreName, skipped: `no email for user ${p.user_id}` }); continue; }
+      if (sentToday.has(`${p.user_id}|peak|${score.centre_id}`)) {
+        log.push({ type: "alert", to, centre: centreName, skipped: "already sent today" }); continue;
+      }
       // "Followed" = brands the user explicitly opted into. Fall back to
       // category-matching when brand_ids isn't populated (legacy accounts).
       const followedIds = new Set(p.brand_ids || []);
@@ -466,19 +515,83 @@ Deno.serve(async (req: Request) => {
       if (dryRun) { log.push({ type: "alert", to, centre: centreName, ok: true, skipped: "dryRun" }); continue; }
       const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
       log.push({ type: "alert", to, centre: centreName, ok: result.ok, status: result.status });
-      if (result.ok) alertsSent++;
+      if (result.ok) { alertsSent++; await recordSent(p.user_id, "peak", score.centre_id); }
     }
   }
 
-  // 3. WEEKEND DIGEST. Schedule note: still fires via the existing daily
-  //    07:00 UTC cron — Friday-only cadence is a separate follow-up.
+  // 2b. BRAND SALE ALERTS ("your shop"). A brand "just started" a sale when
+  //     it's on sale and within its first NEW_SALE_MAX_DAYS days. Per-cycle
+  //     dedup means each new sale alerts a user once, even across days/runs.
+  const NEW_SALE_MAX_DAYS = 2;
+  for (const p of allPrefs) {
+    if (p.brand_sale_alerts === false) {
+      log.push({ type: "brand_sale", to: emailById.get(p.user_id), skipped: "brand_sale_alerts opt-out" });
+      continue;
+    }
+    const to = emailById.get(p.user_id);
+    if (!to) continue;
+    const followedIds = new Set(p.brand_ids || []);
+    const followsBrand = (b: BrandRow) =>
+      followedIds.size > 0 ? followedIds.has(b.id) : brandMatchesPrefs(b, p);
+
+    // brand_id → { name, centres[], discount, refKey }
+    const newlyOnSale = new Map<string, { name: string; centres: string[]; discount?: string; refKey: string }>();
+    for (const cid of p.saved_centres) {
+      const centreName = centres.get(cid);
+      if (!centreName) continue;
+      for (const bid of (brandsAtCentre.get(cid) || [])) {
+        const brand = brandsById.get(bid);
+        const sale = salesById.get(bid);
+        if (!brand || !sale || !followsBrand(brand) || !isOnSale(sale)) continue;
+        const days = daysOnSale(sale, today);
+        if (days < 1 || days > NEW_SALE_MAX_DAYS) continue; // not newly started / unknown start
+        const cycleKey = sale.active_cycle_id || sale.date_first_detected || `d${today}`;
+        const refKey = `${bid}:${cycleKey}`;
+        if (sentBrandEver.has(`${p.user_id}|${refKey}`)) continue; // already alerted this cycle
+        const existing = newlyOnSale.get(bid);
+        if (existing) { if (!existing.centres.includes(centreName)) existing.centres.push(centreName); continue; }
+        const pct = (sale.active_cycle_id && sale.cycle?.max_discount_pct != null)
+          ? sale.cycle.max_discount_pct
+          : (sale.max_discount_pct ?? null);
+        newlyOnSale.set(bid, {
+          name: brand.name,
+          centres: [centreName],
+          discount: pct ? `${pct}%` : undefined,
+          refKey,
+        });
+      }
+    }
+    for (const info of newlyOnSale.values()) {
+      const { subject, html, text } = renderBrandSaleEmail({
+        brandName: info.name,
+        centre1: info.centres[0],
+        centre2: info.centres[1],
+        discount: info.discount,
+      });
+      if (dryRun) { log.push({ type: "brand_sale", to, centre: info.name, ok: true, skipped: "dryRun" }); continue; }
+      const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
+      log.push({ type: "brand_sale", to, centre: info.name, ok: result.ok, status: result.status });
+      if (result.ok) { brandAlertsSent++; await recordSent(p.user_id, "brand_sale", info.refKey); }
+    }
+  }
+
+  // 3. WEEKEND DIGEST — Fridays only. Self-gates so an off-schedule invoke
+  //    can't send it early; `forceFriday` in the POST body previews it on
+  //    any weekday (dry-run testing).
+  const isFriday = forceFriday || new Date().getUTCDay() === 5;
   const scoreByCentre = new Map<string, ScoreRow>(scores.map(s => [s.centre_id, s]));
   const dateLabel = new Date(today + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long" });
   const stagePriority: Record<DigestStage, number> = { high: 0, rising: 1, falling: 2, low: 3 };
+  if (skipDigest) {
+    log.push({ type: "digest", skipped: "skipDigest — alert run, digest goes via the Friday cron" });
+  } else if (!isFriday) {
+    log.push({ type: "digest", skipped: "not Friday — Weekend Digest only sends Fridays" });
+  } else {
   for (const p of allPrefs) {
     if (p.daily_digest !== true) { log.push({ type: "digest", to: emailById.get(p.user_id), skipped: "daily_digest opt-out" }); continue; }
     const to = emailById.get(p.user_id);
     if (!to) continue;
+    if (sentToday.has(`${p.user_id}|digest|weekend`)) { log.push({ type: "digest", to, skipped: "already sent today" }); continue; }
     const cards = p.saved_centres
       .map(cid => {
         const s = scoreByCentre.get(cid);
@@ -501,14 +614,17 @@ Deno.serve(async (req: Request) => {
     if (dryRun) { log.push({ type: "digest", to, ok: true, skipped: "dryRun" }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
     log.push({ type: "digest", to, ok: result.ok, status: result.status });
-    if (result.ok) digestsSent++;
+    if (result.ok) { digestsSent++; await recordSent(p.user_id, "digest", "weekend"); }
+  }
   }
 
   return new Response(JSON.stringify({
     ok: true,
     today,
     dryRun,
+    isFriday,
     alertsSent,
+    brandAlertsSent,
     digestsSent,
     highTideCentres: highTideCentres.length,
     eligibleUsers: allPrefs.length,

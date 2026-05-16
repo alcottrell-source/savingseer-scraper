@@ -1,124 +1,88 @@
 # notify-high-tide
 
-Daily email job. Two passes per run:
+Tide's email job. **Three passes per run:**
 
-1. **Peak alerts** — for each centre at "Peak" today (verdict `Peak`; legacy
-   `Go now` still matches), email every user who has saved that centre. The
-   "top 3 brands on sale" list is filtered to the user's preferences (gender
-   + style cluster) when they have any set.
-2. **Daily digest** — for each user with saved centres, list each saved
-   centre's stage. Only sent when at least one of their saved centres is at
-   Rising or above.
+1. **Peak alert** — for each centre at "Peak" today, email every user who has
+   that centre saved and has Peak Sale Alerts on (`email_alerts`).
+2. **Brand sale alert ("your shop")** — for each user with Brand Sale Alerts
+   on (`brand_sale_alerts`), email a heads-up for any brand they follow that
+   has just started a new sale at one of their saved centres. De-duplicated
+   per sale cycle, so an ongoing sale never re-alerts.
+3. **Weekend Digest** — Fridays only. For each user with the Weekend Digest on
+   (`daily_digest`) and at least one saved centre at Rising or above, send a
+   weekend briefing.
 
-Trigger: cron, daily at 07:00 UTC (matches the existing scoring run at
-`0 8 * * *` in the GitHub Actions workflow — set the cron _after_ the
-scorer so today's `centre_seer_scores` row exists by the time we read it).
+De-dup is enforced by the `email_log` table: peak/digest one per user per ref
+per day; brand-sale one per user per brand per sale cycle. Safe to invoke more
+than once a day — repeats become no-ops.
 
----
+## Triggers
 
-## One-time setup (do this in order)
+Two `pg_cron` jobs, created by `supabase/migrations/20260516_schedule_emails.sql`:
 
-### 1. Run the saved_centres migration
+| Job | Schedule (UTC) | Body | Effect |
+|-----|----------------|------|--------|
+| `notify-tide-alerts-daily` | `0 7 * * *` | `{"skipDigest":true}` | Peak + brand-sale, every day |
+| `notify-tide-weekend-digest` | `0 19 * * 5` | `{}` | Weekend Digest, Fridays 7pm |
 
-Apply the new column in the Supabase SQL editor:
+A non-fatal fallback step in `.github/workflows/daily-scrape.yml` also POSTs
+`{"skipDigest":true}` after the daily scorer, in case `pg_cron` isn't enabled.
 
-```sql
--- supabase/migrations/20260504_add_saved_centres.sql
-ALTER TABLE user_preferences
-  ADD COLUMN IF NOT EXISTS saved_centres TEXT[] NOT NULL DEFAULT '{}';
+## One-time setup (in order)
 
-CREATE INDEX IF NOT EXISTS idx_user_prefs_saved_centres
-  ON user_preferences USING GIN (saved_centres);
-```
+### 1. Apply the migrations
 
-### 2. Verify your Resend domain
+In the Supabase SQL editor (project `vrezzwadwzrmumjpdgge`), run, in order:
 
-In the Resend dashboard:
+- `20260516_add_email_log.sql` — the de-dup ledger.
+- `20260516_schedule_emails.sql` — the two cron jobs (reads its secrets from
+  Vault — see step 4).
 
-- Add domain `tidego.co`
-- Copy the four DNS records (SPF, DKIM x2, return-path) into your domain
-  registrar
-- Wait for "Verified" — usually under an hour
+### 2. Verify the Resend domain
 
-Your `from` address is `hello@tidego.co`. To override without editing code,
-set the `TIDE_FROM_EMAIL` secret (e.g. `Tide <noreply@tidego.co>`).
+Resend dashboard → add domain `tidego.co` → copy the SPF / DKIM / return-path
+DNS records into the **Vercel** DNS panel for tidego.co (DNS is Vercel-managed)
+→ wait for "Verified".
 
-> **Note on the live URL.** The CTA button in every email defaults to
-> `https://v0-tide-sale-timing.vercel.app` (the current Vercel deployment).
-> Once you point `tidego.co` DNS at the Vercel project, override it with:
-> `supabase secrets set TIDE_APP_URL=https://tidego.co`
-
-### 3. Get a Resend API key
-
-Resend dashboard → API Keys → "Create API Key" → "Sending access" only.
-Copy the `re_...` key.
-
-### 4. Wire Resend into Supabase Auth (for the magic-link emails)
-
-Magic-link emails are sent by Supabase Auth, not by this function — but
-you'll want them to come from `hello@tidego.co` too:
-
-- Supabase dashboard → Project Settings → Auth → SMTP Settings → Enable
-  custom SMTP
-- Host: `smtp.resend.com`
-- Port: `465` (SSL)
-- Username: `resend`
-- Password: your Resend API key (the same one)
-- Sender email: `hello@tidego.co`
-- Sender name: `Tide`
-- Save
-
-Also under Auth → URL Configuration:
-
-- Site URL: `https://tidego.co`
-- Redirect URLs: add `https://tidego.co/**` and your preview URLs
-
-### 5. Push the function + set its secret
-
-From the project root:
+### 3. Set the function's secrets + deploy
 
 ```bash
-supabase login                               # one-time
+supabase login                                  # one-time
 supabase link --project-ref vrezzwadwzrmumjpdgge
-
 supabase secrets set RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
 supabase functions deploy notify-high-tide
 ```
 
-### 6. Schedule it
+`TIDE_APP_URL` now defaults to `https://tidego.co` and `TIDE_FROM_EMAIL` to
+`Tide <hello@tidego.co>`. Override via `supabase secrets set` only if needed.
 
-In the Supabase SQL editor:
+### 4. Put the cron secrets in Vault
+
+The schedule migration reads the service key and function URL from Vault so no
+secret is committed. In the SQL editor (replace the placeholder):
 
 ```sql
--- Enable pg_cron + pg_net once if not already
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
-
--- Schedule the function to run daily at 07:00 UTC.
--- Replace <PROJECT_REF> and <SERVICE_ROLE_KEY> with your real values.
-select cron.schedule(
-  'notify-high-tide-daily',
-  '0 7 * * *',
-  $$
-  select net.http_post(
-    url     := 'https://<PROJECT_REF>.functions.supabase.co/notify-high-tide',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer <SERVICE_ROLE_KEY>'
-    ),
-    body    := '{}'::jsonb
-  );
-  $$
-);
+select vault.create_secret('<SERVICE_ROLE_KEY>', 'notify_service_key');
+select vault.create_secret(
+  'https://vrezzwadwzrmumjpdgge.functions.supabase.co/notify-high-tide',
+  'notify_fn_url');
 ```
 
-To cancel later: `select cron.unschedule('notify-high-tide-daily');`
+(The service-role key is in Supabase → Project Settings → API → `service_role`.)
 
----
+### 5. Wire Resend into Supabase Auth (makes signup / magic-link emails work)
 
-## Test it before going live
+Supabase → Project Settings → Auth → SMTP Settings → enable custom SMTP:
 
-Dry-run (no emails actually sent — returns the would-be send list):
+- Host `smtp.resend.com`, Port `465`, User `resend`,
+  Password = your Resend API key, Sender `hello@tidego.co`, Name `Tide`.
+
+Auth → URL Configuration: Site URL `https://tidego.co`, add redirect URL
+`https://tidego.co/**` (plus any preview URLs).
+
+## Test before going live
+
+Dry-run (nothing sent — returns the would-be send list):
 
 ```bash
 curl -X POST 'https://vrezzwadwzrmumjpdgge.functions.supabase.co/notify-high-tide' \
@@ -127,22 +91,17 @@ curl -X POST 'https://vrezzwadwzrmumjpdgge.functions.supabase.co/notify-high-tid
   -d '{"dryRun": true}'
 ```
 
-Real send to one test address: sign yourself up via the web app, save a
-centre that's currently at Rising or Peak, and invoke the function with no
-`dryRun` flag.
-
----
+Preview the Friday digest on any weekday: add `"forceFriday": true`.
+Preview alerts only (no digest): add `"skipDigest": true`.
+Inspect the `log` array: every entry is an intended send or a `skipped` reason.
 
 ## Notes
 
+- "Peak" detection uses `stageFromVerdict()` (matches the scorer's verdict
+  wording; legacy "Go now" still maps). If you change verdict copy in
+  `score.js`, update `stageFromVerdict()` here.
 - Reads `centre_seer_scores`, `centres`, `brands`, `brand_sale_events`,
-  `centre_brands`, `user_preferences`. Resolves user emails via
-  `auth.admin.getUserById` — needs the service-role key, which the runtime
-  injects automatically.
-- Peak detection matches the new `Peak` verdict (and the legacy `Go now`
-  string for back-compat) — see `stageFromVerdict()` in `index.ts`. Update
-  that function when verdict copy changes.
-- "Top 3 brands" is sorted by days-on-sale ascending (newest sales first),
-  the same way the dashboard sorts on-sale chips.
-- A user can receive both an alert _and_ a digest on the same day if a
-  saved centre is at Peak — that's intentional (different value).
+  `centre_brands`, `user_preferences`, `email_log`. Resolves emails via
+  `auth.admin.getUserById` (needs the service-role key, injected by the
+  runtime).
+- `email_log` is service-role only (RLS on, no policies).

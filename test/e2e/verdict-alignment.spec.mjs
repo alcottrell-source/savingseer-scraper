@@ -50,6 +50,20 @@ test.beforeEach(async ({ baseURL }) => {
   test.skip(!baseURL, 'PREVIEW_URL not set — pass the Vercel preview URL to the workflow');
 });
 
+test('preview is built from the audit branch (P0 security headers present)', async ({ page, baseURL }) => {
+  // Definitive guard against pointing at the wrong / un-fixed Vercel project:
+  // the CSP + X-Frame-Options headers only exist on a deploy built from the
+  // audit branch's vercel.json. If they're missing, fail loudly here rather
+  // than let the rest of the suite give a misleading pass.
+  const res = await page.request.get(baseURL + '/', { failOnStatusCode: false });
+  expect(res.status(), 'preview should respond 200').toBe(200);
+  const h = res.headers();
+  expect(h['x-frame-options'], 'X-Frame-Options header (added by the audit)').toBe('DENY');
+  expect(h['content-security-policy'], 'CSP header (added by the audit)').toBeTruthy();
+  expect(h['content-security-policy']).toContain("frame-ancestors 'none'");
+  expect(h['x-content-type-options']).toBe('nosniff');
+});
+
 test('app loads and CENTRE_SCORES populates', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' });
   await page.waitForFunction(

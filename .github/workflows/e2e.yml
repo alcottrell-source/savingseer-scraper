@@ -1,35 +1,39 @@
 name: E2E — verdict alignment (read-only)
 
-# Manual-trigger only. Runs the read-only §A/§J verification suite against a
-# Vercel PREVIEW deployment. It never authenticates and never writes to
-# Supabase, so it is safe to point at the live project.
+# Read-only §A/§J verification against the Vercel PREVIEW deploy of this
+# branch. Never authenticates, never writes to Supabase — safe against prod.
 #
-# Trigger from the Actions tab → "Run workflow" → paste the preview URL,
-# or set a repo secret PREVIEW_URL and leave the input blank.
-#
-# Playwright is installed standalone (not added to package.json/lockfile) so
-# `npm ci` keeps verifying the audited dependency set unchanged.
+# Runs automatically on push to this branch (no clicks needed) and on manual
+# dispatch. On completion it writes e2e-result.md back to the branch with a
+# [skip ci] commit (which GitHub auto-skips, so no loop) — that file is how
+# the result is read back without GitHub Actions API access.
 
 on:
+  push:
+    branches: ['claude/pre-launch-audit-7pYfk']
+    paths-ignore: ['e2e-result.md']
   workflow_dispatch:
     inputs:
       preview_url:
-        description: 'Vercel preview URL (e.g. https://tide-git-claude-pre-launch-audit-7pyfk-....vercel.app)'
+        description: 'Vercel preview URL (overrides the baked-in default)'
         required: false
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: e2e-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  DEFAULT_PREVIEW_URL: https://savingseer-scraper-git-claude-064d09-alcottrell-3311s-projects.vercel.app
+
 jobs:
   e2e:
     name: Verdict alignment
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -40,13 +44,29 @@ jobs:
           INPUT_URL: ${{ github.event.inputs.preview_url }}
           SECRET_URL: ${{ secrets.PREVIEW_URL }}
         run: |
-          URL="${INPUT_URL:-$SECRET_URL}"
-          if [ -z "$URL" ]; then
-            echo "::error::No preview URL. Pass the 'preview_url' input or set the PREVIEW_URL repo secret."
-            exit 1
-          fi
+          URL="${INPUT_URL:-${SECRET_URL:-$DEFAULT_PREVIEW_URL}}"
+          URL="${URL%/}"
           echo "preview_url=$URL" >> "$GITHUB_OUTPUT"
-          echo "Testing against: $URL"
+          echo "Target: $URL"
+
+      - name: Wait for the preview to serve the audit build
+        id: wait
+        env:
+          URL: ${{ steps.url.outputs.preview_url }}
+        run: |
+          # Poll until the deploy carrying the P0 security headers is live
+          # (handles Vercel still rebuilding after the push). Max ~6 min.
+          ok=0
+          for i in $(seq 1 36); do
+            xfo=$(curl -fsS -m 15 -D - -o /dev/null "$URL/" 2>/dev/null | tr -d '\r' | awk -F': ' 'tolower($1)=="x-frame-options"{print $2}')
+            if [ "$xfo" = "DENY" ]; then ok=1; echo "Audit build live after ${i} attempt(s)."; break; fi
+            echo "attempt $i: X-Frame-Options='$xfo' — waiting 10s"
+            sleep 10
+          done
+          echo "ready=$ok" >> "$GITHUB_OUTPUT"
+          if [ "$ok" != "1" ]; then
+            echo "::warning::Preview never served X-Frame-Options:DENY — the header test will fail and pinpoint it."
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -63,9 +83,62 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Run read-only E2E suite
+        id: e2e
+        continue-on-error: true
         env:
           PREVIEW_URL: ${{ steps.url.outputs.preview_url }}
         run: npx playwright test
+
+      - name: Build result summary
+        if: ${{ always() }}
+        env:
+          URL: ${{ steps.url.outputs.preview_url }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          let r; try { r = JSON.parse(fs.readFileSync('playwright-report/results.json','utf8')); } catch { r = null; }
+          const lines = [];
+          lines.push('# E2E result — verdict alignment (read-only)');
+          lines.push('');
+          lines.push(`- Target: ${process.env.URL}`);
+          lines.push(`- Commit: ${process.env.GITHUB_SHA}`);
+          lines.push(`- Run: ${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`);
+          lines.push('');
+          if (!r) {
+            lines.push('**No Playwright JSON report** — the run failed before tests executed (see the run log / Install steps).');
+          } else {
+            const tests = [];
+            const walk = (s) => { (s.suites||[]).forEach(walk); (s.specs||[]).forEach(sp => sp.tests.forEach(t => tests.push({ title: sp.title, status: t.results.at(-1)?.status, err: t.results.at(-1)?.error?.message }))); };
+            (r.suites||[]).forEach(walk);
+            const pass = tests.filter(t => t.status === 'passed').length;
+            const fail = tests.filter(t => t.status && t.status !== 'passed').length;
+            lines.push(`**${pass} passed, ${fail} failed** of ${tests.length}`);
+            lines.push('');
+            for (const t of tests) {
+              lines.push(`- ${t.status === 'passed' ? '✅' : '❌'} ${t.title}`);
+              if (t.status !== 'passed' && t.err) {
+                lines.push('  ```');
+                lines.push('  ' + String(t.err).split('\n').slice(0,12).join('\n  '));
+                lines.push('  ```');
+              }
+            }
+          }
+          fs.writeFileSync('e2e-result.md', lines.join('\n') + '\n');
+          NODE
+          cat e2e-result.md
+
+      - name: Commit result back to the branch
+        if: ${{ always() }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add e2e-result.md
+          if git diff --staged --quiet; then
+            echo "No change to e2e-result.md"
+          else
+            git commit -m "E2E result: verdict alignment [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
 
       - name: Upload Playwright report
         if: ${{ always() }}
@@ -77,3 +150,9 @@ jobs:
             test-results/
           retention-days: 14
           if-no-files-found: ignore
+
+      - name: Reflect test outcome
+        if: ${{ always() && steps.e2e.outcome != 'success' }}
+        run: |
+          echo "E2E suite reported failures — see e2e-result.md (committed to the branch)."
+          exit 1

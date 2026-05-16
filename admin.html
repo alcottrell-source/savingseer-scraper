@@ -184,9 +184,62 @@
     40% { transform: scale(1); opacity: 1; }
   }
 
+  /* ── User-reports (advisory signal) ───────────────────────────────── */
+  /* Third state column. Grid widened to 3 in .row-state-grid above is
+     applied via this override so Scraper / Verified / Users line up. */
+  .row-state-grid { grid-template-columns: 1fr 1fr 1fr; }
+  .state-value.users-ended { color: var(--red);   font-weight: 500; }
+  .state-value.users-diff  { color: var(--amber); font-weight: 500; }
+  .state-value.users-match { color: var(--leaf);  font-weight: 500; }
+  .state-value.users-none  { color: var(--stone); font-style: italic; }
+  .users-sub { font-size: 10px; color: var(--stone); margin-top: 1px; }
+
+  .user-dist {
+    margin: 0 0 10px; padding: 10px 12px;
+    background: var(--stone-lt); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .user-dist-title {
+    font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--stone); margin-bottom: 8px;
+  }
+  .dist-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .dist-row:last-child { margin-bottom: 0; }
+  .dist-label { font-size: 11px; color: var(--bark); width: 52px; flex-shrink: 0; }
+  .dist-track { flex: 1; height: 14px; background: white; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+  .dist-fill { height: 100%; border-radius: 7px 0 0 7px; background: var(--leaf); }
+  .dist-fill.dominant { background: var(--amber); }
+  .dist-fill.ended { background: var(--red); }
+  .dist-count { font-size: 11px; color: var(--stone); width: 18px; text-align: right; flex-shrink: 0; }
+
+  .contextual-action {
+    width: 100%; font: inherit; font-size: 12px; font-weight: 500;
+    border-radius: 8px; padding: 10px 8px; cursor: pointer;
+    border: 1px solid transparent; margin-bottom: 6px; min-height: 38px;
+  }
+  .contextual-action.ended  { background: var(--red);  color: white; }
+  .contextual-action.ended:hover  { background: #a23f30; }
+  .contextual-action.update { background: var(--amber); color: white; }
+  .contextual-action.update:hover { background: #a8661f; }
+  .contextual-action:disabled { opacity: 0.5; cursor: wait; }
+  .contextual-cap { font-size: 10px; color: var(--stone); text-align: center; margin: -2px 0 8px; }
+
+  /* ── Queue filter chips ───────────────────────────────────────────── */
+  .filter-bar { display: flex; gap: 6px; padding: 0 20px 12px; }
+  .filter-chip {
+    font: inherit; font-size: 12px; font-weight: 500;
+    border: 1px solid var(--border); background: white; color: var(--stone);
+    border-radius: 16px; padding: 5px 12px; cursor: pointer;
+    transition: background 0.12s, color 0.12s, border 0.12s;
+  }
+  .filter-chip:hover { color: var(--bark); border-color: var(--bark); }
+  .filter-chip.active { background: var(--bark); color: white; border-color: var(--bark); }
+  .filter-chip .chip-n { opacity: 0.7; margin-left: 4px; }
+  .brand-card.is-hidden { display: none; }
+
   @media (min-width: 720px) {
     .brand-list { max-width: 720px; margin: 0 auto; }
     .section-bar { max-width: 720px; margin: 0 auto; padding-left: 0; padding-right: 0; }
+    .filter-bar { max-width: 720px; margin: 0 auto; padding-left: 0; padding-right: 0; }
     header { padding-left: max(20px, calc((100vw - 720px) / 2)); padding-right: max(20px, calc((100vw - 720px) / 2)); }
   }
 </style>
@@ -227,6 +280,11 @@
   <div class="section-bar">
     <div class="section-title urgent">Needs review</div>
     <div class="count-pill urgent" id="needs-count">0</div>
+  </div>
+  <div class="filter-bar" id="filter-bar" style="display:none">
+    <button class="filter-chip active" data-filter="urgent" id="chip-urgent">Urgent<span class="chip-n" id="n-urgent">0</span></button>
+    <button class="filter-chip" data-filter="easy" id="chip-easy">Easy<span class="chip-n" id="n-easy">0</span></button>
+    <button class="filter-chip" data-filter="routine" id="chip-routine">Routine<span class="chip-n" id="n-routine">0</span></button>
   </div>
   <div class="brand-list" id="needs-list"></div>
   <div id="needs-empty" class="empty-section" style="display:none">All caught up. Nothing to review today.</div>
@@ -396,11 +454,20 @@ async function onSignedIn(session) {
 // ── Data load ──────────────────────────────────────────────────────────────
 async function loadAndRender() {
   showStatus('Loading…');
-  const [eventsRes, cyclesRes, reviewsRes] = await Promise.all([
+  const [eventsRes, cyclesRes, reviewsRes, reportsRes] = await Promise.all([
     pg.read('brand_sale_events?select=brand_id,sale_status,date_first_detected,max_discount_pct,sale_type,scraper_error,last_verified_date,last_verified_status,active_cycle_id'),
     pg.read('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct,sale_type&end_date=is.null'),
     pg.read('admin_review_log?select=brand_id,action,created_at&reviewed_date=eq.' + TODAY),
+    // Advisory user-report signal. Tolerant: if the view/migration isn't
+    // live yet this stays empty and the panel works exactly as before.
+    pg.read('user_reports_24h_summary?select=*'),
   ]);
+  if (reportsRes.error) {
+    console.warn('user_reports_24h_summary unavailable (panel still works):', reportsRes.error.message);
+  }
+  // The view is keyed by (brand_id, centre_id); the card is per-brand, so
+  // fold every centre's row for a brand into one advisory aggregate.
+  const reportsByBrand = aggregateReportsByBrand(reportsRes.data || []);
 
   if (eventsRes.error || cyclesRes.error || reviewsRes.error) {
     showStatus('Load failed: ' + (eventsRes.error || cyclesRes.error || reviewsRes.error).message, true);
@@ -430,16 +497,21 @@ async function loadAndRender() {
     if (!def) continue;  // Brand removed from brands.js but row still in DB
     const cycle = ev.active_cycle_id ? cycleById.get(ev.active_cycle_id) : null;
     const review = reviewByBrand.get(ev.brand_id);
-    const row = { ev, def, cycle, review };
+    const reports = reportsByBrand[ev.brand_id] || null;
+    const row = { ev, def, cycle, review, reports };
     if (review) {
       confirmed.push(row);
     } else {
+      row.queue = classifyQueue(row);
       needs.push(row);
     }
   }
 
-  // Within needs: scraper-disagrees first, then anchors, then alphabetical.
+  // Queue priority (spec §3.C.4): urgent → easy → routine. Within each band
+  // keep the legacy tiebreak: scraper-disagrees, then anchors, then alpha.
+  const QUEUE_RANK = { urgent: 0, easy: 1, routine: 2 };
   needs.sort((a, b) => {
+    if (QUEUE_RANK[a.queue] !== QUEUE_RANK[b.queue]) return QUEUE_RANK[a.queue] - QUEUE_RANK[b.queue];
     const aDis = scraperDisagrees(a.ev) ? 1 : 0;
     const bDis = scraperDisagrees(b.ev) ? 1 : 0;
     if (aDis !== bDis) return bDis - aDis;
@@ -448,6 +520,8 @@ async function loadAndRender() {
     if (aAnc !== bAnc) return bAnc - aAnc;
     return a.def.name.localeCompare(b.def.name);
   });
+  const queueCounts = { urgent: 0, easy: 0, routine: 0 };
+  for (const r of needs) queueCounts[r.queue]++;
 
   confirmed.sort((a, b) => new Date(b.review.created_at) - new Date(a.review.created_at));
 
@@ -470,6 +544,14 @@ async function loadAndRender() {
   $('needs-empty').style.display = needs.length ? 'none' : 'block';
   $('confirmed-empty').style.display = confirmed.length ? 'none' : 'block';
 
+  // Filter chips: only worth showing once there's a queue to slice.
+  $('n-urgent').textContent  = queueCounts.urgent;
+  $('n-easy').textContent    = queueCounts.easy;
+  $('n-routine').textContent = queueCounts.routine;
+  $('filter-bar').style.display = needs.length ? 'flex' : 'none';
+  wireFilterChips();
+  applyQueueFilter(currentQueueFilter);
+
   wireRowActions();
 }
 
@@ -482,8 +564,153 @@ function scraperDisagrees(ev) {
   return ev.sale_status !== ev.last_verified_status;
 }
 
+// ── User-reports advisory signal ──────────────────────────────────────────
+// The 24h view is keyed by (brand_id, centre_id). Cards are per-brand, so
+// fold a brand's centre rows into one aggregate (sum counts, merge the
+// discount distribution, keep the freshest timestamp).
+function aggregateReportsByBrand(rows) {
+  const out = {};
+  for (const r of rows) {
+    let a = out[r.brand_id];
+    if (!a) a = out[r.brand_id] = {
+      count_ended: 0, count_started: 0, count_confirmed: 0,
+      count_no_sale_confirmed: 0, count_discount_different: 0,
+      total_reports: 0, most_recent_at: null, discount_distribution: {},
+    };
+    a.count_ended              += +r.count_ended || 0;
+    a.count_started            += +r.count_started || 0;
+    a.count_confirmed          += +r.count_confirmed || 0;
+    a.count_no_sale_confirmed  += +r.count_no_sale_confirmed || 0;
+    a.count_discount_different += +r.count_discount_different || 0;
+    a.total_reports            += +r.total_reports || 0;
+    if (r.most_recent_at && (!a.most_recent_at || r.most_recent_at > a.most_recent_at)) {
+      a.most_recent_at = r.most_recent_at;
+    }
+    const dd = r.discount_distribution || {};
+    for (const k of Object.keys(dd)) a.discount_distribution[k] = (a.discount_distribution[k] || 0) + (+dd[k] || 0);
+  }
+  return out;
+}
+
+// The single loudest user signal for a brand. For discounts, the modal % bucket.
+function dominantSignal(rep) {
+  if (!rep || !rep.total_reports) return null;
+  let domPct = null, domPctCount = 0;
+  const dd = rep.discount_distribution || {};
+  for (const k of Object.keys(dd)) {
+    const c = +dd[k] || 0;
+    if (c > domPctCount || (c === domPctCount && Number(k) > Number(domPct))) { domPctCount = c; domPct = Number(k); }
+  }
+  const cands = [
+    { kind: 'ended',             count: rep.count_ended || 0 },
+    { kind: 'started',           count: rep.count_started || 0 },
+    { kind: 'confirmed',         count: rep.count_confirmed || 0 },
+    { kind: 'no_sale_confirmed', count: rep.count_no_sale_confirmed || 0 },
+    { kind: 'discount',          count: domPctCount, pct: domPct },
+  ];
+  cands.sort((a, b) => b.count - a.count);
+  return cands[0].count > 0 ? cands[0] : null;
+}
+
+// Queue band (spec §3.C.4). routine = no user signal (status quo);
+// urgent = users contradict the scraper, or scraper errored with any signal;
+// easy = users agree with the scraper.
+function classifyQueue({ ev, cycle, reports }) {
+  const dom = dominantSignal(reports);
+  if (!dom) return 'routine';
+  if (ev.scraper_error) return 'urgent';
+  const scraperOn = !!ev.sale_status;
+  const curPct = cycle ? cycle.max_discount_pct : ev.max_discount_pct;
+  let disagree;
+  switch (dom.kind) {
+    case 'ended':             disagree = scraperOn; break;
+    case 'no_sale_confirmed': disagree = scraperOn; break;
+    case 'started':           disagree = !scraperOn; break;
+    case 'confirmed':         disagree = !scraperOn; break;
+    case 'discount':          disagree = !scraperOn || (dom.pct != null && Number(curPct) !== Number(dom.pct)); break;
+    default:                  disagree = false;
+  }
+  return disagree ? 'urgent' : 'easy';
+}
+
+function relTime(iso) {
+  if (!iso) return '';
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.round(m / 60);
+  if (h < 24) return h + 'h ago';
+  return Math.round(h / 24) + 'd ago';
+}
+
+function renderUsersCell(reports, ev, cycle) {
+  if (!reports || !reports.total_reports) return '<span class="state-value users-none">No reports</span>';
+  const dom = dominantSignal(reports);
+  if (!dom) return '<span class="state-value users-none">No reports</span>';
+  const curPct = cycle ? cycle.max_discount_pct : ev.max_discount_pct;
+  const verifiedOn = cycle ? true : (ev.last_verified_status === true);
+  let cls = 'users-match', txt;
+  if (dom.kind === 'ended') { cls = 'users-ended'; txt = dom.count + ' say ended'; }
+  else if (dom.kind === 'discount') {
+    const match = dom.pct != null && Number(curPct) === Number(dom.pct);
+    cls = match ? 'users-match' : 'users-diff';
+    txt = dom.count + ' say ' + dom.pct + '%';
+  }
+  else if (dom.kind === 'confirmed')         { cls = verifiedOn ? 'users-match' : 'users-diff'; txt = dom.count + ' confirmed'; }
+  else if (dom.kind === 'no_sale_confirmed') { cls = !verifiedOn ? 'users-match' : 'users-diff'; txt = dom.count + ' say no sale'; }
+  else if (dom.kind === 'started')           { cls = verifiedOn ? 'users-match' : 'users-diff'; txt = dom.count + ' say on sale'; }
+  else { return '<span class="state-value users-none">No reports</span>'; }
+  const sub = reports.most_recent_at
+    ? '<div class="users-sub">most recent ' + esc(relTime(reports.most_recent_at)) + '</div>' : '';
+  return '<span class="state-value ' + cls + '">' + esc(txt) + '</span>' + sub;
+}
+
+function renderDistribution(reports) {
+  if (!reports || !reports.total_reports) return '';
+  const dd = reports.discount_distribution || {};
+  const pcts = Object.keys(dd)
+    .map(k => ({ label: k + '%', count: +dd[k] || 0, kind: 'pct', v: Number(k) }))
+    .filter(r => r.count > 0)
+    .sort((a, b) => b.count - a.count || b.v - a.v);
+  const rows = pcts.slice();
+  if ((reports.count_ended || 0) > 0) rows.push({ label: 'Ended', count: reports.count_ended, kind: 'ended' });
+  if (!rows.length) return '';
+  const max = Math.max(...rows.map(r => r.count));
+  const domPct = pcts.length ? pcts[0].v : null;
+  let html = '<div class="user-dist"><div class="user-dist-title">In-store discount reports (24h)</div>';
+  for (const r of rows) {
+    const w = Math.max(6, Math.round((r.count / max) * 100));
+    const fillCls = r.kind === 'ended' ? 'ended' : (r.v === domPct ? 'dominant' : '');
+    html += '<div class="dist-row"><div class="dist-label">' + esc(r.label) + '</div>'
+          + '<div class="dist-track"><div class="dist-fill ' + fillCls + '" style="width:' + w + '%"></div></div>'
+          + '<div class="dist-count">' + r.count + '</div></div>';
+  }
+  return html + '</div>';
+}
+
+// Pre-filled primary action when ≥2 users agree. Routes through the existing
+// confirm_end / applyEdit paths — NOT reset_brand_sale_cycle(): that RPC is
+// service_role-only (admin.html is an authenticated session) and it nulls
+// date_first_detected, which is sacred (spec §2.1). Same visible outcome.
+function renderContextualButton(reports, ev, cycle) {
+  const dom = dominantSignal(reports);
+  if (!dom || dom.count < 2) return '';
+  if (dom.kind === 'ended') {
+    return '<button class="contextual-action ended" data-action="user_mark_ended">Mark ended</button>'
+         + '<div class="contextual-cap">' + dom.count + ' users report the sale ended</div>';
+  }
+  if (dom.kind === 'discount') {
+    const curPct = cycle ? cycle.max_discount_pct : ev.max_discount_pct;
+    if (dom.pct != null && Number(curPct) !== Number(dom.pct)) {
+      return '<button class="contextual-action update" data-action="user_update_pct" data-pct="' + esc(dom.pct) + '">Update to ' + esc(dom.pct) + '%</button>'
+           + '<div class="contextual-cap">' + dom.count + ' users saw ' + esc(dom.pct) + '% in store</div>';
+    }
+  }
+  return '';
+}
+
 // ── Row renderer ──────────────────────────────────────────────────────────
-function renderRow({ ev, def, cycle, review }, isConfirmed) {
+function renderRow({ ev, def, cycle, review, reports, queue }, isConfirmed) {
   const tier = ANCHOR_BRAND_IDS.has(ev.brand_id) ? 'Anchor' : (def.cluster || '');
   const tierClass = ANCHOR_BRAND_IDS.has(ev.brand_id) ? ' anchor' : '';
 
@@ -521,8 +748,13 @@ function renderRow({ ev, def, cycle, review }, isConfirmed) {
     + (isConfirmed ? ' confirmed' : '')
     + (!isConfirmed && scraperDisagrees(ev) ? ' disagrees' : '');
 
+  const usersHtml = renderUsersCell(reports, ev, cycle);
+  const distHtml = isConfirmed ? '' : renderDistribution(reports);
+  const contextualHtml = isConfirmed ? '' : renderContextualButton(reports, ev, cycle);
+
   return '' +
     '<div class="' + cardClass + '" data-brand-id="' + esc(ev.brand_id) + '"'
+    + (queue ? ' data-queue="' + esc(queue) + '"' : '')
     + (cycle ? ' data-cycle-id="'    + esc(cycle.id)                          + '"'
              + ' data-cycle-start="' + esc(cycle.start_date)                  + '"'
              + ' data-cycle-pct="'   + esc(cycle.max_discount_pct ?? '')      + '"'
@@ -537,7 +769,10 @@ function renderRow({ ev, def, cycle, review }, isConfirmed) {
       '<div class="row-state-grid">' +
         '<div class="row-state-cell"><div class="state-label">Scraper</div>' + scraperHtml + '</div>' +
         '<div class="row-state-cell"><div class="state-label">Verified</div>' + verifiedHtml + '</div>' +
+        '<div class="row-state-cell"><div class="state-label">Users</div>' + usersHtml + '</div>' +
       '</div>' +
+      distHtml +
+      contextualHtml +
       actions +
       '<div class="inline-form-mount"></div>' +
     '</div>';
@@ -607,6 +842,42 @@ async function handleAction(card, btn) {
     openEditForm(card, brandId, def);
     return;
   }
+  // Contextual user-report buttons reuse the existing sanctioned write paths.
+  // user_mark_ended  → confirm_end (closes cycle, verified-off; never touches
+  //                     date_first_detected).
+  // user_update_pct  → applyEdit (mirrors max_discount_pct; preserves
+  //                     date_first_detected and the existing cycle dates).
+  if (action === 'user_mark_ended') {
+    setRowBusy(card, true);
+    try {
+      await applyAction(brandId, 'confirm_end', {});
+      triggerRescore();
+      toast('Sale ended · ' + def.name);
+      await loadAndRender();
+    } catch (err) {
+      showStatus('Action failed: ' + err.message, true);
+      setRowBusy(card, false);
+    }
+    return;
+  }
+  if (action === 'user_update_pct') {
+    const pct = Number(btn.dataset.pct);
+    setRowBusy(card, true);
+    try {
+      await applyEdit(brandId, card.dataset.cycleId || null, {
+        start_date: card.dataset.cycleStart || TODAY,
+        max_discount_pct: pct,
+        sale_type: card.dataset.cycleType || 'percent_off',
+      });
+      triggerRescore();
+      toast('Updated to ' + pct + '% · ' + def.name);
+      await loadAndRender();
+    } catch (err) {
+      showStatus('Action failed: ' + err.message, true);
+      setRowBusy(card, false);
+    }
+    return;
+  }
   setRowBusy(card, true);
   try {
     await applyAction(brandId, action, {});
@@ -617,6 +888,31 @@ async function handleAction(card, btn) {
     showStatus('Action failed: ' + err.message, true);
     setRowBusy(card, false);
   }
+}
+
+// ── Queue filter chips ────────────────────────────────────────────────────
+let currentQueueFilter = 'urgent';
+function wireFilterChips() {
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.onclick = () => applyQueueFilter(chip.dataset.filter);
+  });
+}
+function applyQueueFilter(filter) {
+  currentQueueFilter = filter;
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.classList.toggle('active', chip.dataset.filter === filter);
+  });
+  document.querySelectorAll('#needs-list .brand-card[data-queue]').forEach(card => {
+    card.classList.toggle('is-hidden', card.dataset.queue !== filter);
+  });
+  const visible = document.querySelectorAll('#needs-list .brand-card:not(.is-hidden)').length;
+  const empty = $('needs-empty');
+  empty.style.display = visible ? 'none' : 'block';
+  empty.textContent = visible
+    ? ''
+    : (document.querySelectorAll('#needs-list .brand-card').length
+        ? 'Nothing in "' + filter + '". Try another tab.'
+        : 'All caught up. Nothing to review today.');
 }
 
 function prettyAction(a) {

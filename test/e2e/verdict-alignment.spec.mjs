@@ -78,16 +78,23 @@ test('app loads and CENTRE_SCORES populates', async ({ page }) => {
 test('DOM discovery — dump one rendered centre to the report', async ({ page }, testInfo) => {
   await page.goto('/', { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.__tide?.CENTRE_SCORES && Object.keys(window.__tide.CENTRE_SCORES).length > 0);
-  const firstId = await page.evaluate(() => Object.keys(window.__tide.CENTRE_SCORES)[0]);
-  await page.evaluate((id) => window.renderCentre(id), firstId);
-  await page.waitForSelector('.tide-vessel-verdict-word', { timeout: 20_000 }).catch(() => {});
-  const dump = await page.evaluate(() => ({
-    centreId: Object.keys(window.__tide.CENTRE_SCORES)[0],
-    score: window.__tide.CENTRE_SCORES[Object.keys(window.__tide.CENTRE_SCORES)[0]],
-    vesselHTML: document.querySelector('.tide-vessel-verdict')?.outerHTML || '(none)',
-    chartHTML: document.querySelector('.tide60-trend')?.outerHTML || '(none)',
-    narrative: document.querySelector('.narrative-insight')?.textContent || '(none)',
-  }));
+  const dump = await page.evaluate(async () => {
+    // renderCentre() works in the app's OWN id space — the #centre-select
+    // option values ('C01'..'Cnn'). The raw Supabase centre_id that keys
+    // CENTRE_SCORES is a different space; passing it makes renderCentre
+    // throw, get caught, and restore the picker (no vessel ever paints).
+    const cid = [...document.querySelectorAll('#centre-select option')]
+      .map((o) => o.value).find(Boolean);
+    await window.renderCentre(cid); // resolves with #main-content painted
+    const idx = parseInt(cid.slice(1), 10) - 1;
+    return {
+      centreId: cid,
+      score: window.getServerScore(idx),
+      vesselHTML: document.querySelector('.tide-vessel-verdict')?.outerHTML || '(none)',
+      chartHTML: document.querySelector('.tide60-trend')?.outerHTML || '(none)',
+      narrative: document.querySelector('.narrative-insight')?.textContent || '(none)',
+    };
+  });
   await testInfo.attach('discovery.json', {
     body: JSON.stringify(dump, null, 2),
     contentType: 'application/json',
@@ -96,23 +103,35 @@ test('DOM discovery — dump one rendered centre to the report', async ({ page }
 });
 
 test('verdict alignment holds for every scored centre', async ({ page }, testInfo) => {
+  test.setTimeout(180_000); // ~30 centres × (render + snapshot)
   await page.goto('/', { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.__tide?.CENTRE_SCORES && Object.keys(window.__tide.CENTRE_SCORES).length > 0);
 
+  // Iterate the app's OWN id space — the #centre-select option values
+  // ('C01'..'Cnn'). renderCentre() parses these; CENTRE_SCORES is keyed by
+  // the unrelated Supabase centre_id, which makes renderCentre throw.
   const ids = await page.evaluate(() =>
-    Object.entries(window.__tide.CENTRE_SCORES)
-      .filter(([, s]) => s && (s.verdict != null))
-      .map(([id]) => id),
+    [...document.querySelectorAll('#centre-select option')]
+      .map((o) => o.value)
+      .filter(Boolean)
+      .filter((cid) => {
+        const idx = parseInt(cid.slice(1), 10) - 1;
+        const s = window.getServerScore(idx);
+        return s && s.verdict != null;
+      }),
   );
   expect(ids.length, 'scored centres to verify').toBeGreaterThan(0);
 
   const failures = [];
 
   for (const id of ids) {
-    await page.evaluate((cid) => window.renderCentre(cid), id);
-    await page.waitForSelector('.tide-vessel-verdict-word', { timeout: 20_000 }).catch(() => {});
-
-    const snap = await page.evaluate(() => {
+    // Render AND snapshot in one evaluate: renderCentre resolves with
+    // #main-content already painted, and reading synchronously after the
+    // await closes the window where the app's 15s loadTideData timer can
+    // reset the view back to the landing hero.
+    const snap = await page.evaluate(async (cid) => {
+      await window.renderCentre(cid);
+      const idx = parseInt(cid.slice(1), 10) - 1;
       const vEl = document.querySelector('.tide-vessel-verdict-word');
       const vWord = (vEl?.textContent || '').trim().toUpperCase().replace(/\s+/g, ' ');
       const verdictBox = document.querySelector('.tide-vessel-verdict');
@@ -127,11 +146,19 @@ test('verdict alignment holds for every scored centre', async ({ page }, testInf
       const arrow = document.querySelector('.tide60-trend-arrow')?.textContent || '';
       const chartWord = ((trendEl?.textContent || '').replace(arrow, '')).trim().toUpperCase();
       const narrative = (document.querySelector('.narrative-insight')?.textContent || '').trim();
-      return { vWord, goNow, deltaClass, chartWord, narrative };
-    });
+      return {
+        rendered: !!vEl,
+        vWord, goNow, deltaClass, chartWord, narrative,
+        serverVerdict: window.getServerScore(idx)?.verdict ?? null,
+        vesselHTML: verdictBox?.outerHTML || '(none)',
+        chartHTML: trendEl?.outerHTML || '(none)',
+      };
+    }, id);
 
-    const sv = await page.evaluate((cid) => window.__tide.CENTRE_SCORES[cid]?.verdict, id);
+    const sv = snap.serverVerdict;
     const why = [];
+
+    if (!snap.rendered) why.push('vessel did not render (no .tide-vessel-verdict-word)');
 
     // headline word must be one of the five
     if (!['QUIET', 'RISING', 'PEAK', 'EASING', 'OVER'].includes(snap.vWord)) {
@@ -167,10 +194,7 @@ test('verdict alignment holds for every scored centre', async ({ page }, testInf
     }
 
     if (why.length) {
-      const html = await page.evaluate(() => ({
-        vessel: document.querySelector('.tide-vessel-verdict')?.outerHTML || '(none)',
-        chart: document.querySelector('.tide60-trend')?.outerHTML || '(none)',
-      }));
+      const html = { vessel: snap.vesselHTML, chart: snap.chartHTML };
       failures.push({ id, serverVerdict: sv, ...snap, why, html });
       await testInfo.attach(`fail-${id}.png`, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
     }

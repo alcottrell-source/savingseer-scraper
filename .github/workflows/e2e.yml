@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 concurrency:
   group: e2e-${{ github.ref }}
@@ -79,9 +80,60 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Run read-only E2E suite
+        id: e2e
+        continue-on-error: true
         env:
           PREVIEW_URL: ${{ steps.url.outputs.preview_url }}
-        run: npx playwright test
+        run: |
+          set -o pipefail
+          npx playwright test 2>&1 | tee pw-output.txt
+
+      - name: Build failure/result summary
+        if: ${{ always() }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const out = [];
+          out.push('<!-- e2e-verdict-alignment -->');
+          out.push('### E2E — verdict alignment result');
+          out.push('');
+          out.push(`- Run: ${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`);
+          let r = null;
+          try { r = JSON.parse(fs.readFileSync('playwright-report/results.json','utf8')); } catch {}
+          if (r) {
+            const tests = [];
+            const walk = (s) => { (s.suites||[]).forEach(walk); (s.specs||[]).forEach(sp => sp.tests.forEach(t => tests.push({ title: sp.title, status: t.results.at(-1)?.status, err: t.results.at(-1)?.error?.message }))); };
+            (r.suites||[]).forEach(walk);
+            const pass = tests.filter(t => t.status === 'passed').length;
+            const fail = tests.filter(t => t.status && t.status !== 'passed').length;
+            out.push(`- **${pass} passed, ${fail} failed** of ${tests.length}`);
+            out.push('');
+            for (const t of tests) {
+              out.push(`- ${t.status === 'passed' ? '✅' : '❌'} ${t.title}`);
+              if (t.status !== 'passed' && t.err) {
+                out.push('```');
+                out.push(String(t.err).replace(/\[[0-9;]*m/g,'').split('\n').slice(0,18).join('\n'));
+                out.push('```');
+              }
+            }
+          } else {
+            out.push('- **No Playwright JSON report** — the run failed before tests executed (install/setup step). Raw tail below.');
+          }
+          let tail = '';
+          try { tail = fs.readFileSync('pw-output.txt','utf8').replace(/\[[0-9;]*m/g,'').split('\n').slice(-40).join('\n'); } catch {}
+          if (tail.trim()) { out.push(''); out.push('<details><summary>output tail</summary>'); out.push(''); out.push('```'); out.push(tail); out.push('```'); out.push('</details>'); }
+          fs.writeFileSync('pr-comment.md', out.join('\n') + '\n');
+          NODE
+          cat pr-comment.md
+
+      - name: Post result as PR comment
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR" --body-file pr-comment.md --edit-last \
+            || gh pr comment "$PR" --body-file pr-comment.md
 
       - name: Upload Playwright report
         if: ${{ always() }}
@@ -91,5 +143,12 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            pw-output.txt
           retention-days: 14
           if-no-files-found: ignore
+
+      - name: Reflect test outcome
+        if: ${{ always() && steps.e2e.outcome != 'success' }}
+        run: |
+          echo "E2E suite failed — see the PR comment for the reason."
+          exit 1

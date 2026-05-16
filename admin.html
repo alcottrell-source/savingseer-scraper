@@ -220,6 +220,8 @@
   .contextual-action.ended:hover  { background: #a23f30; }
   .contextual-action.update { background: var(--amber); color: white; }
   .contextual-action.update:hover { background: #a8661f; }
+  .contextual-action.confirm { background: var(--leaf); color: white; }
+  .contextual-action.confirm:hover { background: #2f5428; }
   .contextual-action:disabled { opacity: 0.5; cursor: wait; }
   .contextual-cap { font-size: 10px; color: var(--stone); text-align: center; margin: -2px 0 8px; }
 
@@ -614,7 +616,10 @@ function dominantSignal(rep) {
     { kind: 'discount',          count: domPctCount, pct: domPct },
   ];
   cands.sort((a, b) => b.count - a.count);
-  return cands[0].count > 0 ? cands[0] : null;
+  if (cands[0].count <= 0) return null;
+  // Carry the modal % on every result (not just kind==='discount') so the
+  // "Confirm on sale" button for sale_started can pre-fill the reported %.
+  return { ...cands[0], domPct, domPctCount };
 }
 
 // Queue band (spec §3.C.4). routine = no user signal (status quo);
@@ -710,6 +715,24 @@ function renderContextualButton(reports, ev, cycle) {
       return '<button class="contextual-action update" data-action="user_update_pct" data-pct="' + esc(dom.pct) + '">Update to ' + esc(dom.pct) + '%</button>'
            + '<div class="contextual-cap">' + dom.count + ' users saw ' + esc(dom.pct) + '% in store</div>';
     }
+  }
+  // Users say a not-on-sale brand IS on sale — pre-fill the reported %
+  // (modal of all discount reports for this brand) into confirm_start.
+  if (dom.kind === 'started') {
+    const p = dom.domPct;
+    const pctLabel = p != null ? ' · ' + esc(p) + '%' : '';
+    return '<button class="contextual-action update" data-action="user_confirm_started" data-pct="' + (p != null ? esc(p) : '') + '">Confirm on sale' + pctLabel + '</button>'
+         + '<div class="contextual-cap">' + dom.count + ' users report a sale here</div>';
+  }
+  // Users affirm the current state — one-tap re-confirm via the existing
+  // generic confirm_on / confirm_off verbs (no new handler needed).
+  if (dom.kind === 'confirmed' && (cycle || ev.sale_status || ev.last_verified_status === true)) {
+    return '<button class="contextual-action confirm" data-action="confirm_on">Confirm still on</button>'
+         + '<div class="contextual-cap">' + dom.count + ' users confirm the sale</div>';
+  }
+  if (dom.kind === 'no_sale_confirmed' && !cycle) {
+    return '<button class="contextual-action confirm" data-action="confirm_off">Confirm no sale</button>'
+         + '<div class="contextual-cap">' + dom.count + ' users confirm no sale</div>';
   }
   return '';
 }
@@ -876,6 +899,27 @@ async function handleAction(card, btn) {
       });
       triggerRescore();
       toast('Updated to ' + pct + '% · ' + def.name);
+      await loadAndRender();
+    } catch (err) {
+      showStatus('Action failed: ' + err.message, true);
+      setRowBusy(card, false);
+    }
+    return;
+  }
+  // user_confirm_started → confirm_start with the user-reported % pre-filled
+  // (opens a cycle starting today; logs confirmed_start; does NOT write
+  // date_first_detected). Same path as the inline form, one-tap.
+  if (action === 'user_confirm_started') {
+    const pct = btn.dataset.pct ? Number(btn.dataset.pct) : null;
+    setRowBusy(card, true);
+    try {
+      await applyAction(brandId, 'confirm_start', {
+        start_date: TODAY,
+        max_discount_pct: pct,
+        sale_type: 'percent_off',
+      });
+      triggerRescore();
+      toast('Confirmed on sale' + (pct != null ? ' at ' + pct + '%' : '') + ' · ' + def.name);
       await loadAndRender();
     } catch (err) {
       showStatus('Action failed: ' + err.message, true);

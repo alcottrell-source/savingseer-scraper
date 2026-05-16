@@ -112,7 +112,7 @@ jobs:
               out.push(`- ${t.status === 'passed' ? '✅' : '❌'} ${t.title}`);
               if (t.status !== 'passed' && t.err) {
                 out.push('```');
-                out.push(String(t.err).replace(/\[[0-9;]*m/g,'').split('\n').slice(0,18).join('\n'));
+                out.push(String(t.err).replace(/\x1b\[[0-9;]*m/g,'').split('\n').slice(0,18).join('\n'));
                 out.push('```');
               }
             }
@@ -120,7 +120,7 @@ jobs:
             out.push('- **No Playwright JSON report** — the run failed before tests executed (install/setup step). Raw tail below.');
           }
           let tail = '';
-          try { tail = fs.readFileSync('pw-output.txt','utf8').replace(/\[[0-9;]*m/g,'').split('\n').slice(-40).join('\n'); } catch {}
+          try { tail = fs.readFileSync('pw-output.txt','utf8').replace(/\x1b\[[0-9;]*m/g,'').split('\n').slice(-40).join('\n'); } catch {}
           if (tail.trim()) { out.push(''); out.push('<details><summary>output tail</summary>'); out.push(''); out.push('```'); out.push(tail); out.push('```'); out.push('</details>'); }
           fs.writeFileSync('pr-comment.md', out.join('\n') + '\n');
           NODE

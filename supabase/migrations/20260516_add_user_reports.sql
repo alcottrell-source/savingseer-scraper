@@ -49,9 +49,12 @@ CREATE INDEX IF NOT EXISTS user_reports_brand_centre_created_idx
 CREATE INDEX IF NOT EXISTS user_reports_created_idx
   ON public.user_reports (created_at DESC);
 
--- One report per user per brand per centre per day (prevents spam / skew).
+-- One report per user per brand per centre per UTC day (prevents spam / skew).
+-- date_trunc on a bare timestamptz is only STABLE (session-tz dependent) and
+-- Postgres rejects it in an index expression; pinning to UTC makes it
+-- IMMUTABLE and deterministic (the app already works in UTC).
 CREATE UNIQUE INDEX IF NOT EXISTS user_reports_dedupe_24h_idx
-  ON public.user_reports (user_id, brand_id, centre_id, (date_trunc('day', created_at)));
+  ON public.user_reports (user_id, brand_id, centre_id, (date_trunc('day', created_at AT TIME ZONE 'UTC')));
 
 ALTER TABLE public.user_reports ENABLE ROW LEVEL SECURITY;
 

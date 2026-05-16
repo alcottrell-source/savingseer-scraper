@@ -2775,11 +2775,11 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
   if (aiUsable) {
     narrative = escapeHtml(aiNarrative);
   } else if (onSaleCount === 0) {
-    narrative = 'No brands on sale at this centre today. Check back — the score updates every morning at 07:00.';
+    narrative = 'No brands on sale at this centre today. Check back — the score updates every morning.';
   } else if (fresh) {
-    narrative = 'Stocks are fullest in the first 5 days of a sale — '
-      + '<strong>' + escapeHtml(fresh.name) + ' started '
-      + (fresh.days <= 1 ? 'today' : (fresh.days + ' days ago')) + '</strong>.';
+    narrative = 'Stocks are fullest in the opening days of a sale — '
+      + '<strong>' + escapeHtml(fresh.name)
+      + (fresh.days <= 1 ? ' started today' : ' started recently') + '</strong>.';
   } else {
     // onSaleCount > 0 from the server but local `onSale` is empty —
     // every brand at the centre has decayed past the freshness window.

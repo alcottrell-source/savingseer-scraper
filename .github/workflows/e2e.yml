@@ -51,7 +51,7 @@ jobs:
       - name: Wait for the preview to serve the audit build
         env:
           URL: ${{ steps.url.outputs.preview_url }}
-          VERCEL_BYPASS: ${{ secrets.VERCEL_BYPASS || 'fzQeccpHIw6DEQ9lntS6LaadCf5TTKII' }}
+          VERCEL_BYPASS: ${{ secrets.VERCEL_BYPASS }}
         run: |
           # Poll until the deploy carrying the P0 security headers is live
           # (handles Vercel still rebuilding). Max ~6 min. The bypass header
@@ -87,7 +87,7 @@ jobs:
         continue-on-error: true
         env:
           PREVIEW_URL: ${{ steps.url.outputs.preview_url }}
-          VERCEL_BYPASS: ${{ secrets.VERCEL_BYPASS || 'fzQeccpHIw6DEQ9lntS6LaadCf5TTKII' }}
+          VERCEL_BYPASS: ${{ secrets.VERCEL_BYPASS }}
         run: |
           set -o pipefail
           npx playwright test 2>&1 | tee pw-output.txt

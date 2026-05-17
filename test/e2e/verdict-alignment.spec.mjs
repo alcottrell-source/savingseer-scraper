@@ -46,8 +46,24 @@ function expectedWord(serverVerdict) {
   return null; // unknown / null verdict → derived from stage; skip soft check
 }
 
-test.beforeEach(async ({ baseURL }) => {
+test.beforeEach(async ({ page, baseURL }) => {
   test.skip(!baseURL, 'PREVIEW_URL not set — pass the Vercel preview URL to the workflow');
+  const token = process.env.VERCEL_BYPASS;
+  if (token) {
+    // Prime the Vercel Deployment-Protection bypass COOKIE with ONE
+    // same-origin request. The cookie lands in the shared context jar so
+    // every later request to the preview origin bypasses — while NO
+    // x-vercel-* header is ever attached to cross-origin (Supabase /
+    // fonts) requests, which would otherwise become non-simple CORS
+    // requests whose preflight those origins reject (breaking data load).
+    await page.request.get(baseURL + '/', {
+      headers: {
+        'x-vercel-protection-bypass': token,
+        'x-vercel-set-bypass-cookie': 'true',
+      },
+      failOnStatusCode: false,
+    });
+  }
 });
 
 test('preview is built from the audit branch (P0 security headers present)', async ({ page, baseURL }) => {

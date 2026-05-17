@@ -1,0 +1,158 @@
+name: E2E — verdict alignment (read-only)
+
+# Read-only §A/§J verification against the Vercel PREVIEW deploy of the audit
+# branch. Never authenticates, never writes to Supabase — safe against prod.
+#
+# Runs on any PR into main (so the result is a visible, API-readable PR check)
+# and on manual dispatch. The job exit code IS the signal: green check = §A/§J
+# pass; red check + uploaded Playwright artifact = the failure detail.
+
+on:
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: 'Vercel preview URL (overrides the baked-in default)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEFAULT_PREVIEW_URL: https://savingseer-scraper-git-claude-064d09-alcottrell-3311s-projects.vercel.app
+
+jobs:
+  e2e:
+    name: Verdict alignment
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve preview URL
+        id: url
+        env:
+          INPUT_URL: ${{ github.event.inputs.preview_url }}
+          SECRET_URL: ${{ secrets.PREVIEW_URL }}
+        run: |
+          URL="${INPUT_URL:-${SECRET_URL:-$DEFAULT_PREVIEW_URL}}"
+          URL="${URL%/}"
+          echo "preview_url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Target: $URL"
+
+      - name: Wait for the preview to serve the audit build
+        env:
+          URL: ${{ steps.url.outputs.preview_url }}
+          VERCEL_BYPASS: ${{ secrets.VERCEL_BYPASS }}
+        run: |
+          # Poll until the deploy carrying the P0 security headers is live
+          # (handles Vercel still rebuilding). Max ~6 min. The bypass header
+          # gets past Vercel Deployment Protection (preview returns 401 to
+          # anonymous requests otherwise).
+          ok=0
+          for i in $(seq 1 36); do
+            xfo=$(curl -fsS -m 15 -D - -o /dev/null -H "x-vercel-protection-bypass: ${VERCEL_BYPASS}" "$URL/" 2>/dev/null | tr -d '\r' | awk -F': ' 'tolower($1)=="x-frame-options"{print $2}')
+            if [ "$xfo" = "DENY" ]; then ok=1; echo "Audit build live after ${i} attempt(s)."; break; fi
+            echo "attempt $i: X-Frame-Options='$xfo' — waiting 10s"
+            sleep 10
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::warning::Preview never served X-Frame-Options:DENY — the header test will fail and pinpoint it."
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (standalone) + Chromium
+        run: |
+          npm i --no-save @playwright/test@latest
+          npx playwright install --with-deps chromium
+
+      - name: Run read-only E2E suite
+        id: e2e
+        continue-on-error: true
+        env:
+          PREVIEW_URL: ${{ steps.url.outputs.preview_url }}
+          VERCEL_BYPASS: ${{ secrets.VERCEL_BYPASS }}
+        run: |
+          set -o pipefail
+          npx playwright test 2>&1 | tee pw-output.txt
+
+      - name: Build failure/result summary
+        if: ${{ always() }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const out = [];
+          out.push('<!-- e2e-verdict-alignment -->');
+          out.push('### E2E — verdict alignment result');
+          out.push('');
+          out.push(`- Run: ${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`);
+          let r = null;
+          try { r = JSON.parse(fs.readFileSync('playwright-report/results.json','utf8')); } catch {}
+          if (r) {
+            const tests = [];
+            const walk = (s) => { (s.suites||[]).forEach(walk); (s.specs||[]).forEach(sp => sp.tests.forEach(t => tests.push({ title: sp.title, status: t.results.at(-1)?.status, err: t.results.at(-1)?.error?.message }))); };
+            (r.suites||[]).forEach(walk);
+            const pass = tests.filter(t => t.status === 'passed').length;
+            const fail = tests.filter(t => t.status && t.status !== 'passed').length;
+            out.push(`- **${pass} passed, ${fail} failed** of ${tests.length}`);
+            out.push('');
+            for (const t of tests) {
+              out.push(`- ${t.status === 'passed' ? '✅' : '❌'} ${t.title}`);
+              if (t.status !== 'passed' && t.err) {
+                out.push('```');
+                out.push(String(t.err).replace(/\x1b\[[0-9;]*m/g,'').split('\n').slice(0,18).join('\n'));
+                out.push('```');
+              }
+            }
+          } else {
+            out.push('- **No Playwright JSON report** — the run failed before tests executed (install/setup step). Raw tail below.');
+          }
+          let tail = '';
+          try { tail = fs.readFileSync('pw-output.txt','utf8').replace(/\x1b\[[0-9;]*m/g,'').split('\n').slice(-40).join('\n'); } catch {}
+          if (tail.trim()) { out.push(''); out.push('<details><summary>output tail</summary>'); out.push(''); out.push('```'); out.push(tail); out.push('```'); out.push('</details>'); }
+          fs.writeFileSync('pr-comment.md', out.join('\n') + '\n');
+          NODE
+          cat pr-comment.md
+
+      - name: Post result as PR comment
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR" --body-file pr-comment.md --edit-last \
+            || gh pr comment "$PR" --body-file pr-comment.md
+
+      - name: Upload Playwright report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+            pw-output.txt
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Reflect test outcome
+        if: ${{ always() && steps.e2e.outcome != 'success' }}
+        run: |
+          echo "E2E suite failed — see the PR comment for the reason."
+          exit 1

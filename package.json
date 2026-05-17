@@ -10,7 +10,8 @@
     "scrape": "node scraper.js",
     "score": "node score.js",
     "summarise": "node summarise.js",
-    "run-all": "node scraper.js && node score.js && node summarise.js"
+    "run-all": "node scraper.js && node score.js && node summarise.js",
+    "test": "node --test"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",

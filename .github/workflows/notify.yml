@@ -10,9 +10,12 @@ name: Notification emails
 # it (see the function README) so the digest doesn't also fire daily.
 
 on:
-  schedule:
-    - cron: '0 7 * * *'    # daily — peak + brand-sale alerts
-    - cron: '0 19 * * 5'   # Friday 19:00 UTC — weekend digest
+  # SAFETY HOLD: automatic schedules are disabled until the updated
+  # notify-high-tide function is deployed to Supabase. Re-enable by
+  # uncommenting the two cron lines below.
+  # schedule:
+  #   - cron: '0 7 * * *'    # daily — peak + brand-sale alerts
+  #   - cron: '0 19 * * 5'   # Friday 19:00 UTC — weekend digest
   workflow_dispatch:
     inputs:
       mode:

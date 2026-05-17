@@ -380,6 +380,21 @@ Deno.serve(async (req: Request) => {
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return new Response("Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY", { status: 500 });
   }
+
+  // Application-level auth. The platform JWT gate is satisfied by the
+  // publicly-embedded anon key, so without this check anyone could POST {}
+  // and blast an email to the entire user base. Require the caller to
+  // present the service-role key as the Bearer token (the in-repo notify
+  // workflow already does), or an explicit NOTIFY_TRIGGER_SECRET if set.
+  const TRIGGER_SECRET = Deno.env.get("NOTIFY_TRIGGER_SECRET");
+  const authHeader = req.headers.get("Authorization") || "";
+  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+  const authorized =
+    (bearer && bearer === SERVICE_KEY) ||
+    (TRIGGER_SECRET && req.headers.get("x-notify-secret") === TRIGGER_SECRET);
+  if (!authorized) {
+    return new Response("Unauthorized", { status: 401 });
+  }
   if (!dryRun && !RESEND_KEY) {
     return new Response("Missing RESEND_API_KEY (use dryRun:true to test without sending)", { status: 500 });
   }

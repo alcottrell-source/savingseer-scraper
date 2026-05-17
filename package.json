@@ -11,7 +11,8 @@
     "score": "node score.js",
     "summarise": "node summarise.js",
     "run-all": "node scraper.js && node score.js && node summarise.js",
-    "test": "node --test"
+    "test": "node --test test/*.test.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",

@@ -150,7 +150,22 @@ async function runCheerioCrawler() {
     },
   });
 
-  await crawler.run(staticBrands.map(b => ({ url: b.url })));
+  try {
+    await crawler.run(staticBrands.map(b => ({ url: b.url })));
+  } catch (err) {
+    console.error('  ✗ Cheerio crawler crashed:', err);
+    // A crawler-level crash (not a per-request failure — those are handled
+    // by failedRequestHandler) would otherwise leave every un-visited
+    // static brand pre-seeded as {error:false, saleStatus:false}, which
+    // writeToSupabase would persist as a confident "no sale". Flag them as
+    // errors instead so existing DB status is preserved.
+    for (const brand of staticBrands) {
+      const r = results.get(brand.id);
+      if (r && !r.error && !r.saleStatus && r.maxDiscountPct === null) {
+        results.set(brand.id, { saleStatus: false, maxDiscountPct: null, error: true });
+      }
+    }
+  }
 }
 
 // ── PASS 2: PLAYWRIGHT ──────────────────────────────────────────
@@ -233,6 +248,7 @@ async function writeToSupabase() {
   let errors = 0;
 
   for (const [brandId, result] of results) {
+   try {
     const brand = brands.find(b => b.id === brandId);
     if (brand?.manualCheck) continue;
 
@@ -310,6 +326,12 @@ async function writeToSupabase() {
     } else {
       updated++;
     }
+   } catch (e) {
+    // One brand's write throwing (network reset mid-loop, RPC throwing)
+    // must not abort the remaining brands and leave a partial DB state.
+    console.error(`  ✗ Unhandled write error for ${brandId}:`, e);
+    errors++;
+   }
   }
 
   console.log(`\n  Written: ${updated} brands | Errors: ${errors}`);
@@ -342,8 +364,15 @@ async function main() {
   try {
     await runCheerioCrawler();
     await runPlaywrightCrawler();
-    await writeToSupabase();
+    const { updated, errors } = await writeToSupabase();
     printSummary();
+    if (updated === 0 && errors > 0) {
+      // Every brand errored — a total scrape failure. Exit non-zero so the
+      // GitHub Action goes red instead of reporting a green "✅ complete"
+      // over zero useful writes.
+      console.error(`❌ Scraper wrote 0 brands with ${errors} errors — failing the run.`);
+      process.exit(1);
+    }
     console.log('✅ Scraper complete');
   } catch (err) {
     console.error('❌ Scraper failed:', err);

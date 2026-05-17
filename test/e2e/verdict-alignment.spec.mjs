@@ -65,19 +65,25 @@ test('preview is built from the audit branch (P0 security headers present)', asy
 });
 
 test('app loads and CENTRE_SCORES populates', async ({ page }) => {
-  await page.goto('/', { waitUntil: 'networkidle' });
+  test.setTimeout(120_000); // cold preview + Supabase first-load headroom
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
     () => window.__tide?.CENTRE_SCORES && Object.keys(window.__tide.CENTRE_SCORES).length > 0,
     null,
-    { timeout: 30_000 },
+    { timeout: 90_000 },
   );
   const n = await page.evaluate(() => Object.keys(window.__tide.CENTRE_SCORES).length);
   expect(n, 'at least one scored centre should load from Supabase').toBeGreaterThan(0);
 });
 
 test('DOM discovery — dump one rendered centre to the report', async ({ page }, testInfo) => {
-  await page.goto('/', { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => window.__tide?.CENTRE_SCORES && Object.keys(window.__tide.CENTRE_SCORES).length > 0);
+  test.setTimeout(120_000); // cold preview + Supabase first-load headroom
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(
+    () => window.__tide?.CENTRE_SCORES && Object.keys(window.__tide.CENTRE_SCORES).length > 0,
+    null,
+    { timeout: 90_000 },
+  );
   const dump = await page.evaluate(async () => {
     // renderCentre() works in the app's OWN id space — the #centre-select
     // option values ('C01'..'Cnn'). The raw Supabase centre_id that keys
@@ -104,8 +110,12 @@ test('DOM discovery — dump one rendered centre to the report', async ({ page }
 
 test('verdict alignment holds for every scored centre', async ({ page }, testInfo) => {
   test.setTimeout(180_000); // ~30 centres × (render + snapshot)
-  await page.goto('/', { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => window.__tide?.CENTRE_SCORES && Object.keys(window.__tide.CENTRE_SCORES).length > 0);
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(
+    () => window.__tide?.CENTRE_SCORES && Object.keys(window.__tide.CENTRE_SCORES).length > 0,
+    null,
+    { timeout: 90_000 },
+  );
 
   // Iterate the app's OWN id space — the #centre-select option values
   // ('C01'..'Cnn'). renderCentre() parses these; CENTRE_SCORES is keyed by

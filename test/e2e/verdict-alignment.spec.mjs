@@ -64,14 +64,43 @@ test('preview is built from the audit branch (P0 security headers present)', asy
   expect(h['x-content-type-options']).toBe('nosniff');
 });
 
-test('app loads and CENTRE_SCORES populates', async ({ page }) => {
+test('app loads and CENTRE_SCORES populates', async ({ page }, testInfo) => {
   test.setTimeout(120_000); // cold preview + Supabase first-load headroom
+  const consoleErrs = [];
+  page.on('console', (m) => { if (m.type() === 'error') consoleErrs.push(m.text()); });
+  page.on('pageerror', (e) => consoleErrs.push('pageerror: ' + e.message));
+  const supaResponses = [];
+  page.on('response', (r) => {
+    const u = r.url();
+    if (/supabase\.co|\/rest\/v1\//.test(u)) supaResponses.push(r.status() + ' ' + u.slice(0, 140));
+  });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(
-    () => window.__tide?.CENTRE_SCORES && Object.keys(window.__tide.CENTRE_SCORES).length > 0,
-    null,
-    { timeout: 90_000 },
-  );
+  try {
+    await page.waitForFunction(
+      () => window.__tide?.CENTRE_SCORES && Object.keys(window.__tide.CENTRE_SCORES).length > 0,
+      null,
+      { timeout: 45_000 },
+    );
+  } catch (_e) {
+    const diag = await page.evaluate(() => ({
+      href: location.href,
+      title: document.title,
+      typeofTide: typeof window.__tide,
+      typeofCentreScores: typeof (window.__tide && window.__tide.CENTRE_SCORES),
+      scoreKeyCount: (window.__tide && window.__tide.CENTRE_SCORES)
+        ? Object.keys(window.__tide.CENTRE_SCORES).length : -1,
+      hasRenderCentre: typeof window.renderCentre,
+      bodyText: (document.body && document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 400),
+      htmlStart: document.documentElement.outerHTML.slice(0, 500),
+    })).catch((err) => ({ evalError: String(err) }));
+    diag.consoleErrors = consoleErrs.slice(0, 12);
+    diag.supabaseResponses = supaResponses.slice(0, 12);
+    await testInfo.attach('boot-diagnostics.json', {
+      body: JSON.stringify(diag, null, 2),
+      contentType: 'application/json',
+    });
+    throw new Error('CENTRE_SCORES never populated — boot diagnostics:\n' + JSON.stringify(diag, null, 2));
+  }
   const n = await page.evaluate(() => Object.keys(window.__tide.CENTRE_SCORES).length);
   expect(n, 'at least one scored centre should load from Supabase').toBeGreaterThan(0);
 });

@@ -1,18 +1,35 @@
 # notify-high-tide
 
-Daily email job. Two passes per run:
+Email job with three passes, gated by the POST body so one function serves
+two schedules:
 
 1. **Peak alerts** — for each centre at "Peak" today (verdict `Peak`; legacy
    `Go now` still matches), email every user who has saved that centre. The
    "top 3 brands on sale" list is filtered to the user's preferences (gender
    + style cluster) when they have any set.
-2. **Daily digest** — for each user with saved centres, list each saved
+2. **Brand-sale alerts** — for each brand whose sale cycle starts today,
+   email users who follow that brand (`brand_ids`, or legacy gender/cluster
+   match) and have `brand_sale_alerts` on, unless the brand is in their
+   `excluded_brand_ids`. The "started today" signal is true for exactly one
+   day, so each follower gets one email per brand per cycle — no separate
+   sent-state table needed.
+3. **Weekend digest** — for each user with saved centres, list each saved
    centre's stage. Only sent when at least one of their saved centres is at
    Rising or above.
 
-Trigger: cron, daily at 07:00 UTC (matches the existing scoring run at
-`0 8 * * *` in the GitHub Actions workflow — set the cron _after_ the
-scorer so today's `centre_seer_scores` row exists by the time we read it).
+### Invocation modes (POST body)
+
+| Body | Passes run | Schedule |
+|---|---|---|
+| `{}` | 1 + 2 (peak + brand-sale) | daily 07:00 UTC |
+| `{"digestOnly":true}` | 3 (weekend digest) | Friday 19:00 UTC |
+| add `"dryRun":true` | preview only, nothing sent | — |
+
+Trigger: GitHub Actions — see `.github/workflows/notify.yml` (two crons:
+`0 7 * * *` daily, `0 19 * * 5` Friday 19:00 UTC). It derives the function
+URL from the `SUPABASE_URL` secret and authenticates with
+`SUPABASE_SERVICE_KEY`. The daily run must land _after_ the scorer so
+today's `centre_seer_scores` row exists.
 
 ---
 
@@ -87,32 +104,46 @@ supabase functions deploy notify-high-tide
 
 ### 6. Schedule it
 
-In the Supabase SQL editor:
+Scheduling is handled in-repo by `.github/workflows/notify.yml` — no manual
+step is required once the function is deployed and the repo has the
+`SUPABASE_URL` / `SUPABASE_SERVICE_KEY` secrets (already used by
+`daily-scrape.yml`).
+
+**If an older pg_cron job exists**, unschedule it so the digest doesn't fire
+daily on the wrong schedule:
 
 ```sql
--- Enable pg_cron + pg_net once if not already
+select cron.unschedule('notify-high-tide-daily');
+```
+
+<details>
+<summary>pg_cron alternative (if you don't want GitHub Actions to schedule it)</summary>
+
+```sql
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- Schedule the function to run daily at 07:00 UTC.
--- Replace <PROJECT_REF> and <SERVICE_ROLE_KEY> with your real values.
-select cron.schedule(
-  'notify-high-tide-daily',
-  '0 7 * * *',
-  $$
+-- Daily 07:00 UTC — peak + brand-sale alerts.
+select cron.schedule('notify-daily', '0 7 * * *', $$
   select net.http_post(
     url     := 'https://<PROJECT_REF>.functions.supabase.co/notify-high-tide',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer <SERVICE_ROLE_KEY>'
-    ),
-    body    := '{}'::jsonb
-  );
-  $$
-);
+    headers := jsonb_build_object('Content-Type','application/json',
+                                  'Authorization','Bearer <SERVICE_ROLE_KEY>'),
+    body    := '{}'::jsonb);
+$$);
+
+-- Friday 19:00 UTC — weekend digest.
+select cron.schedule('notify-digest', '0 19 * * 5', $$
+  select net.http_post(
+    url     := 'https://<PROJECT_REF>.functions.supabase.co/notify-high-tide',
+    headers := jsonb_build_object('Content-Type','application/json',
+                                  'Authorization','Bearer <SERVICE_ROLE_KEY>'),
+    body    := '{"digestOnly":true}'::jsonb);
+$$);
 ```
 
-To cancel later: `select cron.unschedule('notify-high-tide-daily');`
+If you use this, disable `.github/workflows/notify.yml` to avoid double-sends.
+</details>
 
 ---
 
@@ -121,11 +152,21 @@ To cancel later: `select cron.unschedule('notify-high-tide-daily');`
 Dry-run (no emails actually sent — returns the would-be send list):
 
 ```bash
+# Daily mode — peak + brand-sale passes
 curl -X POST 'https://vrezzwadwzrmumjpdgge.functions.supabase.co/notify-high-tide' \
   -H 'Authorization: Bearer <SERVICE_ROLE_KEY>' \
   -H 'Content-Type: application/json' \
   -d '{"dryRun": true}'
+
+# Friday digest mode
+curl -X POST 'https://vrezzwadwzrmumjpdgge.functions.supabase.co/notify-high-tide' \
+  -H 'Authorization: Bearer <SERVICE_ROLE_KEY>' \
+  -H 'Content-Type: application/json' \
+  -d '{"dryRun": true, "digestOnly": true}'
 ```
+
+The JSON response includes `mode`, `alertsSent`, `brandAlertsSent`,
+`digestsSent`, `brandsStartedToday`, and a per-recipient `log`.
 
 Real send to one test address: sign yourself up via the web app, save a
 centre that's currently at Rising or Peak, and invoke the function with no
@@ -144,5 +185,8 @@ centre that's currently at Rising or Peak, and invoke the function with no
   that function when verdict copy changes.
 - "Top 3 brands" is sorted by days-on-sale ascending (newest sales first),
   the same way the dashboard sorts on-sale chips.
-- A user can receive both an alert _and_ a digest on the same day if a
-  saved centre is at Peak — that's intentional (different value).
+- Brand-sale "started today" = the active cycle's `start_date` is today
+  (admin-verified cycles) or `date_first_detected` is today (scraper-only
+  rows). True for one day only, so it self-dedupes.
+- On Fridays a user may receive a peak/brand alert (07:00) _and_ the digest
+  (19:00) — intentional, they carry different value.

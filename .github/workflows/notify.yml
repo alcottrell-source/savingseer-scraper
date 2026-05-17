@@ -1,0 +1,71 @@
+name: Notification emails
+
+# Invokes the notify-high-tide Supabase Edge Function on two schedules:
+#
+#   • Daily 07:00 UTC  → POST {}                  (peak alerts + brand-sale alerts)
+#   • Friday 19:00 UTC → POST {"digestOnly":true} (weekend digest)
+#
+# This is the authoritative, in-repo scheduler. If an older
+# `notify-high-tide-daily` pg_cron job still exists in Supabase, unschedule
+# it (see the function README) so the digest doesn't also fire daily.
+
+on:
+  schedule:
+    - cron: '0 7 * * *'    # daily — peak + brand-sale alerts
+    - cron: '0 19 * * 5'   # Friday 19:00 UTC — weekend digest
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Invocation mode'
+        required: true
+        default: 'daily'
+        type: choice
+        options: [daily, digestOnly]
+      dry_run:
+        description: 'Preview without sending'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  notify:
+    name: Invoke notify-high-tide
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: POST to the edge function
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          INPUT_MODE: ${{ github.event.inputs.mode }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          # https://<ref>.supabase.co  ->  https://<ref>.functions.supabase.co
+          FN_URL="${SUPABASE_URL%/}"
+          FN_URL="${FN_URL/.supabase.co/.functions.supabase.co}/notify-high-tide"
+
+          # Friday-evening schedule (or manual digestOnly) → digest pass only.
+          if [ "$EVENT_SCHEDULE" = "0 19 * * 5" ] || [ "$INPUT_MODE" = "digestOnly" ]; then
+            DIGEST_ONLY=true
+          else
+            DIGEST_ONLY=false
+          fi
+          DRY_RUN="${INPUT_DRY_RUN:-false}"
+
+          BODY=$(printf '{"digestOnly":%s,"dryRun":%s}' "$DIGEST_ONLY" "$DRY_RUN")
+          echo "Target: $FN_URL"
+          echo "Body:   $BODY"
+
+          HTTP_CODE=$(curl -sS -o response.json -w '%{http_code}' \
+            -X POST "$FN_URL" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H 'Content-Type: application/json' \
+            -d "$BODY")
+
+          echo "HTTP $HTTP_CODE"
+          cat response.json || true
+          echo
+          [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]

@@ -75,8 +75,16 @@ Don't switch the model to `gemini-2.5-flash-lite`: its free-tier daily cap is 20
 
 Required env var on the GitHub Action's `score` job: `GEMINI_API_KEY` (repo secret).
 
-## Peak alert (May 2026)
-Daily Supabase Edge function `notify-high-tide` emails users when a saved centre hits **Peak** (verdict `Peak`). Two passes: peak alerts + an optional daily digest. UI toggle: "Alert me when a centre hits peak sale" in the account panel. Internally still files under `email_alerts` in `user_preferences`. Don't rename the column — just the human-readable copy.
+## Notification emails (May 2026)
+Supabase Edge function `notify-high-tide` runs three passes, gated by the POST body so one function serves two schedules. Scheduled in-repo by `.github/workflows/notify.yml` (NOT pg_cron — unschedule any old `notify-high-tide-daily` job to avoid a daily digest).
+
+| Pass | Trigger | Schedule (body) | Gating column |
+|---|---|---|---|
+| Peak alert | a saved centre hits **Peak** (verdict `Peak`) | daily 07:00 UTC, `{}` | `email_alerts` |
+| Brand-sale alert | a followed brand's sale cycle **starts today** | daily 07:00 UTC, `{}` | `brand_sale_alerts` (+ respects `excluded_brand_ids`) |
+| Weekend digest | ≥1 saved centre at Rising or above | **Friday 19:00 UTC**, `{"digestOnly":true}` | `daily_digest` |
+
+UI toggles in the account panel map to these three columns. Don't rename the columns — only the human-readable copy. The digest is **weekly (Friday)**, not daily — the email copy hard-codes "Friday" and that is now correct. Brand-sale "started today" = active cycle `start_date == today` or `date_first_detected == today`; true for one day only, so it self-dedupes (no sent-state table). `digestOnly` runs pass 3 only; the default daily call runs passes 1+2 and skips the digest.
 
 ## Database
 Supabase project: `vrezzwadwzrmumjpdgge.supabase.co`

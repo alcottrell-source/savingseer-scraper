@@ -634,31 +634,46 @@
   .hours-time-left { font-size: 12px; font-weight: 500; color: var(--amber); letter-spacing: 0.02em; flex-shrink: 0; }
   .hours-time-left.closed { color: var(--stone); }
 
-  /* ── User reporting (inline CTA + bottom sheet) ──────────────────── */
-  .brand-chip-wrap { position: relative; display: flex; align-items: stretch; gap: 6px; }
-  .brand-chip-wrap > .brand-chip { flex: 1 1 auto; min-width: 0; }
-  /* Always-visible, labelled contribution control — replaces the old
-     hover-only ⋯ kebab. Discoverability is the whole point: this is how
-     users keep the data honest, so it must read as tappable at a glance. */
-  .report-cta {
-    flex: 0 0 auto; align-self: center;
-    display: flex; align-items: center; gap: 5px;
-    background: white; border: 1px solid var(--border); border-radius: 999px;
-    padding: 7px 12px 7px 10px; cursor: pointer; font: inherit;
-    font-size: 12px; font-weight: 600; color: var(--stone);
-    white-space: nowrap;
-    transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.1s;
+  /* ── User reporting (swipe-to-flip + bottom sheet) ───────────────────
+     Option C "native swipe": the card stays pristine; swiping it left
+     (touch or mouse drag) reveals a single action button behind it,
+     Gmail/iOS-Mail style. The action button is a real <button> kept in
+     the tab order, so keyboard users can Tab to it — :focus-within slides
+     the row open so the control is visible while focused. */
+  .brand-chip-wrap {
+    --swipe-w: 116px;
+    position: relative; display: block;
+    overflow: hidden; border-radius: 12px;
+    touch-action: pan-y;
   }
-  .report-cta-ico { display: flex; }
-  .report-cta-ico svg { display: block; }
-  .report-cta.on  { color: var(--leaf); border-color: rgba(61,107,53,0.35); }
-  .report-cta.off { color: var(--ink-mid); }
-  .report-cta:hover  { border-color: var(--bark); color: var(--bark); background: var(--stone-lt); }
-  .report-cta:active { transform: scale(0.96); }
-  @media (max-width: 460px) {
-    .report-cta-txt { display: none; }
-    .report-cta { padding: 8px; }
+  .brand-chip-wrap > .brand-chip {
+    position: relative; z-index: 1; display: flex;
+    transition: transform 0.24s cubic-bezier(0.4,0,0.2,1), border-color 0.2s, background 0.2s;
+    will-change: transform;
   }
+  .brand-chip-wrap.swipe-dragging > .brand-chip { transition: none; }
+  .brand-chip-wrap.swipe-open    > .brand-chip,
+  .brand-chip-wrap:focus-within  > .brand-chip {
+    transform: translateX(calc(-1 * var(--swipe-w)));
+  }
+  .swipe-action {
+    position: absolute; top: 0; right: 0; bottom: 0;
+    width: var(--swipe-w);
+    display: flex; align-items: stretch;
+    z-index: 0;
+  }
+  .swipe-btn {
+    flex: 1; border: 0; cursor: pointer; font: inherit;
+    font-size: 13px; font-weight: 700; color: #fff;
+    white-space: nowrap; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    transition: filter 0.12s;
+  }
+  .swipe-action.ended   .swipe-btn { background: var(--red); }
+  .swipe-action.started .swipe-btn { background: var(--leaf); }
+  .swipe-btn:hover  { filter: brightness(1.06); }
+  .swipe-btn:active { filter: brightness(0.92); }
+  .swipe-btn:focus-visible { outline: 2px solid var(--bark); outline-offset: -3px; }
 
   .contrib-intro {
     font-size: 13px; color: var(--stone);
@@ -696,31 +711,6 @@
   .report-brand-sub { font-size: 13px; color: var(--stone); margin-top: 2px; }
   .report-title { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; color: var(--bark); margin: 0 0 6px; line-height: 1.2; }
   .report-sub { font-size: 14px; color: var(--stone); margin: 0 0 16px; line-height: 1.5; }
-  .report-divider { height: 1px; background: var(--border); margin: 0 0 16px; }
-  .report-options { display: flex; flex-direction: column; gap: 10px; }
-  .report-option {
-    display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
-    background: white; border: 1px solid var(--border); border-radius: 14px;
-    padding: 14px 16px; cursor: pointer; font: inherit;
-    transition: border-color 0.12s, background 0.12s;
-  }
-  .report-option:hover { border-color: var(--bark); }
-  .report-option:active { background: var(--stone-lt); }
-  .report-opt-icon {
-    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center; font-size: 17px;
-  }
-  .report-opt-icon.ended   { background: var(--red-lt);   color: var(--red); }
-  .report-opt-icon.diff    { background: var(--amber-lt); color: var(--amber); }
-  .report-opt-icon.confirm { background: var(--leaf-lt);  color: var(--leaf); }
-  .report-opt-icon.started { background: var(--amber-lt); color: var(--amber); }
-  .report-opt-title { font-size: 15px; font-weight: 600; color: var(--bark); }
-  .report-opt-sub { font-size: 13px; color: var(--stone); margin-top: 1px; }
-  .report-back {
-    background: none; border: none; cursor: pointer; font: inherit;
-    font-size: 14px; color: var(--stone); padding: 0; margin: 4px 0 10px;
-  }
-  .report-back:hover { color: var(--bark); }
   .report-chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 4px 0 14px; }
   .report-chip {
     background: white; border: 1px solid var(--border); border-radius: 14px;
@@ -4026,10 +4016,11 @@ async function renderCentre(centreId) {
       ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+' href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
       : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+'>'+inner+'</div>';
 
-    // Report affordance — logged-in only (spec §2.5 / §3.B). An always-visible,
-    // state-aware CTA (and long-press) opens the report sheet. This is the core
-    // contribution loop, so it is labelled and at full opacity rather than the
-    // old hover-only ⋯ kebab. Logged-out users see the app exactly as before.
+    // Report affordance — logged-in only (spec §2.5 / §3.B). The card stays
+    // pristine; swiping it left (touch or mouse) reveals one action button:
+    // "Sale ended" for an on-sale brand, "Sale started" for an off-sale one.
+    // Reports are advisory — they queue for admin review, never mutate public
+    // state. Logged-out users see the app exactly as before.
     const reportBrandId = SCRAPER_ID_BY_DASHBOARD_NAME[b.name];
     if (!currentUser || !reportBrandId || !supabaseCentreId) return chip;
     const ra = 'data-report-brand="'+escapeHtml(reportBrandId)+'"'
@@ -4039,16 +4030,16 @@ async function renderCentre(centreId) {
       + ' data-report-pct="'+(b.isOnSale&&pct?escapeHtml(pct):'')+'"'
       + ' data-report-days="'+escapeHtml(days)+'"'
       + ' data-report-type="'+escapeHtml(typeKey||'percent_off')+'"';
-    const ctaIcon = b.isOnSale
-      ? '<svg width="14" height="14" viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9.5l3.4 3.4L14.5 5.3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-      : '<svg width="14" height="14" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 3.5v11M3.5 9h11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
-    const ctaText = b.isOnSale ? 'Still on?' : 'Seen a sale?';
-    return '<div class="brand-chip-wrap" '+ra+'>'+chip
-      + '<button type="button" class="report-cta '+(b.isOnSale?'on':'off')+'"'
-      +   ' aria-label="Tell other shoppers what you saw in store for '+escapeHtml(b.name)+'">'
-      +   '<span class="report-cta-ico">'+ctaIcon+'</span>'
-      +   '<span class="report-cta-txt">'+ctaText+'</span>'
-      + '</button></div>';
+    const swipeLabel = b.isOnSale ? 'Sale ended' : 'Sale started';
+    const swipeKind  = b.isOnSale ? 'ended' : 'started';
+    return '<div class="brand-chip-wrap" '+ra+'>'
+      + '<div class="swipe-action '+swipeKind+'">'
+      +   '<button type="button" class="swipe-btn" '
+      +     'aria-label="Report: '+escapeHtml(swipeLabel)+' for '+escapeHtml(b.name)+'">'
+      +     swipeLabel+'</button>'
+      + '</div>'
+      + chip
+      + '</div>';
   }
 
   // Floor-aware grouping. We render brands grouped by floor only when the
@@ -4258,7 +4249,7 @@ async function renderCentre(centreId) {
   // know it exists, so we lead the brand list with it rather than relying on
   // users discovering the per-row control.
   const contribIntro = currentUser
-    ? '<p class="contrib-intro">Shopping here? <strong>Tap a shop</strong> to confirm a sale &mdash; or flag one that has ended. Your reports keep the Tide honest for every shopper.</p>'
+    ? '<p class="contrib-intro">Shopping here? <strong>Swipe any shop left</strong> to flag a sale that just started &mdash; or one that has ended. Your reports keep the Tide honest for every shopper.</p>'
     : '<p class="contrib-intro"><a onclick="openAuthModal();return false;">Sign in</a> to confirm sales in store and help other shoppers &mdash; it keeps the Tide accurate for everyone.</p>';
 
   content.innerHTML = heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
@@ -4384,7 +4375,7 @@ setInterval(() => loadTideData(), 15000);
   }, 4000);
 </script>
 
-<!-- User report bottom sheet (logged-in only; opened from a brand row's ⋯) -->
+<!-- User report bottom sheet (logged-in only; opened by a "Sale started" swipe) -->
 <div id="report-overlay" class="report-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="report-sheet-title">
   <div class="report-sheet">
     <div class="report-grab"></div>
@@ -4395,15 +4386,8 @@ setInterval(() => loadTideData(), 15000);
         <div class="report-brand-sub" id="report-brand-sub"></div>
       </div>
     </div>
-    <div id="report-step1">
-      <h3 class="report-title" id="report-sheet-title">What did you see in store?</h3>
-      <p class="report-sub">Your report helps everyone else know what's actually happening.</p>
-      <div class="report-divider"></div>
-      <div class="report-options" id="report-options"></div>
-    </div>
-    <div id="report-step2" style="display:none">
-      <button type="button" class="report-back" id="report-back">&larr; Back</button>
-      <h3 class="report-title">What discount did you see?</h3>
+    <div id="report-step2">
+      <h3 class="report-title" id="report-sheet-title">What discount did you see?</h3>
       <p class="report-sub" id="report-step2-sub"></p>
       <div class="report-chips" id="report-chips"></div>
       <p class="report-hint">We'll round it up to the nearest banner.</p>
@@ -4430,17 +4414,6 @@ setInterval(() => loadTideData(), 15000);
   let pendingType = null;    // report_type awaiting a discount pick
   let selectedPct = null;
 
-  const REASONS = {
-    onSale: [
-      { type: 'sale_ended',            cls: 'ended',   icon: '&#8856;', title: "Sale's ended here",   sub: 'No discount signs in store today', step2: false },
-      { type: 'discount_different',    cls: 'diff',    icon: '&#8599;', title: 'Discount is different', sub: 'Pick the % you saw in store',     step2: true  },
-      { type: 'sale_active_confirmed', cls: 'confirm', icon: '&#10003;', title: "Confirms what's shown", sub: null,                              step2: false },
-    ],
-    offSale: [
-      { type: 'sale_started',          cls: 'started', icon: '&#8599;', title: 'This shop IS on sale',  sub: 'Tell us the discount you saw',    step2: true  },
-      { type: 'no_sale_confirmed',     cls: 'confirm', icon: '&#10003;', title: 'Confirms no sale',     sub: 'No discount here today',          step2: false },
-    ],
-  };
   const CHIPS = [
     { v: 20, cap: 'Up to' }, { v: 30, cap: 'Up to' }, { v: 40, cap: 'Up to' },
     { v: 50, cap: 'Up to' }, { v: 60, cap: 'Up to' }, { v: 70, cap: 'or more', plus: true },
@@ -4461,17 +4434,18 @@ setInterval(() => loadTideData(), 15000);
     };
   }
 
-  function openSheet(c) {
-    if (!currentUser) return;                 // belt-and-braces; ⋯ is hidden anyway
-    ctx = c; pendingType = null; selectedPct = null;
+  // Swipe "Sale started" lands here directly: no reason picker, just the
+  // discount-% step. Keeping the % keeps the admin-side reported-% pre-fill
+  // working (admin.html renderContextualButton → user_confirm_started).
+  function openDiscountSheet(c, reportType) {
+    if (!currentUser) return;
+    ctx = c; pendingType = reportType; selectedPct = null;
     document.getElementById('report-badge').textContent = initials(c.brandName);
     document.getElementById('report-brand-name').textContent = c.brandName;
-    const sub = c.onSale
-      ? ('On sale' + (c.pct ? ' ' + c.pct + '%' : '') + (c.days ? ' · day ' + c.days : ''))
+    document.getElementById('report-brand-sub').textContent = c.onSale
+      ? ('On sale' + (c.pct ? ' ' + c.pct + '%' : ''))
       : 'Not on sale here';
-    document.getElementById('report-brand-sub').textContent = sub;
-    buildStep1();
-    showStep(1);
+    buildStep2();
     overlay.style.display = 'flex';
     requestAnimationFrame(() => overlay.classList.add('is-open'));
   }
@@ -4479,24 +4453,7 @@ setInterval(() => loadTideData(), 15000);
     overlay.classList.remove('is-open');
     setTimeout(() => { overlay.style.display = 'none'; }, 280);
   }
-  function showStep(n) {
-    document.getElementById('report-step1').style.display = n === 1 ? '' : 'none';
-    document.getElementById('report-step2').style.display = n === 2 ? '' : 'none';
-  }
 
-  function buildStep1() {
-    const list = ctx.onSale ? REASONS.onSale : REASONS.offSale;
-    const html = list.map((r, i) => {
-      let sub = r.sub;
-      if (r.type === 'sale_active_confirmed') sub = ctx.pct ? ('Sale active, ' + ctx.pct + '% matches') : 'Sale is active';
-      return '<button type="button" class="report-option" data-ri="' + i + '">'
-        + '<span class="report-opt-icon ' + r.cls + '">' + r.icon + '</span>'
-        + '<span><span class="report-opt-title">' + escHtml(r.title) + '</span>'
-        + (sub ? '<span class="report-opt-sub">' + escHtml(sub) + '</span>' : '') + '</span>'
-        + '</button>';
-    }).join('');
-    document.getElementById('report-options').innerHTML = html;
-  }
   function buildStep2() {
     document.getElementById('report-step2-sub').textContent = ctx.pct
       ? (ctx.brandName + ' is currently shown as up to ' + ctx.pct + '%. Pick the biggest you saw advertised in store.')
@@ -4509,7 +4466,6 @@ setInterval(() => loadTideData(), 15000);
     selectedPct = null;
     document.getElementById('report-send').disabled = true;
   }
-  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   async function submitUserReport(reportType, discountPct) {
     if (!currentUser) return { ok: false, reason: 'not_authenticated' };
@@ -4563,14 +4519,6 @@ setInterval(() => loadTideData(), 15000);
     }
   }
 
-  // Step 1 option click
-  document.getElementById('report-options').addEventListener('click', (e) => {
-    const btn = e.target.closest('.report-option'); if (!btn) return;
-    const list = ctx.onSale ? REASONS.onSale : REASONS.offSale;
-    const r = list[+btn.dataset.ri];
-    if (r.step2) { pendingType = r.type; buildStep2(); showStep(2); }
-    else finish(r.type, null);
-  });
   // Step 2 chip select
   document.getElementById('report-chips').addEventListener('click', (e) => {
     const chip = e.target.closest('.report-chip'); if (!chip) return;
@@ -4583,41 +4531,107 @@ setInterval(() => loadTideData(), 15000);
     if (selectedPct == null) return;
     finish(pendingType, selectedPct, e.currentTarget);
   });
-  document.getElementById('report-back').addEventListener('click', () => showStep(1));
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeSheet(); });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && overlay.style.display === 'flex') closeSheet();
   });
 
-  // CTA button (delegated — chips are re-rendered on every centre change)
-  document.addEventListener('click', (e) => {
-    const cta = e.target.closest('.report-cta');
-    if (!cta) return;
-    e.preventDefault(); e.stopPropagation();
-    const wrap = cta.closest('.brand-chip-wrap');
-    if (wrap) openSheet(ctxFromWrap(wrap));
-  });
+  // ── Swipe-to-flip (Option C: native swipe) ──────────────────────────────
+  // Cards stay pristine. A left swipe (touch or mouse drag) reveals one
+  // action button. "Sale ended" submits instantly (no % needed). "Sale
+  // started" opens the discount-% sheet so the admin reported-% pre-fill
+  // keeps working. touch-action:pan-y on the wrap keeps vertical scroll
+  // native; we only ever capture a horizontal drag.
+  const SWIPE_W = 116;          // must match CSS --swipe-w
+  const OPEN_AT = 52;           // leftward px that commits the row "open"
+  const SLOP    = 8;            // px before the drag direction locks
+  let openWrap = null;
+  let dragWrap = null, pid = null, x0 = 0, y0 = 0, lastT = 0;
+  let decided = false, dragging = false, suppressClick = false;
 
-  // Long-press anywhere on a brand row also opens the sheet (mobile).
-  let lpTimer = null, lpFired = false;
-  function clearLP() { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } }
-  document.addEventListener('touchstart', (e) => {
-    const wrap = e.target.closest('.brand-chip-wrap[data-report-brand]');
-    if (!wrap) return;
-    lpFired = false;
-    clearLP();
-    lpTimer = setTimeout(() => {
-      lpFired = true;
-      openSheet(ctxFromWrap(wrap));
-    }, 500);
+  const chipOf = w => w && w.querySelector(':scope > .brand-chip');
+  function closeRow(w) {
+    if (!w) return;
+    w.classList.remove('swipe-open', 'swipe-dragging');
+    const c = chipOf(w); if (c) c.style.transform = '';
+    if (openWrap === w) openWrap = null;
+  }
+  function openRowEl(w) {
+    if (openWrap && openWrap !== w) closeRow(openWrap);
+    // Add the class first (CSS pins it at -swipe-w, ~where the drag left it),
+    // then drop the inline transform so it hands over without a snap-back.
+    w.classList.remove('swipe-dragging');
+    w.classList.add('swipe-open');
+    const c = chipOf(w); if (c) c.style.transform = '';
+    openWrap = w;
+  }
+
+  document.addEventListener('pointerdown', (e) => {
+    const w = e.target.closest('.brand-chip-wrap[data-report-brand]');
+    if (!w) { closeRow(openWrap); return; }
+    if (dragWrap) return;                         // ignore secondary pointers
+    if (openWrap && openWrap !== w) closeRow(openWrap);  // dismiss any other open row
+    dragWrap = w; pid = e.pointerId;
+    x0 = e.clientX; y0 = e.clientY;
+    lastT = w.classList.contains('swipe-open') ? -SWIPE_W : 0;
+    decided = false; dragging = false;
   }, { passive: true });
-  document.addEventListener('touchend', clearLP, { passive: true });
-  document.addEventListener('touchmove', clearLP, { passive: true });
-  document.addEventListener('touchcancel', clearLP, { passive: true });
-  // Swallow the click that follows a long-press so the brand link doesn't open.
+
+  document.addEventListener('pointermove', (e) => {
+    if (!dragWrap || e.pointerId !== pid) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (!decided) {
+      if (Math.abs(mx) < SLOP && Math.abs(my) < SLOP) return;
+      decided = true;
+      if (Math.abs(my) > Math.abs(mx)) { dragWrap = null; return; }  // vertical → scroll
+      dragging = true;
+      dragWrap.classList.add('swipe-dragging');
+    }
+    if (!dragging) return;
+    const base = dragWrap.classList.contains('swipe-open') ? -SWIPE_W : 0;
+    let t = base + mx;
+    if (t > 0) t = 0;
+    if (t < -SWIPE_W) t = -SWIPE_W - (-SWIPE_W - t) * 0.35;          // rubber-band
+    lastT = t;
+    const c = chipOf(dragWrap);
+    if (c) c.style.transform = 'translateX(' + t + 'px)';
+    if (e.cancelable) e.preventDefault();
+  }, { passive: false });
+
+  function endDrag(e) {
+    if (!dragWrap || (e.pointerId != null && e.pointerId !== pid)) return;
+    const w = dragWrap; dragWrap = null; pid = null;
+    w.classList.remove('swipe-dragging');
+    if (!dragging) return;                         // it was a tap
+    if (lastT <= -OPEN_AT) openRowEl(w); else closeRow(w);
+    suppressClick = true;                          // eat the trailing click
+    setTimeout(() => { suppressClick = false; }, 360);
+  }
+  document.addEventListener('pointerup', endDrag, { passive: true });
+  document.addEventListener('pointercancel', endDrag, { passive: true });
+
+  // Capture phase so we beat the brand <a> navigation.
   document.addEventListener('click', (e) => {
-    if (lpFired) { e.preventDefault(); e.stopPropagation(); lpFired = false; }
+    if (suppressClick) { e.preventDefault(); e.stopPropagation(); suppressClick = false; return; }
+    const btn = e.target.closest('.swipe-btn');
+    if (btn) {
+      const w = btn.closest('.brand-chip-wrap[data-report-brand]');
+      if (!w) return;
+      e.preventDefault(); e.stopPropagation();
+      const c = ctxFromWrap(w);
+      closeRow(w);
+      if (c.onSale) { ctx = c; pendingType = 'sale_ended'; finish('sale_ended', null); }
+      else openDiscountSheet(c, 'sale_started');
+      return;
+    }
+    // Tapping an open row's card just closes it — no navigation.
+    const open = e.target.closest('.brand-chip-wrap.swipe-open');
+    if (open) { e.preventDefault(); e.stopPropagation(); closeRow(open); }
   }, true);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && openWrap) closeRow(openWrap);
+  });
 })();
 </script>
 

@@ -634,22 +634,40 @@
   .hours-time-left { font-size: 12px; font-weight: 500; color: var(--amber); letter-spacing: 0.02em; flex-shrink: 0; }
   .hours-time-left.closed { color: var(--stone); }
 
-  /* ── User reporting (⋯ + bottom sheet) ───────────────────────────── */
-  .brand-chip-wrap { position: relative; display: flex; align-items: stretch; gap: 4px; }
+  /* ── User reporting (inline CTA + bottom sheet) ──────────────────── */
+  .brand-chip-wrap { position: relative; display: flex; align-items: stretch; gap: 6px; }
   .brand-chip-wrap > .brand-chip { flex: 1 1 auto; min-width: 0; }
-  .report-dots {
-    flex: 0 0 auto; width: 34px; align-self: stretch;
-    background: none; border: none; cursor: pointer; padding: 0;
-    color: var(--stone); opacity: 0; transition: opacity 0.15s, color 0.15s;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: 10px;
+  /* Always-visible, labelled contribution control — replaces the old
+     hover-only ⋯ kebab. Discoverability is the whole point: this is how
+     users keep the data honest, so it must read as tappable at a glance. */
+  .report-cta {
+    flex: 0 0 auto; align-self: center;
+    display: flex; align-items: center; gap: 5px;
+    background: white; border: 1px solid var(--border); border-radius: 999px;
+    padding: 7px 12px 7px 10px; cursor: pointer; font: inherit;
+    font-size: 12px; font-weight: 600; color: var(--stone);
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.1s;
   }
-  .report-dots svg { fill: currentColor; }
-  .report-dots:hover { color: var(--bark); background: var(--stone-lt); }
-  .brand-chip-wrap:hover .report-dots,
-  .brand-chip-wrap:focus-within .report-dots { opacity: 0.6; }
-  @media (hover: none) {
-    .report-dots { opacity: 0.45; }
+  .report-cta-ico { display: flex; }
+  .report-cta-ico svg { display: block; }
+  .report-cta.on  { color: var(--leaf); border-color: rgba(61,107,53,0.35); }
+  .report-cta.off { color: var(--ink-mid); }
+  .report-cta:hover  { border-color: var(--bark); color: var(--bark); background: var(--stone-lt); }
+  .report-cta:active { transform: scale(0.96); }
+  @media (max-width: 460px) {
+    .report-cta-txt { display: none; }
+    .report-cta { padding: 8px; }
+  }
+
+  .contrib-intro {
+    font-size: 13px; color: var(--stone);
+    margin: 6px 0 14px; line-height: 1.5;
+  }
+  .contrib-intro strong { color: var(--bark); font-weight: 600; }
+  .contrib-intro a {
+    color: var(--amber); font-weight: 600;
+    text-decoration: underline; cursor: pointer;
   }
 
   .report-overlay {
@@ -4008,9 +4026,10 @@ async function renderCentre(centreId) {
       ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+' href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
       : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+'>'+inner+'</div>';
 
-    // Report affordance — logged-in only (spec §2.5 / §3.B). The ⋯ button and
-    // long-press both open the report sheet. Logged-out users see the app
-    // exactly as before (no wrapper, no button).
+    // Report affordance — logged-in only (spec §2.5 / §3.B). An always-visible,
+    // state-aware CTA (and long-press) opens the report sheet. This is the core
+    // contribution loop, so it is labelled and at full opacity rather than the
+    // old hover-only ⋯ kebab. Logged-out users see the app exactly as before.
     const reportBrandId = SCRAPER_ID_BY_DASHBOARD_NAME[b.name];
     if (!currentUser || !reportBrandId || !supabaseCentreId) return chip;
     const ra = 'data-report-brand="'+escapeHtml(reportBrandId)+'"'
@@ -4020,11 +4039,15 @@ async function renderCentre(centreId) {
       + ' data-report-pct="'+(b.isOnSale&&pct?escapeHtml(pct):'')+'"'
       + ' data-report-days="'+escapeHtml(days)+'"'
       + ' data-report-type="'+escapeHtml(typeKey||'percent_off')+'"';
+    const ctaIcon = b.isOnSale
+      ? '<svg width="14" height="14" viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9.5l3.4 3.4L14.5 5.3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      : '<svg width="14" height="14" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 3.5v11M3.5 9h11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+    const ctaText = b.isOnSale ? 'Still on?' : 'Seen a sale?';
     return '<div class="brand-chip-wrap" '+ra+'>'+chip
-      + '<button type="button" class="report-dots" aria-label="Report what you saw">'
-      +   '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">'
-      +     '<circle cx="9" cy="4" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="9" cy="14" r="1.5"/>'
-      +   '</svg>'
+      + '<button type="button" class="report-cta '+(b.isOnSale?'on':'off')+'"'
+      +   ' aria-label="Tell other shoppers what you saw in store for '+escapeHtml(b.name)+'">'
+      +   '<span class="report-cta-ico">'+ctaIcon+'</span>'
+      +   '<span class="report-cta-txt">'+ctaText+'</span>'
       + '</button></div>';
   }
 
@@ -4231,9 +4254,16 @@ async function renderCentre(centreId) {
 
   const centreNudgeHTML = renderCentrePrefsNudge();
 
+  // Up-front contribution invite — the reporting loop only works if people
+  // know it exists, so we lead the brand list with it rather than relying on
+  // users discovering the per-row control.
+  const contribIntro = currentUser
+    ? '<p class="contrib-intro">Shopping here? <strong>Tap a shop</strong> to confirm a sale &mdash; or flag one that has ended. Your reports keep the Tide honest for every shopper.</p>'
+    : '<p class="contrib-intro"><a onclick="openAuthModal();return false;">Sign in</a> to confirm sales in store and help other shoppers &mdash; it keeps the Tide accurate for everyone.</p>';
+
   content.innerHTML = heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
     + renderHistoryChart(history,style.color,trajectory,stage,serverScore&&serverScore.verdict)
-    + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>';
+    + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+contribIntro+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>';
 
   // Detail content is in the DOM — only now flip the chrome into centre-view.
   // If anything above threw, the catch below restores the picker so the user
@@ -4559,12 +4589,12 @@ setInterval(() => loadTideData(), 15000);
     if (e.key === 'Escape' && overlay.style.display === 'flex') closeSheet();
   });
 
-  // ⋯ button (delegated — chips are re-rendered on every centre change)
+  // CTA button (delegated — chips are re-rendered on every centre change)
   document.addEventListener('click', (e) => {
-    const dots = e.target.closest('.report-dots');
-    if (!dots) return;
+    const cta = e.target.closest('.report-cta');
+    if (!cta) return;
     e.preventDefault(); e.stopPropagation();
-    const wrap = dots.closest('.brand-chip-wrap');
+    const wrap = cta.closest('.brand-chip-wrap');
     if (wrap) openSheet(ctxFromWrap(wrap));
   });
 

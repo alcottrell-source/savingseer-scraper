@@ -17,6 +17,9 @@
     --cream:   #FAF7F2; --bark: #2C1810; --leaf: #3D6B35; --leaf-lt: #EEF4EC;
     --amber: #C17A2B; --amber-lt: #FBF2E4; --red: #B84C3A; --red-lt: #FAEAE7;
     --stone: #6B5F52; --stone-lt: #F2EFE9; --border: rgba(44,24,16,0.10);
+    /* Shared elevation for neutral white content cards on the cream bg */
+    --card-border: 1px solid rgba(44,24,16,0.14);
+    --card-elev: 0 1px 2px rgba(44,24,16,0.06), 0 10px 30px rgba(44,24,16,0.10);
     /* Trading-212-style bright green: pops on cream and on dark surfaces.
        Pairs with --tide-neon (which is reserved for dark cards). */
     --green-bright: #00A862; --green-bright-lt: #E0F4EA;
@@ -79,7 +82,7 @@
   .picker-or { display: none; }
   .centre-select { display: none; }
   .score-section { padding: 24px 24px 0; }
-  .score-card { background: white; border: 1px solid rgba(44, 24, 16, 0.14); box-shadow: 0 1px 2px rgba(44, 24, 16, 0.04), 0 8px 24px rgba(44, 24, 16, 0.06); border-radius: 16px; padding: 24px 24px 20px; position: relative; overflow: hidden; opacity: 0; transform: translateY(12px); transition: opacity 0.4s ease, transform 0.4s ease; }
+  .score-card { background: white; border: var(--card-border); box-shadow: var(--card-elev); border-radius: 16px; padding: 24px 24px 20px; position: relative; overflow: hidden; opacity: 0; transform: translateY(12px); transition: opacity 0.4s ease, transform 0.4s ease; }
   .score-card.visible { opacity: 1; transform: translateY(0); }
   .score-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--phase-color, var(--leaf)); border-radius: 16px 16px 0 0; }
   .score-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
@@ -288,7 +291,7 @@
      page as a marketing preview. Same geometry as the dark card but on
      a cream surface so it sits naturally alongside the rest of the
      landing's light UI. No score number — purely a chart preview. */
-  .tide60-card.is-light { background: white; box-shadow: 0 4px 16px rgba(26,22,18,0.06); border: 1px solid var(--border); }
+  .tide60-card.is-light { background: white; box-shadow: var(--card-elev); border: var(--card-border); }
   .tide60-card.is-light::before { background: radial-gradient(ellipse at 30% 110%, rgba(61,107,53,0.08) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(61,107,53,0.03) 0%, transparent 50%); }
   .tide60-card.is-light .tide60-title { color: var(--stone); }
   .tide60-card.is-light .tide60-trend { color: var(--leaf); }
@@ -311,7 +314,7 @@
   /* ── Landing "How does Tide work?" panel (below the hot ticker) ── */
   .how-it-works { padding: 28px 24px 24px; max-width: 560px; margin: 0 auto; }
   .how-it-works-title { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.10em; text-transform: uppercase; color: var(--stone); padding: 0 4px 10px; }
-  .landing-steps { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 20px 18px; background: white; border: 1px solid var(--border); border-radius: 14px; }
+  .landing-steps { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 20px 18px; background: white; border: var(--card-border); box-shadow: var(--card-elev); border-radius: 14px; }
   .landing-step { display: flex; gap: 14px; align-items: flex-start; }
   .landing-step-num { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--leaf-lt); color: var(--leaf); font-family: 'Inter', sans-serif; font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center; }
   .landing-step-text strong { display: block; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
@@ -603,7 +606,7 @@
   /* ── Centre Intelligence card ── */
   .narrative-section { padding: 20px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.1s, transform 0.4s ease 0.1s; }
   .narrative-section.visible { opacity: 1; transform: translateY(0); }
-  .narrative-card { background: white; border: 1px solid rgba(44, 24, 16, 0.14); box-shadow: 0 1px 2px rgba(44, 24, 16, 0.04), 0 8px 24px rgba(44, 24, 16, 0.06); border-radius: 14px; overflow: hidden; }
+  .narrative-card { background: white; border: var(--card-border); box-shadow: var(--card-elev); border-radius: 14px; overflow: hidden; }
   .narrative-hero { padding: 18px 20px 16px; border-bottom: 1px solid var(--leaf); }
   .narrative-hero-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .narrative-title { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--stone); }

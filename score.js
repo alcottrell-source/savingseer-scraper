@@ -98,20 +98,10 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   const wasDescent  = yesterdayStage === 'Falling' || yesterdayStage === 'Low';
   const falling     = trajectory === 'FALLING';
   // Local-peak detection: the centre was climbing (trajectory RISING) and
-  // the climb has now ended — today's trajectory is anything other than
-  // RISING. This is its natural high tide whether or not the score crossed
-  // the 75 hysteresis line.
-  //
-  // It must catch FLAT too, not just FALLING. getTrajectory's stickiness
-  // only ever leaves RISING via FLAT for a gentle roll-over (a drop of
-  // 1.5–4 pts vs the 3-day average) and via FALLING for a sharp one
-  // (>4 pts). If we only fired on RISING→FALLING, every centre that peaks
-  // gently below 75 would slide RISING→FLAT→FALLING and never emit a Peak
-  // — no GO NOW, no peak-alert email — which silently breaks the core
-  // promise that every centre has a peak day. The sticky thresholds mean
-  // a RISING→FLAT transition already represents a meaningful roll-over,
-  // not day-to-day noise, so treating it as the local peak is correct.
-  const localPeak   = yesterdayTrajectory === 'RISING' && trajectory !== 'RISING';
+  // has just turned over (trajectory FALLING today). This is its natural
+  // high tide whether or not the score crossed the 75 hysteresis line —
+  // every centre has a peak day, and this is how we catch the minor cycles.
+  const localPeak   = yesterdayTrajectory === 'RISING' && trajectory === 'FALLING';
 
   if (score === 0) {
     if (wasHighTide || wasDescent) {
@@ -591,10 +581,6 @@ export async function runScoring(opts = {}) {
     console.error('⚠ Personal scores failed (centre scores unaffected):', err.message);
   }
 }
-
-// Pure scoring primitives — exported for unit testing (test/score.test.mjs).
-// No side effects, no Supabase: safe to import from a test runner.
-export { brandFreshnessScore, getTrajectory, getTideStage, deriveStageFromVerdict };
 
 // CLI entry — only fires when this file is invoked directly via
 // `node score.js`, not when imported as a module by /api/rescore.js.

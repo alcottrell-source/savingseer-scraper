@@ -7,10 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<!-- Pinned to an exact version (was floating @2): a no-build static site that
-     loads its auth/data SDK from a CDN must not silently take a new major.
-     TODO: add Subresource Integrity once a hash can be fetched/verified. -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -2775,11 +2772,11 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
   if (aiUsable) {
     narrative = escapeHtml(aiNarrative);
   } else if (onSaleCount === 0) {
-    narrative = 'No brands on sale at this centre today. Check back — the score updates every morning.';
+    narrative = 'No brands on sale at this centre today. Check back — the score updates every morning at 07:00.';
   } else if (fresh) {
-    narrative = 'Stocks are fullest in the opening days of a sale — '
-      + '<strong>' + escapeHtml(fresh.name)
-      + (fresh.days <= 1 ? ' started today' : ' started recently') + '</strong>.';
+    narrative = 'Stocks are fullest in the first 5 days of a sale — '
+      + '<strong>' + escapeHtml(fresh.name) + ' started '
+      + (fresh.days <= 1 ? 'today' : (fresh.days + ' days ago')) + '</strong>.';
   } else {
     // onSaleCount > 0 from the server but local `onSale` is empty —
     // every brand at the centre has decayed past the freshness window.

@@ -25,16 +25,10 @@ DO $$
 DECLARE
   trig_name text;
 BEGIN
-  -- to_regproc() returns NULL instead of raising when the function is
-  -- absent. The literal-cast form ('…'::regproc) throws
-  -- "function … does not exist", which aborted the whole DO block on any
-  -- database where the immutability trigger was never created — exactly
-  -- the case the IF/NOTICE branch below was written to handle gracefully.
   SELECT tgname INTO trig_name
   FROM pg_trigger
   WHERE tgrelid = 'brand_sale_events'::regclass
-    AND to_regproc('enforce_date_first_detected_immutable') IS NOT NULL
-    AND tgfoid = to_regproc('enforce_date_first_detected_immutable')
+    AND tgfoid = 'enforce_date_first_detected_immutable'::regproc
     AND NOT tgisinternal
   LIMIT 1;
 

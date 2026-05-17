@@ -11,7 +11,7 @@
 <script type="importmap">
 {
   "imports": {
-    "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm"
+    "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
   }
 }
 </script>
@@ -1093,10 +1093,7 @@ function openEditForm(card, brandId, def) {
 function triggerRescore() {
   fetch('/api/rescore', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(CURRENT_TOKEN ? { Authorization: 'Bearer ' + CURRENT_TOKEN } : {}),
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: '{}',
   }).then(async r => {
     if (!r.ok) console.warn('Rescore returned HTTP', r.status, await r.text().catch(() => ''));

@@ -1215,6 +1215,14 @@ async function loadUserPrefs() {
   if (!currentUser) return;
   const { data } = await pgRead('user_preferences?select=*&user_id=eq.' + encodeURIComponent(currentUser.id));
   userPrefs = (data || [])[0] || null;
+  // user_preferences stores DB ids (centre slug, scraper brand_id) so the
+  // notify-high-tide job can match them. The rest of the UI works in the
+  // client code space, so translate back on the way in.
+  if (userPrefs) {
+    userPrefs.saved_centres      = await centreDbIdsToCodes(userPrefs.saved_centres);
+    userPrefs.brand_ids          = brandDbIdsToCodes(userPrefs.brand_ids);
+    userPrefs.excluded_brand_ids = brandDbIdsToCodes(userPrefs.excluded_brand_ids);
+  }
 }
 
 function onAuthBtnClick() {
@@ -1452,8 +1460,14 @@ function closeAccountPanel(e) {
 
 async function quickSavePref(key, value) {
   if (!currentUser) return;
+  // Centre/brand arrays persist as DB ids (centre slug / scraper brand_id)
+  // so the notify-high-tide job can match them; the in-memory value stays
+  // in client-code space for the rest of the UI.
+  let persistValue = value;
+  if (key === 'saved_centres') persistValue = await centreCodesToDbIds(value);
+  else if (key === 'brand_ids' || key === 'excluded_brand_ids') persistValue = brandCodesToDbIds(value);
   const { error } = await pgUpsert('user_preferences',
-    { user_id: currentUser.id, [key]: value },
+    { user_id: currentUser.id, [key]: persistValue },
     'user_id'
   );
   if (!error) {
@@ -1524,7 +1538,7 @@ async function saveCentreToUserPrefs(centreId) {
   const updated = existing.concat([centreId]);
   const { error } = await pgUpsert('user_preferences', {
     user_id: currentUser.id,
-    saved_centres: updated,
+    saved_centres: await centreCodesToDbIds(updated),
   }, 'user_id');
   if (error) { console.warn('saveCentreToUserPrefs failed:', error); return; }
   if (userPrefs) userPrefs.saved_centres = updated;
@@ -1909,7 +1923,15 @@ async function obSave() {
     brand_sale_alerts: onb.brand_sale_alerts,
     daily_digest:      onb.daily_digest,
   };
-  const { error } = await pgUpsert('user_preferences', payload, 'user_id');
+  // Persist DB ids (centre slug, scraper brand_id) so notify-high-tide can
+  // match them; keep userPrefs in client-code space for the rest of the UI.
+  const dbPayload = {
+    ...payload,
+    saved_centres:      await centreCodesToDbIds(centresArr),
+    brand_ids:          brandCodesToDbIds(brandIdsArr),
+    excluded_brand_ids: brandCodesToDbIds(excludedArr),
+  };
+  const { error } = await pgUpsert('user_preferences', dbPayload, 'user_id');
   if (error) { alert('Could not save preferences: ' + error.message); return; }
   userPrefs = { ...(userPrefs || {}), ...payload };
   closeOnboarding();
@@ -2391,6 +2413,63 @@ const DASHBOARD_NAME_BY_SCRAPER_ID = {
 const SCRAPER_ID_BY_DASHBOARD_NAME = Object.fromEntries(
   Object.entries(DASHBOARD_NAME_BY_SCRAPER_ID).map(([sid, name]) => [name, sid])
 );
+
+// ── Persisted-id translation (client codes <-> database ids) ──────────
+// The UI identifies a centre by position-code ('C01' = CENTRE_NAMES[0])
+// and a brand by the inline BRANDS id space. The database — and the
+// notify-high-tide email job that reads user_preferences — key centres
+// by slug (e.g. 'westquay-southampton') and brands by the brands.js
+// scraper id (B001…). If user_preferences holds the client codes, the
+// server can never match a saved centre/brand, so no alert/digest email
+// ever sends. We translate ONLY at the persistence boundary: client
+// codes -> DB ids on write, DB ids -> client codes on read, leaving the
+// rest of the (position-coded) UI untouched.
+let _centreSlugByCode = null;   // 'C01' -> 'westquay-southampton'
+let _centreCodeBySlug = null;   // reverse
+async function ensureCentreIdMaps() {
+  if (_centreSlugByCode) return;
+  const { data, error } = await pgRead('centres?select=id,name&active=eq.true');
+  if (error) { console.warn('ensureCentreIdMaps: centres load failed', error); _centreSlugByCode = {}; _centreCodeBySlug = {}; return; }
+  // Same name-normalised match the dashboard uses to build CENTRE_ID_BY_IDX.
+  const _norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const byNorm = new Map();
+  for (const c of (data || [])) { const k = _norm(c.name); if (k && !byNorm.has(k)) byNorm.set(k, c); }
+  _centreSlugByCode = {}; _centreCodeBySlug = {};
+  CENTRE_NAMES.forEach((displayName, idx) => {
+    const code = 'C' + String(idx + 1).padStart(2, '0');
+    const target = _norm(displayName);
+    let match = byNorm.get(target) || null;
+    if (!match) {
+      for (const [k, c] of byNorm) {
+        if (k.startsWith(target) || target.startsWith(k)) { match = c; break; }
+        if (target.length >= 4 && (k.includes(target) || target.includes(k))) { match = c; break; }
+      }
+    }
+    if (match) { _centreSlugByCode[code] = match.id; _centreCodeBySlug[match.id] = code; }
+  });
+}
+async function centreCodesToDbIds(codes) {
+  await ensureCentreIdMaps();
+  return [...new Set((codes || []).map(c => _centreSlugByCode[c]).filter(Boolean))];
+}
+async function centreDbIdsToCodes(ids) {
+  await ensureCentreIdMaps();
+  return [...new Set((ids || []).map(s => _centreCodeBySlug[s]).filter(Boolean))];
+}
+function brandCodesToDbIds(codes) {
+  return [...new Set((codes || []).map(code => {
+    const b = BRANDS.find(x => x.id === code);
+    return b ? SCRAPER_ID_BY_DASHBOARD_NAME[b.name] : null;
+  }).filter(Boolean))];
+}
+function brandDbIdsToCodes(ids) {
+  return [...new Set((ids || []).map(dbId => {
+    const name = DASHBOARD_NAME_BY_SCRAPER_ID[dbId];
+    if (!name) return null;
+    const b = BRANDS.find(x => x.name === name);
+    return b ? b.id : null;
+  }).filter(Boolean))];
+}
 
 const BRANDS = [
   {id:'B001',name:'Marks & Spencer',cluster:'High Street',womenswear:true,menswear:true,childrenswear:true},

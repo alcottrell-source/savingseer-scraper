@@ -600,6 +600,10 @@
   .back-btn { display: inline-flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 13px; color: var(--stone); cursor: pointer; background: none; border: none; padding: 0; letter-spacing: 0.02em; }
   .back-btn:hover { color: var(--bark); }
   .back-btn svg { flex-shrink: 0; }
+  .save-centre-btn { display: inline-flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; color: var(--leaf); cursor: pointer; background: none; border: 1px solid var(--leaf); border-radius: 20px; padding: 6px 14px; letter-spacing: 0.02em; transition: background 0.15s, color 0.15s; }
+  .save-centre-btn:hover { background: var(--leaf-lt); }
+  .save-centre-btn.is-saved { color: var(--stone); border-color: var(--border); }
+  .save-centre-btn.is-saved:hover { color: var(--bark); background: var(--stone-lt); }
   .centre-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .centre-type { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--stone); }
   .centre-meta-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--stone); opacity: 0.4; }
@@ -3743,6 +3747,27 @@ async function removeSavedCentre(cid) {
   if (!sel || !sel.value) renderCentre('');
 }
 
+// Save/unsave the centre currently being viewed, from the in-hero toggle.
+// Reuses the same write paths as elsewhere (both translate client codes ->
+// DB ids at the boundary), then re-renders the centre in place so the
+// button flips without leaving the page.
+async function toggleSaveCentre(cid) {
+  if (!cid) return;
+  if (!currentUser) { openAuthModal(); return; }
+  if (!userPrefs) await loadUserPrefs();
+  const existing = (userPrefs && Array.isArray(userPrefs.saved_centres)) ? userPrefs.saved_centres : [];
+  if (existing.includes(cid)) {
+    await quickSavePref('saved_centres', existing.filter(x => x !== cid));
+  } else {
+    await saveCentreToUserPrefs(cid);
+  }
+  renderCentre(cid);
+  const panel = document.getElementById('account-panel');
+  if (panel && panel.style.display !== 'none' && typeof renderAccountSavedCentres === 'function') {
+    renderAccountSavedCentres();
+  }
+}
+
 // Renders the "Your centres" block on the home landing, with an Edit toggle
 // that flips each card into a remove control (× per card).
 function renderSavedCentresLanding(savedIds) {
@@ -4230,6 +4255,10 @@ async function renderCentre(centreId) {
   const locationHTML = location
     ? '<span class="centre-meta-dot"></span><span class="centre-location">'+location.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span>'
     : '';
+  const isCentreSaved = !!(currentUser && userPrefs && Array.isArray(userPrefs.saved_centres) && userPrefs.saved_centres.includes(centreId));
+  const saveBtnHTML = currentUser
+    ? '<button class="save-centre-btn'+(isCentreSaved?' is-saved':'')+'" onclick="toggleSaveCentre(\''+centreId+'\')" aria-pressed="'+(isCentreSaved?'true':'false')+'">'+(isCentreSaved?'Saved &#10003;':'Save this centre')+'</button>'
+    : '';
   const heroHTML = '<div class="centre-hero">'
     + '<div class="centre-hero-top">'
     +   '<button class="back-btn" onclick="clearCentreSelection()" aria-label="Back to centres">'
@@ -4238,6 +4267,7 @@ async function renderCentre(centreId) {
     +     '</svg>'
     +     'Centres'
     +   '</button>'
+    +   saveBtnHTML
     + '</div>'
     + '<div class="centre-meta">'
     +   '<span class="centre-type">Shopping Centre</span>'

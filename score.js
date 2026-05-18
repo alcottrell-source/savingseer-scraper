@@ -287,21 +287,37 @@ async function calculateAllCentreScores(opts = {}) {
     if (!adminTouchedToday) {
       const ystrdy = yesterdayRowMap.get(centre.id);
       if (ystrdy) {
+        // Freeze the *numbers* (admin hasn't touched the centre, so the only
+        // movement would be freshness-decay drift we deliberately suppress),
+        // but still run the state machine forward off the carried score.
+        // Copying yesterday's verdict verbatim would lock a centre at its
+        // peak indefinitely — PEAK / GO NOW stuck on screen and (once
+        // notifications are live) a duplicate peak-alert email every day for
+        // the same cycle, because STAGE_FROM_VERDICT['Peak']→'High Tide'
+        // descent only happens on a fresh compute. Re-deriving here lets a
+        // carried-forward Peak ease on day 2 exactly like the fresh path.
+        const carriedScore = ystrdy.tide_score;
+        const recent = recentScoreMap.get(centre.id) ?? [];
+        const yTraj  = yesterdayTrajectoryMap.get(centre.id) ?? ystrdy.trajectory ?? null;
+        const trajectory = getTrajectory(carriedScore, recent, yTraj);
+        const yStage = yesterdayStageMap.get(centre.id) ?? deriveStageFromVerdict(ystrdy.verdict);
+        const { stage, verdict, bluf } = getTideStage(carriedScore, yStage, trajectory, yTraj);
         scoreRows.push({
           centre_id: centre.id,
           score_date: TODAY,
-          tide_score: ystrdy.tide_score,
-          phase: ystrdy.phase,
-          verdict: ystrdy.verdict,
-          bluf: ystrdy.bluf,
-          trajectory: ystrdy.trajectory,
+          tide_score: carriedScore,
+          phase: PHASE_NUMBER[stage],
+          verdict,
+          bluf,
+          trajectory,
           brands_on_sale: ystrdy.brands_on_sale,
           total_brands: ystrdy.total_brands,
           top_brands: ystrdy.top_brands,
           avg_discount_pct: ystrdy.avg_discount_pct,
+          // narrative intentionally omitted — untouched centres keep theirs.
         });
         carriedForward++;
-        console.log(`  ⏸ ${centre.name}: no admin activity today — carried yesterday's row forward`);
+        console.log(`  ⏸ ${centre.name}: no admin activity today — score frozen, state re-derived → ${verdict}`);
         continue;
       }
       // No yesterday row to copy from — fall through to a fresh compute

@@ -9,7 +9,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Pinned to an exact version (was floating @2): a no-build static site that
      loads its auth/data SDK from a CDN must not silently take a new major.
-     TODO: add Subresource Integrity once a hash can be fetched/verified. -->
+     SECURITY FAST-FOLLOW: add Subresource Integrity. Generate the hash from
+     a trusted network (this build env blocks jsdelivr so it can't be
+     verified here; shipping a wrong hash would block the SDK and break the
+     whole app, so it is intentionally NOT guessed). One-liner:
+       curl -sL https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4 \
+         | openssl dgst -sha384 -binary | openssl base64 -A
+     then add: integrity="sha384-<hash>" crossorigin="anonymous" -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -4014,7 +4020,7 @@ async function renderCentre(centreId) {
     const logoImg = brandLogoImg(url);
     // Always render arrow so the right edge aligns; hide it for unlinked chips.
     const arrow = '<span class="brand-arrow'+(url?'':' invisible')+'" aria-hidden="true">↗</span>';
-    const inner = '<span class="brand-left">'+logoImg+'<span class="brand-name">'+b.name+'</span></span>'+meta+arrow;
+    const inner = '<span class="brand-left">'+logoImg+'<span class="brand-name">'+escapeHtml(b.name)+'</span></span>'+meta+arrow;
     const chip = url
       ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+' href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
       : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+'>'+inner+'</div>';
@@ -4339,7 +4345,15 @@ sb.channel('tide-brand-sale-updates')
     _reloadTimer = setTimeout(() => loadTideData(), 400);
   })
   .subscribe();
-setInterval(() => loadTideData(), 15000);
+// Belt-and-braces fallback only — the realtime channel above delivers
+// admin confirmations instantly. Poll at 60s (matching the comment's
+// intent, not the old 15s) and skip entirely while the tab is hidden, so
+// idle/background tabs don't hammer the anon Supabase tier at launch
+// traffic. A tab returning to the foreground refreshes immediately.
+setInterval(() => { if (document.visibilityState === 'visible') loadTideData(); }, 60000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') loadTideData();
+});
 </script>
 
 <div id="feedback-bar" style="

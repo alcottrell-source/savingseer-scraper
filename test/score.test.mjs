@@ -7,28 +7,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  brandFreshnessScore,
   getTrajectory,
   getTideStage,
   deriveStageFromVerdict,
 } from '../score.js';
-
-test('brandFreshnessScore — spec §2 decay curve', () => {
-  assert.equal(brandFreshnessScore(0), 0, 'day 0 → 0');
-  assert.equal(brandFreshnessScore(-5), 0, 'negative → 0');
-  assert.equal(brandFreshnessScore(1), 1.0, 'day 1 → 1.0');
-  assert.equal(brandFreshnessScore(7), 1.0, 'day 7 → 1.0 (plateau end)');
-  assert.equal(brandFreshnessScore(21), 0.5, 'day 21 → 0.5');
-  assert.equal(Math.round(brandFreshnessScore(42) * 1000) / 1000, 0.1, 'day 42 → 0.1');
-  assert.equal(brandFreshnessScore(43), 0, 'beyond DECAY_MAX → excluded (0)');
-  // Monotonic non-increasing across the whole range.
-  let prev = Infinity;
-  for (let d = 1; d <= 60; d++) {
-    const v = brandFreshnessScore(d);
-    assert.ok(v <= prev + 1e-9, `freshness must not increase at day ${d}`);
-    prev = v;
-  }
-});
 
 test('getTrajectory — <3 days history defaults to RISING (spec §9.3)', () => {
   assert.equal(getTrajectory(50, [], null), 'RISING');
@@ -56,39 +38,55 @@ test('getTideStage — score 0 maps to Quiet (fresh) or Over (post-peak)', () =>
   assert.equal(getTideStage(0, 'Falling', 'FLAT', null).verdict, 'Over');
 });
 
-test('getTideStage — High Tide hysteresis: enter 75, hold to 65, then ease', () => {
-  assert.equal(getTideStage(80, null, 'RISING', null).verdict, 'Peak', 'enter at ≥75');
-  assert.equal(getTideStage(70, 'High Tide', 'FALLING', null).verdict, 'Peak', 'hold in 65–75 band');
-  assert.equal(getTideStage(60, 'High Tide', 'FALLING', null).verdict, 'Easing', 'exit below 65');
+test('getTideStage — High Tide hysteresis: enter 40, hold to 30, then ease', () => {
+  assert.equal(getTideStage(45, null, 'RISING', null).verdict, 'Peak', 'enter at ≥40');
+  assert.equal(getTideStage(35, 'High Tide', 'FALLING', null).verdict, 'Peak', 'hold in 30–40 band');
+  assert.equal(getTideStage(25, 'High Tide', 'FALLING', null).verdict, 'Easing', 'exit below 30');
 });
 
-test('getTideStage — descent path distinguishes Easing (≥25) from Over (<25)', () => {
-  assert.equal(getTideStage(40, 'Falling', 'FALLING', null).verdict, 'Easing');
-  assert.equal(getTideStage(20, 'Falling', 'FALLING', null).verdict, 'Over');
+test('getTideStage — descent path distinguishes Easing (≥8) from Over (<8)', () => {
+  assert.equal(getTideStage(20, 'Falling', 'FALLING', null).verdict, 'Easing');
+  assert.equal(getTideStage(5,  'Falling', 'FALLING', null).verdict, 'Over');
 });
 
-test('getTideStage — climb path Rising vs Quiet by the 25 boundary', () => {
-  assert.equal(getTideStage(50, null, 'RISING', null).verdict, 'Rising');
+test('getTideStage — new-cycle escape: Low + RISING + score≥15 climbs back to Rising', () => {
+  // A centre that ended its cycle (Low) but is now climbing again with a
+  // sustained RISING trajectory should re-enter the climb path. Without
+  // this rule a "rolling" centre stays stuck in Over/Easing for life.
+  const r = getTideStage(20, 'Low', 'RISING', 'RISING');
+  assert.equal(r.verdict, 'Rising');
+  assert.equal(r.stage, 'Rising');
+});
+
+test('getTideStage — no new-cycle escape from plain Easing (must have ended in Low first)', () => {
+  // Easing → Rising would let any post-peak wobble jump back to RISING.
+  // The escape only fires after the cycle properly ended (yesterdayStage=Low).
+  assert.equal(getTideStage(20, 'Falling', 'RISING', 'RISING').verdict, 'Easing');
+});
+
+test('getTideStage — climb path Rising vs Quiet by the 15 boundary', () => {
+  assert.equal(getTideStage(30, null, 'RISING', null).verdict, 'Rising');
   assert.equal(getTideStage(10, null, 'RISING', null).verdict, 'Quiet');
 });
 
 test('getTideStage — local peak fires on a SHARP roll-over (RISING→FALLING)', () => {
-  const r = getTideStage(50, null, 'FALLING', 'RISING');
+  const r = getTideStage(25, null, 'FALLING', 'RISING');
   assert.equal(r.verdict, 'Peak');
   assert.equal(r.stage, 'High Tide');
 });
 
 test('getTideStage — local peak ALSO fires on a GENTLE roll-over (RISING→FLAT)', () => {
   // Regression guard for the silent-peak bug: a centre peaking gently below
-  // 75 slides RISING→FLAT→FALLING; if Peak only fired on RISING→FALLING it
-  // would never emit GO NOW / a peak-alert email for that centre.
-  const r = getTideStage(50, null, 'FLAT', 'RISING');
+  // HIGH_TIDE_ENTER slides RISING→FLAT→FALLING; if Peak only fired on
+  // RISING→FALLING it would never emit GO NOW / a peak-alert email for
+  // that centre.
+  const r = getTideStage(25, null, 'FLAT', 'RISING');
   assert.equal(r.verdict, 'Peak', 'gentle roll-over must still emit a one-day Peak');
   assert.equal(r.stage, 'High Tide');
 });
 
 test('getTideStage — no false local peak while still genuinely RISING', () => {
-  assert.equal(getTideStage(50, null, 'RISING', 'RISING').verdict, 'Rising');
+  assert.equal(getTideStage(25, null, 'RISING', 'RISING').verdict, 'Rising');
 });
 
 test('getTideStage — Peak maps back to a descent next day (no Peak lock-in)', () => {
@@ -96,8 +94,8 @@ test('getTideStage — Peak maps back to a descent next day (no Peak lock-in)', 
   // so the descent branch takes over and the centre eases/ends.
   const yStage = deriveStageFromVerdict('Peak');
   assert.equal(yStage, 'High Tide');
-  assert.equal(getTideStage(50, yStage, 'FALLING', 'FALLING').verdict, 'Easing');
-  assert.equal(getTideStage(10, yStage, 'FALLING', 'FALLING').verdict, 'Over');
+  assert.equal(getTideStage(20, yStage, 'FALLING', 'FALLING').verdict, 'Easing');
+  assert.equal(getTideStage(5,  yStage, 'FALLING', 'FALLING').verdict, 'Over');
 });
 
 test('deriveStageFromVerdict — new + legacy vocabularies both resolve', () => {

@@ -52,10 +52,10 @@ const MIN_GAP_MS     = 5000;
 
 const SYSTEM_PROMPT = `You write Centre Intelligence narratives for the Tide dashboard — a UK shopping-sales tracker. One narrative per centre per day, shown in a small card under the score.
 
-The Tide Score (0-100) measures density × freshness of brand sales at the centre. The 5 stages, in cycle order:
+The Tide Score (0-100) is the percentage of tracked brands currently on sale at the centre. The 5 stages, in cycle order:
 - Quiet: minimal sale activity — nothing major running, a handful of brands at most
 - Rising: sales building, stocks still fresh
-- High Tide (PEAK): maximum density and freshness
+- High Tide (PEAK): maximum sale density
 - Falling (EASING): tide going out, picked-over
 - Low (OVER): cycle ended
 

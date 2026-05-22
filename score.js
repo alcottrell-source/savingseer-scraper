@@ -23,27 +23,14 @@ function dateStr(offsetDays = 0) {
   return new Date(Date.now() + offsetDays * 86400000).toISOString().split('T')[0];
 }
 
-// ── Tunable parameters (spec v2.0 §8) ────────────────────────────────────────
-const DECAY_MAX            = 42;   // Review after 30 days of real scrape data
-const ANCHOR_MULTIPLIER    = 1.5;  // Review quarterly against footfall data
+// ── Tunable parameters ───────────────────────────────────────────────────────
+// Trajectory bands operate on tide_score points. Since tide_score is now
+// just (brandsOnSale / totalBrands × 100), a 1.5-point drop ≈ 1-2 brands
+// leaving sale at a typical 70-80 brand centre — the same effective
+// sensitivity the freshness-weighted score had before the rewrite.
 const TRAJECTORY_FLAT_BAND = 1.5;  // ±1.5 defines the Flat (Peak) window
 
-// Anchor brands v1 (spec §3): Next, M&S, River Island, Zara, H&M.
-// Uniqlo is in the spec but not yet in brands.js, so it's absent from the
-// scrape pipeline and therefore from the anchor set. Add it here once it's
-// added to brands.js.
-const ANCHOR_BRAND_IDS = new Set(['B001', 'B002', 'B003', 'B011', 'B012']);
-
 const PHASE_NUMBER = { Turning: 1, Rising: 2, 'High Tide': 2, Falling: 2, Low: 1 };
-
-// ── Brand freshness score (spec §2) ──────────────────────────────────────────
-function brandFreshnessScore(daysRunning) {
-  if (daysRunning <= 0)         return 0;
-  if (daysRunning <= 7)         return 1.0;
-  if (daysRunning <= 21)        return 1.0 - ((daysRunning - 7)  * (0.5 / 14));
-  if (daysRunning <= DECAY_MAX) return 0.5 - ((daysRunning - 21) * (0.4 / (DECAY_MAX - 21)));
-  return 0; // Beyond DECAY_MAX — excluded from score entirely
-}
 
 // ── Tide stage mapping (spec §7) ─────────────────────────────────────────────
 // 5 stages mapped to cycle position: Turning -> Rising -> High Tide ->
@@ -51,18 +38,18 @@ function brandFreshnessScore(daysRunning) {
 // (still computed and stored for the dashboard's forward-guidance copy, but
 // no longer gates the stage decision).
 //
-// Hysteresis on High Tide: enter at 75, hold until score drops below 65.
+// Hysteresis on High Tide: enter at 40, hold until score drops below 30.
 // Once the score falls out of the hold band the centre transitions into the
 // descent path (Falling -> Low). yesterdayStage is the source of truth for
 // where we are in the cycle.
 //
-// Why hysteresis (not a fixed N-day window): a centre that hits peak should
-// hold "Peak" until the score genuinely retreats, not auto-time-out after
-// a fixed window. The 65 floor gives a 10-point cushion against day-to-day
-// noise around the 75 entry without freezing the verdict if sales actually
-// collapse.
-const HIGH_TIDE_ENTER = 75;
-const HIGH_TIDE_EXIT  = 65;
+// Score is now plain % of brands on sale (brandsOnSale / totalBrands × 100),
+// so 40% sale density is the "exceptional, GO NOW" threshold and 15% is
+// the entry to RISING. Below 15% is QUIET; <8% on the descent path is OVER.
+const HIGH_TIDE_ENTER = 40;
+const HIGH_TIDE_EXIT  = 30;
+const RISING_FLOOR    = 15;  // Climb path: ≥15 → Rising, else Quiet
+const OVER_CEILING    = 8;   // Descent path: <8 → Over, else Easing
 
 // Trend-only verdict vocabulary. Headlines describe the cycle direction;
 // the PEAK badge is the only recommendation language the dashboard shows.
@@ -89,10 +76,11 @@ function deriveStageFromVerdict(verdict) {
 }
 
 // Trajectory shapes the bluf sentence and triggers the local-peak verdict.
-// Every centre has its own peak day, even ones that never break 75 — the
-// moment a climbing centre turns over, that day's verdict is `Peak` (one-shot)
-// so users get the GO NOW signal at their centre's natural maximum. The day
-// after, the descent path picks it up and we transition to Easing.
+// Every centre has its own peak day, even ones that never break the HIGH_TIDE
+// threshold — the moment a climbing centre turns over, that day's verdict is
+// `Peak` (one-shot) so users get the GO NOW signal at their centre's natural
+// maximum. The day after, the descent path picks it up and we transition to
+// Easing.
 function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   const wasHighTide = yesterdayStage === 'High Tide';
   const wasDescent  = yesterdayStage === 'Falling' || yesterdayStage === 'Low';
@@ -100,16 +88,16 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   // Local-peak detection: the centre was climbing (trajectory RISING) and
   // the climb has now ended — today's trajectory is anything other than
   // RISING. This is its natural high tide whether or not the score crossed
-  // the 75 hysteresis line.
+  // the HIGH_TIDE_ENTER line.
   //
   // It must catch FLAT too, not just FALLING. getTrajectory's stickiness
   // only ever leaves RISING via FLAT for a gentle roll-over (a drop of
   // 1.5–4 pts vs the 3-day average) and via FALLING for a sharp one
   // (>4 pts). If we only fired on RISING→FALLING, every centre that peaks
-  // gently below 75 would slide RISING→FLAT→FALLING and never emit a Peak
-  // — no GO NOW, no peak-alert email — which silently breaks the core
-  // promise that every centre has a peak day. The sticky thresholds mean
-  // a RISING→FLAT transition already represents a meaningful roll-over,
+  // gently below HIGH_TIDE_ENTER would slide RISING→FLAT→FALLING and never
+  // emit a Peak — no GO NOW, no peak-alert email — which silently breaks
+  // the core promise that every centre has a peak day. The sticky thresholds
+  // mean a RISING→FLAT transition already represents a meaningful roll-over,
   // not day-to-day noise, so treating it as the local peak is correct.
   const localPeak   = yesterdayTrajectory === 'RISING' && trajectory !== 'RISING';
 
@@ -120,25 +108,33 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
     return { stage: 'Turning', verdict: 'Quiet', bluf: 'Nothing major on right now.' };
   }
 
-  // Hysteresis: enter High Tide at 75, hold until score drops below 65
+  // Hysteresis: enter High Tide at 40, hold until score drops below 30
   if (score >= HIGH_TIDE_ENTER || (wasHighTide && score >= HIGH_TIDE_EXIT)) {
     return { stage: 'High Tide', verdict: 'Peak', bluf: 'Maximum sales density. This is the moment.' };
   }
 
   // Descent path: was at peak yesterday and has now dropped below the hold,
   // or was already descending. Distinguishes Falling (still meaningful) from
-  // Low (cycle ended) by the 25-point boundary.
+  // Low (cycle ended) by the OVER_CEILING boundary.
+  //
+  // New-cycle escape: a centre that ended a cycle (Low) and is now climbing
+  // again with a sustained RISING trajectory should re-enter the climb path,
+  // not stay locked in Easing/Over forever. Without this a "rolling" centre
+  // where new sales keep arriving after old ones end reads OVER for life.
   if (wasHighTide || wasDescent) {
-    if (score < 25) return { stage: 'Low',     verdict: 'Over',   bluf: 'Sale cycle ended. Check back in a few weeks.' };
-    return           { stage: 'Falling', verdict: 'Easing', bluf: 'Sales tapering off. Picks getting thinner.' };
+    if (yesterdayStage === 'Low' && trajectory === 'RISING' && score >= RISING_FLOOR) {
+      return { stage: 'Rising', verdict: 'Rising', bluf: 'Sales building again — a fresh cycle starting.' };
+    }
+    if (score < OVER_CEILING) return { stage: 'Low',     verdict: 'Over',   bluf: 'Sale cycle ended. Check back in a few weeks.' };
+    return                    { stage: 'Falling', verdict: 'Easing', bluf: 'Sales tapering off. Picks getting thinner.' };
   }
 
   // Climb path. A trajectory turn-over while we're still in the climb (score
-  // hasn't crossed 75) means this centre just hit its OWN peak — fire the
+  // hasn't crossed 40) means this centre just hit its OWN peak — fire the
   // Peak verdict for this one day. Tomorrow STAGE_FROM_VERDICT will map
   // 'Peak' → 'High Tide' so the descent branch above takes over and
   // transitions the centre to Easing on day 2.
-  if (score >= 25) {
+  if (score >= RISING_FLOOR) {
     if (localPeak) {
       return {
         stage: 'High Tide',
@@ -215,7 +211,7 @@ async function calculateAllCentreScores(opts = {}) {
   const [centresRes, centreBrandsRes, brandSaleRes, recentScoresRes, yesterdayRowsRes] = await Promise.all([
     supabase.from('centres').select('*').eq('active', true),
     supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
-    supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)'),
+    supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(max_discount_pct)'),
     supabase.from('centre_seer_scores')
       .select('centre_id, score_date, tide_score, verdict, trajectory')
       .gte('score_date', THREE_DAYS_AGO)
@@ -276,10 +272,10 @@ async function calculateAllCentreScores(opts = {}) {
     }
 
     // Carry-forward: if no brand at this centre has been verified today,
-    // the admin hasn't acted on this centre yet. Don't recompute (which
-    // would only show freshness decay relative to yesterday); copy
-    // yesterday's row forward so the centre's public numbers stay
-    // exactly as the admin last left them.
+    // the admin hasn't acted on this centre yet. Re-running the state
+    // machine on the carried score lets a Peak roll over to Easing on day
+    // 2 without forcing the admin to verify a brand they already know is
+    // on sale.
     const adminTouchedToday = brandIds.some(bid => {
       const sale = brandSaleMap.get(bid);
       return sale && sale.last_verified_date === TODAY;
@@ -287,14 +283,12 @@ async function calculateAllCentreScores(opts = {}) {
     if (!adminTouchedToday) {
       const ystrdy = yesterdayRowMap.get(centre.id);
       if (ystrdy) {
-        // Freeze the *numbers* (admin hasn't touched the centre, so the only
-        // movement would be freshness-decay drift we deliberately suppress),
-        // but still run the state machine forward off the carried score.
-        // Copying yesterday's verdict verbatim would lock a centre at its
-        // peak indefinitely — PEAK / GO NOW stuck on screen and (once
-        // notifications are live) a duplicate peak-alert email every day for
-        // the same cycle, because STAGE_FROM_VERDICT['Peak']→'High Tide'
-        // descent only happens on a fresh compute. Re-deriving here lets a
+        // Freeze yesterday's numbers but still run the state machine forward
+        // off the carried score. Copying yesterday's verdict verbatim would
+        // lock a centre at its peak indefinitely — PEAK / GO NOW stuck on
+        // screen and a duplicate peak-alert email every day for the same
+        // cycle, because STAGE_FROM_VERDICT['Peak']→'High Tide' descent
+        // only happens when a fresh compute runs. Re-deriving here lets a
         // carried-forward Peak ease on day 2 exactly like the fresh path.
         const carriedScore = ystrdy.tide_score;
         const recent = recentScoreMap.get(centre.id) ?? [];
@@ -324,7 +318,6 @@ async function calculateAllCentreScores(opts = {}) {
       // (e.g. brand-new centre, or first run after a gap).
     }
 
-    let totalFreshness = 0;
     let brandsOnSale = 0;
     const saleDetails = [];
 
@@ -347,36 +340,34 @@ async function calculateAllCentreScores(opts = {}) {
           : false;
       if (!isOnSale) continue;
 
-      // Ripeness origin: prefer the verified cycle's start_date, fall back
-      // to last_verified_date when on-sale was confirmed without a cycle
-      // being opened. Never fall back to the scraper's date_first_detected.
-      const cycleStart = (sale.cycle && sale.cycle.start_date) || sale.last_verified_date;
-      const daysRunning = cycleStart
-        ? Math.floor((new Date(TODAY) - new Date(cycleStart)) / 86400000) + 1
-        : 1;
-
-      const freshness = brandFreshnessScore(daysRunning);
-      if (freshness === 0) continue; // Beyond DECAY_MAX — excluded per spec §2.2
-
-      const weight = ANCHOR_BRAND_IDS.has(brandId) ? ANCHOR_MULTIPLIER : 1.0;
-      totalFreshness += freshness * weight;
       brandsOnSale++;
       // Discount % comes only from a verified cycle. Without one, no
       // percentage is shown — scraper reading is admin-panel-only.
       const maxDiscountPct = (sale.cycle && sale.cycle.max_discount_pct) || null;
-      saleDetails.push({ name: brandNameLookup[brandId] || brandId, freshness, weight, maxDiscountPct });
+      saleDetails.push({
+        name: brandNameLookup[brandId] || brandId,
+        verifiedDate: sale.last_verified_date || null,
+        maxDiscountPct,
+      });
     }
 
-    // Centre Tide Score = (Σ freshness × weight) / N × 100  (spec §4.1)
-    const tideScore = Math.round((totalFreshness / totalBrands) * 100 * 10) / 10;
+    // Centre Tide Score = % of brands on sale.
+    // A user looking at the card can verify this number directly: "23 of 77
+    // brands on sale" → score 30. No freshness weighting, no anchor multipliers
+    // — the headline number IS the brand-density fact the card already shows.
+    const tideScore = totalBrands > 0
+      ? Math.round((brandsOnSale / totalBrands) * 100 * 10) / 10
+      : 0;
     const recent = recentScoreMap.get(centre.id) ?? [];
     const yesterdayTrajectory = yesterdayTrajectoryMap.get(centre.id) ?? null;
     const trajectory = getTrajectory(tideScore, recent, yesterdayTrajectory);
     const yesterdayStage = yesterdayStageMap.get(centre.id) ?? null;
     const { stage, verdict, bluf } = getTideStage(tideScore, yesterdayStage, trajectory, yesterdayTrajectory);
 
+    // Most-recently-verified-first — admin's latest confirmations bubble up.
     const topBrands = saleDetails
-      .sort((a, b) => (b.freshness * b.weight) - (a.freshness * a.weight))
+      .slice()
+      .sort((a, b) => (b.verifiedDate || '').localeCompare(a.verifiedDate || ''))
       .slice(0, 5)
       .map(b => b.name)
       .join(', ') || null;
@@ -496,7 +487,7 @@ async function calculatePersonalScores(opts = {}) {
   const [centresRes, centreBrandsRes, brandSaleRes, prefsRes] = await Promise.all([
     supabase.from('centres').select('id, name').eq('active', true),
     supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
-    supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date)'),
+    supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id'),
     supabase.from('user_preferences').select('*'),
   ]);
 
@@ -538,7 +529,6 @@ async function calculatePersonalScores(opts = {}) {
 
       if (matchingBrandIds.length === 0) continue;
 
-      let totalFreshness = 0;
       let matchingOnSale = 0;
 
       for (const brandId of matchingBrandIds) {
@@ -553,16 +543,10 @@ async function calculatePersonalScores(opts = {}) {
             : false;
         if (!isOnSale) continue;
 
-        const cycleStart = (sale.cycle && sale.cycle.start_date) || sale.last_verified_date;
-        const daysRunning = cycleStart
-          ? Math.floor((new Date(TODAY) - new Date(cycleStart)) / 86400000) + 1
-          : 1;
-
-        totalFreshness += brandFreshnessScore(daysRunning);
         matchingOnSale++;
       }
 
-      const personalScore = Math.round((totalFreshness / matchingBrandIds.length) * 10) / 10;
+      const personalScore = Math.round((matchingOnSale / matchingBrandIds.length) * 100 * 10) / 10;
       // Personal scores aren't tracked across days, so no yesterdayStage —
       // the verdict reflects the score alone (no hysteresis). Trajectory is
       // also unavailable per-user; pass FLAT so the bluf branch is neutral
@@ -610,7 +594,7 @@ export async function runScoring(opts = {}) {
 
 // Pure scoring primitives — exported for unit testing (test/score.test.mjs).
 // No side effects, no Supabase: safe to import from a test runner.
-export { brandFreshnessScore, getTrajectory, getTideStage, deriveStageFromVerdict };
+export { getTrajectory, getTideStage, deriveStageFromVerdict };
 
 // CLI entry — only fires when this file is invoked directly via
 // `node score.js`, not when imported as a module by /api/rescore.js.

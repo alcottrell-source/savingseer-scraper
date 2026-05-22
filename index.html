@@ -2992,16 +2992,7 @@ function goToCentre(centreId) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-const DECAY_MAX=42, ANCHOR_MULTIPLIER=1.5, TRAJECTORY_FLAT_BAND=1.5;
-const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B005','B013','B023']);
-
-function brandFreshnessScore(days) {
-  if (!days||days<=0) return 0;
-  if (days<=7) return 1.0;
-  if (days<=21) return 1.0-((days-7)*(0.5/14));
-  if (days<=DECAY_MAX) return 0.5-((days-21)*(0.4/(DECAY_MAX-21)));
-  return 0;
-}
+const TRAJECTORY_FLAT_BAND = 1.5;
 
 // Local fallback stage computation, used only when serverScore is absent
 // (preview / demo data). For live data we derive stage from the server's
@@ -3029,9 +3020,9 @@ function deriveStageFromVerdict(verdict) {
 }
 function getTideStage(score, trajectory) {
   if (score===0) return 'Turning';
-  if (score>=75) return 'High Tide';
-  if (trajectory==='FALLING') return score<25 ? 'Low' : 'Falling';
-  if (score>=25) return 'Rising';
+  if (score>=40) return 'High Tide';
+  if (trajectory==='FALLING') return score<8 ? 'Low' : 'Falling';
+  if (score>=15) return 'Rising';
   return 'Turning';
 }
 
@@ -3079,18 +3070,13 @@ function computeTrajectory(score, history, yesterdayTrajectory) {
 function calcCentreScore(centreIdx) {
   const brandsAtCentre = BRANDS.filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1);
   if (!brandsAtCentre.length) return {score:0,onSale:[],total:0};
-  let totalFreshness=0; const onSale=[];
+  const onSale = [];
   for (const brand of brandsAtCentre) {
-    const days = DAYS_RUNNING[brand.name]||0;
-    if (SALE_STATUS[brand.name]===true && days>0) {
-      const freshness = brandFreshnessScore(days);
-      if (freshness===0) continue;
-      const weight = ANCHOR_BRAND_IDS.has(brand.id) ? ANCHOR_MULTIPLIER : 1.0;
-      totalFreshness += freshness*weight;
-      onSale.push({...brand,days,freshness});
+    if (SALE_STATUS[brand.name]===true) {
+      onSale.push({...brand, days: DAYS_RUNNING[brand.name]||0});
     }
   }
-  const score = Math.round((totalFreshness/brandsAtCentre.length)*100);
+  const score = Math.round((onSale.length/brandsAtCentre.length)*100);
   return {score,onSale,total:brandsAtCentre.length};
 }
 
@@ -3098,19 +3084,13 @@ function computeHistoricalScores(centreIdx) {
   const brandsAtCentre = BRANDS.filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1);
   if (!brandsAtCentre.length||!SHEET_DATE_COLS.length) return [];
   return SHEET_DATE_COLS.slice(-60).map(({idx,date})=>{
-    let totalFreshness=0;
+    let onSale = 0;
     for (const brand of brandsAtCentre) {
       const row = SHEET_ROWS[brand.id];
       if (!row) continue;
-      if (row[idx]?.trim().replace(/"/g,'')!=='TRUE') continue;
-      let days=0;
-      for (let c=idx;c>=2;c--) { if(row[c]?.trim().replace(/"/g,'') ==='TRUE') days++; else break; }
-      const freshness = brandFreshnessScore(Math.max(days,1));
-      if (freshness===0) continue;
-      const weight = ANCHOR_BRAND_IDS.has(brand.id) ? ANCHOR_MULTIPLIER : 1.0;
-      totalFreshness += freshness*weight;
+      if (row[idx]?.trim().replace(/"/g,'')==='TRUE') onSale++;
     }
-    return {date, score:Math.round((totalFreshness/brandsAtCentre.length)*100)};
+    return {date, score:Math.round((onSale/brandsAtCentre.length)*100)};
   });
 }
 
@@ -3162,29 +3142,16 @@ const SERVER_VERDICT_DISPLAY = {
 };
 function deriveVerdict(ctx) {
   ctx = ctx || {};
-  let serverVerdict = ctx.serverVerdict;
-  // Display override for the minor-cycle case: a centre that climbed into
-  // the Rising stage but never hit Peak, and whose trajectory has since
-  // turned over. The state machine (and the DB) keeps it as `Rising` so
-  // hysteresis doesn't trap it in descent forever, but the headline must
-  // tell the truth the user can see in the trend arrow and brand counts.
-  // Without this override the card reads RISING while the tide is easing.
-  if ((serverVerdict === 'Rising' || serverVerdict === 'Worth watching')
-      && ctx.trajectory === 'FALLING') {
-    serverVerdict = 'Easing';
-  }
-  const mapped = serverVerdict && SERVER_VERDICT_DISPLAY[serverVerdict];
+  const mapped = ctx.serverVerdict && SERVER_VERDICT_DISPLAY[ctx.serverVerdict];
   if (mapped) return mapped;
   // No server verdict (sparse data / sample render) — fall back to stage.
   switch (ctx.stage) {
-    case 'High Tide': return { word: 'PEAK',    tone: 'go'   };
-    case 'Falling':   return { word: 'EASING',  tone: 'fall' };
-    case 'Low':       return { word: 'OVER',    tone: 'wait' };
-    case 'Rising':    return ctx.trajectory === 'FALLING'
-                        ? { word: 'EASING', tone: 'fall' }
-                        : { word: 'RISING', tone: 'rise' };
-    case 'Turning':   return { word: 'QUIET',   tone: 'wait' };
-    default:          return { word: 'QUIET',   tone: 'wait' };
+    case 'High Tide': return { word: 'PEAK',   tone: 'go'   };
+    case 'Falling':   return { word: 'EASING', tone: 'fall' };
+    case 'Low':       return { word: 'OVER',   tone: 'wait' };
+    case 'Rising':    return { word: 'RISING', tone: 'rise' };
+    case 'Turning':   return { word: 'QUIET',  tone: 'wait' };
+    default:          return { word: 'QUIET',  tone: 'wait' };
   }
 }
 
@@ -3207,31 +3174,20 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
   const factText = hasCount ? (onSaleCount + ' of ' + totalCount + ' brands on sale')
                             : (pct + '% of brands on sale');
 
-  // Day-on-day brand-count delta. Direction language is pinned to the
-  // stage verdict, never the raw signed delta — a centre that's easing
-  // off should never read "↑ N more brands on sale than yesterday" just
-  // because today's churn happened to be net-positive. When the signed
-  // delta disagrees with the stage direction we suppress the row entirely
-  // rather than show a contradictory arrow next to the headline.
+  // Day-on-day brand-count delta. Score is now pure % of brands on sale,
+  // so the headline direction (RISING / EASING) is driven by the same brand
+  // count that produced this delta — they can't disagree. Show it truthfully.
   let changeHTML = '';
   if (Number.isFinite(brandsDelta)) {
-    const stageWord     = (verdict && verdict.word) || '';
-    // QUIET shows either direction — a stirring or fading low-volume centre
-    // is still factually interesting, just not directional in the way
-    // RISING/EASING are.
-    const isRisingStage = stageWord === 'PEAK' || stageWord === 'RISING' || stageWord === 'QUIET';
-    const isFallingStage = stageWord === 'EASING' || stageWord === 'OVER' || stageWord === 'QUIET';
     const mag  = Math.abs(brandsDelta);
     const noun = mag === 1 ? 'brand' : 'brands';
     if (brandsDelta === 0) {
       changeHTML = '<span class="tide-vessel-fact-change is-flat">No change since yesterday</span>';
-    } else if (isRisingStage && brandsDelta > 0) {
+    } else if (brandsDelta > 0) {
       changeHTML = '<span class="tide-vessel-fact-change is-up">↑ ' + mag + ' more ' + noun + ' on sale than yesterday</span>';
-    } else if (isFallingStage && brandsDelta < 0) {
+    } else {
       changeHTML = '<span class="tide-vessel-fact-change is-down">↓ ' + mag + ' fewer ' + noun + ' on sale than yesterday</span>';
     }
-    // Otherwise: stage and delta sign disagree. Omit the row so it can't
-    // contradict the headline.
   }
 
   // Stage delineations (PEAK / RISING / EARLY / LOW) and the "TIDE FALLING"
@@ -3254,9 +3210,9 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
   const bgArrowHTML = '<div class="tide-vessel-direction-bg" aria-hidden="true">' + bgChevron + '</div>';
 
   const LADDER = [
-    { level: 60, label: 'Peak'    },
-    { level: 40, label: 'Rising'  },
-    { level: 25, label: 'Quiet'   },
+    { level: 40, label: 'Peak'    },
+    { level: 15, label: 'Rising'  },
+    { level: 5,  label: 'Quiet'   },
   ];
   const ladderHTML = LADDER.map(t => {
     const reached = pct >= t.level ? ' is-reached' : '';
@@ -3689,10 +3645,8 @@ function calcPersonalScore(centreId, prefs) {
     return brandMatchesFrontendPrefs(b, prefs);
   });
   if (!matching.length) return null;
-  let totalFreshness=0;
   const onSale=matching.filter(b=>SALE_STATUS[b.name]===true);
-  for (const brand of onSale) { totalFreshness+=brandFreshnessScore(DAYS_RUNNING[brand.name]||0); }
-  return {score:Math.round((totalFreshness/matching.length)*100),matchingBrands:matching.length,onSale:onSale.length};
+  return {score:Math.round((onSale.length/matching.length)*100),matchingBrands:matching.length,onSale:onSale.length};
 }
 
 function arcPath(cx,cy,r,score) {

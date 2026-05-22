@@ -88,6 +88,8 @@ Supabase Edge function `notify-high-tide` runs three passes, gated by the POST b
 
 UI toggles in the account panel map to these three columns. Don't rename the columns — only the human-readable copy. The digest is **weekly (Friday)**, not daily — the email copy hard-codes "Friday" and that is now correct. Brand-sale "started today" = active cycle `start_date == today` or `date_first_detected == today`; true for one day only, so it self-dedupes (no sent-state table). `digestOnly` runs pass 3 only; the default daily call runs passes 1+2 and skips the digest.
 
+**Brand-sale alerts are consolidated per user per day** — Pass 2 loops users-first, gathers every brand they follow that started today, and sends a single email listing all of them. The `renderBrandSaleEmail` template handles both the 1-brand and multi-brand cases (subject collapses to `${a} and ${b} just started sales` / `N brands just started sales`). Don't revert to the per-brand send loop — one consolidated email is the product differentiator vs. a normal retail marketing inbox.
+
 ## Database
 Supabase project: `vrezzwadwzrmumjpdgge.supabase.co`
 Key tables:

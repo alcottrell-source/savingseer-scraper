@@ -42,8 +42,23 @@ jobs:
         env:
           INPUT_URL: ${{ github.event.inputs.preview_url }}
           SECRET_URL: ${{ secrets.PREVIEW_URL }}
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
-          URL="${INPUT_URL:-${SECRET_URL:-$DEFAULT_PREVIEW_URL}}"
+          # Resolution order: workflow_dispatch input → repo secret →
+          # vercel[bot]'s preview URL on THIS PR → baked-in default.
+          # Reading the bot comment is the path that auto-corrects per
+          # branch — without it, DEFAULT_PREVIEW_URL silently points at
+          # the previous branch's preview and the suite green-lights
+          # stale code.
+          URL="${INPUT_URL:-${SECRET_URL:-}}"
+          if [ -z "$URL" ] && [ -n "$PR" ]; then
+            URL=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" \
+                    --jq '.[] | select(.user.login | startswith("vercel")) | .body' \
+                  | grep -oE 'https://savingseer-scraper-git-[a-z0-9-]+-alcottrell-3311s-projects\.vercel\.app' \
+                  | head -1)
+          fi
+          URL="${URL:-$DEFAULT_PREVIEW_URL}"
           URL="${URL%/}"
           echo "preview_url=$URL" >> "$GITHUB_OUTPUT"
           echo "Target: $URL"

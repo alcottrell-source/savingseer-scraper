@@ -122,75 +122,38 @@
   @keyframes gaugeNeedleMount { 0% { transform: rotate(-90deg); } 100% { transform: rotate(var(--needle-rot, 0deg)); } }
 
   /* ── Tide Vessel (rebrand step 4) ───────────────────────────── */
-  .tide-vessel { position: relative; height: 200px; margin: 14px 0 8px; background: var(--ink); border-radius: 22px; overflow: hidden; box-shadow: 0 10px 40px rgba(26,22,18,0.18); }
+  .tide-vessel { position: relative; margin: 14px 0 8px; padding: 22px 24px 24px; background: var(--ink); border-radius: 22px; overflow: hidden; box-shadow: 0 10px 40px rgba(26,22,18,0.18); }
   .tide-vessel::before { content:''; position:absolute; inset:0; pointer-events:none; z-index:1; background: radial-gradient(ellipse at 20% 100%, rgba(58,107,74,0.20) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(184,147,90,0.12) 0%, transparent 50%); }
-  .tide-water { position: absolute; bottom: 0; left: 0; right: 0; height: var(--tide-level, 0%); z-index: 2; transition: height 1.4s cubic-bezier(0.34, 1.2, 0.64, 1); }
-  .tide-water-body { position: absolute; bottom: 0; left: 0; right: 0; top: 24px; background: linear-gradient(to top, rgba(94,255,176,0.22) 0%, rgba(94,255,176,0.04) 100%); }
-  .tide-wave-svg  { position: absolute; top: 0; left: -10%; width: 120%; height: 28px; animation: tideWaveDrift  4s   ease-in-out infinite; filter: drop-shadow(0 0 6px rgba(94,255,176,0.55)); }
-  .tide-wave-svg-2{ position: absolute; top: 4px; left: -15%; width: 130%; height: 28px; animation: tideWaveDrift2 5.5s ease-in-out infinite; opacity: 0.6; filter: drop-shadow(0 0 4px rgba(94,255,176,0.40)); }
-  @keyframes tideWaveDrift  { 0%,100% { transform: translateX(0); } 50% { transform: translateX(4%);  } }
-  @keyframes tideWaveDrift2 { 0%,100% { transform: translateX(5%); } 50% { transform: translateX(-3%); } }
-  .tide-vessel-headline { position: absolute; left: 20px; top: 16px; right: 80px; z-index: 6; }
-  .tide-vessel-eyebrow { display: block; font-family: 'Inter', sans-serif; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold-light); margin-bottom: 4px; }
-  .tide-vessel-statement { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 22px; line-height: 1.15; letter-spacing: -0.01em; color: var(--tide-cream); white-space: pre-line; opacity: 0.92; }
-  /* Hero % change (left-side, dominant) — the headline number on the
-     vessel. Lives inside .tide-vessel-headline so it stacks with the
-     eyebrow + statement on the left, well clear of the right-wall
-     tide-level marks (which are a different unit). */
-  .tide-vessel-hero { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 54px; line-height: 0.95; letter-spacing: -0.02em; color: var(--tide-cream); margin: 6px 0 2px; }
-  .tide-vessel-hero.is-up   { color: #7BC49A; }
-  .tide-vessel-hero.is-down { color: #E89882; }
-  .tide-vessel-hero.is-flat { font-size: 28px; color: rgba(245,241,235,0.70); }
-  .tide-vessel-hero-label { display: block; font-family: 'Inter', sans-serif; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(245,241,235,0.45); margin-bottom: 8px; }
-  /* Subtle right-wall tide-level marks at 25/50/75 — labels are in
-     "% of shops" terms so the scale lines up with the headline %. */
-  /* Vessel ladder + tideline strip were retired in spring '26 (delineations
-     moved onto the history chart as horizontal bands). The right-wall
-     ladder below is the May '26 reinstatement — same idea, but ticks
-     anchored to the verdict thresholds (25 / 40 / 60) so the scale doubles
-     as a legend: "where on the tide does this centre sit, and what does
-     that level mean?" Each tick is "X% — VERDICT". The threshold the
-     current wave has reached lights up. */
-  .tide-ladder { position: absolute; right: 0; top: 0; bottom: 0; width: 92px; z-index: 4; pointer-events: none; }
-  .tide-ladder-tick { position: absolute; right: 12px; height: 1px; display: flex; align-items: center; gap: 6px; transform: translateY(50%); }
-  .tide-ladder-tick::after { content: ''; width: 14px; height: 1px; background: rgba(245,241,235,0.20); flex-shrink: 0; transition: background 0.4s ease, box-shadow 0.4s ease; }
-  .tide-ladder-label { font-family: 'Inter', sans-serif; font-size: 9px; letter-spacing: 0.10em; text-transform: uppercase; color: rgba(245,241,235,0.40); white-space: nowrap; line-height: 1; transition: color 0.4s ease; }
-  .tide-ladder-num { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 13px; color: rgba(245,241,235,0.50); letter-spacing: 0; transition: color 0.4s ease; }
-  /* Reached = water level is at or above this tick. Colour reflects
-     trajectory so a lit tick on a falling tide reads as "receded past"
-     not "still here". Rising = neon green (good direction), falling =
-     warm amber (cooling off), flat = neutral cream. */
-  .tide-ladder-tick.is-reached .tide-ladder-label,
-  .tide-ladder-tick.is-reached .tide-ladder-num { color: var(--tide-cream); font-weight: 600; }
-  .tide-vessel--rising .tide-ladder-tick.is-reached::after { background: var(--tide-neon); box-shadow: 0 0 8px rgba(94,255,176,0.55); }
-  .tide-vessel--rising .tide-ladder-tick.is-reached .tide-ladder-num { color: #9FD8B0; }
-  .tide-vessel--falling .tide-ladder-tick.is-reached::after { background: #F4B79F; box-shadow: 0 0 8px rgba(244,183,159,0.45); }
-  .tide-vessel--falling .tide-ladder-tick.is-reached .tide-ladder-num { color: #F4B79F; }
-  .tide-vessel--flat .tide-ladder-tick.is-reached::after { background: var(--tide-cream); box-shadow: 0 0 6px rgba(245,241,235,0.25); }
-
-  /* Direction chevron — small, top-right. Shape carries direction
-     (▲ rising / ▼ falling / ➞ steady); colour reinforces it: brand
-     neon green when rising or steady, warm amber when falling so a
-     ▼ reads unambiguously as "tide receding". */
-  .tide-vessel-direction-bg { position: absolute; top: 14px; right: 14px; font-size: 32px; line-height: 1; font-weight: 900; z-index: 7; pointer-events: none; user-select: none; }
-  .tide-vessel--rising  .tide-vessel-direction-bg { color: var(--tide-neon); text-shadow: 0 0 14px rgba(94,255,176,0.60); }
-  .tide-vessel--falling .tide-vessel-direction-bg { color: #F4B79F;          text-shadow: 0 0 14px rgba(244,183,159,0.55); }
-  .tide-vessel--flat    .tide-vessel-direction-bg { color: var(--tide-neon); text-shadow: 0 0 12px rgba(94,255,176,0.45); font-size: 24px; opacity: 0.75; }
-
-  /* Headline number — now "X%" + small "Y of Z shops" subtitle. */
-  .tide-score-num { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 42px; line-height: 1; color: var(--tide-cream); }
-  .tide-score-unit { display: block; font-family: 'Inter', sans-serif; font-size: 11px; color: rgba(245,241,235,0.55); letter-spacing: 0.04em; margin-top: 5px; white-space: nowrap; }
-  .tide-score-float { position: absolute; left: 20px; bottom: calc(var(--tide-level, 0%) + 8px); z-index: 7; transition: bottom 1.4s cubic-bezier(0.34, 1.2, 0.64, 1); }
-  /* num + unit defined above (step "shops headline") */
-  /* Score-card: when it contains a vessel, hide the existing top accent
-     stripe, the duplicate Playfair statement, and the redundant phase
-     badge (the lit-up stage marker inside the vessel already shows it). */
+  /* ── Eyebrow row (centre name + trend pill) ──────────────────────
+     Both the centre name and the pill live on the same baseline. The
+     pill's word is the same word as the verdict-word headline (and the
+     chart eyebrow's tail word) — the three must read identically. The
+     pill's arrow direction is double-checked against the curve's last-
+     segment slope in renderTideVessel; if they disagree, the arrow is
+     neutralised to '→' so an upward arrow can never sit next to a
+     descending line. */
+  .tide-vessel-eyebrow-row { position: relative; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+  .tide-vessel-eyebrow-row--pill-only { justify-content: flex-end; }
+  .tide-vessel-centre-name { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(245,241,235,0.55); }
+  .tide-vessel-trend-pill { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: var(--tide-cream); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+  .tide-vessel-trend-pill.is-up   { color: #9FD8B0; }
+  .tide-vessel-trend-pill.is-down { color: #F4B79F; }
+  .tide-vessel-trend-pill-arrow { font-weight: 400; opacity: 0.85; }
+  /* ── Chart eyebrow + chart wrapper ─────────────────────────────── */
+  .tide-vessel-chart-eyebrow { position: relative; z-index: 6; margin: 6px 0 8px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(245,241,235,0.45); }
+  .tide-vessel-chart-eyebrow-tail { font-weight: 700; color: var(--tide-cream); }
+  .tide-vessel-chart-eyebrow-tail.tone-go   { color: #FFD79A; }
+  .tide-vessel-chart-eyebrow-tail.tone-rise { color: #9FD8B0; }
+  .tide-vessel-chart-eyebrow-tail.tone-fall { color: #F4B79F; }
+  .tide-vessel-chart-eyebrow-tail.tone-wait { color: rgba(245,241,235,0.70); }
+  .tide-vessel-chart { position: relative; z-index: 6; }
+  .tide-vessel-chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+  /* Score-card wrapper around the vessel — hide the legacy score-top /
+     statement / accent-stripe; the merged vessel carries that copy now. */
   .score-card.has-vessel::before { display: none; }
   .score-card.has-vessel .score-statement { display: none; }
   .score-card.has-vessel .score-top { display: none; }
-  .score-card.has-vessel { padding: 12px; border-radius: 22px; }
-  .score-card.has-vessel .score-message { border-top: none; padding: 14px 8px 4px; font-size: 15px; line-height: 1.55; color: var(--ink-mid); }
-  .score-card.has-vessel .trend-line { padding: 0 8px 6px; font-size: 12px; color: var(--stone); font-style: italic; }
+  .score-card.has-vessel { padding: 0; border-radius: 22px; background: transparent; box-shadow: none; }
   .brands-section { padding: 24px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.15s, transform 0.4s ease 0.15s; }
   .brands-section.visible { opacity: 1; transform: translateY(0); }
   .section-heading { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
@@ -270,19 +233,10 @@
   .preview-meta { font-size: 13px; color: var(--stone); margin-top: 10px; line-height: 1.5; }
   .preview-empty { font-size: 13px; color: var(--stone); font-style: italic; margin: 16px 0 24px; line-height: 1.6; }
   .signout-link { font-size: 12px; color: var(--stone); background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0; margin-top: 16px; display: block; text-align: center; }
-  .history-section { padding: 16px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.08s, transform 0.4s ease 0.08s; }
-  .history-section.visible { opacity: 1; transform: translateY(0); }
-  .history-card { background: var(--ink); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 18px 16px 12px; box-shadow: 0 10px 40px rgba(26,22,18,0.18); position: relative; overflow: hidden; }
-  .history-card::before { content:''; position:absolute; inset:0; pointer-events:none; z-index:0; background: radial-gradient(ellipse at 25% 105%, rgba(94,255,176,0.10) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(94,255,176,0.04) 0%, transparent 50%); }
-  .history-card svg { position: relative; z-index: 1; }
-  .trend-line { font-size: 12px; font-style: italic; color: var(--stone); padding: 8px 0 0; letter-spacing: 0; }
-  .history-empty { padding: 28px 24px; text-align: center; }
-  .history-empty-msg { font-size: 12px; color: rgba(245,241,235,0.62); font-style: italic; line-height: 1.5; position: relative; z-index: 1; }
 
-  /* TIDE OVER 60 DAYS card. Always renders 60 days — real data from the
-     centre's tide_history is preferred, the rest backfilled from a UK
-     retail-calendar synthetic curve. As real data accumulates the
-     synthetic portion shrinks until the chart is fully real. */
+  /* Landing-page TIDE OVER 60 DAYS marketing preview (light variant).
+     The dark dashboard variant lives inline inside the tide-vessel now;
+     this is the only place that still uses the .tide60-* family. */
   .tide60-card { position: relative; background: var(--ink); border-radius: 20px; padding: 22px 24px 22px; box-shadow: 0 10px 40px rgba(26,22,18,0.18); overflow: hidden; }
   .tide60-card::before { content:''; position:absolute; inset:0; pointer-events:none; z-index:0; background: radial-gradient(ellipse at 30% 110%, rgba(94,255,176,0.10) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(94,255,176,0.04) 0%, transparent 50%); }
   .tide60-header { position: relative; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -340,20 +294,19 @@
   .saved-centre-row-remove { background: none; border: none; color: var(--stone); font-size: 18px; line-height: 1; cursor: pointer; padding: 4px 6px; border-radius: 4px; transition: color 0.15s, background 0.15s; }
   .saved-centre-row-remove:hover { color: var(--red); background: var(--red-lt); }
 
-  /* ── Vessel verdict re-hierarchy (verdict → sales fact → tide line) ── */
-  .tide-vessel-verdict { position: absolute; left: 22px; right: 22px; top: 18px; z-index: 6; }
-  .tide-vessel-verdict-word { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 30px; line-height: 1; letter-spacing: -0.01em; color: var(--tide-cream); margin-bottom: 14px; }
+  /* ── Vessel verdict block (verdict word → sales fact → subtitle) ── */
+  .tide-vessel-verdict { position: relative; z-index: 6; margin-bottom: 24px; }
+  .tide-vessel-verdict-word { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 44px; line-height: 1; letter-spacing: -0.02em; color: var(--tide-cream); margin-bottom: 14px; }
   .tide-vessel-verdict-word.tone-go   { color: #FFD79A; }
   .tide-vessel-verdict-word.tone-rise { color: #9FD8B0; }
   .tide-vessel-verdict-word.tone-fall { color: #F4B79F; }
   .tide-vessel-verdict-word.tone-wait { color: rgba(245,241,235,0.78); }
-  .tide-vessel-peak-badge { display: inline-block; vertical-align: 0.32em; margin-left: 10px; padding: 4px 10px; border-radius: 999px; background: #C17A2B; color: #2C1810; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 0.14em; line-height: 1; }
-  .tide-vessel-fact { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 24px; line-height: 1.15; color: var(--tide-cream); letter-spacing: -0.01em; }
-  .tide-vessel-fact-change { display: block; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; letter-spacing: 0.02em; margin-top: 4px; }
-  .tide-vessel-fact-change.is-up   { color: #9FD8B0; }
-  .tide-vessel-fact-change.is-down { color: #F4B79F; }
-  .tide-vessel-fact-change.is-flat { color: rgba(245,241,235,0.55); }
-  /* .tide-vessel-tideline retired — moved onto the chart. */
+  .tide-vessel-fact { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 24px; line-height: 1.15; color: var(--tide-cream); letter-spacing: -0.01em; margin-bottom: 8px; }
+  .tide-vessel-statement { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 400; line-height: 1.45; color: rgba(245,241,235,0.62); letter-spacing: 0; }
+  .tide-vessel-statement.tone-go   { color: #FFD79A; }
+  .tide-vessel-statement.tone-rise { color: rgba(159,216,176,0.85); }
+  .tide-vessel-statement.tone-fall { color: rgba(244,183,159,0.85); }
+  .tide-vessel-statement.tone-wait { color: rgba(245,241,235,0.62); }
   /* Verdict tints — additive radial overlays so the dark vessel still
      reads as a "tide" but the colour signals action at a glance. */
   .tide-vessel.verdict-go   { background: linear-gradient(135deg, #2a2017 0%, #1A1612 60%); }
@@ -364,14 +317,6 @@
   .tide-vessel.verdict-fall::before { background: radial-gradient(ellipse at 25% 105%, rgba(232,152,130,0.30) 0%, transparent 55%), radial-gradient(ellipse at 80% 0%, rgba(232,152,130,0.10) 0%, transparent 50%); }
   .tide-vessel.verdict-wait { background: linear-gradient(135deg, #1d1a17 0%, #1A1612 60%); }
   .tide-vessel.verdict-wait::before { background: radial-gradient(ellipse at 50% 105%, rgba(140,128,112,0.25) 0%, transparent 60%); }
-  /* The verdict block now spans the vessel full-width — the right-side
-     stage ladder it used to share space with was removed; that
-     information lives on the history chart now. */
-  .tide-vessel.has-verdict .tide-vessel-headline { display: none; }
-  /* Leave room on the right for the tide ladder (92px wide). The fact line
-     can wrap to two lines on narrow viewports — that's fine, the verdict
-     word is the loud element and stays one line. */
-  .tide-vessel.has-verdict .tide-vessel-verdict { right: 96px; }
 
   /* ── Auth modal: email-preview card on signup step ────────────── */
   .auth-email-preview { background: var(--leaf-lt); border: 1px solid rgba(61,107,53,0.18); border-radius: 12px; padding: 14px 16px; margin: 14px 0 18px; }
@@ -3155,12 +3100,14 @@ function deriveVerdict(ctx) {
   }
 }
 
-// Hero card. Hierarchy is verdict (loudest) → sales fact (bold) → small tide
-// line at the bottom. The wave + water-level visual is decorative — tide is
-// brand flavour, not the message itself.
-function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, onSaleCount, totalCount, serverVerdict) {
+// Merged tide card. One card carries: centre eyebrow, trend pill, verdict
+// word, sales fact, statement subtitle, and the live 60-day curve. Everything
+// downstream of the verdict (pill arrow, eyebrow tail word, curve glow,
+// statement tint) is keyed off the same `verdict` object so the four
+// directional signals on the card can never disagree.
+function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, onSaleCount, totalCount, serverVerdict, history, centreName, centreLocation) {
   const pct = Math.max(0, Math.min(100, +pctOnSale || 0));
-  void statement;
+  void brandsDelta;
   const verdict = deriveVerdict({
     serverVerdict,
     brandsOnSale: onSaleCount,
@@ -3174,85 +3121,136 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, 
   const factText = hasCount ? (onSaleCount + ' of ' + totalCount + ' brands on sale')
                             : (pct + '% of brands on sale');
 
-  // Day-on-day brand-count delta. Score is now pure % of brands on sale,
-  // so the headline direction (RISING / EASING) is driven by the same brand
-  // count that produced this delta — they can't disagree. Show it truthfully.
-  let changeHTML = '';
-  if (Number.isFinite(brandsDelta)) {
-    const mag  = Math.abs(brandsDelta);
-    const noun = mag === 1 ? 'brand' : 'brands';
-    if (brandsDelta === 0) {
-      changeHTML = '<span class="tide-vessel-fact-change is-flat">No change since yesterday</span>';
-    } else if (brandsDelta > 0) {
-      changeHTML = '<span class="tide-vessel-fact-change is-up">↑ ' + mag + ' more ' + noun + ' on sale than yesterday</span>';
-    } else {
-      changeHTML = '<span class="tide-vessel-fact-change is-down">↓ ' + mag + ' fewer ' + noun + ' on sale than yesterday</span>';
-    }
+  // Mixed-case headline. PEAK absorbs the retired GO NOW pill copy — it is
+  // the only stage allowed recommendation language. The dataset attribute
+  // gives tests a stable handle that doesn't rely on the displayed string.
+  const HEADLINE = { PEAK: 'Go now', RISING: 'Rising', EASING: 'Easing', OVER: 'Over', QUIET: 'Quiet' };
+  const headlineWord = HEADLINE[verdict.word] || verdict.word;
+
+  // Subtitle copy. Prefer the caller-supplied statement (the same string the
+  // .score-message block used to render — server bluf, falling back to
+  // stageStyle.msg). Recommendation language is allowed only on PEAK; for
+  // every other stage this is pure trend description.
+  const subtitle = String(statement || (stageStyle(stage) || {}).msg || '');
+
+  // Build the 60-day series once. Both the curve and the trend pill arrow
+  // derive their direction from it, so the visual slope and the arrow can
+  // never disagree.
+  const series60 = buildTide60Series(Array.isArray(history) ? history : []);
+  const n60 = series60.length;
+  const lastSlope = n60 >= 2 ? (series60[n60 - 1].score - series60[n60 - 2].score) : 0;
+  const FLAT_BAND = 0.6;
+  const slopeDir = lastSlope >  FLAT_BAND ? 'up'
+                 : lastSlope < -FLAT_BAND ? 'down'
+                 : 'flat';
+
+  // Trend pill: word is the same as the headline (so the two never read as
+  // different states on the same card); arrow follows verdict tone but is
+  // OVERRIDDEN to neutral '→' if the live curve contradicts it. Belt-and-
+  // braces so a stale server verdict can never put an ↑ next to a falling
+  // line.
+  let pillArrow;
+  let pillCls = '';
+  if (verdict.tone === 'go') {
+    pillArrow = '★';                                  // PEAK — non-directional
+  } else if (verdict.tone === 'rise') {
+    pillArrow = (slopeDir === 'down') ? '→' : '↑';
+    pillCls = (slopeDir === 'down') ? '' : 'is-up';
+  } else if (verdict.tone === 'fall') {
+    pillArrow = (slopeDir === 'up') ? '→' : '↓';
+    pillCls = (slopeDir === 'up') ? '' : 'is-down';
+  } else {
+    pillArrow = '→';                                  // QUIET / OVER
   }
+  const pillWord = headlineWord;
 
-  // Stage delineations (PEAK / RISING / EARLY / LOW) and the "TIDE FALLING"
-  // arrow used to live on the vessel. They've been moved onto the history
-  // chart as horizontal bands so the chart timeline shows where the centre
-  // sat in each phase. The vessel itself now carries the percentage signal
-  // as the tide mark plus a labelled ladder on the right wall (see below).
+  const safeCentre = String(centreName || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const safeLoc    = String(centreLocation || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const eyebrowText = safeCentre + (safeLoc ? ' &middot; ' + safeLoc : '');
 
-  // Trajectory drives three things on the panel: the GIANT backdrop
-  // arrow behind the verdict word (loud), the plain-English trend pill
-  // under the fact (explicit), and the colour of the lit ladder ticks
-  // (so a "Peak" tick lit warm-amber on a falling tide reads as "tide
-  // has receded past this line" instead of "still here, jump in").
-  const traj = trajectory === 'RISING' ? 'rising'
-             : trajectory === 'FALLING' ? 'falling'
-             : 'flat';
-  const bgChevron = traj === 'rising' ? '&#9650;'   // ▲
-                  : traj === 'falling' ? '&#9660;'  // ▼
-                  : '&#10142;';                      // ➞ (drift, no clear direction)
-  const bgArrowHTML = '<div class="tide-vessel-direction-bg" aria-hidden="true">' + bgChevron + '</div>';
-
-  const LADDER = [
-    { level: 40, label: 'Peak'    },
-    { level: 15, label: 'Rising'  },
-    { level: 5,  label: 'Quiet'   },
-  ];
-  const ladderHTML = LADDER.map(t => {
-    const reached = pct >= t.level ? ' is-reached' : '';
-    return '<div class="tide-ladder-tick' + reached + '" style="bottom:' + t.level + '%">'
-         +   '<span class="tide-ladder-label">' + t.label + '</span>'
-         +   '<span class="tide-ladder-num">' + t.level + '%</span>'
-         + '</div>';
-  }).join('');
-
-  // Single aria-label collapses the decorative vessel into one cohesive
-  // sentence for screen readers; role="img" stops SR from walking the inner
-  // ladder/wave divs as separate fragments. The verdict word + fact text
-  // mirror what a sighted user sees.
-  const trajWord = traj === 'rising' ? 'tide rising' : traj === 'falling' ? 'tide falling' : 'tide steady';
-  const peakAriaWord = verdict.word === 'PEAK' ? ' Go now.' : '';
-  const ariaLabel = (verdict.word + '.' + peakAriaWord + ' ' + factText + '. ' + trajWord + '.')
+  const ariaLabel = (headlineWord + '. ' + factText + '. ' + subtitle)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  // PEAK is the only state that gets a recommendation badge — every other
-  // headline is a pure trend signal. Keeping "GO NOW" out of the regular
-  // headline rotation stops the dashboard from prescribing visits when a
-  // centre is rising / easing / over.
-  const peakBadge = verdict.word === 'PEAK'
-    ? '<span class="tide-vessel-peak-badge">GO NOW</span>'
-    : '';
 
-  return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + ' tide-vessel--' + traj + '" style="--tide-level:' + pct + '%" role="img" aria-label="' + ariaLabel + '">'
-       +   bgArrowHTML
+  // ── Chart geometry (relocated from the retired renderHistoryChart) ──
+  // Same viewBox / smoothing / threshold lines, no outer card wrapper —
+  // the vessel itself is the card now.
+  const W = 480, H = 110, PL = 8, PR = 18, PT = 4, PB = 22;
+  const k = 2;
+  const smoothed = series60.map((_, i) => {
+    let sum = 0, w = 0;
+    for (let j = Math.max(0, i - k); j <= Math.min(n60 - 1, i + k); j++) {
+      const wt = k + 1 - Math.abs(i - j);
+      sum += series60[j].score * wt;
+      w += wt;
+    }
+    return n60 ? sum / w : 0;
+  });
+  const pts = smoothed.map((s, i) => [
+    +(PL + (n60 > 1 ? (i / (n60 - 1)) * W : 0)).toFixed(2),
+    +(PT + (1 - s / 100) * H).toFixed(2),
+  ]);
+  const lineD = pts.length >= 2 ? smoothCurvePath(pts) : '';
+  const [lx, ly] = pts.length ? pts[pts.length - 1] : [PL + W, PT + H];
+  const NEON = '#5EFFB0';
+  const thresholds = [
+    { pct: 75, label: 'PEAK',  stroke: 'rgba(255,200,120,0.32)', dash: '4 4', textFill: 'rgba(255,200,120,0.62)' },
+    { pct: 50, label: null,    stroke: 'rgba(245,241,235,0.10)', dash: '0',   textFill: null },
+    { pct: 25, label: 'QUIET', stroke: 'rgba(245,241,235,0.20)', dash: '4 4', textFill: 'rgba(245,241,235,0.45)' },
+  ];
+  const gridLines = thresholds.map(g => {
+    const gy = +(PT + (1 - g.pct / 100) * H).toFixed(1);
+    const dashAttr = g.dash !== '0' ? ' stroke-dasharray="' + g.dash + '"' : '';
+    let line = '<line x1="' + PL + '" y1="' + gy + '" x2="' + (PL + W) + '" y2="' + gy + '" stroke="' + g.stroke + '" stroke-width="0.7"' + dashAttr + '/>';
+    if (g.label) {
+      line += '<text x="' + (PL + 4) + '" y="' + (gy - 3).toFixed(1) + '" font-family="Inter,sans-serif" font-size="8" font-weight="700" letter-spacing="0.14em" fill="' + g.textFill + '">' + g.label + '</text>';
+    }
+    return line;
+  }).join('');
+  const midIdx = Math.round((n60 - 1) / 2);
+  const xLabels = pts.length ? [
+    { x: pts[0][0],      anchor: 'start',  text: '60d'   },
+    { x: pts[midIdx][0], anchor: 'middle', text: '30d ago' },
+    { x: pts[n60 - 1][0], anchor: 'end',   text: 'today' },
+  ].map(l => (
+    '<text x="' + l.x + '" y="' + (PT + H + 16) + '" font-family="Inter,sans-serif" font-size="9.5" fill="rgba(245,241,235,0.45)" letter-spacing="0.04em" text-anchor="' + l.anchor + '">' + l.text + '</text>'
+  )).join('') : '';
+  const filterDef = '<filter id="t60Glow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+
+  const eyebrowHTML = eyebrowText
+    ? '<div class="tide-vessel-eyebrow-row"><span class="tide-vessel-centre-name">' + eyebrowText + '</span>'
+        + '<span class="tide-vessel-trend-pill ' + pillCls + '" data-verdict-word="' + verdict.word + '" data-pill-arrow="' + pillArrow + '">'
+        +   '<span class="tide-vessel-trend-pill-arrow">' + pillArrow + '</span>'
+        +   '<span class="tide-vessel-trend-pill-word">' + pillWord + '</span>'
+        + '</span>'
+        + '</div>'
+    : '<div class="tide-vessel-eyebrow-row tide-vessel-eyebrow-row--pill-only">'
+        + '<span class="tide-vessel-trend-pill ' + pillCls + '" data-verdict-word="' + verdict.word + '" data-pill-arrow="' + pillArrow + '">'
+        +   '<span class="tide-vessel-trend-pill-arrow">' + pillArrow + '</span>'
+        +   '<span class="tide-vessel-trend-pill-word">' + pillWord + '</span>'
+        + '</span>'
+        + '</div>';
+
+  return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + ' tide-vessel--merged" data-verdict-word="' + verdict.word + '" data-slope-direction="' + slopeDir + '" data-pill-arrow="' + pillArrow + '" role="img" aria-label="' + ariaLabel + '">'
+       +   eyebrowHTML
        +   '<div class="tide-vessel-verdict">'
-       +     '<div class="tide-vessel-verdict-word tone-' + verdict.tone + '">' + verdict.word + peakBadge + '</div>'
-       +     '<div class="tide-vessel-fact">' + factText + changeHTML + '</div>'
+       +     '<div class="tide-vessel-verdict-word tone-' + verdict.tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</div>'
+       +     '<div class="tide-vessel-fact">' + factText + '</div>'
+       +     (subtitle ? '<div class="tide-vessel-statement tone-' + verdict.tone + '">' + subtitle.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>' : '')
        +   '</div>'
-       +   '<div class="tide-ladder" aria-hidden="true">' + ladderHTML + '</div>'
-       +   '<div class="tide-water">'
-       +     '<svg class="tide-wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
-       +       '<path d="M0,14 C40,4 80,24 120,14 C160,4 200,24 240,14 C280,4 320,24 360,14 C380,9 390,12 400,14 L400,28 L0,28 Z" fill="rgba(94,255,176,0.55)"/>'
+       +   '<div class="tide-vessel-chart-eyebrow">'
+       +     'TIDE &middot; 60 DAYS &middot; '
+       +     '<span class="tide-vessel-chart-eyebrow-tail tone-' + verdict.tone + '" data-verdict-word="' + verdict.word + '">' + verdict.word + '</span>'
+       +   '</div>'
+       +   '<div class="tide-vessel-chart">'
+       +     '<svg viewBox="0 0 ' + (W + PL + PR) + ' ' + (H + PT + PB) + '" xmlns="http://www.w3.org/2000/svg">'
+       +       '<defs>' + filterDef + '</defs>'
+       +       gridLines
+       +       (lineD ? '<path d="' + lineD + '" fill="none" stroke="' + NEON + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" filter="url(#t60Glow)"/>' : '')
+       +       (pts.length ? '<text x="' + lx + '" y="' + (ly - 11).toFixed(1) + '" text-anchor="middle" font-family="Inter,sans-serif" font-size="9.5" fill="' + NEON + '" font-weight="600">today</text>' : '')
+       +       (pts.length ? '<circle cx="' + lx + '" cy="' + ly + '" r="9" fill="' + NEON + '" opacity="0.18"/>' : '')
+       +       (pts.length ? '<circle cx="' + lx + '" cy="' + ly + '" r="3.6" fill="' + NEON + '" filter="url(#t60Glow)"/>' : '')
+       +       xLabels
        +     '</svg>'
-       +     '<svg class="tide-wave-svg-2" viewBox="0 0 400 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'
-       +       '<path d="M0,18 C50,8 100,26 150,16 C200,6 250,26 300,16 C340,8 370,20 400,14 L400,28 L0,28 Z" fill="rgba(94,255,176,0.32)"/>'
-       +     '</svg>'
-       +     '<div class="tide-water-body"></div>'
        +   '</div>'
        + '</div>';
 }
@@ -3452,91 +3450,10 @@ function smoothCurvePath(pts) {
   return d;
 }
 
-// TIDE OVER 60 DAYS — joins real centre history with a UK retail-calendar
-// synthetic backfill on days we don't yet have scored. Synthetic days are
-// shifted to this centre's recent baseline so the seam is invisible. As
-// real scores arrive each morning the synthetic segment shrinks; once 60
-// days of real scores exist the chart is fully real.
-function renderHistoryChart(history, color, trajectory, stage, serverVerdict) {
-  void color;
-  const series = buildTide60Series(history);
-  const n = series.length;
-  const W = 480, H = 110, PL = 8, PR = 18, PT = 4, PB = 22;
-  const k = 2;
-  const smoothed = series.map((_, i) => {
-    let sum = 0, w = 0;
-    for (let j = Math.max(0, i - k); j <= Math.min(n - 1, i + k); j++) {
-      const wt = k + 1 - Math.abs(i - j);
-      sum += series[j].score * wt;
-      w += wt;
-    }
-    return sum / w;
-  });
-  const pts = smoothed.map((s, i) => [
-    +(PL + (i / (n - 1)) * W).toFixed(2),
-    +(PT + (1 - s / 100) * H).toFixed(2),
-  ]);
-  const lineD = smoothCurvePath(pts);
-  const [lx, ly] = pts[n - 1];
-  const NEON = '#5EFFB0';
-  const traj = (trajectory || 'FLAT').toUpperCase();
-  // Badge mirrors the headline word AND arrow so the same stage isn't
-  // named two different things on one page. Arrow follows the verdict tone
-  // (not raw trajectory) — otherwise a QUIET stage with a rising trajectory
-  // would still read "QUIET ↑" and re-introduce the contradiction.
-  const verdict = deriveVerdict({ serverVerdict, stage, trajectory: traj });
-  const trendArrow = verdict.tone === 'rise' ? '↑'
-                   : verdict.tone === 'fall' ? '↓'
-                   : verdict.tone === 'go'   ? '★'
-                   : '→';
-  const trendText  = verdict.word.charAt(0) + verdict.word.slice(1).toLowerCase();
-  const trendCls   = verdict.tone === 'fall' ? ' is-down' : '';
-  // Threshold reference lines — anchor the score number for the reader.
-  // 75 is the PEAK threshold (highlighted, dashed amber); 25 is the QUIET
-  // threshold (dashed). 50 is a neutral mid-line.
-  const thresholds = [
-    { pct: 75, label: 'PEAK',  stroke: 'rgba(255,200,120,0.32)', dash: '4 4', textFill: 'rgba(255,200,120,0.62)' },
-    { pct: 50, label: null,    stroke: 'rgba(245,241,235,0.10)', dash: '0',   textFill: null },
-    { pct: 25, label: 'QUIET', stroke: 'rgba(245,241,235,0.20)', dash: '4 4', textFill: 'rgba(245,241,235,0.45)' },
-  ];
-  const gridLines = thresholds.map(g => {
-    const gy = +(PT + (1 - g.pct / 100) * H).toFixed(1);
-    const dashAttr = g.dash !== '0' ? ' stroke-dasharray="' + g.dash + '"' : '';
-    let line = '<line x1="' + PL + '" y1="' + gy + '" x2="' + (PL + W) + '" y2="' + gy + '" stroke="' + g.stroke + '" stroke-width="0.7"' + dashAttr + '/>';
-    if (g.label) {
-      line += '<text x="' + (PL + 4) + '" y="' + (gy - 3).toFixed(1) + '" font-family="Inter,sans-serif" font-size="8" font-weight="700" letter-spacing="0.14em" fill="' + g.textFill + '">' + g.label + '</text>';
-    }
-    return line;
-  }).join('');
-  const midIdx = Math.round((n - 1) / 2);
-  const xLabels = [
-    { x: pts[0][0],      anchor: 'start',  text: '60d ago' },
-    { x: pts[midIdx][0], anchor: 'middle', text: '30d ago' },
-    { x: pts[n-1][0],    anchor: 'end',    text: 'Today'   },
-  ].map(l => (
-    '<text x="' + l.x + '" y="' + (PT + H + 16) + '" font-family="Inter,sans-serif" font-size="9.5" fill="rgba(245,241,235,0.45)" letter-spacing="0.04em" text-anchor="' + l.anchor + '">' + l.text + '</text>'
-  )).join('');
-  const filterDef = '<filter id="t60Glow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
-  return '<div class="history-section" id="history-section">'
-    + '<div class="tide60-card">'
-    +   '<div class="tide60-header">'
-    +     '<span class="tide60-title">Tide over 60 days</span>'
-    +     '<span class="tide60-trend' + trendCls + '"><span class="tide60-trend-arrow">' + trendArrow + '</span>' + trendText + '</span>'
-    +   '</div>'
-    +   '<div class="tide60-chart">'
-    +     '<svg viewBox="0 0 ' + (W + PL + PR) + ' ' + (H + PT + PB) + '" xmlns="http://www.w3.org/2000/svg">'
-    +       '<defs>' + filterDef + '</defs>'
-    +       gridLines
-    +       '<path d="' + lineD + '" fill="none" stroke="' + NEON + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" filter="url(#t60Glow)"/>'
-    +       '<text x="' + lx + '" y="' + (ly - 11).toFixed(1) + '" text-anchor="middle" font-family="Inter,sans-serif" font-size="9.5" fill="' + NEON + '" font-weight="600">today</text>'
-    +       '<circle cx="' + lx + '" cy="' + ly + '" r="9" fill="' + NEON + '" opacity="0.18"/>'
-    +       '<circle cx="' + lx + '" cy="' + ly + '" r="3.6" fill="' + NEON + '" filter="url(#t60Glow)"/>'
-    +       xLabels
-    +     '</svg>'
-    +   '</div>'
-    + '</div>'
-    + '</div>';
-}
+// The dark TIDE OVER 60 DAYS card was merged into renderTideVessel — its
+// 60-day curve, PEAK/QUIET reference lines, today dot, and trend pill all
+// live inside the unified hero card now. The light landing-page sibling
+// below still uses the shared buildTide60Series + smoothCurvePath helpers.
 
 // Light-themed sibling of the TIDE OVER 60 DAYS card, used as a marketing
 // preview on the landing page. Same SVG geometry as the dark version but
@@ -4193,16 +4110,6 @@ async function renderCentre(centreId) {
     }
   }
 
-  // Forward-guidance copy below the bluf \u2014 small italic supporting text, not a
-  // competing badge. Pure trend language, no recommendation: the headline +
-  // PEAK badge are the only places the dashboard tells the user what to do.
-  let trendCopy = '';
-  if (trajectory==='RISING') {
-    trendCopy = '<div class="trend-line">\u2191 Tide rising</div>';
-  } else if (trajectory==='FALLING') {
-    trendCopy = '<div class="trend-line">\u2193 Tide easing off</div>';
-  }
-
   // Centre identity hero — back button + name + location label.
   const safeCentreName = centreName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const location = CENTRE_LOCATIONS[centreIdx];
@@ -4286,11 +4193,9 @@ async function renderCentre(centreId) {
             const lastPast = past[past.length - 1];
             if (lastPast) brandsDelta = +onSaleN - +lastPast.brands_on_sale;
           }
-          return renderTideVessel(pctOnSale, stage, style.statement, trajectory, brandsDelta, onSaleN, totalN, sScore && sScore.verdict);
+          return renderTideVessel(pctOnSale, stage, verdictMsg, trajectory, brandsDelta, onSaleN, totalN, sScore && sScore.verdict, history, centreName, location);
         })()
     +   evidenceStrip + noMatchMsg + personalVerdictLine
-    +   '<div class="score-message">'+verdictMsg+'</div>'
-    +   trendCopy
     + '</div></div>';
 
   // Centre Intelligence card — real-data stat row + narrative + opening hours.
@@ -4325,7 +4230,6 @@ async function renderCentre(centreId) {
     : '<p class="contrib-intro"><a onclick="openAuthModal();return false;">Sign in</a> to confirm sales in store and help other shoppers &mdash; it keeps the Tide accurate for everyone.</p>';
 
   content.innerHTML = heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
-    + renderHistoryChart(history,style.color,trajectory,stage,serverScore&&serverScore.verdict)
     + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+contribIntro+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>';
 
   // Detail content is in the DOM — only now flip the chrome into centre-view.
@@ -4340,8 +4244,6 @@ async function renderCentre(centreId) {
     document.getElementById('score-card').classList.add('visible');
     const narr=document.getElementById('narrative-section');
     if (narr) narr.classList.add('visible');
-    const hist=document.getElementById('history-section');
-    if (hist) hist.classList.add('visible');
     document.getElementById('brands-section').classList.add('visible');
     document.dispatchEvent(new CustomEvent('centreScoreLoaded'));
   });

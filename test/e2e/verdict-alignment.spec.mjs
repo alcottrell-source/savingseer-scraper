@@ -5,10 +5,16 @@
 // to populate, then for every scored centre call the app's own renderCentre()
 // and assert the cross-surface invariants from CLAUDE.md:
 //
-//   1. vessel headline word === 60-day chart corner badge word
-//   2. "GO NOW" badge appears iff the headline word is PEAK
-//   3. the brand-delta row never contradicts the stage direction
-//      (no ↑/is-up while EASING/OVER; no ↓/is-down while RISING/PEAK)
+//   1. headline word === trend-pill word === chart-eyebrow tail word
+//      (three places inside the merged tide card; all read off the same
+//      `deriveVerdict()` so they must match)
+//   2. "Go now" headline copy appears iff the verdict word is PEAK
+//      (the GO NOW pill is gone — recommendation language is absorbed
+//      into the verdict word, which is PEAK-only)
+//   3. trend-pill arrow never contradicts the curve's last-segment slope:
+//      no '↑' while data-slope-direction='down', no '↓' while
+//      data-slope-direction='up' (PEAK's '★' is non-directional and
+//      permitted on either slope)
 //   4. narrative copy contains no digits and no recommendation language
 //   5. (§J) Plausible is pageview-only — exactly one script tag, no custom
 //      plausible('Event') calls anywhere in the served HTML
@@ -17,14 +23,14 @@
 // deriveVerdict(), so they stay correct even if the verdict mapping is tuned.
 // The expected-word mapping is asserted only as a soft annotation.
 //
-// Selectors verified against index.html:
-//   .tide-vessel-verdict-word            headline word
-//   .tide-vessel-verdict  / "GO NOW"     PEAK badge text
-//   .tide-vessel-fact-change.is-up/.is-down/.is-flat   delta row
-//   .tide60-trend .tide60-trend-arrow + text           chart corner badge
-//   #narrative-section .narrative-insight              narrative copy
-//   window.__tide.CENTRE_SCORES { id: {verdict,...} }  data (live getter)
-//   window.renderCentre(id)                            render a centre
+// Selectors verified against index.html (merged tide card, May 2026):
+//   .tide-vessel-verdict-word[data-verdict-word]              headline (mixed-case)
+//   .tide-vessel-trend-pill[data-verdict-word][data-pill-arrow]  top-right pill
+//   .tide-vessel-chart-eyebrow-tail[data-verdict-word]        chart eyebrow tail word
+//   .tide-vessel[data-slope-direction]                        live curve slope
+//   #narrative-section .narrative-insight                     narrative copy
+//   window.__tide.CENTRE_SCORES { id: {verdict,...} }         data (live getter)
+//   window.renderCentre(id)                                   render a centre
 
 import { test, expect } from '@playwright/test';
 
@@ -188,8 +194,9 @@ test('DOM discovery — dump one rendered centre to the report', async ({ page }
     return {
       centreId: cid,
       score: window.getServerScore(idx),
-      vesselHTML: document.querySelector('.tide-vessel-verdict')?.outerHTML || '(none)',
-      chartHTML: document.querySelector('.tide60-trend')?.outerHTML || '(none)',
+      vesselHTML: document.querySelector('.tide-vessel')?.outerHTML?.slice(0, 1200) || '(none)',
+      pillHTML: document.querySelector('.tide-vessel-trend-pill')?.outerHTML || '(none)',
+      chartEyebrowHTML: document.querySelector('.tide-vessel-chart-eyebrow')?.outerHTML || '(none)',
       narrative: document.querySelector('.narrative-insight')?.textContent || '(none)',
     };
   });
@@ -234,26 +241,38 @@ test('verdict alignment holds for every scored centre', async ({ page }, testInf
     const snap = await page.evaluate(async (cid) => {
       await window.renderCentre(cid);
       const idx = parseInt(cid.slice(1), 10) - 1;
-      const vEl = document.querySelector('.tide-vessel-verdict-word');
-      const vWord = (vEl?.textContent || '').trim().toUpperCase().replace(/\s+/g, ' ');
-      const verdictBox = document.querySelector('.tide-vessel-verdict');
-      const goNow = /GO NOW/i.test(verdictBox?.textContent || '');
-      const deltaEl = document.querySelector('.tide-vessel-fact-change');
-      const deltaClass = deltaEl
-        ? (deltaEl.classList.contains('is-up') ? 'up'
-          : deltaEl.classList.contains('is-down') ? 'down'
-          : deltaEl.classList.contains('is-flat') ? 'flat' : 'present')
-        : 'none';
-      const trendEl = document.querySelector('.tide60-trend');
-      const arrow = document.querySelector('.tide60-trend-arrow')?.textContent || '';
-      const chartWord = ((trendEl?.textContent || '').replace(arrow, '')).trim().toUpperCase();
+      const vEl     = document.querySelector('.tide-vessel-verdict-word');
+      const pillEl  = document.querySelector('.tide-vessel-trend-pill');
+      const tailEl  = document.querySelector('.tide-vessel-chart-eyebrow-tail');
+      const vessel  = document.querySelector('.tide-vessel');
+      const arrow   = document.querySelector('.tide-vessel-trend-pill-arrow')?.textContent || '';
+      // Use data-verdict-word as the source of truth for cross-surface
+      // comparison — the displayed headline is mixed-case ("Go now",
+      // "Rising"), so textContent doesn't normalise cleanly across
+      // surfaces. The dataset attribute is set from deriveVerdict() once
+      // per render in renderTideVessel, so it's stable.
+      const vWord   = (vEl?.dataset.verdictWord || '').toUpperCase();
+      const pWord   = (pillEl?.dataset.verdictWord || '').toUpperCase();
+      const tWord   = (tailEl?.dataset.verdictWord || '').toUpperCase();
+      const headlineText = (vEl?.textContent || '').trim();
+      const slopeDir = vessel?.dataset.slopeDirection || '';
+      const pillArrow = vessel?.dataset.pillArrow || arrow || '';
+      // Residue guard — the decorative-wave / right-rail ladder / GO NOW
+      // pill were all removed in the May 2026 merge. None should still be
+      // in the DOM. Catches a half-applied CSS migration.
+      const stale = {
+        tideWater: !!document.querySelector('.tide-water'),
+        tideLadder: !!document.querySelector('.tide-ladder'),
+        goNowBadge: !!document.querySelector('.tide-vessel-peak-badge'),
+        historySection: !!document.querySelector('#history-section'),
+      };
       const narrative = (document.querySelector('.narrative-insight')?.textContent || '').trim();
       return {
         rendered: !!vEl,
-        vWord, goNow, deltaClass, chartWord, narrative,
+        vWord, pWord, tWord, headlineText, slopeDir, pillArrow, stale, narrative,
         serverVerdict: window.getServerScore(idx)?.verdict ?? null,
-        vesselHTML: verdictBox?.outerHTML || '(none)',
-        chartHTML: trendEl?.outerHTML || '(none)',
+        vesselHTML: vessel?.outerHTML?.slice(0, 1200) || '(none)',
+        pillHTML: pillEl?.outerHTML || '(none)',
       };
     }, id);
 
@@ -264,27 +283,39 @@ test('verdict alignment holds for every scored centre', async ({ page }, testInf
 
     // headline word must be one of the five
     if (!['QUIET', 'RISING', 'PEAK', 'EASING', 'OVER'].includes(snap.vWord)) {
-      why.push(`headline word not recognised: "${snap.vWord}"`);
+      why.push(`headline data-verdict-word not recognised: "${snap.vWord}"`);
     }
-    // 1. vessel word === chart corner badge word
-    if (snap.chartWord && snap.vWord && snap.chartWord !== snap.vWord) {
-      why.push(`chart badge "${snap.chartWord}" != vessel "${snap.vWord}"`);
+    // 1. headline word === trend-pill word === chart-eyebrow tail word
+    if (snap.pWord && snap.vWord && snap.pWord !== snap.vWord) {
+      why.push(`pill "${snap.pWord}" != headline "${snap.vWord}"`);
     }
-    // 2. GO NOW iff PEAK
-    if (snap.goNow && snap.vWord !== 'PEAK') why.push(`GO NOW shown on ${snap.vWord}`);
-    if (!snap.goNow && snap.vWord === 'PEAK') why.push('PEAK without GO NOW badge');
-    // 3. delta row never contradicts stage direction
-    if (snap.deltaClass === 'up' && (snap.vWord === 'EASING' || snap.vWord === 'OVER')) {
-      why.push(`is-up delta on ${snap.vWord}`);
+    if (snap.tWord && snap.vWord && snap.tWord !== snap.vWord) {
+      why.push(`chart-eyebrow tail "${snap.tWord}" != headline "${snap.vWord}"`);
     }
-    if (snap.deltaClass === 'down' && (snap.vWord === 'RISING' || snap.vWord === 'PEAK')) {
-      why.push(`is-down delta on ${snap.vWord}`);
+    // 2. "Go now" headline copy iff PEAK
+    const isGoNowCopy = /go now/i.test(snap.headlineText);
+    if (isGoNowCopy && snap.vWord !== 'PEAK') why.push(`"Go now" headline shown on ${snap.vWord}`);
+    if (!isGoNowCopy && snap.vWord === 'PEAK') why.push(`PEAK without "Go now" headline (got "${snap.headlineText}")`);
+    // 3. trend-pill arrow never contradicts the live curve slope. PEAK's
+    // '★' is non-directional and permitted on either slope; the rule is
+    // strictly: no '↑' while descending, no '↓' while ascending.
+    if (snap.pillArrow === '↑' && snap.slopeDir === 'down') {
+      why.push(`pill '↑' arrow while curve slope='down'`);
+    }
+    if (snap.pillArrow === '↓' && snap.slopeDir === 'up') {
+      why.push(`pill '↓' arrow while curve slope='up'`);
     }
     // 4. narrative clean
     if (/\d/.test(snap.narrative)) why.push(`narrative contains a digit: "${snap.narrative}"`);
     const lc = snap.narrative.toLowerCase();
     const hit = RECO_LANGUAGE.find((p) => lc.includes(p));
     if (hit) why.push(`narrative uses recommendation language: "${hit}"`);
+    // 5. no residue from the retired decorative-waves / right-rail ladder
+    // / standalone history section / GO NOW pill.
+    if (snap.stale.tideWater)      why.push('stale .tide-water element still in DOM');
+    if (snap.stale.tideLadder)     why.push('stale .tide-ladder element still in DOM');
+    if (snap.stale.goNowBadge)     why.push('stale .tide-vessel-peak-badge still in DOM');
+    if (snap.stale.historySection) why.push('stale #history-section still in DOM');
 
     // soft annotation only
     const exp = expectedWord(sv);
@@ -296,7 +327,7 @@ test('verdict alignment holds for every scored centre', async ({ page }, testInf
     }
 
     if (why.length) {
-      const html = { vessel: snap.vesselHTML, chart: snap.chartHTML };
+      const html = { vessel: snap.vesselHTML, pill: snap.pillHTML };
       failures.push({ id, serverVerdict: sv, ...snap, why, html });
       await testInfo.attach(`fail-${id}.png`, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
     }

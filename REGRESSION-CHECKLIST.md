@@ -13,9 +13,10 @@ Run after every visual change. Anything that was working before must still work.
 - [ ] **A5** Footer renders: "Tide · Updated daily at HH:MM Live sale data · DD MMM YYYY" + Privacy / Cookies / Contact links
 - [ ] **A6** Selecting a centre from dropdown navigates to its detail view
 - [ ] **A7** Typing in the search input filters the dropdown by centre name + city
-- [ ] **A8** Centre detail view: shows centre name + city, score visual, stage badge, narrative, brand grid, history sparkline, "Back to Centres" link
-- [ ] **A9** Stage badges & copy are correct per server `verdict`: Go now / Last chance — tide going out / Worth watching / Starting to build / It's over / Nothing on
+- [ ] **A8** Centre detail view: shows centre name + city, **merged tide card** (verdict word, "X of Y brands on sale" fact, statement subtitle, 60-day curve), narrative, brand grid, "Back to Centres" link. There is no longer a separate "Tide over 60 days" card below the vessel — the curve is inside the same card as the verdict.
+- [ ] **A9** Stage badges & copy are correct per server `verdict`: Go now (PEAK only) / Easing / Rising / Quiet / Over. Recommendation language ("Go now") appears only on PEAK.
 - [ ] **A10** "Sign in" button in nav opens auth modal at email step
+- [ ] **A11** Merged tide card cross-surface alignment: the verdict word (top), the trend-pill word (top-right) and the chart-eyebrow tail word (above the curve) are all the same word for the centre. The trend-pill arrow never contradicts the curve's last segment — no ↑ above a descending line, no ↓ above an ascending line. PEAK's ★ is allowed on either direction.
 
 ## B. Authenticated flows (require test user)
 
@@ -53,6 +54,7 @@ Run after every visual change. Anything that was working before must still work.
 - [ ] **D6** No console errors / warnings during normal use
 - [ ] **D7** Mobile viewport (375px) renders without horizontal scroll
 - [ ] **D8** Feedback widget + cookie banner don't cover content above the fold
+- [ ] **D9** Centre with sparse history (< 5 real days): merged card's 60-day curve still renders via UK retail-calendar backfill; today dot sits on the rightmost point with no gap, no NaN coordinate, and no console error.
 
 ## E. Admin parity (the north star, restated)
 
@@ -65,7 +67,8 @@ Run after every visual change. Anything that was working before must still work.
 
 - [ ] **F1** Initial page load + Supabase fetches complete in < 3s on local network
 - [ ] **F2** Centre selection → detail render in < 500ms
-- [ ] **F3** No layout-shift after data loads (water level animates from 0 smoothly)
+- [ ] **F3** No layout-shift after data loads (the merged tide card paints once, no second fade-in from a separate history section).
+- [ ] **F4** Merged card animates in once via the existing score-section transition; no orphan `#history-section` element triggers a second visibility flip.
 
 ## How to use
 

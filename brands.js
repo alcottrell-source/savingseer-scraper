@@ -1,5 +1,5 @@
 // brands.js
-// 91 brand configurations for Tide scraper
+// 90 brand configurations for Tide scraper
 // renderMode: 'static' = CheerioCrawler (fast), 'browser' = PlaywrightCrawler (JS-heavy)
 // saleSelectors: CSS selectors that confirm an active sale exists on the page
 
@@ -648,8 +648,48 @@ export const brands = [
     womenswear: true, menswear: true, childrenswear: true,
     manualCheck: true, url: 'https://www.footlocker.co.uk/',
   },
-];
 
+  // ── ADDED 2026-05-26 (brand-presence rebuild) ─────────────────────────────
+  // Candidates that passed the presence>=2 rule against the rebuilt 30-centre
+  // matrix. Marked manualCheck because their UK sale pages are bot-protected
+  // / JS-heavy enough that auto-scrape is unreliable; the admin console will
+  // record their sale state weekly.
+  {
+    id: 'B095', name: 'Bershka', cluster: 'Contemporary',
+    womenswear: true, menswear: true, childrenswear: false,
+    manualCheck: true, url: 'https://www.bershka.com/gb/',
+  },
+  {
+    id: 'B096', name: 'JD Sports', cluster: 'Active',
+    womenswear: true, menswear: true, childrenswear: true,
+    manualCheck: true, url: 'https://www.jdsports.co.uk/',
+  },
+  {
+    id: 'B097', name: 'Sports Direct', cluster: 'Active',
+    womenswear: true, menswear: true, childrenswear: true,
+    manualCheck: true, url: 'https://www.sportsdirect.com/',
+  },
+  {
+    id: 'B098', name: 'Footasylum', cluster: 'Footwear',
+    womenswear: true, menswear: true, childrenswear: false,
+    manualCheck: true, url: 'https://www.footasylum.com/',
+  },
+  {
+    id: 'B099', name: 'Urban Outfitters', cluster: 'Contemporary',
+    womenswear: true, menswear: true, childrenswear: false,
+    manualCheck: true, url: 'https://www.urbanoutfitters.com/en-gb/',
+  },
+  {
+    id: 'B100', name: "Victoria's Secret", cluster: 'Accessories',
+    womenswear: true, menswear: false, childrenswear: false,
+    manualCheck: true, url: 'https://www.victoriassecret.co.uk/',
+  },
+  {
+    id: 'B101', name: 'Pull&Bear', cluster: 'Contemporary',
+    womenswear: true, menswear: true, childrenswear: false,
+    manualCheck: true, url: 'https://www.pullandbear.com/gb/',
+  },
+];
 
 // Brands that require manual weekly check (bot-protected)
 export const manualCheckBrands = brands.filter(b => b.manualCheck);

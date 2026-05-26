@@ -2352,10 +2352,11 @@ const DASHBOARD_NAME_BY_SCRAPER_ID = {
   'B085':'Gant', 'B086':'Jack & Jones',
   'B090':'Mint Velvet', 'B092':'Primark',
   'B093':'Uniqlo', 'B094':'Foot Locker',
-  // Brand-presence rebuild (May 2026) — new manual-check brands B095..B101
+  // Brand-presence rebuild (May 2026) — new manual-check brands B095..B102
   'B095':'Bershka', 'B096':'JD Sports', 'B097':'Sports Direct',
   'B098':'Footasylum', 'B099':'Urban Outfitters',
   'B100':"Victoria's Secret", 'B101':'Pull&Bear',
+  'B102':'Diesel',
 };
 
 // Reverse of DASHBOARD_NAME_BY_SCRAPER_ID: dashboard brand name -> scraper
@@ -2489,6 +2490,7 @@ const BRANDS = [
   {id:'B099',name:"Urban Outfitters",cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:false},
   {id:'B100',name:"Victoria's Secret",cluster:'Accessories',womenswear:true,menswear:false,childrenswear:false},
   {id:'B101',name:"Pull&Bear",cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:false},
+  {id:'B102',name:'Diesel',cluster:'Premium Casual',womenswear:true,menswear:true,childrenswear:false},
 ];
 
 const PRESENCE = {
@@ -2558,6 +2560,7 @@ const PRESENCE = {
   B099:[0,0,1,1,1,0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
   B100:[0,0,1,1,1,0,0,0,1,0,1,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
   B101:[0,0,1,1,1,0,0,1,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  B102:[0,0,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0],
 };
 const CENTRE_NAMES = [
   'Festival Place','Westquay','Westfield London','Westfield Stratford',

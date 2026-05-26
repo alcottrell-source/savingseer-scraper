@@ -1,5 +1,5 @@
 // brands.js
-// 90 brand configurations for Tide scraper
+// 91 brand configurations for Tide scraper
 // renderMode: 'static' = CheerioCrawler (fast), 'browser' = PlaywrightCrawler (JS-heavy)
 // saleSelectors: CSS selectors that confirm an active sale exists on the page
 
@@ -688,6 +688,16 @@ export const brands = [
     id: 'B101', name: 'Pull&Bear', cluster: 'Contemporary',
     womenswear: true, menswear: true, childrenswear: false,
     manualCheck: true, url: 'https://www.pullandbear.com/gb/',
+  },
+  {
+    // The previous matrix-build pass only detected Diesel at 1 of 30 directories
+    // and dropped it. The handover pre-verified Diesel at 5 centres (Westfield
+    // London/Stratford, Bluewater, Meadowhall, Bullring) before the rebuild
+    // session began, so detection-fail-to-drop here is a false negative; the
+    // brand passes the rule on the pre-verified seed.
+    id: 'B102', name: 'Diesel', cluster: 'Premium Casual',
+    womenswear: true, menswear: true, childrenswear: false,
+    manualCheck: true, url: 'https://www.diesel.com/en-gb/',
   },
 ];
 

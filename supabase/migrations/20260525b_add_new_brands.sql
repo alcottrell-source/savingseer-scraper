@@ -10,13 +10,17 @@ VALUES
   ('B098', 'Footasylum', 'Footwear', true, true, false, 'https://www.footasylum.com/sale'),
   ('B099', 'Urban Outfitters', 'Contemporary', true, true, false, 'https://www.urbanoutfitters.com/en-gb/sale'),
   ('B100', 'Victoria''s Secret', 'Accessories', true, false, false, 'https://www.victoriassecret.co.uk/sale'),
-  ('B101', 'Pull&Bear', 'Contemporary', true, true, false, 'https://www.pullandbear.com/gb/sale')
+  ('B101', 'Pull&Bear', 'Contemporary', true, true, false, 'https://www.pullandbear.com/gb/sale'),
+  -- Diesel restored: the matrix-build pass only detected it at 1 centre,
+  -- but the handover pre-verified 5 (Westfield London/Stratford, Bluewater,
+  -- Meadowhall, Bullring). Treating the detection miss as a false negative.
+  ('B102', 'Diesel', 'Premium Casual', true, true, false, 'https://www.diesel.com/en-gb/sale')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO brand_sale_events (brand_id, sale_status, scraper_error)
 SELECT b.id, FALSE, FALSE
 FROM brands b
-WHERE b.id IN ('B095','B096','B097','B098','B099','B100','B101')
+WHERE b.id IN ('B095','B096','B097','B098','B099','B100','B101','B102')
 AND NOT EXISTS (
   SELECT 1 FROM brand_sale_events e WHERE e.brand_id = b.id
 );
@@ -47,4 +51,9 @@ ON CONFLICT (centre_id, brand_id) DO UPDATE SET present = EXCLUDED.present;
 
 INSERT INTO centre_brands (centre_id, brand_id, present)
 SELECT c.id, 'B101', true FROM centres c WHERE c.name IN ('Westfield London', 'Westfield Stratford', 'Trafford Centre', 'Meadowhall', 'Bullring', 'Liverpool ONE', 'Cabot Circus')
+ON CONFLICT (centre_id, brand_id) DO UPDATE SET present = EXCLUDED.present;
+
+-- Diesel: 5 pre-verified centres from the handover + Touchwood detected fresh.
+INSERT INTO centre_brands (centre_id, brand_id, present)
+SELECT c.id, 'B102', true FROM centres c WHERE c.name IN ('Westfield London', 'Westfield Stratford', 'Bluewater', 'Meadowhall', 'Bullring', 'Touchwood')
 ON CONFLICT (centre_id, brand_id) DO UPDATE SET present = EXCLUDED.present;

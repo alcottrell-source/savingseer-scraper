@@ -38,22 +38,6 @@ export const brands = [
     confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B005', name: 'Dorothy Perkins', cluster: 'High Street',
-    womenswear: true, menswear: false, childrenswear: false,
-    renderMode: 'static',
-    url: 'https://www.dorothyperkins.com/',
-    saleSelectors: ['h1', '[class*="sale"]'],
-    confirmText: ['sale', 'up to', '% off'],
-  },
-  {
-    id: 'B006', name: 'Wallis', cluster: 'High Street',
-    womenswear: true, menswear: false, childrenswear: false,
-    renderMode: 'static',
-    url: 'https://www.wallis.co.uk/',
-    saleSelectors: ['h1', '[class*="sale"]'],
-    confirmText: ['sale', 'up to', '% off'],
-  },
-  {
     id: 'B007', name: 'Evans', cluster: 'High Street',
     womenswear: true, menswear: false, childrenswear: false,
     renderMode: 'static',
@@ -269,22 +253,6 @@ export const brands = [
     confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B034', name: 'Ted Baker', cluster: 'Smart/Occasion',
-    womenswear: true, menswear: true, childrenswear: false,
-    renderMode: 'static',
-    url: 'https://www.tedbaker.com/uk/',
-    saleSelectors: ['h1', '[class*="sale"]', '[class*="Sale"]'],
-    confirmText: ['sale', 'up to', '% off'],
-  },
-  {
-    id: 'B035', name: 'Karen Millen', cluster: 'Smart/Occasion',
-    womenswear: true, menswear: false, childrenswear: false,
-    renderMode: 'static',
-    url: 'https://www.karenmillen.com/',
-    saleSelectors: ['h1', '[class*="sale"]'],
-    confirmText: ['sale', 'up to', '% off'],
-  },
-  {
     id: 'B036', name: 'Coast', cluster: 'Smart/Occasion',
     womenswear: true, menswear: false, childrenswear: false,
     renderMode: 'static',
@@ -305,22 +273,6 @@ export const brands = [
     womenswear: true, menswear: false, childrenswear: false,
     renderMode: 'static',
     url: 'https://www.accessorize.com/uk/',
-    saleSelectors: ['h1', '[class*="sale"]'],
-    confirmText: ['sale', 'up to', '% off'],
-  },
-  {
-    id: 'B039', name: 'Oasis', cluster: 'Smart/Occasion',
-    womenswear: true, menswear: false, childrenswear: false,
-    renderMode: 'static',
-    url: 'https://www.oasis-stores.com/',
-    saleSelectors: ['h1', '[class*="sale"]'],
-    confirmText: ['sale', 'up to', '% off'],
-  },
-  {
-    id: 'B040', name: 'Warehouse', cluster: 'Smart/Occasion',
-    womenswear: true, menswear: false, childrenswear: false,
-    renderMode: 'static',
-    url: 'https://www.warehouse.co.uk/',
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
   },
@@ -647,11 +599,6 @@ export const brands = [
     manualCheck: true, url: 'https://www.bravissimo.com/',
   },
   {
-    id: 'B082', name: 'Burton', cluster: 'High Street',
-    womenswear: false, menswear: true, childrenswear: false,
-    manualCheck: true, url: 'https://www.burton.co.uk/',
-  },
-  {
     id: 'B083', name: 'Calvin Klein', cluster: 'Premium Casual',
     womenswear: true, menswear: true, childrenswear: false,
     manualCheck: true, url: 'https://www.calvinklein.co.uk/en/',
@@ -672,11 +619,6 @@ export const brands = [
     manualCheck: true, url: 'https://www.jackjones.com/gb/en/',
   },
   {
-    id: 'B087', name: 'Jaeger', cluster: 'Smart/Occasion',
-    womenswear: true, menswear: true, childrenswear: false,
-    manualCheck: true, url: 'https://www.jaeger.co.uk/',
-  },
-  {
     id: 'B088', name: 'Jigsaw', cluster: 'Smart/Occasion',
     womenswear: true, menswear: true, childrenswear: false,
     manualCheck: true, url: 'https://www.jigsaw-online.com/',
@@ -690,11 +632,6 @@ export const brands = [
     id: 'B090', name: 'Mint Velvet', cluster: 'Smart/Occasion',
     womenswear: true, menswear: false, childrenswear: false,
     manualCheck: true, url: 'https://www.mintvelvet.co.uk/',
-  },
-  {
-    id: 'B091', name: 'Miss Selfridge', cluster: 'High Street',
-    womenswear: true, menswear: false, childrenswear: false,
-    manualCheck: true, url: 'https://www.missselfridge.com/',
   },
   {
     id: 'B092', name: 'Primark', cluster: 'High Street',
@@ -712,6 +649,7 @@ export const brands = [
     manualCheck: true, url: 'https://www.footlocker.co.uk/',
   },
 ];
+
 
 // Brands that require manual weekly check (bot-protected)
 export const manualCheckBrands = brands.filter(b => b.manualCheck);

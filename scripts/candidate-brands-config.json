@@ -1,0 +1,85 @@
+{
+  "_doc": "New brand entries to be appended to brands.js once presence>=2 is confirmed. ID assignment: B095..B0NN sequentially in the order they pass.",
+  "candidates": [
+    {
+      "key": "C_DIESEL",
+      "name": "Diesel",
+      "cluster": "Premium Casual",
+      "womenswear": true, "menswear": true, "childrenswear": false,
+      "renderMode": "browser",
+      "manualCheck": true,
+      "url": "https://www.diesel.com/en-gb/"
+    },
+    {
+      "key": "C_BERSHKA",
+      "name": "Bershka",
+      "cluster": "Contemporary",
+      "womenswear": true, "menswear": true, "childrenswear": false,
+      "renderMode": "browser",
+      "manualCheck": true,
+      "url": "https://www.bershka.com/gb/"
+    },
+    {
+      "key": "C_JD_SPORTS",
+      "name": "JD Sports",
+      "cluster": "Active",
+      "womenswear": true, "menswear": true, "childrenswear": true,
+      "renderMode": "browser",
+      "manualCheck": true,
+      "url": "https://www.jdsports.co.uk/"
+    },
+    {
+      "key": "C_SPORTS_DIRECT",
+      "name": "Sports Direct",
+      "cluster": "Active",
+      "womenswear": true, "menswear": true, "childrenswear": true,
+      "renderMode": "browser",
+      "manualCheck": true,
+      "url": "https://www.sportsdirect.com/"
+    },
+    {
+      "key": "C_TRESPASS",
+      "name": "Trespass",
+      "cluster": "Active",
+      "womenswear": true, "menswear": true, "childrenswear": true,
+      "renderMode": "static",
+      "url": "https://www.trespass.com/"
+    },
+    {
+      "key": "C_FOOTASYLUM",
+      "name": "Footasylum",
+      "cluster": "Footwear",
+      "womenswear": true, "menswear": true, "childrenswear": false,
+      "renderMode": "browser",
+      "manualCheck": true,
+      "url": "https://www.footasylum.com/"
+    },
+    {
+      "key": "C_URBAN_OUTFITTERS",
+      "name": "Urban Outfitters",
+      "cluster": "Contemporary",
+      "womenswear": true, "menswear": true, "childrenswear": false,
+      "renderMode": "browser",
+      "manualCheck": true,
+      "url": "https://www.urbanoutfitters.com/en-gb/"
+    },
+    {
+      "key": "C_VICTORIAS_SECRET",
+      "name": "Victoria's Secret",
+      "cluster": "Accessories",
+      "womenswear": true, "menswear": false, "childrenswear": false,
+      "renderMode": "browser",
+      "manualCheck": true,
+      "url": "https://www.victoriassecret.co.uk/"
+    },
+    {
+      "key": "C_PULL_AND_BEAR",
+      "name": "Pull&Bear",
+      "cluster": "Contemporary",
+      "womenswear": true, "menswear": true, "childrenswear": false,
+      "renderMode": "browser",
+      "manualCheck": true,
+      "url": "https://www.pullandbear.com/gb/"
+    }
+  ]
+}

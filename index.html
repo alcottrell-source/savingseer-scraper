@@ -3079,9 +3079,8 @@ function deriveVerdict(ctx) {
 // downstream of the verdict (pill arrow, eyebrow tail word, curve glow,
 // statement tint) is keyed off the same `verdict` object so the four
 // directional signals on the card can never disagree.
-function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, onSaleCount, totalCount, serverVerdict, history, centreName, centreLocation) {
+function renderTideVessel(pctOnSale, stage, statement, trajectory, onSaleCount, totalCount, serverVerdict, history, centreName, centreLocation) {
   const pct = Math.max(0, Math.min(100, +pctOnSale || 0));
-  void brandsDelta;
   const verdict = deriveVerdict({
     serverVerdict,
     brandsOnSale: onSaleCount,
@@ -4185,21 +4184,12 @@ async function renderCentre(centreId) {
           const onSaleN = onSale.length;
           const totalN  = total;
           const pctOnSale = totalN > 0 ? Math.round((onSaleN / totalN) * 100) : 0;
-          // Day-on-day change. The number sitting next to it is "X of Y
-          // brands on sale", so the change has to be the brand-count delta —
-          // not the tide_score % change, which moves on freshness decay even
-          // when the admin hasn't touched anything.
-          //
-          // tide_history rows are widened to include brands_on_sale by
-          // score.js; older rows only have { date, score } so we skip them.
-          let brandsDelta = null;
-          if (Number.isFinite(+onSaleN) && history.length) {
-            const todayDate = new Date().toISOString().split('T')[0];
-            const past = history.filter(h => h && h.date && h.date < todayDate && Number.isFinite(+h.brands_on_sale));
-            const lastPast = past[past.length - 1];
-            if (lastPast) brandsDelta = +onSaleN - +lastPast.brands_on_sale;
-          }
-          return renderTideVessel(pctOnSale, stage, verdictMsg, trajectory, brandsDelta, onSaleN, totalN, sScore && sScore.verdict, history, centreName, location);
+          // The merged vessel shows the trend pill + 60-day curve, not a
+          // day-on-day brand-delta arrow — the delta line was retired when the
+          // dark TIDE card was folded into the vessel. (The literal day-on-day
+          // count still drives the "N new sales today" Hot list via
+          // getHotCentres.)
+          return renderTideVessel(pctOnSale, stage, verdictMsg, trajectory, onSaleN, totalN, sScore && sScore.verdict, history, centreName, location);
         })()
     +   evidenceStrip + noMatchMsg + personalVerdictLine
     + '</div></div>';

@@ -64,9 +64,11 @@ Headlines on the centre card are **pure trend signals**. Recommendation language
 Legacy verdict strings (`Go now`, `Worth watching`, `Last chance — tide going out`, `Starting to build`, `It's over`, `Nothing on`) still resolve in every consumer (`score.js`, `index.html`, `summarise.js`, `notify-high-tide/index.ts`) so pre-rename rows render correctly. The next daily run rewrites the column with the new vocabulary — no migration needed.
 
 **Alignment rules every consumer must obey:**
-- The brand-delta arrow (`↑ N more brands on sale than yesterday` / `↓ N fewer …`) shows the literal day-on-day change. Score is brand-count-driven now, so stage and delta cannot disagree — display the delta truthfully.
+- The literal day-on-day brand-count change is brand-count-driven, so stage and delta cannot disagree. It is **not** rendered on the centre vessel any more (the per-day delta arrow was retired when the dark TIDE card was merged into the vessel — the trend pill + 60-day curve carry direction now). Its one live consumer is the **"N new sales today" Hot list** (`getHotCentres` → `renderHotCentres`), and that comparison is recency-guarded: the prior snapshot must be **yesterday** (else the centre is skipped) so a multi-day gain across a gap is never mislabelled "today".
+- The trend pill word always equals the headline word, and its arrow is overridden to neutral `→` if the live 60-day curve contradicts the verdict tone — the two can never read as different states.
 - The trend arrow under the bluf shows direction only — no "still worth a visit" tail.
 - Narrative copy (`summarise.js`) is forbidden from using recommendation language — see the system prompt in that file.
+- The weekend digest email (`notify-high-tide` `digestVerdictFor`) is trend-only too; action language ("go now") is reserved for the high/peak bucket, mirroring the PEAK badge.
 
 ## Centre Intelligence narrative (May 2026)
 The card under each centre's score shows a 1–2 sentence trend narrative. It's generated daily by `summarise.js` (Gemini 2.0 Flash-Lite, free tier — 1500 RPD, 15 RPM) and stored in `centre_seer_scores.narrative` for that centre+date. The front-end reads the column and falls back to a template narrative when the column is null (first run on a new centre, summariser skipped, or `GEMINI_API_KEY` absent). Don't add live API calls from the browser — keep generation in the daily pipeline.

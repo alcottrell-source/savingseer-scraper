@@ -113,7 +113,7 @@
   .evidence-num .evidence-num-total { color: var(--stone); font-weight: 400; }
   .evidence-label { font-size: 11px; color: var(--stone); letter-spacing: 0.02em; line-height: 1.3; }
   .personal-no-match { font-size: 12px; color: var(--stone); font-style: italic; padding: 8px 0 4px; border-top: 1px solid var(--border); }
-  .personal-verdict-line { font-size: 13px; color: var(--amber); padding: 6px 0 2px; font-weight: 400; }
+  .personal-verdict-line { font-size: 13px; color: var(--amber); padding: 6px 0 2px; font-weight: 400; text-align: center; }
   .score-message { font-size: 15px; color: var(--ink-mid); line-height: 1.6; padding-top: 10px; border-top: 1px solid var(--border); }
   .arc-widget { display: block; width: 100%; height: auto; margin-top: 16px; overflow: visible; }
   .gauge-svg { display: block; width: 100%; max-width: 360px; height: auto; margin: 16px auto 8px; overflow: visible; }
@@ -3079,9 +3079,8 @@ function deriveVerdict(ctx) {
 // downstream of the verdict (pill arrow, eyebrow tail word, curve glow,
 // statement tint) is keyed off the same `verdict` object so the four
 // directional signals on the card can never disagree.
-function renderTideVessel(pctOnSale, stage, statement, trajectory, brandsDelta, onSaleCount, totalCount, serverVerdict, history, centreName, centreLocation) {
+function renderTideVessel(pctOnSale, stage, statement, trajectory, onSaleCount, totalCount, serverVerdict, history, centreName, centreLocation) {
   const pct = Math.max(0, Math.min(100, +pctOnSale || 0));
-  void brandsDelta;
   const verdict = deriveVerdict({
     serverVerdict,
     brandsOnSale: onSaleCount,
@@ -3698,12 +3697,18 @@ function getHotCentres(n, excludeIds) {
     if (totalBrands <= 0 || brandsOnSale === null) continue;
     const history = getServerHistory(idx) || [];
     const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
     // Brand-count delta vs the most recent historical day that has a
     // brands_on_sale snapshot (added to tide_history by score.js). Older
     // rows only have { date, score } so we skip them.
     const pastWithBrands = history.filter(h => h && h.date && h.date < today && Number.isFinite(+h.brands_on_sale));
     const lastPastBrands = pastWithBrands[pastWithBrands.length - 1];
-    if (!lastPastBrands) continue;
+    // Recency guard: this row is labelled "N new sales today", so the
+    // comparison must be against YESTERDAY. If the latest brand snapshot is
+    // staler than that (missed cron day, a centre re-activated after a gap, or
+    // pre-widening rows), the increase spans multiple days and calling it
+    // "today" would overstate it — and mis-rank the Hot list. Skip instead.
+    if (!lastPastBrands || lastPastBrands.date < yesterday) continue;
     const brandsDelta = brandsOnSale - +lastPastBrands.brands_on_sale;
     if (brandsDelta <= 0) continue;
     const proportionalDelta = brandsDelta / totalBrands;
@@ -4179,21 +4184,12 @@ async function renderCentre(centreId) {
           const onSaleN = onSale.length;
           const totalN  = total;
           const pctOnSale = totalN > 0 ? Math.round((onSaleN / totalN) * 100) : 0;
-          // Day-on-day change. The number sitting next to it is "X of Y
-          // brands on sale", so the change has to be the brand-count delta —
-          // not the tide_score % change, which moves on freshness decay even
-          // when the admin hasn't touched anything.
-          //
-          // tide_history rows are widened to include brands_on_sale by
-          // score.js; older rows only have { date, score } so we skip them.
-          let brandsDelta = null;
-          if (Number.isFinite(+onSaleN) && history.length) {
-            const todayDate = new Date().toISOString().split('T')[0];
-            const past = history.filter(h => h && h.date && h.date < todayDate && Number.isFinite(+h.brands_on_sale));
-            const lastPast = past[past.length - 1];
-            if (lastPast) brandsDelta = +onSaleN - +lastPast.brands_on_sale;
-          }
-          return renderTideVessel(pctOnSale, stage, verdictMsg, trajectory, brandsDelta, onSaleN, totalN, sScore && sScore.verdict, history, centreName, location);
+          // The merged vessel shows the trend pill + 60-day curve, not a
+          // day-on-day brand-delta arrow — the delta line was retired when the
+          // dark TIDE card was folded into the vessel. (The literal day-on-day
+          // count still drives the "N new sales today" Hot list via
+          // getHotCentres.)
+          return renderTideVessel(pctOnSale, stage, verdictMsg, trajectory, onSaleN, totalN, sScore && sScore.verdict, history, centreName, location);
         })()
     +   evidenceStrip + noMatchMsg + personalVerdictLine
     + '</div></div>';

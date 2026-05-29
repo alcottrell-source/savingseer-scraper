@@ -257,10 +257,14 @@ export function renderBrandSaleEmail(opts: {
 }
 
 function digestVerdictFor(stage: DigestStage): string {
+  // Trend-only copy, matching the dashboard's May-2026 vocabulary. Action
+  // language ("go now") is reserved for the high/peak bucket — the one state
+  // where the product tells the reader to act, mirroring the PEAK badge.
+  // Every other line describes direction, not a recommendation.
   if (stage === 'high')    return 'Go now — peak alignment across your brands.';
-  if (stage === 'rising')  return 'Worth watching — building momentum.';
-  if (stage === 'falling') return 'Starting to fade — not the weekend for it.';
-  return 'Quiet for now.';
+  if (stage === 'rising')  return 'Momentum building across your brands.';
+  if (stage === 'falling') return 'Easing — fewer brands on sale than at the peak.';
+  return 'Largely gone out for now.';
 }
 
 function digestStagePill(stage: DigestStage, stageLabel: string): string {

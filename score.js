@@ -429,8 +429,11 @@ async function calculateAllCentreScores(opts = {}) {
     .not('tide_score', 'is', null)
     .order('score_date', { ascending: true });
 
+  let historyFetchFailed = false;
+  let historyWriteFailures = 0;
   if (historyError) {
     console.error('History fetch error:', historyError);
+    historyFetchFailed = true;
   } else {
     const historyByCentre = new Map();
     for (const row of historyData) {
@@ -457,12 +460,18 @@ async function calculateAllCentreScores(opts = {}) {
     const failures = results.filter(r => r.error);
     if (failures.length > 0) {
       console.error(`  ✗ tide_history failed for ${failures.length} centres:`, failures.map(f => f.error));
+      historyWriteFailures = failures.length;
     } else {
       console.log(`  ✓ tide_history updated for ${historyByCentre.size} centres`);
     }
   }
 
   console.log('\n✅ Scoring complete');
+  // Surface tide_history write/fetch problems to callers (e.g. /api/rescore)
+  // so an admin edit that updated centre_seer_scores but failed to refresh the
+  // chart history doesn't silently report success. The CLI ignores the return
+  // (still exits 0, behaviour unchanged); only the rescore endpoint reads it.
+  return { historyFetchFailed, historyWriteFailures };
 }
 
 // ── Personal score helpers ─────────────────────────────────────────────────────
@@ -584,12 +593,13 @@ async function calculatePersonalScores(opts = {}) {
 // admin saves an edit. `filterCentreIds` lets the API endpoint recompute
 // just the touched centre instead of all 30.
 export async function runScoring(opts = {}) {
-  await calculateAllCentreScores(opts);
+  const summary = await calculateAllCentreScores(opts);
   try {
     await calculatePersonalScores(opts);
   } catch (err) {
     console.error('⚠ Personal scores failed (centre scores unaffected):', err.message);
   }
+  return summary || {};
 }
 
 // Pure scoring primitives — exported for unit testing (test/score.test.mjs).

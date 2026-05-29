@@ -75,7 +75,23 @@ export default async function handler(req, res) {
 
   const startMs = Date.now();
   try {
-    await runScoring({ filterCentreIds: centreIds });
+    const summary = await runScoring({ filterCentreIds: centreIds });
+    // The scores (centre_seer_scores) are written first and would have thrown
+    // above on failure. A tide_history write/fetch failure does NOT throw — it
+    // means the headline updated but the 60-day chart didn't. Surface that as a
+    // non-OK status so the admin isn't told everything succeeded when the chart
+    // is now stale, rather than swallowing it behind a 200.
+    if (summary && (summary.historyFetchFailed || summary.historyWriteFailures > 0)) {
+      return res.status(502).json({
+        ok: false,
+        error: summary.historyFetchFailed
+          ? 'Scores updated, but tide_history could not be read back — the 60-day chart may be stale.'
+          : `Scores updated, but tide_history write failed for ${summary.historyWriteFailures} centre(s) — the 60-day chart may be stale.`,
+        history_write_failures: summary.historyWriteFailures || null,
+        took_ms: Date.now() - startMs,
+        centre_ids: centreIds,
+      });
+    }
     return res.status(200).json({
       ok: true,
       took_ms: Date.now() - startMs,

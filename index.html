@@ -3374,6 +3374,32 @@ function buildTide60Series(realHistory) {
       series.push({ date: ymd, score: synth, synth, real: false });
     }
   }
+  // Synthetic seasonal values are ONLY for the lead-in before we have any
+  // real data for this centre. The national retail calendar must never leak
+  // into the recent window — otherwise a day near a calendar peak (e.g. the
+  // late-May bank holiday) backfills above the centre's actual recent scores
+  // and the curve appears to fall into "today" even when the real day-on-day
+  // trend (and the verdict) is rising. Once real data starts, bridge any
+  // interior/trailing gaps from the real anchors themselves: linear-
+  // interpolate between two real points, carry the last real value forward
+  // past the final one.
+  const firstRealIdx = series.findIndex(p => p.real);
+  for (let i = 0; i < series.length; i++) {
+    series[i].lead = (firstRealIdx === -1) || (i < firstRealIdx);
+  }
+  if (firstRealIdx !== -1) {
+    for (let i = firstRealIdx + 1; i < series.length; i++) {
+      if (series[i].real) continue;
+      let prev = i - 1; while (prev >= 0 && !series[prev].real) prev--;
+      let next = i + 1; while (next < series.length && !series[next].real) next++;
+      if (next < series.length) {
+        const frac = (i - prev) / (next - prev);
+        series[i].score = series[prev].score + (series[next].score - series[prev].score) * frac;
+      } else {
+        series[i].score = series[prev].score; // trailing gap — carry forward
+      }
+    }
+  }
   // Per-centre amplitude rescaling. The raw synthetic curve is the national
   // UK retail calendar — a quiet centre that never breaks 30 shouldn't show
   // a wild Easter peak in its history. Map raw synthetic [synthMin..synthMax]
@@ -3404,7 +3430,7 @@ function buildTide60Series(realHistory) {
   }
   const targetRange = Math.max(8, targetMax - targetMin);
   for (const p of series) {
-    if (!p.real) {
+    if (p.lead) {
       const t = (p.synth - synthMin) / synthRange;
       p.score = Math.max(0, Math.min(100, targetMin + t * targetRange));
     }

@@ -3698,12 +3698,18 @@ function getHotCentres(n, excludeIds) {
     if (totalBrands <= 0 || brandsOnSale === null) continue;
     const history = getServerHistory(idx) || [];
     const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
     // Brand-count delta vs the most recent historical day that has a
     // brands_on_sale snapshot (added to tide_history by score.js). Older
     // rows only have { date, score } so we skip them.
     const pastWithBrands = history.filter(h => h && h.date && h.date < today && Number.isFinite(+h.brands_on_sale));
     const lastPastBrands = pastWithBrands[pastWithBrands.length - 1];
-    if (!lastPastBrands) continue;
+    // Recency guard: this row is labelled "N new sales today", so the
+    // comparison must be against YESTERDAY. If the latest brand snapshot is
+    // staler than that (missed cron day, a centre re-activated after a gap, or
+    // pre-widening rows), the increase spans multiple days and calling it
+    // "today" would overstate it — and mis-rank the Hot list. Skip instead.
+    if (!lastPastBrands || lastPastBrands.date < yesterday) continue;
     const brandsDelta = brandsOnSale - +lastPastBrands.brands_on_sale;
     if (brandsDelta <= 0) continue;
     const proportionalDelta = brandsDelta / totalBrands;

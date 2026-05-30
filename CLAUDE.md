@@ -108,3 +108,5 @@ Key tables:
 
 ## Deployment
 Vercel, output directory is `.` (repo root). No build command. Preview deployments available per branch.
+
+**Supabase Edge Functions are NOT served by Vercel.** Merging to `main` ships the static site, but functions in `supabase/functions/` only update when the Supabase CLI redeploys them. `.github/workflows/deploy-functions.yml` does this automatically: any push to `main` touching `supabase/functions/**` redeploys the affected function (and there's a `workflow_dispatch` for manual runs). Requires repo secret `SUPABASE_ACCESS_TOKEN` (a PAT from supabase.com/dashboard/account/tokens); the project ref `vrezzwadwzrmumjpdgge` is the default, overridable via `SUPABASE_PROJECT_REF`.

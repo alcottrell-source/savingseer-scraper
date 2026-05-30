@@ -3454,12 +3454,48 @@ function smoothCurvePath(pts) {
 // live inside the unified hero card now. The light landing-page sibling
 // below still uses the shared buildTide60Series + smoothCurvePath helpers.
 
-// Light-themed sibling of the TIDE OVER 60 DAYS card, used as a marketing
-// preview on the landing page. Same SVG geometry as the dark version but
-// with the leaf green on a white card and no score-number footer.
-// Series is fully synthetic (no centre context on the landing).
+// Real all-centres average for the landing 60-day preview. Buckets every
+// centre's tide_history score by date and averages across all centres that
+// reported on that date, then folds in today's live tide_score where the
+// history array doesn't already carry it. Returns [{date, score}] for dates
+// with >=1 real centre score. An empty array (scores not loaded yet) makes
+// buildTide60Series fall back to its synthetic seasonal curve, so the chart
+// never renders blank.
+function buildAllCentresAvgHistory() {
+  const buckets = {}; // ymd -> { sum, count }
+  const add = (ymd, val) => {
+    if (!ymd || !Number.isFinite(+val)) return;
+    const b = buckets[ymd] || (buckets[ymd] = { sum: 0, count: 0 });
+    b.sum += +val; b.count++;
+  };
+  const today = new Date().toISOString().slice(0, 10);
+  for (let idx = 0; idx < CENTRE_NAMES.length; idx++) {
+    const hist = getServerHistory(idx) || [];
+    let hasToday = false;
+    for (const h of hist) {
+      if (h && h.date && Number.isFinite(+h.score)) {
+        add(h.date, h.score);
+        if (h.date === today) hasToday = true;
+      }
+    }
+    if (!hasToday) {
+      const s = getServerScore(idx);
+      if (s && Number.isFinite(+s.tide_score)) add(today, s.tide_score);
+    }
+  }
+  return Object.keys(buckets).sort().map(date => ({
+    date,
+    score: buckets[date].sum / buckets[date].count,
+  }));
+}
+
+// Light-themed sibling of the TIDE OVER 60 DAYS card, used on the landing
+// page as a market-wide overview. Same SVG geometry as the dark version but
+// with the leaf green on a white card and no score-number footer. The series
+// is the real all-centres daily average (buildAllCentresAvgHistory); only the
+// lead-in before our earliest real day is synthetic seasonal backfill.
 function renderTide60Light() {
-  const series = buildTide60Series(null);
+  const series = buildTide60Series(buildAllCentresAvgHistory());
   const n = series.length;
   const W = 480, H = 110, PL = 8, PR = 18, PT = 4, PB = 22;
   const k = 2;
@@ -3500,10 +3536,10 @@ function renderTide60Light() {
   ].map(l => (
     '<text x="' + l.x + '" y="' + (PT + H + 16) + '" font-family="Inter,sans-serif" font-size="9.5" fill="rgba(107,95,82,0.85)" letter-spacing="0.04em" text-anchor="' + l.anchor + '">' + l.text + '</text>'
   )).join('');
-  return '<section class="tide60-sample" aria-label="Tide over 60 days preview">'
+  return '<section class="tide60-sample" aria-label="All centres average tide over 60 days">'
        +   '<div class="tide60-card is-light">'
        +     '<div class="tide60-header">'
-       +       '<span class="tide60-title">Tide over 60 days</span>'
+       +       '<span class="tide60-title">All centres &middot; 60-day average</span>'
        +       '<span class="tide60-trend' + trendCls + '"><span class="tide60-trend-arrow">' + trendArrow + '</span>' + trendText + '</span>'
        +     '</div>'
        +     '<div class="tide60-chart">'
@@ -3783,7 +3819,8 @@ function renderLandingHero() {
        +   '<div class="landing-steps">'
        +     '<div class="landing-step"><span class="landing-step-num">1</span><div class="landing-step-text"><strong>We score every UK centre, daily</strong><p>Live sale data from every brand at every centre</p></div></div>'
        +     '<div class="landing-step"><span class="landing-step-num">2</span><div class="landing-step-text"><strong>You see when to go</strong><p>A clear trend signal — rising, at peak, easing off — for every centre, every day.</p></div></div>'
-       +     '<div class="landing-step"><span class="landing-step-num">3</span><div class="landing-step-text"><strong>We email you when it peaks</strong><p>One short email the morning your centre hits peak sale</p></div></div>'
+       +     '<div class="landing-step"><span class="landing-step-num">3</span><div class="landing-step-text"><strong>Make it your Tide</strong><p>Save the centres you shop and follow the brands you actually wear. Your free account keeps it all in one place — My Tide.</p></div></div>'
+       +     '<div class="landing-step"><span class="landing-step-num">4</span><div class="landing-step-text"><strong>We tap you on the shoulder</strong><p>Three emails, only when they earn it: the morning your centre hits peak, when a shop you follow starts a sale, and a Friday digest of what\'s worth your weekend.</p></div></div>'
        +   '</div>'
        + '</section>'
        + renderTide60Light();

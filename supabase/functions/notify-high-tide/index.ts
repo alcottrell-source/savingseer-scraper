@@ -256,6 +256,57 @@ export function renderBrandSaleEmail(opts: {
   return { subject, html, text };
 }
 
+// Multi-brand sibling of renderBrandSaleEmail. When more than one of a user's
+// followed brands starts a sale on the same day we send ONE summary email
+// listing them all, instead of N separate "X just started a sale" messages.
+// The single-brand path above still handles the one-brand case.
+export function renderBrandSaleDigestEmail(opts: {
+  brands: { brandName: string; centre1: string; centre2?: string; discount?: string }[];
+}): { subject: string; html: string; text: string } {
+  const { brands } = opts;
+  const n = brands.length;
+  const names = brands.map(b => b.brandName);
+  const nameList = names.length === 2
+    ? `${names[0]} and ${names[1]}`
+    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  const subject = `${n} of your shops just started a sale`;
+  const previewText = `${nameList} — on now.`;
+
+  const rows = brands.map((b, i, arr) => {
+    const locationPhrase = b.centre2 ? `${escapeHtml(b.centre1)} and ${escapeHtml(b.centre2)}` : escapeHtml(b.centre1);
+    const meta = `${b.discount ? `Up to ${escapeHtml(b.discount)} off &middot; ` : ''}On now at ${locationPhrase}`;
+    return `
+    <div style="padding:16px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}">
+      <div style="font-family:Georgia,serif;font-size:18px;font-weight:600;color:${LEAF};margin:0 0 4px;line-height:1.3">${escapeHtml(b.brandName)}</div>
+      <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};line-height:1.5">${meta}</div>
+    </div>`;
+  }).join('');
+
+  const bodyHtml = `
+    <div style="font-family:Georgia,serif;font-size:26px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">${n} of your shops just went on sale.</div>
+    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 8px;max-width:420px">All starting their sale today — worth knowing early in the cycle.</p>
+    <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:20px 0 0">
+    ${rows}
+    <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See the full picture &rarr;</a>`;
+
+  const html = baseEmailWrap({
+    previewText,
+    bodyHtml,
+    footerReason: `You're receiving this because you follow these brands on Tide and Brand Sale Alerts are switched on. Unsubscribing here turns off alerts for all followed brands.`,
+    unsubLabel: 'Brand Sale Alerts',
+  });
+
+  const textLines = [
+    `${n} of your shops just went on sale.`,
+    '',
+    ...brands.map(b => `${b.brandName} — ${b.discount ? `up to ${b.discount} off, ` : ''}on now at ${b.centre2 ? `${b.centre1} and ${b.centre2}` : b.centre1}`),
+    '',
+    `See the full picture: ${APP_URL}`,
+  ];
+
+  return { subject, html, text: textLines.join('\n') };
+}
+
 function digestVerdictFor(stage: DigestStage): string {
   // Trend-only copy, matching the dashboard's May-2026 vocabulary. Action
   // language ("go now") is reserved for the high/peak bucket — the one state
@@ -518,6 +569,13 @@ Deno.serve(async (req: Request) => {
     .filter(s => startedToday(s, today))
     .map(s => ({ sale: s, brand: brandsById.get(s.brand_id) }))
     .filter((x): x is { sale: SaleEventRow; brand: BrandRow } => !!x.brand);
+  // Accumulate per user so that a user with several followed brands starting
+  // a sale today receives ONE summary email rather than one per brand. We walk
+  // started brands (outer) to reuse the per-brand recipient + centre-pick
+  // logic, then group the resulting items by user id (preserving brand order)
+  // and send once below.
+  type BrandSaleItem = { brandName: string; centre1: string; centre2?: string; discount?: string };
+  const perUser = new Map<string, { p: PrefsRow; items: BrandSaleItem[] }>();
   for (const { sale, brand } of startedBrands) {
     const pct = (sale.active_cycle_id && sale.cycle?.max_discount_pct != null)
       ? sale.cycle!.max_discount_pct
@@ -530,8 +588,6 @@ Deno.serve(async (req: Request) => {
       return followed.size > 0 ? followed.has(brand.id) : brandMatchesPrefs(brand, p);
     });
     for (const p of recipients) {
-      const to = emailById.get(p.user_id);
-      if (!to) { log.push({ type: "brand", brand: brand.name, skipped: `no email for user ${p.user_id}` }); continue; }
       // Prefer the user's own saved centres that carry the brand; fall back
       // to any centre stocking it.
       const saved = new Set(p.saved_centres);
@@ -539,18 +595,22 @@ Deno.serve(async (req: Request) => {
       const pick = (relevant.length > 0 ? relevant : brandCentreIds)
         .map(cid => centres.get(cid))
         .filter((n): n is string => !!n);
-      if (pick.length === 0) { log.push({ type: "brand", to, brand: brand.name, skipped: "no centre carries brand" }); continue; }
-      const { subject, html, text } = renderBrandSaleEmail({
-        brandName: brand.name,
-        centre1: pick[0],
-        centre2: pick[1],
-        discount: pct ? `${pct}%` : undefined,
-      });
-      if (dryRun) { log.push({ type: "brand", to, brand: brand.name, ok: true, skipped: "dryRun" }); continue; }
-      const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
-      log.push({ type: "brand", to, brand: brand.name, ok: result.ok, status: result.status });
-      if (result.ok) brandAlertsSent++;
+      if (pick.length === 0) { log.push({ type: "brand", to: emailById.get(p.user_id), brand: brand.name, skipped: "no centre carries brand" }); continue; }
+      const entry = perUser.get(p.user_id) || { p, items: [] };
+      entry.items.push({ brandName: brand.name, centre1: pick[0], centre2: pick[1], discount: pct ? `${pct}%` : undefined });
+      perUser.set(p.user_id, entry);
     }
+  }
+  for (const { p, items } of perUser.values()) {
+    const to = emailById.get(p.user_id);
+    if (!to) { log.push({ type: "brand", skipped: `no email for user ${p.user_id}`, brands: items.map(i => i.brandName) }); continue; }
+    const { subject, html, text } = items.length === 1
+      ? renderBrandSaleEmail(items[0])
+      : renderBrandSaleDigestEmail({ brands: items });
+    if (dryRun) { log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: true, skipped: "dryRun" }); continue; }
+    const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
+    log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: result.ok, status: result.status });
+    if (result.ok) brandAlertsSent++;
   }
 
   // 3. WEEKEND DIGEST. Sent only on the Friday 19:00 UTC invocation

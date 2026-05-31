@@ -534,19 +534,6 @@
   .brand-filter-tab { background: none; border: none; padding: 7px 16px; font-size: 12px; font-weight: 500; color: var(--stone); border-radius: 999px; cursor: pointer; font-family: inherit; transition: all 0.15s; letter-spacing: 0.02em; }
   .brand-filter-tab.active { background: white; color: var(--bark); box-shadow: 0 1px 2px rgba(44,24,16,0.08); }
 
-  /* ── Cookie consent banner (PECR) ── */
-  .cookie-banner { position: fixed; left: 12px; right: 12px; bottom: 12px; background: white; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 8px 24px rgba(44,24,16,0.12); padding: 16px 18px; z-index: 700; display: none; max-width: 480px; margin-left: auto; margin-right: auto; }
-  .cookie-banner.visible { display: block; }
-  .cookie-banner-title { font-size: 13px; font-weight: 500; color: var(--bark); margin-bottom: 6px; }
-  .cookie-banner-text { font-size: 13px; line-height: 1.45; color: var(--stone); margin-bottom: 12px; }
-  .cookie-banner-text a { color: var(--leaf); }
-  .cookie-banner-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .cookie-btn { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; border-radius: 8px; padding: 8px 14px; cursor: pointer; border: none; transition: all 0.15s; }
-  .cookie-btn-accept { background: var(--leaf); color: white; }
-  .cookie-btn-accept:hover { background: #2f5428; }
-  .cookie-btn-reject { background: var(--stone-lt); color: var(--bark); }
-  .cookie-btn-reject:hover { background: #e8e4de; }
-  .cookie-btn-link { background: none; color: var(--stone); text-decoration: underline; padding: 8px 4px; }
   footer .footer-links { margin-top: 8px; }
   footer .footer-links a { color: var(--stone); text-decoration: underline; margin: 0 6px; font-size: 11px; }
 
@@ -734,22 +721,6 @@
   // load and back-navigation starts at the top.
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 </script>
-
-<script>
-  // Skimlinks (affiliate tracker, drops a cookie) only loads after the user
-  // accepts in the consent banner — PECR requires explicit opt-in for non-
-  // essential cookies. Plausible is cookieless so it loads unconditionally.
-  (function() {
-    try {
-      if (localStorage.getItem('tide_cookies_skimlinks') === 'accepted') {
-        var s = document.createElement('script');
-        s.src = 'https://s.skimresources.com/js/302477X1790477.skimlinks.js';
-        s.async = true;
-        document.head.appendChild(s);
-      }
-    } catch(e) {}
-  })();
-</script>
 </head>
 <body>
 
@@ -844,24 +815,9 @@
   <div class="footer-links">
     <a href="privacy.html">Privacy Policy</a>
     &middot;
-    <a href="javascript:void(0)" onclick="openCookieBanner()">Cookie settings</a>
-    &middot;
     <a href="mailto:privacy@tidego.co">Contact</a>
   </div>
 </footer>
-
-<!-- Cookie consent banner — first visit shows it; choice persists in localStorage. -->
-<div id="cookie-banner" class="cookie-banner" role="dialog" aria-label="Cookie preferences">
-  <div class="cookie-banner-title">Cookies on Tide</div>
-  <div class="cookie-banner-text">
-    We use a strictly necessary cookie to keep you signed in. With your permission we'd also like to use Skimlinks to attribute affiliate revenue when you click through to a brand &mdash; this helps us keep Tide free.
-    <a href="privacy.html" target="_blank">Read our privacy policy</a>.
-  </div>
-  <div class="cookie-banner-actions">
-    <button class="cookie-btn cookie-btn-accept" onclick="acceptCookies()">Accept all</button>
-    <button class="cookie-btn cookie-btn-reject" onclick="rejectCookies()">Strictly necessary only</button>
-  </div>
-</div>
 
 <div id="notify-banner" class="notify-banner" role="region" aria-label="Get notified about this centre">
   <div class="notify-banner-top">
@@ -1050,40 +1006,6 @@ function dismissSurvey() {
   document.getElementById('survey-card').classList.add('hidden');
   try { localStorage.setItem('tide_survey_dismissed', '1'); } catch(e) {}
 }
-
-// ── Cookie consent (PECR-compliant) ──
-// Skimlinks (affiliate, drops a cookie) is gated on `tide_cookies_skimlinks`
-// in localStorage. The head <script> reads the flag at page-load and only
-// injects Skimlinks if accepted. Switching from "rejected" to "accepted" or
-// vice versa requires a reload to take effect — we trigger that explicitly.
-function openCookieBanner() {
-  document.getElementById('cookie-banner').classList.add('visible');
-}
-function hideCookieBanner() {
-  document.getElementById('cookie-banner').classList.remove('visible');
-}
-function acceptCookies() {
-  try { localStorage.setItem('tide_cookies_skimlinks', 'accepted'); } catch(e) {}
-  hideCookieBanner();
-  // Skimlinks isn't loaded yet on this page-view; reload so it picks up.
-  if (!window._tideSkimlinksLoaded) location.reload();
-}
-function rejectCookies() {
-  try { localStorage.setItem('tide_cookies_skimlinks', 'rejected'); } catch(e) {}
-  hideCookieBanner();
-}
-(function showCookieBannerOnFirstVisit() {
-  try {
-    const stored = localStorage.getItem('tide_cookies_skimlinks');
-    if (stored !== 'accepted' && stored !== 'rejected') {
-      // Show banner after a short delay so it doesn't collide with the
-      // Plausible script on first paint.
-      setTimeout(() => document.getElementById('cookie-banner').classList.add('visible'), 600);
-    } else if (stored === 'accepted') {
-      window._tideSkimlinksLoaded = true;
-    }
-  } catch(e) {}
-})();
 
 (function() {
   try {

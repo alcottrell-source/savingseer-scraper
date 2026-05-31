@@ -275,6 +275,14 @@
   .install-instruction strong { color: var(--bark); font-weight: 500; }
 
   /* ── Landing "How does Tide work?" panel (below the hot ticker) ── */
+  /* Logged-out bridge: the "that's the aggregate, now make it personal" nudge
+     between the hot list and "What you get". Dark bark card, leaf CTA. */
+  .bridge-card { max-width: 560px; margin: 18px auto 4px; padding: 22px 22px 20px; background: var(--bark); border-radius: 14px; box-shadow: var(--card-elev); }
+  .bridge-card-copy { font-family: 'Inter', sans-serif; font-size: 15px; line-height: 1.55; color: var(--cream); margin: 0 0 16px; }
+  .bridge-card-copy b { font-weight: 700; }
+  .bridge-card-cta { display: block; width: 100%; box-sizing: border-box; padding: 14px 18px; background: var(--leaf); color: #fff; border: none; border-radius: 999px; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.15s, transform 0.1s; }
+  .bridge-card-cta:hover { background: var(--green-deep); }
+  .bridge-card-cta:active { transform: scale(0.99); }
   .how-it-works { padding: 28px 24px 24px; max-width: 560px; margin: 0 auto; }
   .how-it-works-title { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.10em; text-transform: uppercase; color: var(--stone); padding: 0 4px 10px; }
   .landing-steps { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 20px 18px; background: white; border: var(--card-border); box-shadow: var(--card-elev); border-radius: 14px; }
@@ -3822,7 +3830,15 @@ function renderHotCentres(opts) {
 // search itself is the engagement; sign-up surfaces after a centre view.
 function renderLandingHero() {
   const hotHTML = renderHotCentres({ limit: 3 });
+  // Bridge card: logged-out only. renderLandingHero also serves signed-in
+  // users with no saved centres, so gate on the session, not the funnel stage.
+  const bridgeHTML = currentUser ? '' :
+        '<section class="bridge-card" aria-label="Get your personal Tide">'
+      +   '<p class="bridge-card-copy">That\'s the whole centre. Sign in and Tide scores every centre for the shops <b>you</b> actually buy, and emails you the moment they go on sale.</p>'
+      +   '<button class="bridge-card-cta" onclick="openAuthModal()">Get my personal Tide for free</button>'
+      + '</section>';
   return hotHTML
+       + bridgeHTML
        + '<section class="how-it-works is-static" aria-label="What you get">'
        +   '<div class="how-it-works-title">What you get</div>'
        +   '<div class="landing-steps">'

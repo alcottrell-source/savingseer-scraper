@@ -78,24 +78,29 @@ Left for you because it changes outbound email content and the edge function
 auto-deploys on merge (`deploy-functions.yml`) — worth a `dryRun:true` check first.
 
 ### D2 — P0 (data loss) · Two non-idempotent data-reset migrations
-`supabase/migrations/20260504_reset_tide_history.sql`,
-`supabase/migrations/20260504_reset_first_detected.sql`
+`supabase/migrations/20260504_reset_tide_history.sql` — ✅ **NEUTRALIZED 2026-05-31**,
+`supabase/migrations/20260504_reset_first_detected.sql` — ⚠️ still live
 
 Both live in the auto-applied `migrations/` dir but perform **destructive data
 mutations**, not schema changes:
-- `reset_tide_history` backs up via `CREATE TABLE IF NOT EXISTS … AS SELECT`
-  (so a re-run **skips** refreshing the backup) and then `DELETE`s all
-  `centre_seer_scores WHERE score_date < CURRENT_DATE`. Re-applying on a fresh
-  `db reset` / new environment **permanently destroys accumulated score
-  history**; the documented restore only recovers the stale May-04 snapshot.
+- `reset_tide_history` backed up via `CREATE TABLE IF NOT EXISTS … AS SELECT`
+  (so a re-run **skips** refreshing the backup) and then `DELETE`d all
+  `centre_seer_scores WHERE score_date < CURRENT_DATE` and truncated every
+  `centres.tide_history`. Re-applying on a fresh `db reset` / new environment
+  would have **permanently destroyed accumulated score history**.
+  **✅ Fixed:** the `DELETE` and the `tide_history` `UPDATE` are now commented
+  out — the file is an inert `SELECT 1;` no-op that can never wipe score history
+  on any replay. The original body is kept commented for the historical record.
 - `reset_first_detected` overwrites `date_first_detected` on every run with **no
   snapshot at all**, corrupting the "N days on sale" signal and the brand-sale
-  "started today" alert (see D3).
+  "started today" alert (see D3). This touches brand-sale metadata, **not score
+  history**, so it was left untouched pending your call — neutralize it the same
+  way if you want it inert too.
 
-These are already applied to prod, so editing them in place risks Supabase
-migration-checksum drift. Recommended: **move one-shot data resets out of
-`migrations/` into `scripts/`** (or guard each with a sentinel `WHERE NOT
-EXISTS (…)`), so a future `supabase db push`/reset can't replay them.
+The neutralized file stays in `migrations/` (filename/version preserved, so no
+history gap for `supabase db push`). If a one-off reset is ever genuinely needed
+again, run it from a deliberately-invoked script in `scripts/` — never from the
+auto-applied migrations directory.
 
 ### D3 — P1 · Brand-sale "started today" dedup depends on a non-write-once field
 `index.ts:81-84`. `startedToday()` keys off `date_first_detected === today`, but

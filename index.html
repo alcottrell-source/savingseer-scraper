@@ -3791,7 +3791,10 @@ function renderHotCentres(opts) {
   const stamp = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const rows = hot.map((h, i) => {
     const safeName = h.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const reasonText = h.brandsDelta === 1 ? '1 new sale today' : (h.brandsDelta + ' new sales today');
+    // Row fact reads straight from the same server values that drive the
+    // verdict pill (brands_on_sale / total_brands). No client recompute, so
+    // it always matches the centre card's "X of Y" line.
+    const reasonText = h.brandsOnSale + ' of ' + h.totalBrands + ' shops on sale';
     return '<button class="hot-centre-row" onclick="goToCentre(\''+h.cid+'\')" aria-label="'+safeName+', '+reasonText+', '+h.verdict.word+'">'
          +   '<div class="hot-centre-row-rank">'+(i+1)+'</div>'
          +   '<div class="hot-centre-row-text">'
@@ -3803,7 +3806,9 @@ function renderHotCentres(opts) {
   }).join('');
   return '<section class="hot-centres" aria-label="Hot centres right now">'
        +   '<div class="hot-centres-header">'
-       +     '<span class="hot-centres-eyebrow">Hot right now</span>'
+       +     // Eyebrow kept descriptive. Action language ("worth it", "go now")
+             // is reserved for the PEAK badge, never a list header.
+             '<span class="hot-centres-eyebrow">Today\'s tide</span>'
        +     '<span class="hot-centres-timestamp">Updated '+stamp+'</span>'
        +   '</div>'
        +   '<div class="hot-centres-list">'+rows+'</div>'

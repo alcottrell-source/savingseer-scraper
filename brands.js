@@ -120,14 +120,10 @@ export const brands = [
     saleSelectors: ['h1', '[class*="sale"]'],
     confirmText: ['sale', 'up to', '% off'],
   },
-  {
-    id: 'B018', name: 'Monki', cluster: 'Contemporary',
-    womenswear: true, menswear: false, childrenswear: false,
-    renderMode: 'browser',
-    url: 'https://www.monki.com/en_gbp/',
-    saleSelectors: ['h1', '[class*="sale"]'],
-    confirmText: ['sale', 'up to', '% off'],
-  },
+  // B018 Monki removed (May 2026): H&M Group wound Monki down as a standalone
+  // brand through 2024 and folded its range into Weekday (B017), so it is no
+  // longer a distinct shop in any centre. It was never mapped to a centre in
+  // the dashboard PRESENCE matrix anyway — only auto-scraped and dropped.
   {
     id: 'B019', name: 'Hollister', cluster: 'Contemporary',
     womenswear: true, menswear: true, childrenswear: false,

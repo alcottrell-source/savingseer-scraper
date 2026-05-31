@@ -3823,13 +3823,12 @@ function renderHotCentres(opts) {
 function renderLandingHero() {
   const hotHTML = renderHotCentres({ limit: 3 });
   return hotHTML
-       + '<section class="how-it-works is-static" aria-label="How does Tide work?">'
-       +   '<div class="how-it-works-title">How does Tide work?</div>'
+       + '<section class="how-it-works is-static" aria-label="What you get">'
+       +   '<div class="how-it-works-title">What you get</div>'
        +   '<div class="landing-steps">'
-       +     '<div class="landing-step"><span class="landing-step-num">1</span><div class="landing-step-text"><strong>We score every UK centre, daily</strong><p>Live sale data from every brand at every centre</p></div></div>'
-       +     '<div class="landing-step"><span class="landing-step-num">2</span><div class="landing-step-text"><strong>You see when to go</strong><p>A clear trend signal — rising, at peak, easing off — for every centre, every day.</p></div></div>'
-       +     '<div class="landing-step"><span class="landing-step-num">3</span><div class="landing-step-text"><strong>Make it your Tide</strong><p>Save the centres you shop and follow the brands you actually wear. Your free account keeps it all in one place — My Tide.</p></div></div>'
-       +     '<div class="landing-step"><span class="landing-step-num">4</span><div class="landing-step-text"><strong>We tap you on the shoulder</strong><p>Three emails, only when they earn it: the morning your centre hits peak, when a shop you follow starts a sale, and a Friday digest of what\'s worth your weekend.</p></div></div>'
+       +     '<div class="landing-step"><span class="landing-step-num">1</span><div class="landing-step-text"><strong>See if it\'s worth going</strong><p>A live signal for every UK centre, every day: rising, at peak, or easing off.</p></div></div>'
+       +     '<div class="landing-step"><span class="landing-step-num">2</span><div class="landing-step-text"><strong>Make it yours</strong><p>Follow the shops you actually wear and the centres you visit. You get a personal score, not a generic one.</p></div></div>'
+       +     '<div class="landing-step"><span class="landing-step-num">3</span><div class="landing-step-text"><strong>We tap you on the shoulder</strong><p>One email the morning your shops are worth the trip. Never spam, only when it earns it.</p></div></div>'
        +   '</div>'
        + '</section>'
        + renderTide60Light();

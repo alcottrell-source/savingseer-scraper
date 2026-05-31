@@ -51,7 +51,7 @@ Headlines on the centre card are **pure trend signals**. Recommendation language
 | Turning (early — small handful of brands) | >0, <15 | `Quiet` | **QUIET** | — |
 | Rising | 15–<40 | `Rising` | **RISING** | — |
 | High Tide (global) | ≥40 (hyst. 30) | `Peak` | **PEAK** | **GO NOW** |
-| High Tide (local peak) | ≥15, day trajectory flips RISING → FALLING | `Peak` | **PEAK** | **GO NOW** |
+| High Tide (local peak) | ≥30 (`LOCAL_PEAK_FLOOR`), day trajectory flips RISING → FLAT/FALLING | `Peak` | **PEAK** | **GO NOW** |
 | Falling | 8–<30 post-peak | `Easing` | **EASING** | — |
 | Low | <8 post-peak | `Over` | **OVER** | — |
 
@@ -59,7 +59,11 @@ Headlines on the centre card are **pure trend signals**. Recommendation language
 
 **The 60-day chart corner badge is synced to the headline.** `renderHistoryChart` takes `stage` + `serverVerdict` and runs them through `deriveVerdict` so the badge word and arrow always match the vessel headline. Don't reintroduce a separate trajectory-derived label ("Rising / Holding / Falling") in the chart corner — the same view was showing two contradictory state words and confused readers.
 
-**Local peak:** every centre has a peak sale day, even ones that never break the 40% HIGH_TIDE_ENTER. `score.js` detects this as a one-shot trajectory flip (RISING → FLAT/FALLING) inside the climb path and emits `verdict='Peak'` for that single day; the front-end shows PEAK + GO NOW and the peak-alert email fires. The next day, `STAGE_FROM_VERDICT['Peak']='High Tide'` routes the centre through the descent branch and we transition to Easing automatically. Genuine ≥40 cycles hold PEAK through the 40/30 hysteresis band.
+**Local peak:** a centre can hit its own peak sale day below the 40% HIGH_TIDE_ENTER line. `score.js` detects this as a one-shot trajectory flip (RISING → FLAT/FALLING) inside the climb path and emits `verdict='Peak'` for that single day; the front-end shows PEAK + GO NOW and the peak-alert email fires. The next day, `STAGE_FROM_VERDICT['Peak']='High Tide'` routes the centre through the descent branch and we transition to Easing automatically. Genuine ≥40 cycles hold PEAK through the 40/30 hysteresis band.
+
+**The local peak has a credibility floor: `LOCAL_PEAK_FLOOR` (= `HIGH_TIDE_EXIT`, 30).** A roll-over only earns the PEAK / GO NOW badge if the centre actually climbed to ≥30% density. Below that — a centre topping out at, say, 27% — the roll-over just eases back through Rising; "go now / this is the moment" against a gauge sitting near the QUIET line is the one thing that makes the card look broken, so we don't say it. Centres whose density never reaches 30% therefore won't fire a PEAK badge — that's deliberate, not a missed peak. **"Maximum sales density. This is the moment." is reserved strictly for score ≥ 40.** A Peak holding in the 40→30 hysteresis band (a real high tide easing off, or a sub-40 local peak the day after) gets honest "just off the peak and holding" copy instead — never the maximum-density claim at a sub-40 gauge.
+
+**The 60-day chart gridlines track these thresholds, not arbitrary quarters.** `renderTideVessel`'s PEAK dashed line sits at 40% (HIGH_TIDE_ENTER) and QUIET at 15% (RISING_FLOOR), so the curve's height and the badge agree. Don't move PEAK back up to 75% — no centre ever reaches that, which stranded every PEAK badge at the bottom of the chart and is exactly why the card read as broken.
 
 Legacy verdict strings (`Go now`, `Worth watching`, `Last chance — tide going out`, `Starting to build`, `It's over`, `Nothing on`) still resolve in every consumer (`score.js`, `index.html`, `summarise.js`, `notify-high-tide/index.ts`) so pre-rename rows render correctly. The next daily run rewrites the column with the new vocabulary — no migration needed.
 

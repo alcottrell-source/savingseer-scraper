@@ -50,6 +50,12 @@ const HIGH_TIDE_ENTER = 40;
 const HIGH_TIDE_EXIT  = 30;
 const RISING_FLOOR    = 15;  // Climb path: ≥15 → Rising, else Quiet
 const OVER_CEILING    = 8;   // Descent path: <8 → Over, else Easing
+// A sub-40 local peak (trajectory roll-over below the global high-tide line)
+// only earns the PEAK / GO NOW badge if it at least reached the high-tide hold
+// band. Below this the gauge is too low for "go now / this is the moment" to be
+// credible — a centre topping out at 27% reading PEAK with the curve sitting
+// near the QUIET line is the single thing that makes the card look broken.
+const LOCAL_PEAK_FLOOR = HIGH_TIDE_EXIT;  // 30
 
 // Trend-only verdict vocabulary. Headlines describe the cycle direction;
 // the PEAK badge is the only recommendation language the dashboard shows.
@@ -88,7 +94,8 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   // Local-peak detection: the centre was climbing (trajectory RISING) and
   // the climb has now ended — today's trajectory is anything other than
   // RISING. This is its natural high tide whether or not the score crossed
-  // the HIGH_TIDE_ENTER line.
+  // the HIGH_TIDE_ENTER line — but the climb path below still requires the
+  // peak to clear LOCAL_PEAK_FLOOR before it earns the badge.
   //
   // It must catch FLAT too, not just FALLING. getTrajectory's stickiness
   // only ever leaves RISING via FLAT for a gentle roll-over (a drop of
@@ -108,9 +115,18 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
     return { stage: 'Turning', verdict: 'Quiet', bluf: 'Nothing major on right now.' };
   }
 
-  // Hysteresis: enter High Tide at 40, hold until score drops below 30
-  if (score >= HIGH_TIDE_ENTER || (wasHighTide && score >= HIGH_TIDE_EXIT)) {
+  // True high tide: 40%+ of brands on sale right now. This is the ONLY place
+  // the "maximum density / this is the moment" claim is allowed — it must match
+  // a gauge that is genuinely near the top.
+  if (score >= HIGH_TIDE_ENTER) {
     return { stage: 'High Tide', verdict: 'Peak', bluf: 'Maximum sales density. This is the moment.' };
+  }
+  // Hysteresis hold: came off a high tide (a real ≥40 one, or a sub-40 local
+  // peak — both store verdict 'Peak' → wasHighTide) and is sliding back through
+  // the 40→30 band. Still Peak so the badge doesn't flap, but it's easing off
+  // its high, so the copy can't claim maximum density.
+  if (wasHighTide && score >= HIGH_TIDE_EXIT) {
+    return { stage: 'High Tide', verdict: 'Peak', bluf: 'Just off the peak and holding — still a strong day, picks easing from here.' };
   }
 
   // Descent path: was at peak yesterday and has now dropped below the hold,
@@ -134,8 +150,14 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   // Peak verdict for this one day. Tomorrow STAGE_FROM_VERDICT will map
   // 'Peak' → 'High Tide' so the descent branch above takes over and
   // transitions the centre to Easing on day 2.
+  //
+  // The roll-over only earns the PEAK / GO NOW badge if the centre actually
+  // climbed to a credible level (LOCAL_PEAK_FLOOR). A centre that tops out just
+  // above the RISING floor — e.g. 27% — has barely cleared "quiet"; shouting
+  // "go now / this is the moment" there reads as broken against the gauge. Below
+  // the floor a roll-over simply eases back down through Rising.
   if (score >= RISING_FLOOR) {
-    if (localPeak) {
+    if (localPeak && score >= LOCAL_PEAK_FLOOR) {
       return {
         stage: 'High Tide',
         verdict: 'Peak',

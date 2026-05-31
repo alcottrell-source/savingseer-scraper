@@ -69,24 +69,40 @@ test('getTideStage — climb path Rising vs Quiet by the 15 boundary', () => {
   assert.equal(getTideStage(10, null, 'RISING', null).verdict, 'Quiet');
 });
 
-test('getTideStage — local peak fires on a SHARP roll-over (RISING→FALLING)', () => {
-  const r = getTideStage(25, null, 'FALLING', 'RISING');
+test('getTideStage — local peak fires on a SHARP roll-over (RISING→FALLING) above the floor', () => {
+  const r = getTideStage(32, null, 'FALLING', 'RISING');
   assert.equal(r.verdict, 'Peak');
   assert.equal(r.stage, 'High Tide');
 });
 
-test('getTideStage — local peak ALSO fires on a GENTLE roll-over (RISING→FLAT)', () => {
+test('getTideStage — local peak ALSO fires on a GENTLE roll-over (RISING→FLAT) above the floor', () => {
   // Regression guard for the silent-peak bug: a centre peaking gently below
   // HIGH_TIDE_ENTER slides RISING→FLAT→FALLING; if Peak only fired on
   // RISING→FALLING it would never emit GO NOW / a peak-alert email for
   // that centre.
-  const r = getTideStage(25, null, 'FLAT', 'RISING');
+  const r = getTideStage(32, null, 'FLAT', 'RISING');
   assert.equal(r.verdict, 'Peak', 'gentle roll-over must still emit a one-day Peak');
   assert.equal(r.stage, 'High Tide');
 });
 
+test('getTideStage — sub-floor roll-over does NOT fire a local peak (credibility floor)', () => {
+  // A centre topping out below LOCAL_PEAK_FLOOR (30) has barely cleared QUIET —
+  // "go now / this is the moment" there reads as broken against the gauge. The
+  // roll-over just eases back through Rising instead of shouting PEAK.
+  assert.equal(getTideStage(27, null, 'FALLING', 'RISING').verdict, 'Rising', 'sharp roll-over below 30 → Rising, not Peak');
+  assert.equal(getTideStage(27, null, 'FLAT',    'RISING').verdict, 'Rising', 'gentle roll-over below 30 → Rising, not Peak');
+});
+
+test('getTideStage — sub-40 Peak never claims "maximum density"', () => {
+  // The maximum-density copy is reserved for a genuine ≥40 gauge. A local peak
+  // and a hysteresis hold both sit below 40 and must use honest copy.
+  assert.equal(getTideStage(45, null, 'RISING', null).bluf, 'Maximum sales density. This is the moment.');
+  assert.ok(!/maximum sales density/i.test(getTideStage(32, null, 'FLAT', 'RISING').bluf), 'local peak below 40 must not claim maximum density');
+  assert.ok(!/maximum sales density/i.test(getTideStage(35, 'High Tide', 'FALLING', null).bluf), 'hysteresis hold below 40 must not claim maximum density');
+});
+
 test('getTideStage — no false local peak while still genuinely RISING', () => {
-  assert.equal(getTideStage(25, null, 'RISING', 'RISING').verdict, 'Rising');
+  assert.equal(getTideStage(32, null, 'RISING', 'RISING').verdict, 'Rising');
 });
 
 test('getTideStage — Peak maps back to a descent next day (no Peak lock-in)', () => {

@@ -3204,10 +3204,14 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, onSaleCount, 
   const lineD = pts.length >= 2 ? smoothCurvePath(pts) : '';
   const [lx, ly] = pts.length ? pts[pts.length - 1] : [PL + W, PT + H];
   const NEON = '#5EFFB0';
+  // Gridlines track the real verdict thresholds, not arbitrary quarters. PEAK
+  // sits on the 40% high-tide line (score.js HIGH_TIDE_ENTER) and QUIET on the
+  // 15% RISING floor (RISING_FLOOR) so the curve's height and the badge agree:
+  // a centre showing the PEAK badge is up near the PEAK line, not stranded at
+  // the bottom under a fantasy 75% mark no centre ever reaches.
   const thresholds = [
-    { pct: 75, label: 'PEAK',  stroke: 'rgba(255,200,120,0.32)', dash: '4 4', textFill: 'rgba(255,200,120,0.62)' },
-    { pct: 50, label: null,    stroke: 'rgba(245,241,235,0.10)', dash: '0',   textFill: null },
-    { pct: 25, label: 'QUIET', stroke: 'rgba(245,241,235,0.20)', dash: '4 4', textFill: 'rgba(245,241,235,0.45)' },
+    { pct: 40, label: 'PEAK',  stroke: 'rgba(255,200,120,0.32)', dash: '4 4', textFill: 'rgba(255,200,120,0.62)' },
+    { pct: 15, label: 'QUIET', stroke: 'rgba(245,241,235,0.20)', dash: '4 4', textFill: 'rgba(245,241,235,0.45)' },
   ];
   const gridLines = thresholds.map(g => {
     const gy = +(PT + (1 - g.pct / 100) * H).toFixed(1);

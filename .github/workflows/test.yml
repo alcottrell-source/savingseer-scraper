@@ -1,0 +1,37 @@
+name: Unit tests
+
+# Gates the verdict/stage/presence logic on every PR into main. These are the
+# alignment-critical paths CLAUDE.md repeatedly stresses must stay consistent
+# across score.js, summarise.js, index.html and the edge function — yet until
+# now nothing ran `npm test` in CI (only the preview-deploy E2E did). This job
+# closes that gap: it runs the fast, network-free `node --test` suite so a
+# regression in getTideStage / deriveVerdict / the PRESENCE matrix fails the
+# PR check instead of shipping.
+
+on:
+  pull_request:
+    branches: ['main']
+  push:
+    branches: ['main']
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: node --test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test

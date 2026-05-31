@@ -2,7 +2,7 @@
 // Tide — daily Centre Intelligence narrative writer.
 //
 // Runs after score.js on the daily GitHub Action. For each centre with a
-// score row for today, asks Gemini 2.5 Flash for a 1-2 sentence factual
+// score row for today, asks Gemini 2.0 Flash-Lite for a 1-2 sentence factual
 // narrative summarising the current sale state (which brands just opened,
 // which are picked-over, whether the tide is rising/falling), and writes
 // it back to centre_seer_scores.narrative for today's row.
@@ -16,6 +16,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI } from '@google/genai';
 import { brands } from './brands.js';
+import { deriveStageFromVerdict } from './score.js';
 
 const SUPABASE_URL    = process.env.SUPABASE_URL;
 const SUPABASE_KEY    = process.env.SUPABASE_SERVICE_KEY;
@@ -195,26 +196,10 @@ async function main() {
     process.exit(1);
   }
 
-  // Verdict -> stage (mirrors the mapping in score.js). Includes both the
-  // new trend-only vocabulary and the legacy strings so any pre-rename
-  // carry-forward rows still resolve to the right stage.
-  const STAGE_FROM_VERDICT = {
-    // New vocabulary
-    'Peak':    'High Tide',
-    'Easing':  'Falling',
-    'Rising':  'Rising',
-    'Turning': 'Turning',
-    'Quiet':   'Turning',
-    'Over':    'Low',
-    // Legacy
-    'Go now':                       'High Tide',
-    'Last chance':                  'Falling',
-    'Last chance — tide going out': 'Falling',
-    'Worth watching':               'Rising',
-    'Starting to build':            'Turning',
-    "It's over":                    'Low',
-    'Nothing on':                   'Turning',
-  };
+  // Verdict -> stage uses score.js's deriveStageFromVerdict (the single
+  // source of truth for the new trend-only vocabulary AND the legacy strings,
+  // so pre-rename carry-forward rows still resolve). Don't re-inline the map
+  // here — CLAUDE.md requires every consumer to stay aligned with score.js.
 
   const scoreByCentre = new Map();
   for (const row of scoresRes.data || []) scoreByCentre.set(row.centre_id, row);
@@ -281,7 +266,7 @@ async function main() {
       });
     }
 
-    const stage = STAGE_FROM_VERDICT[score.verdict] || 'Turning';
+    const stage = deriveStageFromVerdict(score.verdict) || 'Turning';
     const history = (historyByCentre.get(centre.id) || []).slice(-14);
 
     try {

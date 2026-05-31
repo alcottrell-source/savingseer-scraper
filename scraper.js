@@ -142,7 +142,7 @@ async function runCheerioCrawler() {
     },
 
     async failedRequestHandler({ request }) {
-      const brand = brandMap.get(request.url);
+      const brand = brandMap.get(request.url) || brandMap.get(request.loadedUrl);
       if (brand) {
         results.set(brand.id, { saleStatus: false, maxDiscountPct: null, error: true });
         console.log(`  ✗ ${brand.name}: failed (${request.errorMessages?.[0] || 'unknown error'})`);
@@ -205,7 +205,7 @@ async function runPlaywrightCrawler() {
     },
 
     async failedRequestHandler({ request }) {
-      const brand = brandMap.get(request.url);
+      const brand = brandMap.get(request.url) || brandMap.get(request.loadedUrl);
       if (brand) {
         results.set(brand.id, { saleStatus: false, maxDiscountPct: null, error: true });
         console.log(`  ✗ ${brand.name}: failed`);
@@ -219,7 +219,7 @@ async function runPlaywrightCrawler() {
     console.error('  ✗ Playwright crawler crashed:', err);
     for (const brand of browserBrands) {
       const r = results.get(brand.id);
-      if (!r.error && !r.saleStatus && r.maxDiscountPct === null) {
+      if (r && !r.error && !r.saleStatus && r.maxDiscountPct === null) {
         results.set(brand.id, { saleStatus: false, maxDiscountPct: null, error: true });
       }
     }

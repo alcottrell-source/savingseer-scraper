@@ -3724,7 +3724,7 @@ function getHotCentres(n, excludeIds) {
   const exclude = new Set(Array.isArray(excludeIds) ? excludeIds : []);
   const ranked = [];
   for (let idx = 0; idx < CENTRE_NAMES.length; idx++) {
-    const cid = 'C' + (idx + 1);
+    const cid = 'C' + String(idx + 1).padStart(2, '0');
     if (exclude.has(cid)) continue;
     const s = getServerScore(idx);
     if (!s || !Number.isFinite(+s.tide_score) || +s.tide_score <= 0) continue;
@@ -4208,7 +4208,7 @@ async function renderCentre(centreId) {
   const scoreCardHTML = '<div class="score-section">'
     + '<div class="score-card has-vessel" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'">'
     +   '<div class="score-top">'+scoreHeader
-    +     '<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div></div>'
+    +     '<div class="score-right"><div class="phase-badge">'+escapeHtml(verdictLabel)+'</div></div>'
     +   '</div>'
     +   (() => {
           // Vessel headline is consumer-friendly "X of Y brands on sale".

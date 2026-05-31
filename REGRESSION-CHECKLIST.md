@@ -8,9 +8,8 @@ Run after every visual change. Anything that was working before must still work.
 
 - [ ] **A1** Homepage loads with Tide logo, "Choose your shopping centre" picker, search input + dropdown of 30 centres
 - [ ] **A2** "Your shopping trip, timed right" marketing region renders below picker
-- [ ] **A3** Cookie banner appears on first visit; "Strictly necessary only" closes it; choice persists across reloads
 - [ ] **A4** Feedback widget bottom-right with dismiss × works; "Share feedback →" opens external link
-- [ ] **A5** Footer renders: "Tide · Updated daily at HH:MM Live sale data · DD MMM YYYY" + Privacy / Cookies / Contact links
+- [ ] **A5** Footer renders: "Tide · Updated daily at HH:MM Live sale data · DD MMM YYYY" + Privacy / Contact links
 - [ ] **A6** Selecting a centre from dropdown navigates to its detail view
 - [ ] **A7** Typing in the search input filters the dropdown by centre name + city
 - [ ] **A8** Centre detail view: shows centre name + city, **merged tide card** (verdict word, "X of Y brands on sale" fact, statement subtitle, 60-day curve), narrative, brand grid, "Back to Centres" link. There is no longer a separate "Tide over 60 days" card below the vessel — the curve is inside the same card as the verdict.
@@ -53,7 +52,7 @@ Run after every visual change. Anything that was working before must still work.
 - [ ] **D5** Page reloads cleanly with the same centre selected (URL persists)
 - [ ] **D6** No console errors / warnings during normal use
 - [ ] **D7** Mobile viewport (375px) renders without horizontal scroll
-- [ ] **D8** Feedback widget + cookie banner don't cover content above the fold
+- [ ] **D8** Feedback widget doesn't cover content above the fold
 - [ ] **D9** Centre with sparse history (< 5 real days): merged card's 60-day curve still renders via UK retail-calendar backfill; today dot sits on the rightmost point with no gap, no NaN coordinate, and no console error.
 
 ## E. Admin parity (the north star, restated)

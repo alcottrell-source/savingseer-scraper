@@ -361,6 +361,7 @@
   .pref-toggle-row:last-of-type { border-bottom: none; }
   .pref-toggle-text { flex: 1; min-width: 0; }
   .pref-toggle-label { font-size: 14px; font-weight: 500; color: var(--ink); margin-bottom: 2px; }
+  .pref-toggle-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--leaf-lt); color: var(--leaf); font-size: 9px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; vertical-align: middle; }
   .pref-toggle-sub { font-size: 13px; color: var(--stone); line-height: 1.45; }
   .pref-switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; cursor: pointer; }
   .pref-switch input { opacity: 0; width: 0; height: 0; }
@@ -470,6 +471,14 @@
   .ob-preview-score { font-family: 'Playfair Display', serif; font-size: 48px; color: var(--leaf); font-weight: 600; line-height: 1; }
   .ob-preview-score-suffix { font-size: 18px; color: var(--stone); font-weight: 400; }
   .ob-preview-meta { color: var(--stone); font-size: 14px; margin-top: 4px; }
+  /* Positional indicator only (see obRenderStep5Notifications): a marker on a
+     0-100 track, NOT a server-computed personal verdict. */
+  .ob-score-scale { margin-top: 14px; }
+  .ob-score-track { position: relative; height: 6px; border-radius: 999px; background: linear-gradient(90deg, var(--stone-lt), var(--leaf-lt)); }
+  .ob-score-marker { position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%; background: var(--leaf); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(44,24,16,0.25); transform: translate(-50%, -50%); }
+  .ob-score-labels { display: flex; margin-top: 7px; }
+  .ob-score-labels span { flex: 1; text-align: center; font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--stone); }
+  .ob-score-interp { margin-top: 12px; font-size: 14px; font-weight: 500; color: var(--ink-mid); }
   @media (min-width: 768px) {
     .ob-body { padding-top: 48px; }
     .ob-title { font-size: 32px; }
@@ -1777,10 +1786,25 @@ function obRenderStep5Notifications() {
     const result = calcPersonalScore(centreId, tempPrefs);
     const centreName = CENTRE_NAMES[parseInt(centreId.replace('C',''))-1];
     if (result) {
+      // The scale below is a POSITIONAL indicator only: the personal score is
+      // NOT run through the centre stage machine. The segment labels (Quiet/
+      // Rising/Peak/Easing/Over) show roughly where the score sits on a 0-100
+      // track; they are illustrative, not a server-computed personal verdict.
+      // PEAK threshold 40 mirrors score>=40 = High Tide on the centre card, so
+      // go-language ("worth a look") is allowed only at or above it.
+      const pos = Math.max(0, Math.min(100, result.score));
+      const interp = result.score >= 40
+        ? 'Strong day, worth a look.'
+        : (result.onSale + ' of your shops are on today.');
       preview = '<div class="ob-preview">'
               + '<div class="ob-preview-eyebrow">Your personal score &middot; '+centreName+'</div>'
               + '<div class="ob-preview-score">'+result.score+'<span class="ob-preview-score-suffix">/100</span></div>'
-              + '<div class="ob-preview-meta">'+result.onSale+' of your '+result.matchingBrands+' tracked brands here are on sale today</div>'
+              + '<div class="ob-preview-meta">'+result.onSale+' of your '+result.matchingBrands+' shops here are on sale today</div>'
+              + '<div class="ob-score-scale" aria-hidden="true">'
+              +   '<div class="ob-score-track"><span class="ob-score-marker" style="left:'+pos+'%"></span></div>'
+              +   '<div class="ob-score-labels"><span>Quiet</span><span>Rising</span><span>Peak</span><span>Easing</span><span>Over</span></div>'
+              + '</div>'
+              + '<div class="ob-score-interp">'+interp+'</div>'
               + '</div>';
     } else {
       preview = '<div class="ob-preview"><div class="ob-preview-meta">We don\'t track any of your brands at '+centreName+' yet.</div></div>';
@@ -1789,18 +1813,21 @@ function obRenderStep5Notifications() {
   document.getElementById('ob-body').innerHTML =
     '<div class="ob-eyebrow">Step 5 of 5</div>'
     + '<h1 class="ob-title">Stay in sync</h1>'
-    + '<p class="ob-sub">We\'ll let you know when there\'s something worth seeing. Off any time.</p>'
+    + '<p class="ob-sub">We\'ll only tap you when it\'s worth the trip. Off any time.</p>'
     + '<div class="ob-notif-card">'
-    +   '<div class="pref-toggle-row"><div class="pref-toggle-text"><div class="pref-toggle-label">Alert me when a centre hits peak sale</div><div class="pref-toggle-sub">A short email the morning a saved centre peaks.</div></div>'
-    +     '<label class="pref-switch"><input type="checkbox" id="ob-toggle-alerts" '+(onb.email_alerts?'checked':'')+' onchange="onb.email_alerts=this.checked"><span class="pref-switch-track"></span><span class="pref-switch-thumb"></span></label></div>'
-    +   '<div class="pref-toggle-row"><div class="pref-toggle-text"><div class="pref-toggle-label">Alert me when one of my shops goes into sale</div><div class="pref-toggle-sub">A heads-up the moment any tracked brand starts a new sale.</div></div>'
+    // Order: brand-sale (most useful) first, then centre-peak, then weekend
+    // digest. DOM order only; each input still writes its original column
+    // (brand_sale_alerts / email_alerts / daily_digest); do not rename them.
+    +   '<div class="pref-toggle-row"><div class="pref-toggle-text"><div class="pref-toggle-label">When one of my shops goes into sale <span class="pref-toggle-tag">Most useful</span></div><div class="pref-toggle-sub">The moment a brand you follow starts a new sale, wherever it is.</div></div>'
     +     '<label class="pref-switch"><input type="checkbox" id="ob-toggle-brand-alerts" '+(onb.brand_sale_alerts?'checked':'')+' onchange="onb.brand_sale_alerts=this.checked"><span class="pref-switch-track"></span><span class="pref-switch-thumb"></span></label></div>'
-    +   '<div class="pref-toggle-row"><div class="pref-toggle-text"><div class="pref-toggle-label">Weekend Digest</div><div class="pref-toggle-sub">Sent every Friday at 7pm — only when at least one of your saved centres is Rising or above.</div></div>'
+    +   '<div class="pref-toggle-row"><div class="pref-toggle-text"><div class="pref-toggle-label">When my centre hits peak</div><div class="pref-toggle-sub">A short email the morning a saved centre peaks.</div></div>'
+    +     '<label class="pref-switch"><input type="checkbox" id="ob-toggle-alerts" '+(onb.email_alerts?'checked':'')+' onchange="onb.email_alerts=this.checked"><span class="pref-switch-track"></span><span class="pref-switch-thumb"></span></label></div>'
+    +   '<div class="pref-toggle-row"><div class="pref-toggle-text"><div class="pref-toggle-label">Weekend digest</div><div class="pref-toggle-sub">Sent every Friday at 7pm, only when at least one of your saved centres is Rising or above.</div></div>'
     +     '<label class="pref-switch"><input type="checkbox" id="ob-toggle-digest" '+(onb.daily_digest?'checked':'')+' onchange="onb.daily_digest=this.checked"><span class="pref-switch-track"></span><span class="pref-switch-thumb"></span></label></div>'
     + '</div>'
     + preview;
   const next = document.getElementById('ob-next');
-  next.textContent = 'Save & see my score';
+  next.textContent = 'Save & see my Tide';
   next.disabled = false;
   document.getElementById('ob-help').textContent = '';
 }

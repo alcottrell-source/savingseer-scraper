@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": null,
+  "buildCommand": "node seo/generate.mjs",
   "installCommand": null,
   "outputDirectory": ".",
   "rewrites": [

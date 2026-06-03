@@ -5,3 +5,8 @@ node_modules/
 .env.local
 .DS_Store
 *.log
+
+# SEO pages are generated at build time (vercel buildCommand), not committed
+.seo-sample/
+/centre/
+/sitemap-seo.xml

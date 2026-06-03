@@ -1,0 +1,50 @@
+# SEO engine (programmatic pages) — v1
+
+Generates static, Google-readable pages for shopping-centre + brand sale searches
+(e.g. "when does Next go on sale at Westquay?"). v1 covers ONE centre —
+`westquay-southampton` — and its present brands (1 hub + ~N brand pages).
+
+## Why this exists
+The main app (`index.html`) renders content client-side from Supabase, which Google
+struggles to read/rank. These pages bake the answer into static HTML at build time, so
+they rank — and each carries an email opt-in that converts a search visitor into a
+segmented (centre + brand) audience member.
+
+## How it works
+- `seo/generate.mjs` runs at **build time** (Vercel `buildCommand`, set in `vercel.json`).
+  Server-side, so it reads Supabase with `@supabase/supabase-js` directly.
+- It writes `centre/<slug>/index.html`, `centre/<slug>/<brand>/index.html`, and
+  `sitemap-seo.xml` into the repo root, which Vercel serves statically.
+- Generated files are **git-ignored** — they're rebuilt fresh on every deploy.
+- "Daily refresh" (ISR equivalent) = trigger a Vercel **Deploy Hook** once a day from the
+  existing scoring cron, so the Tide Score on each page stays current.
+
+### Files
+| File | Role |
+|---|---|
+| `next-sale-window.mjs` | UK retail-calendar → "next big sale window" (national signal, not a per-centre prediction). Pure + tested. |
+| `render.mjs` | Pure HTML templates (brand page, centre hub). Includes the admin-verified `isOnSale` rule, FAQ JSON-LD, and the browser opt-in (raw PostgREST, never supabase-js). |
+| `generate.mjs` | Loads data (Supabase or `--fixtures`), enforces "no data, no page", writes files + sitemap. |
+| `fixtures.westquay.json` | Mock data for local preview only. |
+
+## Rules honoured (do not break)
+- **Admin is source of truth.** `isOnSale()` reads `active_cycle_id` / `last_verified_*`
+  only — never the scraper's raw `sale_status`. (Mirrors `score.js` + `index.html`.)
+- **Browser writes use raw PostgREST**, not supabase-js (which hangs in the browser).
+- **No data, no page.** A centre with no current Tide Score is skipped entirely.
+
+## Local preview (no DB needed)
+```
+npm run seo:sample      # writes pages to .seo-sample/ from fixtures
+```
+Open `.seo-sample/centre/westquay-southampton/index.html` in a browser.
+
+## Go-live checklist (production)
+1. Run the signup-table migration: `supabase/migrations/20260603_add_seo_alert_signups.sql`.
+2. In the Vercel project, ensure env vars exist: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
+   (already used by `api/rescore.js`) **and add `SUPABASE_ANON_KEY`** (needed by the
+   in-page opt-in). Optionally `SEO_ORIGIN` (defaults to `https://tidego.co`).
+3. Deploy. Verify `https://tidego.co/centre/westquay-southampton` renders with real data.
+4. Add a daily **Deploy Hook** call to the scoring cron so scores stay fresh.
+5. Submit `https://tidego.co/sitemap-seo.xml` once in Google Search Console.
+6. Wait 4–8 weeks; watch which pages rank before scaling to more centres (v2).

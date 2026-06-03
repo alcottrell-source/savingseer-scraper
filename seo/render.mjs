@@ -31,6 +31,34 @@ export function isOnSale(sale) {
   return false;
 }
 
+// Short centre-context phrase for the supporting line on a brand page.
+export function centreContext(verdict) {
+  switch (verdict) {
+    case 'Peak':    return 'lots of shops on sale across the centre';
+    case 'Rising':  return 'sale activity building across the centre';
+    case 'Easing':
+    case 'Falling': return 'sales easing off across the centre';
+    default:        return 'few shops on sale across the centre right now';
+  }
+}
+
+// The brand-specific headline answer — this is what the searcher actually asked.
+export function brandAnswer(onSale, cycle, brandName, centreName) {
+  if (onSale) {
+    const pct = cycle && cycle.maxDiscountPct ? `, up to ${cycle.maxDiscountPct}% off` : '';
+    return {
+      tone: 'go',
+      headline: `Yes — ${brandName} is on sale at ${centreName} now${pct}.`,
+      sub: cycle && cycle.startDate ? `Sale tracked and admin-verified by Tide, started ${cycle.startDate}.` : 'Sale tracked and admin-verified by Tide.',
+    };
+  }
+  return {
+    tone: 'wait',
+    headline: `Not right now — ${brandName} isn't on sale at ${centreName} today.`,
+    sub: `Set an alert below and we'll email you the moment a ${brandName} sale starts.`,
+  };
+}
+
 // Shopper-facing "go now vs wait" copy from the centre's live verdict/trajectory.
 export function verdictCopy(verdict, trajectory) {
   switch (verdict) {
@@ -123,7 +151,8 @@ function configScript(supabase) {
 export function renderBrandPage(d) {
   const { centre, brand, sale, cycle, hours, siblings, supabase, origin, today } = d;
   const onSale = isOnSale(sale);
-  const v = verdictCopy(centre.verdict, centre.trajectory);
+  const ans = brandAnswer(onSale, cycle, brand.name, centre.name);
+  const ctx = centreContext(centre.verdict);
   const title = `When does ${brand.name} go on sale at ${centre.name}? | Tide`;
   const desc = `Live sale status for ${brand.name} at ${centre.name}: today's Tide Score, whether ${brand.name} is on sale now, and the next likely sale window.`;
   const canonical = `${origin}/centre/${centre.slug}/${brand.slug}`;
@@ -148,6 +177,14 @@ export function renderBrandPage(d) {
     '@context': 'https://schema.org', '@type': 'FAQPage',
     mainEntity: faq.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
   };
+  const breadcrumbLd = {
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Tide', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: centre.name, item: `${origin}/centre/${centre.slug}` },
+      { '@type': 'ListItem', position: 3, name: brand.name, item: canonical },
+    ],
+  };
 
   const sibLinks = siblings.slice(0, 12)
     .map(s => `<li><a href="${origin}/centre/${centre.slug}/${s.slug}">${escapeHtml(s.name)}${s.onSale ? ' • on sale' : ''}</a></li>`).join('');
@@ -156,9 +193,9 @@ export function renderBrandPage(d) {
 <div class="crumbs"><a href="${origin}/">Tide</a> › <a href="${origin}/centre/${centre.slug}">${escapeHtml(centre.name)}</a> › ${escapeHtml(brand.name)}</div>
 <h1>When does ${escapeHtml(brand.name)} go on sale at ${escapeHtml(centre.name)}?</h1>
 <div class="answer">
-  <div class="score"><b>${escapeHtml(String(centre.tideScore))}</b><span>/100 Tide Score today at ${escapeHtml(centre.name)}</span></div>
-  <div class="verdict ${v.tone === 'go' ? 'go' : ''}">${escapeHtml(v.headline)}</div>
-  <div>${escapeHtml(v.line)}</div>
+  <div class="verdict ${ans.tone === 'go' ? 'go' : ''}">${escapeHtml(ans.headline)}</div>
+  <div>${escapeHtml(ans.sub)}</div>
+  <div class="score" style="margin-top:14px"><b>${escapeHtml(String(centre.tideScore))}</b><span>/100 — ${escapeHtml(centre.name)}'s Tide Score today, ${escapeHtml(ctx)}</span></div>
   ${winSentence ? `<div class="win">${escapeHtml(winSentence)}</div>` : ''}
 </div>
 
@@ -176,6 +213,7 @@ ${hours ? `<h2>Visiting ${escapeHtml(centre.name)}</h2><p>Opening hours: ${escap
 <h2>FAQ</h2>
 ${faq.map(f => `<details><summary>${escapeHtml(f.q)}</summary><p>${escapeHtml(f.a)}</p></details>`).join('')}
 <script type="application/ld+json">${JSON.stringify(faqLd)}</script>
+<script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
 ` + FOOT(origin);
 }
 

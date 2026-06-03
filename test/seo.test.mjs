@@ -45,8 +45,12 @@ test('renderBrandPage embeds FAQ JSON-LD and the question H1', () => {
     today: new Date(Date.UTC(2026, 5, 3)),
   });
   assert.match(html, /<h1>When does Next go on sale at Westquay\?<\/h1>/);
+  // The answer block must LEAD with the brand's own sale status (what was searched),
+  // not the centre verdict.
+  assert.match(html, /Yes — Next is on sale at Westquay now\./);
   assert.match(html, /application\/ld\+json/);
   assert.match(html, /"@type":"FAQPage"/);
+  assert.match(html, /"@type":"BreadcrumbList"/);
   assert.match(html, /\/rest\/v1\//, 'opt-in must post to raw PostgREST');
   assert.ok(!/@supabase\/supabase-js|createClient\(/.test(html), 'must not load supabase-js in the browser');
 });

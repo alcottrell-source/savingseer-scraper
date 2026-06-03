@@ -108,7 +108,19 @@ async function main() {
   // today is passed explicitly into pure helpers (no hidden Date.now in them).
   const today = new Date();
 
-  const raw = fixtures ? await loadFromFixtures(fixtures) : await loadFromSupabase();
+  // The SEO generator must NEVER break the main site's deploy. If the data
+  // source can't be reached (missing build-time env vars, transient DB error,
+  // etc.), warn loudly and skip page generation with a success exit code so
+  // the rest of the static site still ships.
+  let raw;
+  try {
+    raw = fixtures ? await loadFromFixtures(fixtures) : await loadFromSupabase();
+  } catch (e) {
+    console.error(`[seo] WARNING: could not load data (${e.message}).`);
+    console.error('[seo] Skipping SEO page generation — the rest of the site will still deploy.');
+    console.error('[seo] If you expected pages, check SUPABASE_URL / SUPABASE_SERVICE_KEY are available to the BUILD step in Vercel.');
+    process.exit(0);
+  }
   const { centre, brands, hasScore } = shape(raw, today);
 
   // NO DATA, NO PAGE: a centre with no current Tide Score can't answer the
@@ -153,4 +165,10 @@ async function main() {
   console.log(`[seo] Sitemap: ${join(outDir, 'sitemap-seo.xml')} (${urls.length} urls)`);
 }
 
-main().catch(e => { console.error('[seo] FAILED:', e.message); process.exit(1); });
+main().catch(e => {
+  // Last-resort guard: never fail the whole site deploy because of the SEO
+  // add-on. Log loudly (visible in Vercel build logs) and exit success.
+  console.error('[seo] WARNING: SEO generation failed unexpectedly:', e.message);
+  console.error('[seo] Skipping SEO pages — the rest of the site will still deploy.');
+  process.exit(0);
+});

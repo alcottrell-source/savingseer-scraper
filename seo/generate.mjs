@@ -22,6 +22,15 @@ import { nextSaleWindow } from './next-sale-window.mjs';
 const V1_CENTRE = 'westquay-southampton';
 const ORIGIN = process.env.SEO_ORIGIN || 'https://tidego.co';
 
+// Public Supabase read credentials — the same anon key the live dashboard ships
+// to browsers. The SEO generator only reads anon-readable reference data, so it
+// can build with these and needs NO private key / Vercel config. Env vars
+// override if present.
+const PUBLIC_SUPABASE_URL = 'https://vrezzwadwzrmumjpdgge.supabase.co';
+const PUBLIC_SUPABASE_ANON_KEY = 'sb_publishable_qid8Ej6biCOmKLjLIY5DfA_nzJXmc9G';
+const SUPABASE_URL = process.env.SUPABASE_URL || PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || PUBLIC_SUPABASE_ANON_KEY;
+
 // Opening hours are NOT in the DB (see audit). Hardcoded per centre here.
 // TODO(v2): confirm WestQuay hours / move to a small config table.
 const CENTRE_HOURS = {
@@ -40,9 +49,8 @@ async function loadFromFixtures(path) {
 
 async function loadFromSupabase() {
   const { createClient } = await import('@supabase/supabase-js');
-  const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !key) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
-  const sb = createClient(url, key);
+  // Read-only via the public anon key (RLS-protected). No private key needed.
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   const { data: centreRow } = await sb.from('centres')
     .select('id,name,active').eq('id', V1_CENTRE).single();
@@ -130,10 +138,7 @@ async function main() {
     process.exit(0);
   }
 
-  const supabase = {
-    url: process.env.SUPABASE_URL || raw.supabaseUrl || 'https://YOUR-PROJECT.supabase.co',
-    anonKey: process.env.SUPABASE_ANON_KEY || raw.supabaseAnonKey || 'YOUR_ANON_KEY',
-  };
+  const supabase = { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY };
   const hours = CENTRE_HOURS[centre.slug] || null;
   const urls = [];
 

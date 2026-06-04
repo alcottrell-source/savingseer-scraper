@@ -16,8 +16,8 @@
 //      data-slope-direction='up' (PEAK's '★' is non-directional and
 //      permitted on either slope)
 //   4. narrative copy contains no digits and no recommendation language
-//   5. (§J) Plausible is pageview-only — exactly one script tag, no custom
-//      plausible('Event') calls anywhere in the served HTML
+//   5. (§J) Plausible is gone and GA4 is consent-gated — no plausible.io in
+//      the served HTML, no eager gtag loader, and the opt-in banner exists
 //
 // These are internal-consistency checks: they do NOT re-implement
 // deriveVerdict(), so they stay correct even if the verdict mapping is tuned.
@@ -345,12 +345,25 @@ test('verdict alignment holds for every scored centre', async ({ page }, testInf
   ).toEqual([]);
 });
 
-test('§J analytics is pageview-only (no custom Plausible events)', async ({ page, baseURL }) => {
+test('§J analytics: Plausible removed, GA4 is consent-gated', async ({ page, baseURL }) => {
   const res = await page.request.get(baseURL + '/');
   const html = await res.text();
-  const scriptTags = (html.match(/plausible\.io\/js\/script[^"']*\.js/g) || []).length;
-  expect(scriptTags, 'exactly one Plausible script tag').toBe(1);
-  // No custom event calls anywhere in the served document.
+
+  // Plausible must be fully gone — no script tag, no custom event calls.
+  expect(html.includes('plausible.io'), 'no plausible.io reference should remain').toBe(false);
   const customCalls = html.match(/\bplausible\(\s*['"][^'"]+['"]/g) || [];
   expect(customCalls, `unexpected custom Plausible events: ${customCalls.join(', ')}`).toEqual([]);
+
+  // GA4 is injected by JS only after the user accepts cookies, so the SERVED
+  // static HTML must NOT contain the gtag loader tag — that proves it is
+  // genuinely consent-gated rather than loaded eagerly.
+  expect(
+    /googletagmanager\.com\/gtag\/js/.test(html),
+    'gtag loader must NOT be present in static HTML (it loads only after consent)',
+  ).toBe(false);
+
+  // The opt-in consent banner + its Accept/Decline controls must be present.
+  expect(html.includes('id="cookie-banner"'), 'consent banner should exist').toBe(true);
+  expect(/onclick="acceptCookies\(\)"/.test(html), 'Accept control should exist').toBe(true);
+  expect(/onclick="declineCookies\(\)"/.test(html), 'Decline control should exist').toBe(true);
 });

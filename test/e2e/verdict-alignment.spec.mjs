@@ -355,11 +355,14 @@ test('§J analytics: Plausible removed, GA4 is consent-gated', async ({ page, ba
   expect(customCalls, `unexpected custom Plausible events: ${customCalls.join(', ')}`).toEqual([]);
 
   // GA4 is injected by JS only after the user accepts cookies, so the SERVED
-  // static HTML must NOT contain the gtag loader tag — that proves it is
-  // genuinely consent-gated rather than loaded eagerly.
+  // static HTML must NOT contain an eager gtag <script> TAG — that proves it
+  // is genuinely consent-gated rather than loaded on page load. (The loader
+  // URL still appears as a string literal inside the inline loadGA() source,
+  // which is fine — we assert on the actual tag, not the string.)
+  const eagerGtagTag = /<script\b[^>]*\bsrc\s*=\s*["'][^"']*googletagmanager\.com[^"']*["']/i.test(html);
   expect(
-    /googletagmanager\.com\/gtag\/js/.test(html),
-    'gtag loader must NOT be present in static HTML (it loads only after consent)',
+    eagerGtagTag,
+    'no eager gtag <script src> tag should be in static HTML (it is created at runtime after consent)',
   ).toBe(false);
 
   // The opt-in consent banner + its Accept/Decline controls must be present.

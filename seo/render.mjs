@@ -103,16 +103,86 @@ th{color:var(--muted);font-weight:600}.tag{display:inline-block;font-size:.78rem
 ul.links{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px}ul.links li a{display:inline-block;padding:7px 12px;border:1px solid var(--line);border-radius:999px;text-decoration:none}
 footer{margin-top:40px;color:var(--muted);font-size:.82rem;border-top:1px solid var(--line);padding-top:16px}
 details{border-bottom:1px solid var(--line);padding:10px 0}summary{cursor:pointer;font-weight:600}
+.cookie-banner{position:fixed;left:16px;right:16px;bottom:16px;margin:0 auto;max-width:460px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:none;flex-direction:column;gap:12px;z-index:950;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.cookie-banner.is-open{display:flex}
+.cookie-banner-text{font-size:13px;line-height:1.5;color:var(--muted)}
+.cookie-banner-text strong{display:block;color:var(--ink);margin-bottom:4px}
+.cookie-banner-text a{color:var(--neon)}
+.cookie-banner-actions{display:flex;gap:10px;justify-content:flex-end}
+.cookie-banner-actions button{font:inherit;font-size:14px;font-weight:700;border-radius:10px;padding:9px 16px;cursor:pointer;border:0}
+.cookie-accept{background:var(--neon);color:#06231a}
+.cookie-decline{background:transparent;color:var(--muted);border:1px solid var(--line)}
 </style>
 </head>
 <body><div class="wrap">`;
 
+// ── Analytics (consent-gated, PECR / UK GDPR opt-in) ────────────────────────
+// GA4 + Microsoft Clarity. Neither loads (and no cookie / session recording
+// happens) until the visitor clicks Accept. Consent is stored under the same
+// origin-wide localStorage key as the main app (index.html), so a visitor who
+// already chose on tidego.co is not re-prompted here. Clarity records sessions,
+// so opt-in gating matters even more than for GA.
+const SEO_GA_MEASUREMENT_ID = 'G-4P73L0ZE9X';
+const SEO_CLARITY_PROJECT_ID = 'wo2ya32cp6';
+
+function analyticsAndConsent() {
+  return `
+<div id="cookie-banner" class="cookie-banner" role="dialog" aria-live="polite" aria-label="Cookie consent">
+  <div class="cookie-banner-text">
+    <strong>We use cookies for analytics.</strong>
+    We'd like to use Google Analytics and Microsoft Clarity to understand how this page is used. No analytics cookies are set unless you accept. See our <a href="/privacy">Privacy Policy</a>.
+  </div>
+  <div class="cookie-banner-actions">
+    <button type="button" class="cookie-decline" onclick="tideDeclineCookies()">Decline</button>
+    <button type="button" class="cookie-accept" onclick="tideAcceptCookies()">Accept</button>
+  </div>
+</div>
+<script>
+(function(){
+  var GA_ID='${SEO_GA_MEASUREMENT_ID}', CLARITY_ID='${SEO_CLARITY_PROJECT_ID}', KEY='tide_cookie_consent';
+  var gaDone=false, clarityDone=false;
+  function gaOk(){ return /^G-[A-Z0-9]+$/.test(GA_ID) && GA_ID!=='G-XXXXXXXXXX'; }
+  function clarityOk(){ return !!CLARITY_ID && CLARITY_ID!=='XXXXXXXX'; }
+  function loadGA(){
+    if(gaDone||!gaOk())return; gaDone=true;
+    window.dataLayer=window.dataLayer||[];
+    window.gtag=function(){window.dataLayer.push(arguments);};
+    gtag('js',new Date()); gtag('config',GA_ID);
+    var s=document.createElement('script'); s.async=true;
+    s.src='https://www.googletagmanager.com/gtag/js?id='+encodeURIComponent(GA_ID);
+    document.head.appendChild(s);
+  }
+  function loadClarity(){
+    if(clarityDone||!clarityOk())return; clarityDone=true;
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src='https://www.clarity.ms/tag/'+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window,document,'clarity','script',CLARITY_ID);
+  }
+  function loadAll(){ loadGA(); loadClarity(); }
+  function getConsent(){ try{return localStorage.getItem(KEY);}catch(e){return null;} }
+  function setConsent(v){ try{localStorage.setItem(KEY,v);}catch(e){} }
+  function el(){ return document.getElementById('cookie-banner'); }
+  function show(){ var e=el(); if(e)e.classList.add('is-open'); }
+  function hide(){ var e=el(); if(e)e.classList.remove('is-open'); }
+  window.tideAcceptCookies=function(){ setConsent('granted'); hide(); loadAll(); };
+  window.tideDeclineCookies=function(){ setConsent('denied'); hide(); };
+  window.tideCookieSettings=function(){ show(); };
+  var c=getConsent();
+  if(c==='granted'){ loadAll(); }
+  else if(c!=='denied' && (gaOk()||clarityOk())){ show(); }
+})();
+</script>`;
+}
+
 const FOOT = (origin) => `
 <footer>
 Sale timing is shown for guidance, based on Tide's tracked, admin-verified sale data and the UK retail sale calendar — always check in store.
-<a href="${origin}/">Tide home</a> · <a href="${origin}/privacy">Privacy</a>
+<a href="${origin}/">Tide home</a> · <a href="${origin}/privacy">Privacy</a> · <a href="#" onclick="event.preventDefault();tideCookieSettings()">Cookie settings</a>
 </footer>
 </div>
+${analyticsAndConsent()}
 <script>
 // Browser write — raw PostgREST fetch (the pgUpsert pattern). NOT supabase-js.
 window.__tideOptIn = async function(form, ctx){

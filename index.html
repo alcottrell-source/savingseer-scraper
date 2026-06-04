@@ -711,8 +711,32 @@
   }
   .report-toast-msg { font-size: 14px; font-weight: 600; }
   .report-toast-sub { font-size: 12px; color: rgba(250,247,242,0.7); margin-top: 1px; }
+
+  /* Cookie consent banner — opt-in gate for Google Analytics. Mirrors the
+     .report-toast surface tokens but uses a display toggle (not opacity)
+     because the Accept/Decline buttons must stay clickable. z-index above
+     the report toast (900) and notify banner so the prompt is never hidden. */
+  .cookie-banner {
+    position: fixed; left: 16px; right: 16px; bottom: 20px; margin: 0 auto;
+    max-width: 460px; background: var(--bark); color: var(--cream);
+    border-radius: 16px; padding: 16px 18px;
+    display: none; flex-direction: column; gap: 12px;
+    z-index: 950; box-shadow: 0 10px 30px rgba(28,26,20,0.28);
+  }
+  .cookie-banner.is-open { display: flex; }
+  .cookie-banner-text { font-size: 13px; line-height: 1.5; color: rgba(250,247,242,0.92); }
+  .cookie-banner-text strong { display: block; font-size: 14px; margin-bottom: 4px; color: var(--cream); }
+  .cookie-banner-text a { color: var(--cream); text-decoration: underline; }
+  .cookie-banner-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .cookie-banner-actions button {
+    font: inherit; font-size: 14px; font-weight: 600; border-radius: 22px;
+    padding: 9px 18px; cursor: pointer; border: none;
+  }
+  .cookie-accept { background: var(--leaf); color: #fff; }
+  .cookie-accept:hover { background: #2f5428; }
+  .cookie-decline { background: transparent; color: rgba(250,247,242,0.8); border: 1px solid rgba(250,247,242,0.3); }
+  .cookie-decline:hover { color: var(--cream); border-color: rgba(250,247,242,0.55); }
 </style>
-<script defer data-domain="tidego.co" src="https://plausible.io/js/script.js"></script>
 <script>
   // Disable the browser's scroll-position restoration. Tide rebuilds the
   // main panel after auth + data load, which changes content height — the
@@ -816,8 +840,22 @@
     <a href="privacy.html">Privacy Policy</a>
     &middot;
     <a href="mailto:privacy@tidego.co">Contact</a>
+    &middot;
+    <a href="#" onclick="event.preventDefault(); openCookieSettings();">Cookie settings</a>
   </div>
 </footer>
+
+<div id="cookie-banner" class="cookie-banner" role="dialog" aria-live="polite" aria-label="Cookie consent">
+  <div class="cookie-banner-text">
+    <strong>We use cookies for analytics.</strong>
+    We'd like to use Google Analytics to understand how Tide is used. No analytics
+    cookies are set unless you accept. See our <a href="privacy.html">Privacy Policy</a>.
+  </div>
+  <div class="cookie-banner-actions">
+    <button type="button" class="cookie-decline" onclick="declineCookies()">Decline</button>
+    <button type="button" class="cookie-accept" onclick="acceptCookies()">Accept</button>
+  </div>
+</div>
 
 <div id="notify-banner" class="notify-banner" role="region" aria-label="Get notified about this centre">
   <div class="notify-banner-top">
@@ -971,6 +1009,80 @@
 const SUPABASE_URL      = 'https://vrezzwadwzrmumjpdgge.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_qid8Ej6biCOmKLjLIY5DfA_nzJXmc9G';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── Google Analytics 4 (consent-gated, PECR / UK GDPR opt-in) ──
+// Replace the placeholder with the real Measurement ID from
+// GA4 → Admin → Data Streams → web stream → "Measurement ID" (top right).
+// While it stays the placeholder, the banner + loader no-op so nothing
+// breaks and no cookies are ever set.
+const GA_MEASUREMENT_ID = 'G-4P73L0ZE9X';
+const GA_CONSENT_KEY    = 'tide_cookie_consent'; // 'granted' | 'denied'
+let _gaLoaded = false;
+
+function gaConfigured() {
+  return typeof GA_MEASUREMENT_ID === 'string'
+    && /^G-[A-Z0-9]+$/.test(GA_MEASUREMENT_ID)
+    && GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX';
+}
+
+// Inject the gtag.js loader. gtag.js sets _ga cookies, so this MUST only
+// ever run after explicit consent (Accept), or on a load where consent is
+// already stored as 'granted'. Idempotent.
+function loadGA() {
+  if (_gaLoaded || !gaConfigured()) return;
+  _gaLoaded = true;
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function () { window.dataLayer.push(arguments); };
+  gtag('js', new Date());
+  gtag('config', GA_MEASUREMENT_ID); // pageview-only; queued until gtag.js loads
+  const s = document.createElement('script');
+  s.async = true;
+  s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(GA_MEASUREMENT_ID);
+  document.head.appendChild(s);
+}
+
+function getConsent() {
+  try { return localStorage.getItem(GA_CONSENT_KEY); } catch (e) { return null; }
+}
+function setConsent(v) {
+  try { localStorage.setItem(GA_CONSENT_KEY, v); } catch (e) {}
+}
+
+function showCookieBanner() {
+  const el = document.getElementById('cookie-banner');
+  if (el) el.classList.add('is-open');
+}
+function hideCookieBanner() {
+  const el = document.getElementById('cookie-banner');
+  if (el) el.classList.remove('is-open');
+}
+function acceptCookies() {
+  setConsent('granted');
+  hideCookieBanner();
+  loadGA();
+}
+function declineCookies() {
+  setConsent('denied');
+  hideCookieBanner();
+}
+// Footer "Cookie settings" link — lets a user revisit their choice. GA
+// already loaded this session won't unload, but the next load respects
+// the new choice.
+function openCookieSettings() {
+  showCookieBanner();
+}
+
+// Decide on load: granted → load GA now; denied → nothing; unset → show
+// the banner (only when there's a real GA property to gate, so the
+// placeholder build stays silent).
+(function () {
+  const consent = getConsent();
+  if (consent === 'granted') {
+    loadGA();
+  } else if (consent !== 'denied' && gaConfigured()) {
+    showCookieBanner();
+  }
+})();
 
 // Some browser/extension combos hang on supabase-js's PostgREST calls while
 // raw fetch to the same endpoint works. Use raw fetch for table reads/writes

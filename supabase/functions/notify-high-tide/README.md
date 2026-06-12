@@ -73,10 +73,16 @@ These are two independent systems — don't conflate them:
   emails) goes entirely through **Resend**, authenticated by the SPF/DKIM/
   return-path DNS records above. It does **not** depend on any mailbox product.
 - **Receiving** mail at `@tidego.co` (e.g. replies to `hello@tidego.co`) is
-  handled by **free Namecheap Email Forwarding → `alcottrell@gmail.com`**
-  (root `MX` = `eforwardN.registrar-servers.com`). The paid Namecheap
-  "Private Email" mailbox was only a trial and was intentionally retired
-  (Jun 2026) — it was never part of the send path.
+  handled by a **cPanel forwarder → `alcottrell@gmail.com`**. `tidego.co`'s
+  DNS is managed in a **cPanel hosting account** (not Namecheap BasicDNS), so
+  the `MX`, Email Routing (Local Mail Exchanger), and the forwarder all live in
+  cPanel. The paid Namecheap "Private Email" mailbox was only a trial and was
+  intentionally retired (Jun 2026) — it was never part of the send path.
+
+> ⚠️ **DNS is in cPanel — never use Namecheap's "Change DNS Type" button.**
+> Switching to Namecheap BasicDNS starts from an empty zone and does **not**
+> import the cPanel records, which would instantly drop the Resend SPF/DKIM and
+> break all sending. Edit records in cPanel's Zone Editor instead.
 
 > ⚠️ **When editing `tidego.co` DNS, never remove the Resend records**
 > (`resend._domainkey` DKIM, the root SPF `include:`, and any `send.`

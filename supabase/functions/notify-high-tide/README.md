@@ -65,6 +65,25 @@ set the `TIDE_FROM_EMAIL` secret (e.g. `Tide <noreply@tidego.co>`).
 > Once you point `tidego.co` DNS at the Vercel project, override it with:
 > `supabase secrets set TIDE_APP_URL=https://tidego.co`
 
+#### Mail architecture: sending vs receiving `@tidego.co`
+
+These are two independent systems — don't conflate them:
+
+- **Sending** (this function's alerts **and** the Supabase Auth magic-link
+  emails) goes entirely through **Resend**, authenticated by the SPF/DKIM/
+  return-path DNS records above. It does **not** depend on any mailbox product.
+- **Receiving** mail at `@tidego.co` (e.g. replies to `hello@tidego.co`) is
+  handled by **free Namecheap Email Forwarding → `alcottrell@gmail.com`**
+  (root `MX` = `eforwardN.registrar-servers.com`). The paid Namecheap
+  "Private Email" mailbox was only a trial and was intentionally retired
+  (Jun 2026) — it was never part of the send path.
+
+> ⚠️ **When editing `tidego.co` DNS, never remove the Resend records**
+> (`resend._domainkey` DKIM, the root SPF `include:`, and any `send.`
+> return-path subdomain). Changing the `MX` (receiving) is safe and does not
+> affect Resend (sending); removing the DKIM/SPF will silently break every
+> alert and magic-link email.
+
 ### 3. Get a Resend API key
 
 Resend dashboard → API Keys → "Create API Key" → "Sending access" only.

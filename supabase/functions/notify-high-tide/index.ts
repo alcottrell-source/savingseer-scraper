@@ -46,9 +46,23 @@ const RESEND_URL = "https://api.resend.com/emails";
 const CREAM      = "#FAF7F2";
 const CREAM_DARK = "#F0EBE3";
 const BARK       = "#2C1810";
+const INK        = "#14110E";
 const LEAF       = "#3D6B35";
 const AMBER      = "#C17A2B";
-const STONE      = "#8C8070";
+const STONE      = "#6B5F52";
+const HAIRLINE   = "#E7E0D5";
+const ROW_LINE   = "#EFEAE1";
+// Brass "tide-mark" logo, reproduced as three opacity steps so the bulletproof
+// table-cell bars echo the site header's animated SVG mark (see index.html).
+const BRASS_HI   = "#C9A24B";
+const BRASS_MID  = "#BC9038";
+const BRASS_LO   = "#A87B22";
+// Font stacks. Web fonts (Playfair / Cormorant / Inter) are loaded via <link>
+// in baseEmailWrap and render in Apple Mail and Outlook-for-Mac; Gmail ignores
+// web fonts and falls back to Georgia / Arial, which still reads as intentional.
+const SERIF      = "'Playfair Display',Georgia,'Times New Roman',serif";
+const WORDMARK   = "'Cormorant Garamond',Georgia,serif";
+const SANS       = "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif";
 
 interface CentreRow      { id: string; name: string }
 interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null }
@@ -167,35 +181,36 @@ export function renderHighTideEmail(opts: {
   const previewText = `${onSaleCount} brands on sale at the same time. This doesn't happen often.`;
 
   const yourBrandsBlock = userBrandsOnSale.length > 0 ? `
-    <div style="font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${STONE};margin-bottom:14px">Your brands on sale</div>
+    <div style="font-family:${SANS};font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:${STONE};margin-bottom:12px;font-weight:600">Your brands on sale</div>
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px">
       ${userBrandsOnSale.map((b, i, arr) => `
-        <tr><td style="padding:10px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}font-family:'DM Sans',Arial,sans-serif;font-size:14px;color:${BARK};font-weight:500">
-          <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${AMBER};margin-right:8px;vertical-align:middle"></span>${escapeHtml(b.name)}${b.discount ? `<span style="float:right;font-weight:300;color:${STONE};font-size:13px">up to ${escapeHtml(b.discount)} off</span>` : ''}
+        <tr><td style="padding:11px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${ROW_LINE};` : ''}font-family:${SANS};font-size:14px;color:${BARK};font-weight:500">
+          <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${AMBER};margin-right:9px;vertical-align:middle"></span>${escapeHtml(b.name)}${b.discount ? `<span style="float:right;font-weight:400;color:${STONE};font-size:13px">up to ${escapeHtml(b.discount)} off</span>` : ''}
         </td></tr>
       `).join('')}
     </table>` : '';
 
   const otherBrandsBlock = otherBrandsOnSale.length > 0 ? `
-    <div style="font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${STONE};margin:24px 0 12px">Also on sale at ${escapeHtml(centreName)}</div>
+    <div style="font-family:${SANS};font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:${STONE};margin:24px 0 12px;font-weight:600">Also on sale at ${escapeHtml(centreName)}</div>
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px">
       ${otherBrandsOnSale.slice(0, 4).map((name, i, arr) => `
-        <tr><td style="padding:10px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}font-family:'DM Sans',Arial,sans-serif;font-size:14px;color:${BARK};font-weight:500">
-          <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${STONE};margin-right:8px;vertical-align:middle"></span>${escapeHtml(name)}
+        <tr><td style="padding:11px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${ROW_LINE};` : ''}font-family:${SANS};font-size:14px;color:${BARK};font-weight:500">
+          <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${STONE};margin-right:9px;vertical-align:middle"></span>${escapeHtml(name)}
         </td></tr>
       `).join('')}
     </table>
-    ${remainingCount > 0 ? `<div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};padding:10px 0 0 13px;font-style:italic">and ${remainingCount} more</div>` : ''}` : '';
+    ${remainingCount > 0 ? `<div style="font-family:${SANS};font-size:13px;color:${STONE};padding:10px 0 0 14px;font-style:italic">and ${remainingCount} more</div>` : ''}` : '';
 
   const intelligenceBlock = narrative ? `
-    <div style="background:${CREAM_DARK};padding:16px 20px;border-left:2px solid ${STONE};margin:24px 0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};line-height:1.65;font-style:italic">${escapeHtml(narrative)}</div>` : '';
+    <div style="background:${CREAM_DARK};padding:15px 18px;border-left:2px solid ${BRASS_HI};margin:24px 0 0;font-family:${WORDMARK};font-size:16px;color:#5C5048;line-height:1.55;font-style:italic">${escapeHtml(narrative)}</div>` : '';
 
   const bodyHtml = `
-    <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${AMBER};margin:0 0 16px;line-height:1.25">The tide is in at ${escapeHtml(centreName)}.</div>
-    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">Right now, <strong>${onSaleCount} brands</strong> are on sale at the same time. That doesn't happen often.</p>
-    <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:28px 0">
+    <div style="font-family:${SANS};font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:${AMBER};font-weight:600;margin:0 0 14px">Peak &middot; Go now</div>
+    <div style="font-family:${SERIF};font-size:28px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.2;letter-spacing:-0.01em">The tide is in at ${escapeHtml(centreName)}.</div>
+    <p style="font-family:${SANS};font-size:15px;color:${BARK};line-height:1.65;margin:0 0 28px;max-width:430px">Right now, <strong>${onSaleCount} brands</strong> are on sale at the same time. That doesn't happen often.</p>
+    <hr style="border:none;border-top:1px solid ${HAIRLINE};margin:24px 0">
     ${yourBrandsBlock}${otherBrandsBlock}${intelligenceBlock}
-    <a href="${APP_URL}" style="display:block;background:${AMBER};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See today's score &rarr;</a>`;
+    ${inkButton("See today's score")}`;
 
   const html = baseEmailWrap({
     previewText,
@@ -237,12 +252,10 @@ export function renderBrandSaleEmail(opts: {
   const locationPhrase = centre2 ? `${centre1} and ${centre2}` : centre1;
   const previewText = `On now at ${locationPhrase}.${discount ? ` Up to ${discount} off.` : ''}`;
 
-  const bodyParagraph = `${discount ? `Up to ${escapeHtml(discount)} off. ` : ''}On now at ${escapeHtml(centre1)}${centre2 ? ` and ${escapeHtml(centre2)}` : ''}. Worth knowing early in the cycle.`;
-
   const bodyHtml = `
-    <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${LEAF};margin:0 0 16px;line-height:1.25">${escapeHtml(brandName)} just went on sale.</div>
-    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">${bodyParagraph}</p>
-    <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See the full picture &rarr;</a>`;
+    <div style="font-family:${SERIF};font-size:27px;font-weight:600;color:${BARK};margin:0 0 14px;line-height:1.2;letter-spacing:-0.01em">${escapeHtml(brandName)} just went on sale.</div>
+    <p style="font-family:${SANS};font-size:15px;color:${BARK};line-height:1.65;margin:0 0 4px;max-width:430px">${discount ? discountPill(discount) : ''}On now at ${escapeHtml(centre1)}${centre2 ? ` and ${escapeHtml(centre2)}` : ''}. Worth knowing early in the cycle.</p>
+    ${inkButton("See the full picture")}`;
 
   const html = baseEmailWrap({
     previewText,
@@ -273,21 +286,20 @@ export function renderBrandSaleDigestEmail(opts: {
   const previewText = `${nameList} — on now.`;
 
   const rows = brands.map((b, i, arr) => {
-    const locationPhrase = b.centre2 ? `${escapeHtml(b.centre1)} and ${escapeHtml(b.centre2)}` : escapeHtml(b.centre1);
-    const meta = `${b.discount ? `Up to ${escapeHtml(b.discount)} off &middot; ` : ''}On now at ${locationPhrase}`;
+    const locationPhrase = b.centre2 ? `${escapeHtml(b.centre1)} &amp; ${escapeHtml(b.centre2)}` : escapeHtml(b.centre1);
     return `
-    <div style="padding:16px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}">
-      <div style="font-family:Georgia,serif;font-size:18px;font-weight:600;color:${LEAF};margin:0 0 4px;line-height:1.3">${escapeHtml(b.brandName)}</div>
-      <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};line-height:1.5">${meta}</div>
+    <div style="padding:18px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${ROW_LINE};` : ''}">
+      <div style="font-family:${SERIF};font-size:18px;font-weight:600;color:${BARK};margin:0 0 5px;line-height:1.3">${escapeHtml(b.brandName)}</div>
+      <div style="font-family:${SANS};font-size:13px;color:${STONE};line-height:1.5">${b.discount ? discountPill(b.discount) : ''}On now at ${locationPhrase}</div>
     </div>`;
   }).join('');
 
   const bodyHtml = `
-    <div style="font-family:Georgia,serif;font-size:26px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">${n} of your shops just went on sale.</div>
-    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 8px;max-width:420px">All starting their sale today — worth knowing early in the cycle.</p>
-    <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:20px 0 0">
+    <div style="font-family:${SERIF};font-size:27px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.2;letter-spacing:-0.01em">${n} of your shops just went on sale.</div>
+    <p style="font-family:${SANS};font-size:15px;color:${BARK};line-height:1.65;margin:0 0 4px;max-width:430px">All starting their sale today — worth knowing early in the cycle.</p>
+    <hr style="border:none;border-top:1px solid ${HAIRLINE};margin:24px 0 4px">
     ${rows}
-    <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See the full picture &rarr;</a>`;
+    ${inkButton("See the full picture")}`;
 
   const html = baseEmailWrap({
     previewText,
@@ -320,11 +332,11 @@ function digestVerdictFor(stage: DigestStage): string {
 
 function digestStagePill(stage: DigestStage, stageLabel: string): string {
   const styles = stage === 'high'
-    ? `background:rgba(193,122,43,0.15);color:${AMBER}`
+    ? `background:rgba(193,122,43,0.14);color:${AMBER}`
     : stage === 'rising'
     ? `background:rgba(61,107,53,0.12);color:${LEAF}`
-    : `background:rgba(140,128,112,0.12);color:${STONE}`;
-  return `<span style="display:inline-block;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;padding:3px 10px;border-radius:20px;font-weight:500;${styles};margin-left:10px;vertical-align:middle">${escapeHtml(stageLabel)}</span>`;
+    : `background:rgba(107,95,82,0.12);color:${STONE}`;
+  return `<span style="display:inline-block;font-family:${SANS};font-size:10px;letter-spacing:0.08em;text-transform:uppercase;padding:3px 10px;border-radius:20px;font-weight:600;${styles};margin-left:10px;vertical-align:middle">${escapeHtml(stageLabel)}</span>`;
 }
 
 export function renderDigestEmail(opts: {
@@ -337,18 +349,18 @@ export function renderDigestEmail(opts: {
   const previewText = `${highTideCount} of your saved centres at High Tide or Rising. Here's the full picture.`;
 
   const cards = centres.map((c, i, arr) => `
-    <div style="padding:16px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}">
-      <div style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:500;color:${BARK};margin-bottom:6px">${escapeHtml(c.name)}${digestStagePill(c.stage, c.stageLabel)}</div>
-      <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};margin-bottom:4px">${escapeHtml(c.verdict)}</div>
-      ${c.narrative ? `<div style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${STONE};font-style:italic;line-height:1.5">${escapeHtml(c.narrative)}</div>` : ''}
+    <div style="padding:16px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${ROW_LINE};` : ''}">
+      <div style="font-family:${SANS};font-size:15px;font-weight:600;color:${BARK};margin-bottom:6px">${escapeHtml(c.name)}${digestStagePill(c.stage, c.stageLabel)}</div>
+      <div style="font-family:${SANS};font-size:13px;color:${STONE};margin-bottom:4px">${escapeHtml(c.verdict)}</div>
+      ${c.narrative ? `<div style="font-family:${WORDMARK};font-size:14px;color:${STONE};font-style:italic;line-height:1.5">${escapeHtml(c.narrative)}</div>` : ''}
     </div>`).join('');
 
   const bodyHtml = `
-    <div style="font-family:Georgia,serif;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:${STONE};margin:0 0 20px;font-style:italic">Friday, ${escapeHtml(dateLabel)}</div>
-    <div style="font-family:Georgia,serif;font-size:22px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">Here's how your centres are looking this weekend.</div>
-    <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:28px 0">
+    <div style="font-family:${WORDMARK};font-size:14px;letter-spacing:0.04em;text-transform:uppercase;color:${STONE};margin:0 0 16px;font-style:italic">Friday, ${escapeHtml(dateLabel)}</div>
+    <div style="font-family:${SERIF};font-size:23px;font-weight:600;color:${BARK};margin:0 0 4px;line-height:1.25;letter-spacing:-0.01em">Here's how your centres are looking this weekend.</div>
+    <hr style="border:none;border-top:1px solid ${HAIRLINE};margin:24px 0 4px">
     ${cards}
-    <a href="${APP_URL}" style="display:block;background:${BARK};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">Open Tide &rarr;</a>`;
+    ${inkButton("Open Tide")}`;
 
   const html = baseEmailWrap({
     previewText,
@@ -369,19 +381,52 @@ export function renderDigestEmail(opts: {
   return { subject, html, text: textLines.join('\n') };
 }
 
+// Bulletproof brass tide-mark (five rising bars) + Cormorant wordmark +
+// tagline, mirroring the site header so the email reads as the same product.
+// Built from table cells/divs rather than SVG because Gmail strips inline SVG.
+function brandHeader(): string {
+  const bar = (h: number, color: string, op: number) =>
+    `<td style="vertical-align:bottom;padding:0 1.5px"><div style="width:3px;height:${h}px;background:${color};border-radius:2px;${op < 1 ? `opacity:${op};` : ''}font-size:0;line-height:0">&nbsp;</div></td>`;
+  return `
+    <tr><td style="background:${CREAM};padding:34px 40px 26px;text-align:center;border-bottom:1px solid rgba(44,24,16,0.08)">
+      <table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto"><tr>
+        <td style="vertical-align:bottom;padding-bottom:3px"><table cellpadding="0" cellspacing="0"><tr>
+          ${bar(13, BRASS_HI, 0.42)}${bar(20, BRASS_MID, 0.7)}${bar(29, BRASS_LO, 1)}${bar(20, BRASS_MID, 0.7)}${bar(13, BRASS_HI, 0.42)}
+        </tr></table></td>
+        <td style="vertical-align:bottom;padding-left:11px"><span style="font-family:${WORDMARK};font-size:30px;font-weight:500;letter-spacing:0.16em;color:#1C1A14;line-height:1">TIDE</span></td>
+      </tr></table>
+      <div style="font-family:${SANS};font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:${STONE};margin-top:13px">Know when to go</div>
+    </td></tr>`;
+}
+
+// Ink pill CTA, matching the site's Sign-in button (border-radius:100px on ink).
+function inkButton(label: string): string {
+  return `<table cellpadding="0" cellspacing="0" style="margin:30px 0 0"><tr><td style="border-radius:100px;background:${INK}">
+    <a href="${APP_URL}" style="display:inline-block;color:${CREAM};padding:14px 30px;font-family:${SANS};font-size:13px;letter-spacing:0.04em;text-decoration:none;border-radius:100px;font-weight:500">${label} &rarr;</a>
+  </td></tr></table>`;
+}
+
+// Small leaf-green discount chip, e.g. "Up to 40% off".
+function discountPill(discount: string): string {
+  return `<span style="display:inline-block;background:rgba(61,107,53,0.10);color:${LEAF};font-weight:600;font-size:11px;padding:2px 8px;border-radius:20px;margin-right:8px">Up to ${escapeHtml(discount)} off</span>`;
+}
+
 function baseEmailWrap(opts: { previewText: string; bodyHtml: string; footerReason: string; unsubLabel: string }): string {
-  return `<!doctype html><html><body style="margin:0;padding:0;background:${CREAM}">
+  return `<!doctype html><html><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  </head><body style="margin:0;padding:0;background:${CREAM}">
     <div style="display:none;font-size:1px;color:${CREAM};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden">${escapeHtml(opts.previewText)}</div>
     <table width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};padding:32px 16px">
       <tr><td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:${CREAM};border-radius:4px;overflow:hidden;border:1px solid rgba(44,24,16,0.06)">
-          <tr><td style="background:${BARK};padding:28px 40px;text-align:center">
-            <span style="font-family:Georgia,serif;font-size:22px;font-weight:600;letter-spacing:0.3em;text-transform:uppercase;color:${CREAM}">Tide</span>
-          </td></tr>
-          <tr><td style="background:${CREAM};padding:48px 40px">${opts.bodyHtml}</td></tr>
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:${CREAM};border-radius:14px;overflow:hidden;border:1px solid rgba(44,24,16,0.08);box-shadow:0 12px 40px rgba(28,22,16,0.10)">
+          ${brandHeader()}
+          <tr><td style="background:${CREAM};padding:44px 40px 40px">${opts.bodyHtml}</td></tr>
           <tr><td style="background:${CREAM_DARK};padding:24px 40px;border-top:1px solid #E5DFD6">
-            <p style="margin:0 0 12px;font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${STONE};line-height:1.6">${escapeHtml(opts.footerReason)}</p>
-            <div style="font-family:'DM Sans',Arial,sans-serif;font-size:12px">
+            <p style="margin:0 0 12px;font-family:${SANS};font-size:12px;color:${STONE};line-height:1.6">${escapeHtml(opts.footerReason)}</p>
+            <div style="font-family:${SANS};font-size:12px">
               <a href="${APP_URL}#account" style="color:${STONE};text-decoration:underline;margin-right:16px">Manage preferences</a>
               <a href="${APP_URL}#unsubscribe" style="color:${STONE};text-decoration:underline">Unsubscribe from ${escapeHtml(opts.unsubLabel)}</a>
             </div>

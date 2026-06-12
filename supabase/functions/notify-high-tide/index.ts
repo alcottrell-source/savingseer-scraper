@@ -50,6 +50,10 @@ const LEAF       = "#3D6B35";
 const AMBER      = "#C17A2B";
 const STONE      = "#8C8070";
 
+// Cap on shops listed per centre in the weekend digest. Keeps a busy centre
+// from blowing up the email; the rest collapse into a "+N more" tail.
+const DIGEST_MAX_SHOPS = 14;
+
 interface CentreRow      { id: string; name: string }
 interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null }
 interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; brand_ids: string[] | null; excluded_brand_ids: string[] | null; email_alerts: boolean; brand_sale_alerts: boolean; daily_digest: boolean }
@@ -327,21 +331,42 @@ function digestStagePill(stage: DigestStage, stageLabel: string): string {
   return `<span style="display:inline-block;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;padding:3px 10px;border-radius:20px;font-weight:500;${styles};margin-left:10px;vertical-align:middle">${escapeHtml(stageLabel)}</span>`;
 }
 
+export interface DigestShop { name: string; discount?: string }
+export interface DigestCentre {
+  name: string;
+  stage: DigestStage;
+  stageLabel: string;
+  verdict: string;
+  narrative?: string;
+  shops: DigestShop[];
+  shopCount: number;
+}
+
 export function renderDigestEmail(opts: {
   dateLabel: string;
   highTideCount: number;
-  centres: { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string }[];
+  centres: DigestCentre[];
 }): { subject: string; html: string; text: string } {
   const { dateLabel, highTideCount, centres } = opts;
   const subject = 'Your Tide briefing — this weekend';
   const previewText = `${highTideCount} of your saved centres at High Tide or Rising. Here's the full picture.`;
 
-  const cards = centres.map((c, i, arr) => `
-    <div style="padding:16px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}">
+  const shopLine = (s: DigestShop) =>
+    `${escapeHtml(s.name)}${s.discount ? ` <span style="color:${STONE}">(${escapeHtml(s.discount)})</span>` : ''}`;
+
+  const cards = centres.map((c, i, arr) => {
+    const shopsBlock = c.shopCount > 0
+      ? `<div style="font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:${STONE};margin:10px 0 4px">${c.shopCount} ${c.shopCount === 1 ? 'shop' : 'shops'} on sale this week</div>
+      <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${BARK};line-height:1.7">${c.shops.map(shopLine).join(' &middot; ')}${c.shopCount > c.shops.length ? ` <span style="color:${STONE}">+${c.shopCount - c.shops.length} more</span>` : ''}</div>`
+      : `<div style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${STONE};margin-top:8px">No shops on sale right now.</div>`;
+    return `
+    <div style="padding:18px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}">
       <div style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:500;color:${BARK};margin-bottom:6px">${escapeHtml(c.name)}${digestStagePill(c.stage, c.stageLabel)}</div>
       <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};margin-bottom:4px">${escapeHtml(c.verdict)}</div>
       ${c.narrative ? `<div style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${STONE};font-style:italic;line-height:1.5">${escapeHtml(c.narrative)}</div>` : ''}
-    </div>`).join('');
+      ${shopsBlock}
+    </div>`;
+  }).join('');
 
   const bodyHtml = `
     <div style="font-family:Georgia,serif;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:${STONE};margin:0 0 20px;font-style:italic">Friday, ${escapeHtml(dateLabel)}</div>
@@ -357,11 +382,18 @@ export function renderDigestEmail(opts: {
     unsubLabel: 'Weekend Digest',
   });
 
+  const shopText = (c: DigestCentre) => {
+    if (c.shopCount === 0) return '\n  No shops on sale right now.';
+    const list = c.shops.map(s => `${s.name}${s.discount ? ` (${s.discount})` : ''}`).join(', ');
+    const more = c.shopCount > c.shops.length ? ` +${c.shopCount - c.shops.length} more` : '';
+    return `\n  ${c.shopCount} ${c.shopCount === 1 ? 'shop' : 'shops'} on sale this week: ${list}${more}`;
+  };
+
   const textLines = [
     `Friday, ${dateLabel}`,
     "Here's how your centres are looking this weekend.",
     '',
-    ...centres.map(c => `${c.name} — ${c.stageLabel}\n  ${c.verdict}${c.narrative ? `\n  ${c.narrative}` : ''}`),
+    ...centres.map(c => `${c.name} — ${c.stageLabel}\n  ${c.verdict}${c.narrative ? `\n  ${c.narrative}` : ''}${shopText(c)}`),
     '',
     `Open Tide: ${APP_URL}`,
   ];
@@ -622,21 +654,43 @@ Deno.serve(async (req: Request) => {
     if (p.daily_digest !== true) { log.push({ type: "digest", to: emailById.get(p.user_id), skipped: "daily_digest opt-out" }); continue; }
     const to = emailById.get(p.user_id);
     if (!to) continue;
+    const followedIds = new Set(p.brand_ids || []);
     const cards = p.saved_centres
       .map(cid => {
         const s = scoreByCentre.get(cid);
         const name = centres.get(cid);
         if (!s || !name) return null;
         const bucket: DigestStage = stageBucket(stageFromVerdict(s.verdict));
+        // Shops on sale at this centre this week. Sort the user's followed
+        // brands to the front, then by freshness (fewest days on sale), and
+        // cap the rendered list so a busy centre doesn't blow up the email.
+        const onSale = (brandsAtCentre.get(cid) || [])
+          .map(bid => ({ brand: brandsById.get(bid), sale: salesById.get(bid) }))
+          .filter((x): x is { brand: BrandRow; sale: SaleEventRow } => !!x.brand && !!x.sale && isOnSale(x.sale))
+          .map(x => ({
+            name: x.brand.name,
+            pct: (x.sale.active_cycle_id && x.sale.cycle?.max_discount_pct != null)
+                 ? x.sale.cycle!.max_discount_pct
+                 : (x.sale.max_discount_pct ?? null),
+            followed: followedIds.has(x.brand.id),
+            days: daysOnSale(x.sale, today),
+          }))
+          .sort((a, b) => (a.followed === b.followed ? a.days - b.days : a.followed ? -1 : 1));
+        const shops = onSale.slice(0, DIGEST_MAX_SHOPS).map(x => ({
+          name: x.name,
+          discount: x.pct ? `up to ${x.pct}%` : undefined,
+        }));
         return {
           name,
           stage: bucket,
           stageLabel: stageLabelFor(bucket),
           verdict: digestVerdictFor(bucket),
           narrative: s.bluf || undefined,
+          shops,
+          shopCount: onSale.length,
         };
       })
-      .filter((r): r is { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string } => r !== null)
+      .filter((r): r is DigestCentre => r !== null)
       .sort((a, b) => stagePriority[a.stage] - stagePriority[b.stage]);
     const highTideCount = cards.filter(c => c.stage === "high" || c.stage === "rising").length;
     if (highTideCount === 0) { log.push({ type: "digest", to, skipped: "no centre at Rising or above" }); continue; }

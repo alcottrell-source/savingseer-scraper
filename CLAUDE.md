@@ -90,6 +90,8 @@ Supabase Edge function `notify-high-tide` runs three passes, gated by the POST b
 
 UI toggles in the account panel map to these three columns. Don't rename the columns — only the human-readable copy. The digest is **weekly (Friday)**, not daily — the email copy hard-codes "Friday" and that is now correct. Brand-sale "started today" = active cycle `start_date == today` or `date_first_detected == today`; true for one day only, so it self-dedupes (no sent-state table). `digestOnly` runs pass 3 only; the default daily call runs passes 1+2 and skips the digest.
 
+**Weekend digest card content (June 2026).** Each saved centre in the digest renders its name + stage pill + trend verdict + narrative **and a list of the shops actually on sale that week** ("N shops on sale this week: Zara (up to 30%), …"). The shop list is computed in pass 3 from `brandsAtCentre` × `salesById` (`isOnSale` filter — same precedence as the dashboard), with the user's followed `brand_ids` sorted to the front, then freshest first. It's capped at `DIGEST_MAX_SHOPS` (14) with a "+N more" tail; centres with nothing live show "No shops on sale right now." This is a density fact, not a recommendation, so it doesn't break the trend-only rule above — action language is still confined to the high/peak bucket via `digestVerdictFor`.
+
 ## Database
 Supabase project: `vrezzwadwzrmumjpdgge.supabase.co`
 Key tables:

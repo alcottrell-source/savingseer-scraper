@@ -189,12 +189,12 @@ async function main() {
   await mkdir(outDir, { recursive: true });
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
     urls.map(u => `  <url><loc>${u}</loc></url>`).join('\n') + `\n</urlset>\n`;
-  await writeFile(join(outDir, 'sitemap-seo.xml'), sitemap, 'utf8');
+  await writeFile(join(outDir, 'sitemap.xml'), sitemap, 'utf8');
 
   const w = nextSaleWindow(today);
   console.log(`[seo] Generated ${urls.length} pages across ${centreCount} centre(s) (${skipped} skipped).`);
   console.log(`[seo] Next sale window: ${w ? w.label + ' ' + w.approx : 'n/a'}`);
-  console.log(`[seo] Sitemap: ${join(outDir, 'sitemap-seo.xml')} (${urls.length} urls)`);
+  console.log(`[seo] Sitemap: ${join(outDir, 'sitemap.xml')} (${urls.length} urls)`);
 }
 
 main().catch(e => {

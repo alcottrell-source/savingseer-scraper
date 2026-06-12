@@ -1016,7 +1016,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // GA4 → Admin → Data Streams → web stream → "Measurement ID" (top right).
 // While it stays the placeholder, the banner + loader no-op so nothing
 // breaks and no cookies are ever set.
-const GA_MEASUREMENT_ID = 'G-4P73L0ZE9X';
+const GA_MEASUREMENT_ID = 'G-JEB24KHD0C';
 const GA_CONSENT_KEY    = 'tide_cookie_consent'; // 'granted' | 'denied'
 let _gaLoaded = false;
 
@@ -1035,7 +1035,10 @@ function loadGA() {
   window.dataLayer = window.dataLayer || [];
   window.gtag = function () { window.dataLayer.push(arguments); };
   gtag('js', new Date());
-  gtag('config', GA_MEASUREMENT_ID); // pageview-only; queued until gtag.js loads
+  // send_page_view:false — this single-page app emits page_view manually on
+  // first load and on every route change (see trackPageView / gaSetRoute), so
+  // GA must not also auto-fire one when gtag.js loads.
+  gtag('config', GA_MEASUREMENT_ID, { send_page_view: false });
   const s = document.createElement('script');
   s.async = true;
   s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(GA_MEASUREMENT_ID);
@@ -1061,6 +1064,9 @@ function acceptCookies() {
   setConsent('granted');
   hideCookieBanner();
   loadGA();
+  // Replay the page_view for the route the user is currently on — the one
+  // fired before consent was a no-op (gtag wasn't loaded yet).
+  trackPageView(_gaRoute.path, _gaRoute.title);
 }
 function declineCookies() {
   setConsent('denied');
@@ -1084,6 +1090,52 @@ function openCookieSettings() {
     showCookieBanner();
   }
 })();
+
+// ── Custom event tracking (consent-safe, no PII) ───────────────────────────
+// Everything routes through track(), which no-ops until consent is granted AND
+// gtag.js has been injected (loadGA defines window.gtag). Params are kept
+// deliberately coarse — never an email, user id, or other identifier.
+let _gaRoute = { path: '/', title: 'Tide' };
+
+function track(eventName, params) {
+  if (!_gaLoaded || typeof window.gtag !== 'function') return;
+  try { window.gtag('event', eventName, params || {}); } catch (e) {}
+}
+
+// SPA page_view. GA is configured with send_page_view:false, so we emit a
+// page_view here on first load and on every renderCentre() route change.
+function trackPageView(path, title) {
+  track('page_view', {
+    page_path: path,
+    page_title: title || document.title,
+    page_location: location.origin + path,
+  });
+}
+
+// Record the current virtual route and emit its page_view. Stored on _gaRoute
+// so a later consent grant (acceptCookies) can replay the page_view the user
+// is actually looking at.
+function gaSetRoute(path, title) {
+  _gaRoute = { path: path, title: title || document.title };
+  trackPageView(_gaRoute.path, _gaRoute.title);
+}
+
+// Single non-identifying gender label from the onboarding audience set.
+function genderPrefValue(audiences) {
+  const a = audiences instanceof Set ? [...audiences] : (audiences || []);
+  if (a.length === 0) return 'none';
+  if (a.length > 1)  return 'multi';
+  return a[0];
+}
+
+// Coarse band for a personal Tide score (0–100); mirrors the centre-stage
+// thresholds without trajectory. Non-identifying.
+function personalScoreBand(score) {
+  if (score == null) return 'unknown';
+  if (score >= 40) return 'peak';
+  if (score >= 15) return 'rising';
+  return 'quiet';
+}
 
 // Some browser/extension combos hang on supabase-js's PostgREST calls while
 // raw fetch to the same endpoint works. Use raw fetch for table reads/writes
@@ -1644,6 +1696,7 @@ function openOnboarding() {
   }
   document.getElementById('ob').classList.add('visible');
   obRender();
+  track('registration_started', { gender_pref: genderPrefValue(onb.audiences) });
 }
 
 function closeOnboarding() {
@@ -1917,7 +1970,11 @@ function obNext() {
     // sees the inclusive default and can opt out, not the empty default.
     obMatchingBrands().forEach(b => { if (!onb.excluded.has(b.id)) onb.brandIds.add(b.id); });
   }
-  if (onb.step < 5) { onb.step++; obRender(); }
+  if (onb.step < 5) {
+    onb.step++;
+    obRender();
+    if (onb.step === 2) track('registration_screen_2', { gender_pref: genderPrefValue(onb.audiences) });
+  }
   else { obSave(); }
 }
 
@@ -1957,6 +2014,7 @@ async function obSave() {
   const { error } = await pgUpsert('user_preferences', dbPayload, 'user_id');
   if (error) { alert('Could not save preferences: ' + error.message); return; }
   userPrefs = { ...(userPrefs || {}), ...payload };
+  track('registration_completed', { gender_pref: genderPrefValue(onb.audiences) });
   closeOnboarding();
   // Payoff: if the user only picked one centre, take them straight there
   // — the "what now?" moment after 5 setup steps is satisfying when it
@@ -3957,6 +4015,7 @@ async function renderCentre(centreId) {
       // Reset edit mode whenever we drop back into the no-saved state.
       _savedCentresEditMode = false;
     }
+    gaSetRoute('/', 'Tide');
     hideNotifyBanner();
     return;
   }
@@ -4362,6 +4421,15 @@ async function renderCentre(centreId) {
     document.getElementById('brands-section').classList.add('visible');
     document.dispatchEvent(new CustomEvent('centreScoreLoaded'));
   });
+
+  // Analytics: the centre rendered successfully. Emit the route page_view +
+  // a centre_viewed event, plus personal_tide_viewed when a signed-in user is
+  // seeing their own personalised score. No PII — centre name + coarse band only.
+  gaSetRoute('/centre/' + centreId, centreName + ' — Tide');
+  track('centre_viewed', { centre_name: centreName, tide_stage: stage });
+  if (personalScore !== null) {
+    track('personal_tide_viewed', { centre_name: centreName, personal_score_band: personalScoreBand(personalScore) });
+  }
   } catch (err) {
     console.error('renderCentre failed for', centreId, err);
     // Reset chrome to the landing state so the user sees the search bar

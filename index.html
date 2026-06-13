@@ -4780,40 +4780,43 @@ document.addEventListener('visibilitychange', () => {
     return { start, end, shown };
   }
 
-  // ── Tide-rhythm SVG: each sale is a rounded "high-water band" sitting on the
-  //    shoreline — its WIDTH spans the sale's real start→end (so you can read
-  //    both edges off the month axis) and its HEIGHT encodes discount depth.
-  //    Live band takes the stage colour, past bands are stone. No future band.
+  // ── Tide-rhythm SVG: each sale is a soft swell rising from the shoreline.
+  //    Its two feet land exactly on the sale's real start and end dates (so
+  //    both edges read off the month axis) — width therefore spans duration,
+  //    peak height encodes discount depth. Live swell takes the stage colour,
+  //    past swells are stone. No future swell (no prediction).
   function rhythmSVG(eps, deepest, stageColor){
-    const W=350, base=80, padX=14, minH=7, maxH=40, minW=7;
+    const W=350, base=80, padX=14, minH=7, maxH=40, minW=10;
     const { start, end, shown } = chartWindow(eps);
     const span=(end - start) || 1;
     const denom=deepest || 50;
     const X = ms => padX + (ms - start.getTime())/span * (W - 2*padX);
-    const bars = shown.map(ep => {
+    const swells = shown.map(ep => {
       const s = new Date(ep.start+'T12:00:00').getTime();
       const e = ep.live ? end.getTime() : new Date(ep.end+'T12:00:00').getTime();
       let x1=X(s), x2=X(e);
       if(x1<padX) x1=padX;
       if(x2>W-padX) x2=W-padX;
       if(x2<x1) x2=x1;
-      let w=x2-x1;
-      if(w<minW){                       // keep a one-day sale visible
+      if(x2-x1<minW){                   // keep a one-day sale visible
         const c=(x1+x2)/2; x1=c-minW/2; x2=c+minW/2;
         if(x1<padX){ x1=padX; x2=padX+minW; }
         if(x2>W-padX){ x2=W-padX; x1=W-padX-minW; }
-        w=minW;
       }
       let h = ep.pct!=null ? minH+(ep.pct/denom)*(maxH-minH) : minH;
       if(h<minH)h=minH; if(h>maxH)h=maxH;
       const col = ep.live ? stageColor : '#C9CBD0';
-      return '<rect x="'+x1.toFixed(1)+'" y="'+(base-h).toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="3" fill="'+col+'"/>';
+      // Quadratic swell from x1→x2; control y = base-2h so the apex reaches h.
+      const midX=(x1+x2)/2, ctrlY=base-2*h;
+      const foot = '<circle cx="'+x1.toFixed(1)+'" cy="'+base+'" r="1.5" fill="'+col+'"/>'+
+                   '<circle cx="'+x2.toFixed(1)+'" cy="'+base+'" r="1.5" fill="'+col+'"/>';
+      return '<path d="M'+x1.toFixed(1)+' '+base+' Q'+midX.toFixed(1)+' '+ctrlY.toFixed(1)+' '+x2.toFixed(1)+' '+base+' Z" fill="'+col+'"/>'+foot;
     }).join('');
     const todayX=W-padX;
     const marker='<line x1="'+todayX+'" y1="12" x2="'+todayX+'" y2="'+(base+6)+'" stroke="#1C2A45" stroke-width="1.4"/>'+
                  '<circle cx="'+todayX+'" cy="12" r="2.6" fill="#1C2A45"/>';
     return '<svg class="ts-svg" viewBox="0 0 350 96" aria-hidden="true">'+
-           '<line x1="0" y1="80" x2="350" y2="80" stroke="#ECE4D6" stroke-width="1.5"/>'+bars+marker+'</svg>';
+           '<line x1="0" y1="80" x2="350" y2="80" stroke="#ECE4D6" stroke-width="1.5"/>'+swells+marker+'</svg>';
   }
   // Month ticks spanning the same fitted window as the bars.
   function monthStrip(eps){
@@ -4915,7 +4918,7 @@ document.addEventListener('visibilitychange', () => {
         const now=new Date(); const ws=new Date(now.getFullYear(),now.getMonth()-12,now.getDate());
         return new Date(e.start+'T12:00:00') < ws;
       });
-      let foot = 'Each band is a past sale — its width is how long it ran, its height how deep.';
+      let foot = 'Each swell is a past sale — its width is how long it ran, its height how deep.';
       if(olderExist) foot += ' Older sales sit before this 12-month window.';
       if(sparse) foot += ' Only a few sales on record so far — the pattern is still forming.';
       html += '<div class="ts-rhythm"><div class="ts-seclabel">Sale rhythm</div>'+

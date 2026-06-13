@@ -1986,6 +1986,10 @@ function setBrandFilter(which) {
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
 let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SALE_TYPE = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
+// dashboard brand name -> [{start,end,pct,saleType,live,lengthDays}, ...] newest-first.
+// The full sale-episode history that powers the shop detail sheet. Empty until
+// loadTideData runs (or stays empty if the cycle history can't be read).
+let BRAND_CYCLES = {};
 
 // Sale-type taxonomy. Keys must match the CHECK constraint in
 // supabase/migrations/20260508_add_sale_type.sql. `short` is the chip label
@@ -2029,12 +2033,17 @@ async function loadTideData() {
     // hasn't picked up the active_cycle_id FK, which leaves the dashboard
     // falling back to the stale Google Sheet — so admin confirmations never
     // surface. Two flat queries + a JS join is what admin.html does.
-    const [centresRes, salesRes, cyclesRes, scoresRes, floorsRes] = await Promise.all([
+    const [centresRes, salesRes, cyclesRes, scoresRes, floorsRes, allCyclesRes] = await Promise.all([
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,last_verified_status,last_verified_date,active_cycle_id'),
       pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type&end_date=is.null'),
       pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,narrative&score_date=eq.' + today),
       pgRead('centre_brand_floors?select=centre_id,brand_id,floor_label,floor_order'),
+      // Full sale-episode history (every cycle, open or closed) for the shop
+      // detail sheet. Each closed cycle is one past sale; the open cycle (if
+      // any) is the live episode. Ordered newest-first so the sheet's
+      // "Every sale on record" list and rhythm chart render without re-sorting.
+      pgRead('brand_sale_cycles?select=brand_id,start_date,end_date,max_discount_pct,sale_type&order=start_date.desc'),
     ]);
     if (centresRes.error || salesRes.error || cyclesRes.error || scoresRes.error) {
       console.error('Tide data load failed:', { centres: centresRes.error, sales: salesRes.error, cycles: cyclesRes.error, scores: scoresRes.error });
@@ -2140,6 +2149,39 @@ async function loadTideData() {
         DAYS_RUNNING[name] = Math.max(days, 1);
       } else {
         DAYS_RUNNING[name] = 0;
+      }
+    }
+
+    // Group the full cycle history into per-brand episode lists for the shop
+    // detail sheet. Keyed by dashboard brand name (same key space as every
+    // other per-brand map). History is optional — an RLS block or missing
+    // table must not break the dashboard, so we tolerate an error and leave
+    // BRAND_CYCLES empty (the sheet then renders the "no history" state).
+    BRAND_CYCLES = {};
+    if (allCyclesRes.error) {
+      console.warn('brand_sale_cycles history load failed (detail sheet will show no history):', allCyclesRes.error);
+    } else {
+      for (const row of (allCyclesRes.data || [])) {
+        const name = DASHBOARD_NAME_BY_SCRAPER_ID[row.brand_id];
+        if (!name) continue;
+        if (!BRAND_CYCLES[name]) BRAND_CYCLES[name] = [];
+        const live = !row.end_date;
+        const startMs = new Date(row.start_date + 'T12:00:00').getTime();
+        const endRef = live ? new Date(latestDate + 'T12:00:00').getTime() : new Date(row.end_date + 'T12:00:00').getTime();
+        const lengthDays = Math.max(1, Math.round((endRef - startMs) / 86400000) + 1);
+        BRAND_CYCLES[name].push({
+          start: row.start_date,
+          end: row.end_date || null,
+          pct: Number.isFinite(row.max_discount_pct) ? row.max_discount_pct : null,
+          saleType: row.sale_type || 'percent_off',
+          live,
+          lengthDays,
+        });
+      }
+      // Already ordered newest-first by the query, but a brand can in
+      // principle have its single open cycle out of band — keep it strict.
+      for (const k in BRAND_CYCLES) {
+        BRAND_CYCLES[k].sort((a, b) => (a.start < b.start ? 1 : a.start > b.start ? -1 : 0));
       }
     }
 
@@ -4120,9 +4162,16 @@ async function renderCentre(centreId) {
     // Always render arrow so the right edge aligns; hide it for unlinked chips.
     const arrow = '<span class="brand-arrow'+(url?'':' invisible')+'" aria-hidden="true">↗</span>';
     const inner = '<span class="brand-left">'+logoImg+'<span class="brand-name">'+escapeHtml(b.name)+'</span></span>'+meta+arrow;
+    // data-brand-name turns every chip into a shop-detail-sheet opener.
+    // Tapping opens the sheet (handled by the delegated click listener in the
+    // reporting IIFE, which already owns swipe/suppress state); the retailer
+    // link now lives on the sheet's affiliate CTA. The href is kept on linked
+    // chips so middle-/cmd-click still opens the shop in a new tab as a
+    // power-user fallback. Unlinked chips become keyboard-operable buttons.
+    const nameAttr = ' data-brand-name="'+escapeHtml(b.name)+'"';
     const chip = url
-      ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+' href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
-      : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+'>'+inner+'</div>';
+      ? '<a class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+nameAttr+' href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
+      : '<div class="brand-chip'+(b.isOnSale?' on-sale':'')+'"'+freshAttr+nameAttr+' role="button" tabindex="0">'+inner+'</div>';
 
     // Report affordance — logged-in only (spec §2.5 / §3.B). The card stays
     // pristine; swiping it left (touch or mouse) reveals one action button:
@@ -4500,6 +4549,419 @@ document.addEventListener('visibilitychange', () => {
   </div>
 </div>
 
+<!-- ── Shop detail sheet (PRD: Tide Shop Detail Sheet) ──────────────────────
+     A bottom sheet that opens for any brand chip, showing its current sale
+     status, full episode history, a tide-rhythm chart, and a contextual CTA.
+     Descriptive/historical only — no predictions. Built to the canonical
+     prototype (tide-detail-prototype.html); all classes are ts-* namespaced
+     so the prototype's generic class names don't collide with the app. -->
+<style id="tide-sheet-styles">
+  .ts-backdrop{position:fixed;inset:0;background:rgba(28,42,69,.34);opacity:0;pointer-events:none;transition:opacity .28s;z-index:1400;}
+  .ts-backdrop.show{opacity:1;pointer-events:auto;}
+  .ts-sheet{position:fixed;left:50%;bottom:0;width:100%;max-width:440px;height:92vh;
+    background:#FAF6EF;color:#1C2A45;font-family:'Inter',system-ui,sans-serif;
+    border-radius:28px 28px 0 0;box-shadow:0 -10px 40px rgba(28,42,69,.22);
+    display:flex;flex-direction:column;z-index:1401;
+    transform:translateX(-50%) translateY(102%);transition:transform .34s cubic-bezier(.32,.72,0,1);}
+  .ts-sheet.show{transform:translateX(-50%);}
+  @media (prefers-reduced-motion:reduce){.ts-sheet,.ts-backdrop{transition:none;}}
+
+  .ts-grab{width:38px;height:4px;border-radius:99px;background:#D8D0C2;margin:10px auto 2px;flex-shrink:0;touch-action:none;cursor:grab;}
+  .ts-top{display:flex;align-items:center;justify-content:space-between;padding:4px 18px 0;flex-shrink:0;}
+  .ts-pager{display:flex;align-items:center;gap:4px;}
+  .ts-pgbtn,.ts-x{width:34px;height:34px;border-radius:50%;border:1px solid #ECE4D6;background:#fff;color:#1C2A45;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;font-family:inherit;transition:background .15s;}
+  .ts-pgbtn:hover,.ts-x:hover{background:#FEFCF8;}
+  .ts-pgbtn:focus-visible,.ts-x:focus-visible{outline:2px solid #BC8A2E;outline-offset:2px;}
+  .ts-pgcount{font-size:12px;color:#9A9CA3;min-width:34px;text-align:center;}
+  .ts-x{font-size:17px;}
+
+  .ts-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 22px 30px;opacity:0;animation:ts-fade .32s ease forwards;}
+  @keyframes ts-fade{to{opacity:1;}}
+  @media (prefers-reduced-motion:reduce){.ts-body{animation:none;opacity:1;}}
+
+  .ts-ident{display:flex;align-items:center;gap:13px;padding:8px 0 16px;}
+  .ts-logo{width:52px;height:52px;border-radius:13px;background:#fff;border:1px solid #ECE4D6;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;padding:7px;box-sizing:border-box;}
+  .ts-logo-img{width:100%;height:100%;object-fit:contain;display:block;}
+  .ts-logo.is-mono{background:#1C2A45;border-color:#1C2A45;padding:0;}
+  .ts-logo.is-mono .ts-logo-img{display:none;}
+  .ts-logo.is-mono::after{content:attr(data-mono);font-family:'Playfair Display',serif;font-size:21px;font-weight:600;color:#fff;}
+  .ts-name{font-family:'Playfair Display',serif;font-size:26px;font-weight:600;line-height:1.05;}
+  .ts-cat{font-size:12.5px;color:#5A6175;margin-top:1px;}
+  .ts-stage{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;white-space:nowrap;}
+  .ts-stage .ts-dot{width:8px;height:8px;border-radius:50%;}
+  .ts-rule{height:1px;background:#ECE4D6;margin:0 0 20px;}
+
+  .ts-status{padding-bottom:22px;}
+  .ts-now{font-family:'Playfair Display',serif;font-size:34px;font-weight:600;line-height:1.04;}
+  .ts-deep{font-size:15px;font-weight:600;margin-top:9px;}
+  .ts-meta{font-size:13px;color:#5A6175;margin-top:4px;}
+
+  .ts-facts{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#ECE4D6;border:1px solid #ECE4D6;border-radius:14px;overflow:hidden;margin-bottom:26px;}
+  .ts-fact{background:#FEFCF8;padding:14px;}
+  .ts-fact-l{font-size:10px;font-weight:600;letter-spacing:1.1px;color:#9A9CA3;text-transform:uppercase;}
+  .ts-fact-v{font-family:'Playfair Display',serif;font-size:21px;font-weight:600;margin-top:7px;line-height:1;}
+  .ts-fact-s{font-size:11px;color:#5A6175;margin-top:5px;}
+
+  .ts-seclabel{font-size:10.5px;font-weight:600;letter-spacing:1.4px;color:#9A9CA3;text-transform:uppercase;margin:0 0 14px;}
+  .ts-rhythm{margin-bottom:6px;}
+  .ts-svg{width:100%;display:block;}
+  .ts-months{display:flex;justify-content:space-between;margin-top:2px;padding:0 2px;}
+  .ts-months span{font-size:9.5px;color:#9A9CA3;flex:1;text-align:center;}
+  .ts-months span.now{color:#1C2A45;font-weight:600;}
+  .ts-legend{display:flex;gap:16px;margin-top:13px;flex-wrap:wrap;}
+  .ts-legend i{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#5A6175;font-style:normal;}
+  .ts-legend i b{width:13px;height:9px;border-radius:3px;display:inline-block;}
+  .ts-rhythm-foot{font-size:11.5px;color:#9A9CA3;margin-top:11px;}
+
+  .ts-receipts{margin:28px 0 6px;}
+  .ts-empty{font-size:14px;color:#5A6175;padding:6px 0 10px;}
+  .ts-sale{padding:15px 0;border-bottom:1px solid #ECE4D6;}
+  .ts-sale:last-child{border-bottom:0;}
+  .ts-saletop{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
+  .ts-dates{font-size:15px;font-weight:500;}
+  .ts-livetag{font-size:10px;font-weight:700;letter-spacing:.6px;color:#fff;background:#BC8A2E;padding:2px 7px;border-radius:5px;margin-left:8px;vertical-align:middle;}
+  .ts-pct{font-family:'Playfair Display',serif;font-size:20px;font-weight:600;white-space:nowrap;}
+  .ts-bar{height:7px;border-radius:99px;background:#EDE6D9;margin-top:11px;overflow:hidden;}
+  .ts-bar span{display:block;height:100%;border-radius:99px;background:#C9CBD0;}
+  .ts-sale.live .ts-bar span{background:#BC8A2E;}
+  .ts-len{font-size:12px;color:#5A6175;margin-top:8px;display:flex;justify-content:space-between;gap:10px;}
+  .ts-len em{font-style:normal;color:#9A9CA3;}
+
+  .ts-cta{display:block;width:100%;margin-top:24px;background:#1C2A45;color:#fff;border:0;text-align:center;text-decoration:none;
+    font-family:'Inter',sans-serif;font-size:15px;font-weight:600;letter-spacing:.2px;padding:16px;border-radius:14px;cursor:pointer;transition:background .18s;}
+  .ts-cta:hover{background:#243352;}
+  .ts-cta[data-watching]{background:#6E8E63;cursor:default;}
+  .ts-cta:focus-visible{outline:2px solid #BC8A2E;outline-offset:3px;}
+  .ts-cta-note{text-align:center;font-size:11px;color:#9A9CA3;margin-top:9px;}
+</style>
+
+<div class="ts-backdrop" id="ts-backdrop" onclick="window.closeTideSheet()"></div>
+<div class="ts-sheet" id="ts-sheet" role="dialog" aria-modal="true" aria-label="Shop detail" aria-hidden="true">
+  <div class="ts-grab" id="ts-grab"></div>
+  <div class="ts-top">
+    <div class="ts-pager">
+      <button type="button" class="ts-pgbtn" aria-label="Previous shop" onclick="window.tideSheetStep(-1)">&lsaquo;</button>
+      <span class="ts-pgcount" id="ts-pgcount">1/1</span>
+      <button type="button" class="ts-pgbtn" aria-label="Next shop" onclick="window.tideSheetStep(1)">&rsaquo;</button>
+    </div>
+    <button type="button" class="ts-x" id="ts-close" aria-label="Close" onclick="window.closeTideSheet()">&#10005;</button>
+  </div>
+  <div class="ts-body" id="ts-body"></div>
+</div>
+
+<script>
+// ── Shop detail sheet logic ──────────────────────────────────────────────
+// Descriptive/historical only — never predictive (PRD §4.4 / §11). Consumes
+// BRAND_CYCLES (the verified sale-episode history) plus the live per-brand
+// maps already populated by loadTideData. No live API calls from here.
+(function () {
+  const backdrop = document.getElementById('ts-backdrop');
+  const sheet    = document.getElementById('ts-sheet');
+  const body     = document.getElementById('ts-body');
+  const pgcount  = document.getElementById('ts-pgcount');
+
+  let tsOrder = [];     // brand names in current list order (paging order)
+  let tsIdx   = 0;
+  let tsOrigin = null;  // chip element to return focus to on close
+
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  function initials(name){
+    return String(name).replace(/[^A-Za-z0-9 &]/g,'').split(/\s+/).filter(Boolean)
+      .slice(0,2).map(w => w[0].toUpperCase()).join('') || '?';
+  }
+  function fmtDay(s){
+    if(!s) return '';
+    return new Date(s+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+  }
+  function dateRange(ep){
+    if(ep.live) return fmtDay(ep.start)+' &ndash; today';
+    const a=new Date(ep.start+'T12:00:00'), b=new Date(ep.end+'T12:00:00');
+    if(a.getMonth()===b.getMonth() && a.getFullYear()===b.getFullYear()){
+      return a.getDate()+' &ndash; '+b.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    }
+    return fmtDay(ep.start)+' &ndash; '+fmtDay(ep.end);
+  }
+  function dayLen(ep){
+    const d = ep.lengthDays, u = d===1 ? 'day' : 'days';
+    return ep.live ? (d+' '+u+' so far') : (d+' '+u);
+  }
+
+  // ── "Alert me" stub. Registers intent in localStorage only; delivery
+  //    wiring is a separate ticket (PRD §2 out of scope). ──────────────────
+  const ALERT_KEY = 'tide_alert_brands';
+  function watchSet(){
+    try { return new Set(JSON.parse(localStorage.getItem(ALERT_KEY) || '[]')); }
+    catch { return new Set(); }
+  }
+  function isWatching(name){ return watchSet().has(name); }
+  function addWatch(name){
+    const s = watchSet(); s.add(name);
+    try { localStorage.setItem(ALERT_KEY, JSON.stringify([...s])); } catch {}
+  }
+
+  // ── Tide-rhythm SVG: one crest per past episode within the trailing 12
+  //    months. Crest height encodes discount depth; live crest takes the
+  //    stage colour, past crests are stone. No future crest (no prediction).
+  function rhythmSVG(eps, deepest, stageColor){
+    const W=350, base=80;
+    const now=new Date();
+    const today0=new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const winStart=new Date(today0); winStart.setMonth(winStart.getMonth()-12);
+    const span=(today0 - winStart) || 1;
+    const denom=deepest || 50;
+    const inWindow = eps.filter(e => new Date(e.start+'T12:00:00') >= winStart);
+    const crests = inWindow.map(ep => {
+      let frac=(new Date(ep.start+'T12:00:00') - winStart)/span;
+      if(frac<0)frac=0; if(frac>1)frac=1;
+      let x=14+frac*322;
+      if(x<22)x=22; if(x>W-22)x=W-22;
+      let h = ep.pct!=null ? 14+(ep.pct/denom)*42 : 14;
+      if(h<12)h=12; if(h>60)h=60;
+      const col = ep.live ? stageColor : '#C9CBD0';
+      return '<path d="M'+(x-20)+' '+base+' Q'+x+' '+(base-h)+' '+(x+20)+' '+base+' Z" fill="'+col+'"/>';
+    }).join('');
+    const todayX=W-22;
+    const marker='<line x1="'+todayX+'" y1="12" x2="'+todayX+'" y2="86" stroke="#1C2A45" stroke-width="1.4"/>'+
+                 '<circle cx="'+todayX+'" cy="12" r="2.6" fill="#1C2A45"/>';
+    return '<svg class="ts-svg" viewBox="0 0 350 96" preserveAspectRatio="none" aria-hidden="true">'+
+           '<line x1="0" y1="80" x2="350" y2="80" stroke="#ECE4D6" stroke-width="1.5"/>'+crests+marker+'</svg>';
+  }
+  function monthStrip(){
+    const now=new Date();
+    let out='';
+    for(let i=11;i>=0;i--){
+      const d=new Date(now.getFullYear(), now.getMonth()-i, 1);
+      const lbl=d.toLocaleDateString('en-GB',{month:'short'});
+      out += i===0 ? '<span class="now">'+lbl+'&nbsp;&middot;now</span>' : '<span>'+lbl+'</span>';
+    }
+    return out;
+  }
+
+  function render(){
+    const name = tsOrder[tsIdx];
+    if(name == null) return;
+    const brand = (typeof BRANDS !== 'undefined') ? BRANDS.find(b => b.name === name) : null;
+    const url = (typeof BRAND_URL_BY_NAME !== 'undefined') ? (BRAND_URL_BY_NAME[name] || null) : null;
+    const eps = (typeof BRAND_CYCLES !== 'undefined' && BRAND_CYCLES[name]) ? BRAND_CYCLES[name] : [];
+
+    // Aggregates (historical only).
+    const onRecord = eps.length;
+    const completed = eps.filter(e => !e.live);
+    const avgLength = completed.length
+      ? Math.round(completed.reduce((a,e)=>a+e.lengthDays,0)/completed.length) : null;
+    const pcts = eps.map(e=>e.pct).filter(p=>p!=null);
+    const deepest = pcts.length ? Math.max.apply(null,pcts) : null;
+    const liveEp = eps.find(e=>e.live) || null;
+    const sparse = onRecord > 0 && onRecord < 3;
+
+    // Identity.
+    sheet.setAttribute('aria-label', name + ' — shop detail');
+    pgcount.textContent = (tsIdx+1) + '/' + tsOrder.length;
+    const mono = initials(name);
+    let logoHtml;
+    if(url){
+      let d=''; try { d = new URL(url).hostname.replace(/^www\./,''); } catch {}
+      logoHtml = d
+        ? '<div class="ts-logo" data-mono="'+esc(mono)+'"><img class="ts-logo-img" alt="" loading="lazy" '+
+          'src="https://www.google.com/s2/favicons?sz=128&domain='+esc(d)+'" '+
+          'onerror="this.closest(\'.ts-logo\').classList.add(\'is-mono\')"></div>'
+        : '<div class="ts-logo is-mono" data-mono="'+esc(mono)+'"></div>';
+    } else {
+      logoHtml = '<div class="ts-logo is-mono" data-mono="'+esc(mono)+'"></div>';
+    }
+    const category = brand && brand.cluster ? brand.cluster : 'Shop';
+
+    // Stage chip + status block (state matrix, PRD §3). Colour means live
+    // signal: on sale = sage, otherwise muted/stone. Gold is reserved for a
+    // High Tide signal we don't compute per brand, so it's never used here.
+    let stageLabel, stageColor, headline, sub, meta, deepColor;
+    if(liveEp){
+      stageLabel='On sale'; stageColor='#6E8E63'; deepColor='#6E8E63';
+      headline='On sale now';
+      sub = liveEp.pct!=null ? 'Up to '+liveEp.pct+'% off' : 'On sale';
+      meta = 'Started '+fmtDay(liveEp.start)+' &middot; live '+dayLen(liveEp).replace(' so far','')+' so far';
+    } else if(onRecord>0){
+      const last = eps[0]; // newest first
+      stageLabel='Resting'; stageColor='#9A9CA3'; deepColor='#5A6175';
+      headline='Not on sale';
+      sub = last.pct!=null ? 'Last ran up to '+last.pct+'% off' : null;
+      meta = 'Last sale ended '+fmtDay(last.end);
+    } else {
+      stageLabel='Watching'; stageColor='#9A9CA3'; deepColor='#5A6175';
+      headline='No sale tracked yet';
+      sub = null;
+      meta = 'We haven’t recorded a sale here yet';
+    }
+
+    let html =
+      '<div class="ts-ident">'+logoHtml+
+        '<div><div class="ts-name">'+esc(name)+'</div><div class="ts-cat">'+esc(category)+'</div></div>'+
+        '<div class="ts-stage" style="color:'+stageColor+'"><span class="ts-dot" style="background:'+stageColor+'"></span>'+esc(stageLabel)+'</div>'+
+      '</div>'+
+      '<div class="ts-rule"></div>'+
+      '<div class="ts-status"><div class="ts-now">'+esc(headline)+'</div>'+
+        (sub!=null ? '<div class="ts-deep" style="color:'+deepColor+'">'+esc(sub)+'</div>' : '')+
+        '<div class="ts-meta">'+meta+'</div></div>';
+
+    // Facts grid — historical aggregates only. Hidden when nothing on record.
+    if(onRecord>0){
+      const cell=(l,v,s)=>'<div class="ts-fact"><div class="ts-fact-l">'+l+'</div><div class="ts-fact-v">'+v+'</div><div class="ts-fact-s">'+s+'</div></div>';
+      html += '<div class="ts-facts">'+
+        cell('On record', String(onRecord), onRecord===1 ? 'sale' : 'sales')+
+        cell('Avg length', avgLength!=null ? String(avgLength) : '&mdash;', 'days')+
+        cell('Deepest', deepest!=null ? deepest+'%' : '&mdash;', 'off')+
+      '</div>';
+    }
+
+    // Sale rhythm chart — hidden when there's no history.
+    if(onRecord>0){
+      const olderExist = eps.some(e => {
+        const now=new Date(); const ws=new Date(now.getFullYear(),now.getMonth()-12,now.getDate());
+        return new Date(e.start+'T12:00:00') < ws;
+      });
+      let foot = 'Each crest is a past sale. Taller crest = deeper discount.';
+      if(olderExist) foot += ' Older sales sit before this 12-month window.';
+      if(sparse) foot += ' Only a few sales on record so far — the pattern is still forming.';
+      html += '<div class="ts-rhythm"><div class="ts-seclabel">Sale rhythm</div>'+
+        rhythmSVG(eps, deepest, stageColor)+
+        '<div class="ts-months">'+monthStrip()+'</div>'+
+        '<div class="ts-legend"><i><b style="background:#C9CBD0"></b>Past sales</i>'+
+          (liveEp ? '<i><b style="background:'+stageColor+'"></b>On now</i>' : '')+'</div>'+
+        '<div class="ts-rhythm-foot">'+foot+'</div></div>';
+    }
+
+    // History list — every episode on record, newest first.
+    html += '<div class="ts-receipts"><div class="ts-seclabel">Every sale on record</div>';
+    if(onRecord===0){
+      html += '<div class="ts-empty">No sales recorded yet.</div>';
+    } else {
+      html += eps.map(ep => {
+        const pctDisp = ep.pct!=null ? ep.pct+'%' : (ep.live ? 'On sale' : '&mdash;');
+        const barW = (ep.pct!=null && deepest) ? Math.round(ep.pct/deepest*100) : 0;
+        const footRight = ep.pct!=null ? 'up to '+ep.pct+'% off' : (ep.live ? 'live now' : 'no % recorded');
+        return '<div class="ts-sale'+(ep.live?' live':'')+'">'+
+          '<div class="ts-saletop"><div class="ts-dates">'+dateRange(ep)+
+            (ep.live?'<span class="ts-livetag">LIVE</span>':'')+'</div>'+
+            '<div class="ts-pct">'+pctDisp+'</div></div>'+
+          '<div class="ts-bar"><span style="width:'+barW+'%"></span></div>'+
+          '<div class="ts-len"><span>'+dayLen(ep)+'</span><em>'+footRight+'</em></div></div>';
+      }).join('');
+    }
+    html += '</div>';
+
+    // CTA — affiliate when live & linkable, otherwise the alert stub.
+    if(liveEp && url){
+      html += '<a class="ts-cta" href="'+esc(url)+'" target="_blank" rel="noopener">See it on '+esc(name)+' &rarr;</a>'+
+              '<div class="ts-cta-note">Tide may earn a commission. You never pay more.</div>';
+    } else {
+      const watching = isWatching(name);
+      html += '<button type="button" class="ts-cta" data-ts-alert="'+esc(name)+'"'+(watching?' data-watching="1"':'')+'>'+
+                (watching ? '✓ We’ll watch '+esc(name)+' for you' : 'Alert me when '+esc(name)+' goes on sale')+
+              '</button>'+
+              '<div class="ts-cta-note">'+(watching ? 'You’ll be the first to know.' : 'We’ll watch the pattern for you.')+'</div>';
+    }
+
+    body.innerHTML = html;
+    // Re-trigger the fade so paging feels alive.
+    body.style.animation='none'; void body.offsetWidth; body.style.animation='';
+    body.scrollTop = 0;
+  }
+
+  // ── Open / close / paging ────────────────────────────────────────────────
+  function buildOrder(originEl){
+    // Paging order = the brand chips currently in the DOM, in document order,
+    // deduped by name (a brand can appear on more than one floor).
+    const chips = Array.from(document.querySelectorAll('.brand-chip[data-brand-name]'));
+    const seen = new Set(); const order = [];
+    for(const c of chips){
+      const n = c.getAttribute('data-brand-name');
+      if(n && !seen.has(n)){ seen.add(n); order.push(n); }
+    }
+    return order;
+  }
+
+  let trapHandler = null;
+  function open(name, originEl){
+    tsOrigin = originEl || null;
+    tsOrder = buildOrder(originEl);
+    if(!tsOrder.length) tsOrder = [name];
+    tsIdx = Math.max(0, tsOrder.indexOf(name));
+    render();
+    backdrop.classList.add('show');
+    sheet.classList.add('show');
+    sheet.setAttribute('aria-hidden','false');
+    document.body.style.overflow='hidden';
+    // Focus management: move focus into the sheet, trap Tab within it.
+    const closeBtn = document.getElementById('ts-close');
+    if(closeBtn) closeBtn.focus();
+    trapHandler = (e) => {
+      if(e.key === 'Escape'){ e.preventDefault(); close(); return; }
+      if(e.key !== 'Tab') return;
+      const f = sheet.querySelectorAll('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
+      if(!f.length) return;
+      const first=f[0], last=f[f.length-1];
+      if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', trapHandler, true);
+  }
+  function close(){
+    backdrop.classList.remove('show');
+    sheet.classList.remove('show');
+    sheet.setAttribute('aria-hidden','true');
+    document.body.style.overflow='';
+    if(trapHandler){ document.removeEventListener('keydown', trapHandler, true); trapHandler=null; }
+    if(tsOrigin && typeof tsOrigin.focus === 'function'){ try { tsOrigin.focus(); } catch {} }
+    tsOrigin = null;
+  }
+  function step(d){
+    if(!tsOrder.length) return;
+    tsIdx = (tsIdx + d + tsOrder.length) % tsOrder.length;  // wrap
+    render();
+  }
+
+  // Alert-me stub clicks (delegated within the body).
+  body.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-ts-alert]');
+    if(!btn || btn.hasAttribute('data-watching')) return;
+    const name = btn.getAttribute('data-ts-alert');
+    addWatch(name);
+    btn.setAttribute('data-watching','1');
+    btn.textContent = '✓ We’ll watch '+name+' for you';
+    const note = btn.nextElementSibling;
+    if(note && note.classList.contains('ts-cta-note')) note.textContent = 'You’ll be the first to know.';
+  });
+
+  // Swipe-down on the grab handle to dismiss (nice-to-have, PRD §7).
+  (function(){
+    const grab = document.getElementById('ts-grab');
+    if(!grab) return;
+    let startY=null;
+    grab.addEventListener('pointerdown', (e)=>{ startY=e.clientY; grab.setPointerCapture(e.pointerId); });
+    grab.addEventListener('pointermove', (e)=>{
+      if(startY==null) return;
+      const dy=e.clientY-startY;
+      sheet.style.transform = dy>0 ? 'translateX(-50%) translateY('+dy+'px)' : '';
+    });
+    const end=(e)=>{
+      if(startY==null) return;
+      const dy=e.clientY-startY; startY=null;
+      sheet.style.transform='';
+      if(dy>70) close();
+    };
+    grab.addEventListener('pointerup', end);
+    grab.addEventListener('pointercancel', ()=>{ startY=null; sheet.style.transform=''; });
+  })();
+
+  window.openBrandSheet = open;
+  window.closeTideSheet = close;
+  window.tideSheetStep = step;
+})();
+</script>
+
 <script>
 // ── User reporting flow (Deliverable B) ──────────────────────────────────
 // Advisory only. Writes to user_reports via the same raw-fetch path the rest
@@ -4724,10 +5186,33 @@ document.addEventListener('visibilitychange', () => {
     // Tapping an open row's card just closes it — no navigation.
     const open = e.target.closest('.brand-chip-wrap.swipe-open');
     if (open) { e.preventDefault(); e.stopPropagation(); closeRow(open); }
+    // A clean tap on any brand chip opens the shop detail sheet instead of
+    // navigating to the retailer. We reach here only when no swipe just
+    // happened (suppressClick) and the row isn't swipe-open, so the gesture
+    // is unambiguously a tap. The affiliate link moves to the sheet's CTA.
+    // A modified click (cmd/ctrl/shift/middle) on a linked chip keeps its
+    // native new-tab behaviour to the retailer — the power-user fallback.
+    else if (!(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) && e.button === 0) {
+      const chip = e.target.closest('.brand-chip[data-brand-name]');
+      if (chip && window.openBrandSheet) {
+        e.preventDefault(); e.stopPropagation();
+        window.openBrandSheet(chip.getAttribute('data-brand-name'), chip);
+      }
+    }
   }, true);
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && openWrap) closeRow(openWrap);
+    // Keyboard-activate an unlinked chip (role=button). Linked <a> chips fire
+    // a native click on Enter, which the capture click handler already turns
+    // into a sheet open, so they need no special-casing here.
+    if ((e.key === 'Enter' || e.key === ' ')) {
+      const chip = e.target.closest && e.target.closest('div.brand-chip[data-brand-name]');
+      if (chip && window.openBrandSheet) {
+        e.preventDefault();
+        window.openBrandSheet(chip.getAttribute('data-brand-name'), chip);
+      }
+    }
   });
 })();
 </script>

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tide · Shop detail prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FAF6EF;--surface:#FFFFFF;--surface-warm:#FEFCF8;
+    --ink:#1C2A45;--ink-soft:#5A6175;--muted:#9A9CA3;
+    --hair:#ECE4D6;--gold:#BC8A2E;--gold-soft:#F3E7CD;
+    --sage:#6E8E63;--sage-soft:#E4ECDF;--stone:#C9CBD0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E9E2D6;font-family:'Inter',system-ui,sans-serif;color:var(--ink);
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:28px 14px 60px;-webkit-font-smoothing:antialiased}
+  .hint{font-size:12.5px;color:#7c7466;margin-bottom:16px;text-align:center;max-width:360px}
+  .hint b{color:var(--ink)}
+
+  .phone{width:390px;max-width:100%;background:var(--bg);border-radius:42px;padding:10px;
+    box-shadow:0 24px 60px rgba(28,42,69,.28),0 0 0 1px rgba(28,42,69,.04)}
+  .screen{background:var(--bg);border-radius:34px;overflow:hidden;height:790px;position:relative}
+
+  .listhead{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 12px}
+  .wordmark{font-family:'Playfair Display',serif;font-size:22px;letter-spacing:5px;font-weight:500}
+  .eyebrow{font-size:11px;letter-spacing:1.5px;color:var(--muted)}
+  .listwrap{padding:4px 16px;overflow-y:auto;height:calc(100% - 64px)}
+  .row{display:flex;align-items:center;gap:12px;background:var(--sage-soft);border-radius:14px;
+    padding:14px 16px;margin-bottom:10px;cursor:pointer;border-left:4px solid var(--sage);transition:.15s}
+  .row:hover{transform:translateX(2px)}
+  .row.gold{background:#FBF3E2;border-left-color:var(--gold)}
+  .row.flat{background:#F2EFE8;border-left-color:var(--stone)}
+  .rlogo{width:34px;height:34px;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;
+    font-family:'Playfair Display',serif;font-weight:600;font-size:14px;color:var(--ink);flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .row .nm{font-size:17px;font-weight:500;flex:1}
+  .row .pc{font-size:14px;color:var(--ink-soft)}
+
+  .backdrop{position:absolute;inset:0;background:rgba(28,42,69,.34);opacity:0;pointer-events:none;transition:opacity .28s}
+  .backdrop.show{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;height:92%;background:var(--bg);
+    border-radius:28px 28px 0 0;transform:translateY(102%);transition:transform .34s cubic-bezier(.32,.72,0,1);
+    box-shadow:0 -10px 40px rgba(28,42,69,.22);display:flex;flex-direction:column}
+  .sheet.show{transform:none}
+  @media (prefers-reduced-motion:reduce){.sheet,.backdrop{transition:none}}
+
+  .grab{width:38px;height:4px;border-radius:99px;background:#D8D0C2;margin:10px auto 2px}
+  .sheettop{display:flex;align-items:center;justify-content:space-between;padding:4px 18px 0}
+  .pager{display:flex;align-items:center;gap:4px}
+  .pgbtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--hair);background:#fff;color:var(--ink);
+    font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
+  .pgbtn:hover{background:var(--surface-warm)}
+  .pgbtn:focus-visible,.x:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .pgcount{font-size:12px;color:var(--muted);min-width:34px;text-align:center}
+  .x{width:34px;height:34px;border-radius:50%;border:1px solid var(--hair);background:#fff;color:var(--ink);font-size:17px;cursor:pointer}
+
+  .sbody{flex:1;overflow-y:auto;padding:8px 22px 30px;opacity:0;animation:fade .32s ease forwards}
+  @keyframes fade{to{opacity:1}}
+  @media (prefers-reduced-motion:reduce){.sbody{animation:none;opacity:1}}
+
+  .ident{display:flex;align-items:center;gap:13px;padding:8px 0 16px}
+  .biglogo{width:52px;height:52px;border-radius:13px;background:var(--ink);display:flex;align-items:center;justify-content:center;
+    color:#fff;font-family:'Playfair Display',serif;font-size:21px;font-weight:600;flex-shrink:0}
+  .ident h1{font-family:'Playfair Display',serif;font-size:26px;font-weight:600}
+  .ident .cat{font-size:12.5px;color:var(--ink-soft);margin-top:1px}
+  .stage{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;white-space:nowrap}
+  .stage .dot{width:8px;height:8px;border-radius:50%}
+  .rule{height:1px;background:var(--hair);margin:0 0 20px}
+
+  .status{padding-bottom:22px}
+  .status .now{font-family:'Playfair Display',serif;font-size:34px;font-weight:600;line-height:1.04}
+  .status .deep{font-size:15px;font-weight:600;margin-top:9px}
+  .status .meta{font-size:13px;color:var(--ink-soft);margin-top:4px}
+
+  .facts{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hair);
+    border:1px solid var(--hair);border-radius:14px;overflow:hidden;margin-bottom:26px}
+  .fact{background:var(--surface-warm);padding:14px}
+  .fact .l{font-size:10px;font-weight:600;letter-spacing:1.1px;color:var(--muted);text-transform:uppercase}
+  .fact .v{font-family:'Playfair Display',serif;font-size:21px;font-weight:600;margin-top:7px;line-height:1}
+  .fact .s{font-size:11px;color:var(--ink-soft);margin-top:5px}
+
+  .seclabel{font-size:10.5px;font-weight:600;letter-spacing:1.4px;color:var(--muted);text-transform:uppercase;margin:0 0 14px}
+  .rhythm{margin-bottom:6px}
+  .tide-svg{width:100%;display:block}
+  .months{display:flex;justify-content:space-between;margin-top:2px;padding:0 2px}
+  .months span{font-size:9.5px;color:var(--muted);flex:1;text-align:center}
+  .months span.now{color:var(--ink);font-weight:600}
+  .legend{display:flex;gap:16px;margin-top:13px;flex-wrap:wrap}
+  .legend i{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-soft);font-style:normal}
+  .legend i b{width:13px;height:9px;border-radius:3px;display:inline-block}
+  .rhythm-foot{font-size:11.5px;color:var(--muted);margin-top:11px}
+
+  .receipts{margin:28px 0 6px}
+  .sale{padding:15px 0;border-bottom:1px solid var(--hair)}
+  .sale:last-child{border-bottom:0}
+  .saletop{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .sale .dates{font-size:15px;font-weight:500}
+  .sale .live-tag{font-size:10px;font-weight:700;letter-spacing:.6px;color:#fff;background:var(--gold);
+    padding:2px 7px;border-radius:5px;margin-left:8px;vertical-align:middle}
+  .sale .pct{font-family:'Playfair Display',serif;font-size:20px;font-weight:600;white-space:nowrap}
+  .sale .bar{height:7px;border-radius:99px;background:#EDE6D9;margin-top:11px;overflow:hidden}
+  .sale .bar span{display:block;height:100%;border-radius:99px;background:var(--stone)}
+  .sale.live .bar span{background:var(--gold)}
+  .sale .len{font-size:12px;color:var(--ink-soft);margin-top:8px;display:flex;justify-content:space-between}
+  .sale .len em{font-style:normal;color:var(--muted)}
+
+  .cta{width:100%;margin-top:24px;background:var(--ink);color:#fff;border:0;font-family:'Inter',sans-serif;
+    font-size:15px;font-weight:600;letter-spacing:.2px;padding:16px;border-radius:14px;cursor:pointer;transition:.18s}
+  .cta:hover{background:#243352}
+  .cta:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+  .cta-note{text-align:center;font-size:11px;color:var(--muted);margin-top:9px}
+</style>
+</head>
+<body>
+
+  <div class="hint">Tap a shop to open. Inside: <b>&#10005;</b> closes, <b>&lsaquo; &rsaquo;</b> steps to the next shop.</div>
+
+  <div class="phone">
+    <div class="screen">
+      <div class="listhead">
+        <span class="wordmark">TIDE</span>
+        <span class="eyebrow">KNOW WHEN TO GO</span>
+      </div>
+      <div class="listwrap" id="list"></div>
+
+      <div class="backdrop" id="backdrop" onclick="closeSheet()"></div>
+      <div class="sheet" id="sheet" role="dialog" aria-label="Shop detail">
+        <div class="grab"></div>
+        <div class="sheettop">
+          <div class="pager">
+            <button class="pgbtn" aria-label="Previous shop" onclick="step(-1)">&lsaquo;</button>
+            <span class="pgcount" id="pgcount">1/3</span>
+            <button class="pgbtn" aria-label="Next shop" onclick="step(1)">&rsaquo;</button>
+          </div>
+          <button class="x" aria-label="Close" onclick="closeSheet()">&#10005;</button>
+        </div>
+        <div class="sbody" id="sbody"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const SHOPS = [
+    {
+      name:"H&M", logo:"H", cat:"Fast fashion · Seasonal",
+      stage:{label:"High Tide", color:"#BC8A2E"}, rowClass:"gold",
+      live:true, headline:"On sale now", deep:"Up to 50% off", deepColor:"#BC8A2E",
+      meta:"Started 30 May · live 15 days so far",
+      facts:[["On record","12","sales"],["Avg length","16","days"],["Deepest","50%","off"]],
+      cta:"See it on H&M →", ctaNote:"Tide may earn a commission. You never pay more.",
+      sales:[
+        {dates:"30 May – today", pct:50, len:"15 days so far", live:true, mx:0.90},
+        {dates:"12 – 26 Jan", pct:50, len:"14 days", mx:0.55},
+        {dates:"1 – 21 Nov", pct:40, len:"20 days", mx:0.37},
+        {dates:"2 – 15 Sep", pct:30, len:"13 days", mx:0.17}
+      ]
+    },
+    {
+      name:"Swarovski", logo:"S", cat:"Jewellery · Seasonal",
+      stage:{label:"Rising", color:"#6E8E63"}, rowClass:"",
+      live:true, headline:"On sale now", deep:"Up to 40% off", deepColor:"#1C2A45",
+      meta:"Started 11 Jun · live 2 days so far",
+      facts:[["On record","9","sales"],["Avg length","11","days"],["Deepest","40%","off"]],
+      cta:"See it on Swarovski →", ctaNote:"Tide may earn a commission. You never pay more.",
+      sales:[
+        {dates:"11 Jun – today", pct:40, len:"2 days so far", live:true, mx:0.92},
+        {dates:"3 – 17 Feb", pct:40, len:"14 days", mx:0.62},
+        {dates:"18 – 30 Nov", pct:30, len:"12 days", mx:0.37},
+        {dates:"1 – 10 Jul", pct:25, len:"9 days", mx:0.02}
+      ]
+    },
+    {
+      name:"River Island", logo:"RI", cat:"Fashion · Seasonal",
+      stage:{label:"Flat", color:"#9A9CA3"}, rowClass:"flat",
+      live:false, headline:"Not on sale", deep:"Last ran up to 40% off", deepColor:"#5A6175",
+      meta:"Last sale ended 20 Jan",
+      facts:[["On record","6","sales"],["Avg length","13","days"],["Deepest","40%","off"]],
+      cta:"Alert me when River Island goes on sale", ctaNote:"We’ll watch the pattern for you.",
+      sales:[
+        {dates:"8 – 20 Jan", pct:40, len:"12 days", mx:0.55},
+        {dates:"2 – 18 Sep", pct:30, len:"16 days", mx:0.17},
+        {dates:"14 – 24 Jul", pct:30, len:"10 days", mx:0.02}
+      ]
+    }
+  ];
+
+  let idx = 0;
+
+  const list = document.getElementById('list');
+  SHOPS.forEach(function(s,i){
+    const r=document.createElement('div');
+    r.className='row '+(s.rowClass||'');
+    r.onclick=function(){openSheet(i);};
+    r.innerHTML='<div class="rlogo">'+s.logo+'</div><div class="nm">'+s.name+'</div>'+
+      '<div class="pc">'+(s.live? s.deep : 'No sale')+'</div>';
+    list.appendChild(r);
+  });
+  ['AllSaints','Hobbs','Ralph Lauren'].forEach(function(n){
+    const r=document.createElement('div');r.className='row';
+    r.innerHTML='<div class="rlogo">'+n[0]+'</div><div class="nm">'+n+'</div><div class="pc">Up to 50%</div>';
+    list.appendChild(r);
+  });
+
+  function tideSVG(s){
+    var W=350, base=80;
+    var swells=s.sales.map(function(sale){
+      var x=14+sale.mx*322;
+      var h=14+(sale.pct-20)/30*40;        // crest height maps to discount depth
+      if(x<22)x=22; if(x>W-22)x=W-22;
+      var col=sale.live? s.stage.color : '#C9CBD0';
+      return '<path d="M'+(x-20)+' '+base+' Q'+x+' '+(base-h)+' '+(x+20)+' '+base+' Z" fill="'+col+'"/>';
+    }).join('');
+    var todayX=14+0.9*322;
+    var marker='<line x1="'+todayX+'" y1="12" x2="'+todayX+'" y2="86" stroke="#1C2A45" stroke-width="1.4"/>'+
+               '<circle cx="'+todayX+'" cy="12" r="2.6" fill="#1C2A45"/>';
+    return '<svg class="tide-svg" viewBox="0 0 350 96" preserveAspectRatio="none" aria-hidden="true">'+
+           '<line x1="0" y1="80" x2="350" y2="80" stroke="#ECE4D6" stroke-width="1.5"/>'+swells+marker+'</svg>';
+  }
+
+  function render(){
+    var s=SHOPS[idx];
+    document.getElementById('pgcount').textContent=(idx+1)+'/'+SHOPS.length;
+    var maxPct=50;
+    var salesHtml=s.sales.map(function(sale){
+      return '<div class="sale '+(sale.live?'live':'')+'">'+
+        '<div class="saletop"><div class="dates">'+sale.dates+(sale.live?'<span class="live-tag">LIVE</span>':'')+'</div>'+
+        '<div class="pct">'+sale.pct+'%</div></div>'+
+        '<div class="bar"><span style="width:'+Math.round(sale.pct/maxPct*100)+'%"></span></div>'+
+        '<div class="len"><span>'+sale.len+'</span><em>up to '+sale.pct+'% off</em></div></div>';
+    }).join('');
+
+    document.getElementById('sbody').innerHTML=
+      '<div class="ident"><div class="biglogo">'+s.logo+'</div>'+
+        '<div><h1>'+s.name+'</h1><div class="cat">'+s.cat+'</div></div>'+
+        '<div class="stage" style="color:'+s.stage.color+'"><span class="dot" style="background:'+s.stage.color+'"></span>'+s.stage.label+'</div></div>'+
+      '<div class="rule"></div>'+
+      '<div class="status"><div class="now">'+s.headline+'</div>'+
+        '<div class="deep" style="color:'+s.deepColor+'">'+s.deep+'</div>'+
+        '<div class="meta">'+s.meta+'</div></div>'+
+      '<div class="facts">'+s.facts.map(function(c){return '<div class="fact"><div class="l">'+c[0]+'</div><div class="v">'+c[1]+'</div><div class="s">'+c[2]+'</div></div>';}).join('')+'</div>'+
+      '<div class="rhythm"><div class="seclabel">Sale rhythm</div>'+tideSVG(s)+
+        '<div class="months"><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span class="now">Jun&nbsp;&middot;now</span></div>'+
+        '<div class="legend"><i><b style="background:#C9CBD0"></b>Past sales</i><i><b style="background:'+s.stage.color+'"></b>On now</i></div>'+
+        '<div class="rhythm-foot">Each crest is a past sale. Taller crest = deeper discount.</div></div>'+
+      '<div class="receipts"><div class="seclabel">Every sale on record</div>'+salesHtml+'</div>'+
+      '<button class="cta">'+s.cta+'</button>'+
+      '<div class="cta-note">'+s.ctaNote+'</div>';
+
+    var b=document.getElementById('sbody');b.style.animation='none';void b.offsetWidth;b.style.animation='';
+  }
+
+  function openSheet(i){ idx=i; render();
+    document.getElementById('backdrop').classList.add('show');
+    document.getElementById('sheet').classList.add('show'); }
+  function closeSheet(){
+    document.getElementById('backdrop').classList.remove('show');
+    document.getElementById('sheet').classList.remove('show'); }
+  function step(d){ idx=(idx+d+SHOPS.length)%SHOPS.length; render();
+    document.getElementById('sbody').scrollTop=0; }
+
+  openSheet(0);
+</script>
+</body>
+</html>

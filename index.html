@@ -4755,28 +4755,18 @@ document.addEventListener('visibilitychange', () => {
     return true;
   }
 
-  // ── Chart window: fit the time axis to the data (earliest shown sale →
-  //    today) rather than always cramming a fixed 12 months, so a handful of
-  //    sales spread out and read clearly. Capped at a 12-month floor; sales
-  //    older than that are clipped (the caption flags it). Returns Date
-  //    bounds + the episodes that overlap the window.
+  // ── Chart window: a fixed trailing 6 months (current month + the previous
+  //    five), so the axis always shows six equal, named month columns. Sales
+  //    that end before the window are clipped (the caption flags it). Returns
+  //    the Date bounds + the episodes that overlap the window.
   function chartWindow(eps){
+    const MONTHS=6;
     const now=new Date();
-    const end=new Date(now.getFullYear(), now.getMonth(), now.getDate());   // today
-    const cap=new Date(end); cap.setMonth(cap.getMonth()-12);               // 12-month floor
+    const end=new Date(now.getFullYear(), now.getMonth(), now.getDate());        // today
+    const start=new Date(end.getFullYear(), end.getMonth()-(MONTHS-1), 1);       // 1st of the earliest month
+    const startMs=start.getTime();
     const endMs = e => (e.live ? end.getTime() : new Date(e.end+'T12:00:00').getTime());
-    const shown = (eps||[]).filter(e => endMs(e) >= cap.getTime());
-    let start;
-    if(shown.length){
-      const earliest = Math.min.apply(null, shown.map(e => new Date(e.start+'T12:00:00').getTime()));
-      start = new Date(Math.max(cap.getTime(), earliest));
-      // Breathe a little on the left when the data is recent.
-      const padDays = Math.max(2, Math.round((end - start)/86400000 * 0.04));
-      const padded = start.getTime() - padDays*86400000;
-      start = new Date(Math.max(cap.getTime(), padded));
-    } else {
-      start = new Date(cap);
-    }
+    const shown = (eps||[]).filter(e => endMs(e) >= startMs);
     return { start, end, shown };
   }
 
@@ -4787,15 +4777,11 @@ document.addEventListener('visibilitychange', () => {
   //    height encodes discount depth. Live swell = stage colour, past = stone.
   function rhythmSVG(eps, deepest, stageColor){
     const W=350, base=80, padX=14, minH=7, maxH=40, minW=10;
-    const { end, shown } = chartWindow(eps);
+    const { start, end, shown } = chartWindow(eps);
     const denom = deepest || 50;
 
-    // Whole-month window: earliest shown sale's month → current month.
-    let firstY, firstM;
-    if(shown.length){
-      const earliest = new Date(Math.min.apply(null, shown.map(e => new Date(e.start+'T12:00:00').getTime())));
-      firstY = earliest.getFullYear(); firstM = earliest.getMonth();
-    } else { firstY = end.getFullYear(); firstM = end.getMonth(); }
+    // Six fixed month columns from the window start month → current month.
+    const firstY = start.getFullYear(), firstM = start.getMonth();
     const months=[]; let yy=firstY, mm=firstM, g=0;
     while((yy<end.getFullYear() || (yy===end.getFullYear() && mm<=end.getMonth())) && g++<24){
       months.push({y:yy, m:mm}); mm++; if(mm>11){ mm=0; yy++; }
@@ -4941,11 +4927,12 @@ document.addEventListener('visibilitychange', () => {
     // Sale rhythm chart — hidden when there's no history.
     if(onRecord>0){
       const olderExist = eps.some(e => {
-        const now=new Date(); const ws=new Date(now.getFullYear(),now.getMonth()-12,now.getDate());
-        return new Date(e.start+'T12:00:00') < ws;
+        const now=new Date(); const ws=new Date(now.getFullYear(), now.getMonth()-5, 1);  // 1st of the 6-month window
+        const endD = e.live ? now : new Date(e.end+'T12:00:00');
+        return endD < ws;                                                                 // ends before the window = hidden
       });
       let foot = 'Each swell is a past sale — its width is how long it ran, its height how deep.';
-      if(olderExist) foot += ' Older sales sit before this 12-month window.';
+      if(olderExist) foot += ' Older sales sit before this 6-month window.';
       if(sparse) foot += ' Only a few sales on record so far — the pattern is still forming.';
       html += '<div class="ts-rhythm"><div class="ts-seclabel">Sale rhythm</div>'+
         rhythmSVG(eps, deepest, stageColor)+

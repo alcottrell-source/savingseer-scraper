@@ -4780,60 +4780,86 @@ document.addEventListener('visibilitychange', () => {
     return { start, end, shown };
   }
 
-  // ── Tide-rhythm SVG: each sale is a soft swell rising from the shoreline.
-  //    Its two feet land exactly on the sale's real start and end dates (so
-  //    both edges read off the month axis) — width therefore spans duration,
-  //    peak height encodes discount depth. Live swell takes the stage colour,
-  //    past swells are stone. No future swell (no prediction).
+  // ── Tide-rhythm SVG: an EQUAL-WIDTH month-column axis (each month the same
+  //    width regardless of day count), with every month labelled and little
+  //    week ticks inside each column. Each sale is a soft swell whose two feet
+  //    land on its real start/end dates, so width spans duration and peak
+  //    height encodes discount depth. Live swell = stage colour, past = stone.
   function rhythmSVG(eps, deepest, stageColor){
     const W=350, base=80, padX=14, minH=7, maxH=40, minW=10;
-    const { start, end, shown } = chartWindow(eps);
-    const span=(end - start) || 1;
-    const denom=deepest || 50;
-    const X = ms => padX + (ms - start.getTime())/span * (W - 2*padX);
+    const { end, shown } = chartWindow(eps);
+    const denom = deepest || 50;
+
+    // Whole-month window: earliest shown sale's month → current month.
+    let firstY, firstM;
+    if(shown.length){
+      const earliest = new Date(Math.min.apply(null, shown.map(e => new Date(e.start+'T12:00:00').getTime())));
+      firstY = earliest.getFullYear(); firstM = earliest.getMonth();
+    } else { firstY = end.getFullYear(); firstM = end.getMonth(); }
+    const months=[]; let yy=firstY, mm=firstM, g=0;
+    while((yy<end.getFullYear() || (yy===end.getFullYear() && mm<=end.getMonth())) && g++<24){
+      months.push({y:yy, m:mm}); mm++; if(mm>11){ mm=0; yy++; }
+    }
+    const n = months.length || 1;
+    const x0 = padX, drawW = W - 2*padX, colW = drawW / n;
+    const dim = (y,m) => new Date(y, m+1, 0).getDate();
+    const mIdx = d => (d.getFullYear()-firstY)*12 + (d.getMonth()-firstM);
+    const Xd = d => {
+      let x = x0 + (mIdx(d) + (d.getDate()-1)/dim(d.getFullYear(), d.getMonth())) * colW;
+      if(x<x0) x=x0; if(x>x0+drawW) x=x0+drawW; return x;
+    };
+
+    // Equal month columns: faint dividers + three week ticks per month.
+    let grid='';
+    for(let i=0;i<=n;i++){
+      const cx = x0 + i*colW;
+      grid += '<line x1="'+cx.toFixed(1)+'" y1="16" x2="'+cx.toFixed(1)+'" y2="'+base+'" stroke="#ECE4D6" stroke-width="1"/>';
+    }
+    for(let i=0;i<n;i++){
+      for(const day of [8,15,22]){
+        const tx = x0 + (i + (day-1)/dim(months[i].y, months[i].m)) * colW;
+        grid += '<line x1="'+tx.toFixed(1)+'" y1="'+base+'" x2="'+tx.toFixed(1)+'" y2="'+(base+3)+'" stroke="#D8D0C2" stroke-width="0.8"/>';
+      }
+    }
+
+    // Month labels centred in each equal column; current month called out.
+    const curIdx = (end.getFullYear()-firstY)*12 + (end.getMonth()-firstM);
+    let labels='';
+    for(let i=0;i<n;i++){
+      const lx = x0 + (i+0.5)*colW;
+      const lbl = new Date(months[i].y, months[i].m, 1).toLocaleDateString('en-GB',{month:'short'});
+      const isCur = i===curIdx;
+      labels += '<text x="'+lx.toFixed(1)+'" y="95" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" '+
+                'fill="'+(isCur?'#1C2A45':'#9A9CA3')+'"'+(isCur?' font-weight="600"':'')+'>'+lbl+'</text>';
+    }
+
+    // Swells — feet on the real start/end dates.
     const swells = shown.map(ep => {
-      const s = new Date(ep.start+'T12:00:00').getTime();
-      const e = ep.live ? end.getTime() : new Date(ep.end+'T12:00:00').getTime();
-      let x1=X(s), x2=X(e);
-      if(x1<padX) x1=padX;
-      if(x2>W-padX) x2=W-padX;
+      const sd = new Date(ep.start+'T12:00:00');
+      const ed = ep.live ? end : new Date(ep.end+'T12:00:00');
+      let x1=Xd(sd), x2=Xd(ed);
       if(x2<x1) x2=x1;
       if(x2-x1<minW){                   // keep a one-day sale visible
         const c=(x1+x2)/2; x1=c-minW/2; x2=c+minW/2;
-        if(x1<padX){ x1=padX; x2=padX+minW; }
-        if(x2>W-padX){ x2=W-padX; x1=W-padX-minW; }
+        if(x1<x0){ x1=x0; x2=x0+minW; }
+        if(x2>x0+drawW){ x2=x0+drawW; x1=x0+drawW-minW; }
       }
       let h = ep.pct!=null ? minH+(ep.pct/denom)*(maxH-minH) : minH;
       if(h<minH)h=minH; if(h>maxH)h=maxH;
       const col = ep.live ? stageColor : '#C9CBD0';
-      // Quadratic swell from x1→x2; control y = base-2h so the apex reaches h.
       const midX=(x1+x2)/2, ctrlY=base-2*h;
-      const foot = '<circle cx="'+x1.toFixed(1)+'" cy="'+base+'" r="1.5" fill="'+col+'"/>'+
-                   '<circle cx="'+x2.toFixed(1)+'" cy="'+base+'" r="1.5" fill="'+col+'"/>';
+      const foot='<circle cx="'+x1.toFixed(1)+'" cy="'+base+'" r="1.5" fill="'+col+'"/>'+
+                 '<circle cx="'+x2.toFixed(1)+'" cy="'+base+'" r="1.5" fill="'+col+'"/>';
       return '<path d="M'+x1.toFixed(1)+' '+base+' Q'+midX.toFixed(1)+' '+ctrlY.toFixed(1)+' '+x2.toFixed(1)+' '+base+' Z" fill="'+col+'"/>'+foot;
     }).join('');
-    const todayX=W-padX;
-    const marker='<line x1="'+todayX+'" y1="12" x2="'+todayX+'" y2="'+(base+6)+'" stroke="#1C2A45" stroke-width="1.4"/>'+
-                 '<circle cx="'+todayX+'" cy="12" r="2.6" fill="#1C2A45"/>';
-    return '<svg class="ts-svg" viewBox="0 0 350 96" aria-hidden="true">'+
-           '<line x1="0" y1="80" x2="350" y2="80" stroke="#ECE4D6" stroke-width="1.5"/>'+swells+marker+'</svg>';
-  }
-  // Month ticks spanning the same fitted window as the bars.
-  function monthStrip(eps){
-    const { start, end } = chartWindow(eps);
-    const labels=[];
-    let y=start.getFullYear(), m=start.getMonth();
-    const ey=end.getFullYear(), em=end.getMonth();
-    let guard=0;
-    while((y<ey || (y===ey && m<=em)) && guard++<24){
-      labels.push(new Date(y, m, 1));
-      m++; if(m>11){ m=0; y++; }
-    }
-    if(!labels.length) labels.push(new Date(ey, em, 1));
-    return labels.map((d,i)=>{
-      const lbl=d.toLocaleDateString('en-GB',{month:'short'});
-      return i===labels.length-1 ? '<span class="now">'+lbl+'&nbsp;&middot;now</span>' : '<span>'+lbl+'</span>';
-    }).join('');
+
+    const todayX = Xd(end);
+    const marker='<line x1="'+todayX.toFixed(1)+'" y1="12" x2="'+todayX.toFixed(1)+'" y2="'+base+'" stroke="#1C2A45" stroke-width="1.4"/>'+
+                 '<circle cx="'+todayX.toFixed(1)+'" cy="12" r="2.6" fill="#1C2A45"/>';
+    return '<svg class="ts-svg" viewBox="0 0 350 100" aria-hidden="true">'+
+           grid +
+           '<line x1="0" y1="'+base+'" x2="350" y2="'+base+'" stroke="#ECE4D6" stroke-width="1.5"/>'+
+           swells + marker + labels + '</svg>';
   }
 
   function render(){
@@ -4923,7 +4949,6 @@ document.addEventListener('visibilitychange', () => {
       if(sparse) foot += ' Only a few sales on record so far — the pattern is still forming.';
       html += '<div class="ts-rhythm"><div class="ts-seclabel">Sale rhythm</div>'+
         rhythmSVG(eps, deepest, stageColor)+
-        '<div class="ts-months">'+monthStrip(eps)+'</div>'+
         '<div class="ts-legend"><i><b style="background:#C9CBD0"></b>Past sales</i>'+
           (liveEp ? '<i><b style="background:'+stageColor+'"></b>On now</i>' : '')+'</div>'+
         '<div class="ts-rhythm-foot">'+foot+'</div></div>';

@@ -4702,6 +4702,59 @@ document.addEventListener('visibilitychange', () => {
     try { localStorage.setItem(ALERT_KEY, JSON.stringify([...s])); } catch {}
   }
 
+  // Is this brand already set to alert the current viewer? Local intent for
+  // anyone; for a signed-in user, whether the notify-high-tide brand-sale
+  // pass would actually email them (master toggle on, not excluded, and
+  // either explicitly followed or — in follow-all mode — matching their prefs).
+  function isAlerted(name){
+    if(isWatching(name)) return true;
+    if((typeof currentUser !== 'undefined') && currentUser && (typeof userPrefs !== 'undefined') && userPrefs){
+      if(userPrefs.brand_sale_alerts === false) return false;
+      const b = (typeof BRANDS !== 'undefined') ? BRANDS.find(x=>x.name===name) : null;
+      if(!b) return false;
+      if((userPrefs.excluded_brand_ids||[]).includes(b.id)) return false;
+      const ids = userPrefs.brand_ids||[];
+      if(ids.length) return ids.includes(b.id);
+      try { return brandMatchesFrontendPrefs(b, userPrefs); } catch { return true; }
+    }
+    return false;
+  }
+
+  // Real alert wiring for signed-in users: follow the brand so the existing
+  // daily brand-sale email pass picks it up. Safe by construction — it never
+  // narrows a follow-all user (empty brand_ids = "all matching"): we only flip
+  // to explicit-follow mode when the brand wouldn't already be covered.
+  async function followBrandForAlerts(name){
+    if(!currentUser) return false;
+    const b = (typeof BRANDS !== 'undefined') ? BRANDS.find(x=>x.name===name) : null;
+    if(!b) return false;
+    const code = b.id;
+    if(!userPrefs && typeof loadUserPrefs === 'function'){ try { await loadUserPrefs(); } catch {} }
+    const prefs = userPrefs || {};
+    const existing = Array.isArray(prefs.brand_ids) ? prefs.brand_ids.slice() : [];
+    const excluded = (Array.isArray(prefs.excluded_brand_ids) ? prefs.excluded_brand_ids : []).filter(c=>c!==code);
+    let nextBrandIds = existing;
+    if(existing.length){
+      if(!existing.includes(code)) nextBrandIds = existing.concat([code]);
+    } else {
+      let covered = true;
+      try { covered = brandMatchesFrontendPrefs(b, prefs); } catch {}
+      if(!covered) nextBrandIds = [code];     // make this one brand explicit
+    }
+    const { error } = await pgUpsert('user_preferences', {
+      user_id: currentUser.id,
+      brand_sale_alerts: true,
+      excluded_brand_ids: brandCodesToDbIds(excluded),
+      brand_ids: brandCodesToDbIds(nextBrandIds),
+    }, 'user_id');
+    if(error){ console.warn('followBrandForAlerts upsert failed:', error); return false; }
+    userPrefs = userPrefs || { user_id: currentUser.id };
+    userPrefs.brand_sale_alerts = true;
+    userPrefs.excluded_brand_ids = excluded;
+    userPrefs.brand_ids = nextBrandIds;
+    return true;
+  }
+
   // ── Tide-rhythm SVG: one crest per past episode within the trailing 12
   //    months. Crest height encodes discount depth; live crest takes the
   //    stage colour, past crests are stone. No future crest (no prediction).
@@ -4852,16 +4905,27 @@ document.addEventListener('visibilitychange', () => {
     }
     html += '</div>';
 
-    // CTA — affiliate when live & linkable, otherwise the alert stub.
+    // CTA — affiliate when live & linkable, otherwise the alert CTA.
     if(liveEp && url){
       html += '<a class="ts-cta" href="'+esc(url)+'" target="_blank" rel="noopener">See it on '+esc(name)+' &rarr;</a>'+
               '<div class="ts-cta-note">Tide may earn a commission. You never pay more.</div>';
     } else {
-      const watching = isWatching(name);
-      html += '<button type="button" class="ts-cta" data-ts-alert="'+esc(name)+'"'+(watching?' data-watching="1"':'')+'>'+
-                (watching ? '✓ We’ll watch '+esc(name)+' for you' : 'Alert me when '+esc(name)+' goes on sale')+
-              '</button>'+
-              '<div class="ts-cta-note">'+(watching ? 'You’ll be the first to know.' : 'We’ll watch the pattern for you.')+'</div>';
+      const signedIn = (typeof currentUser !== 'undefined') && !!currentUser;
+      const alerted = isAlerted(name);
+      let label, note;
+      if(alerted){
+        label = signedIn ? '✓ We’ll alert you when '+esc(name)+' next goes on sale'
+                         : '✓ We’ll watch '+esc(name)+' for you';
+        note  = signedIn ? 'Brand sale alerts are on.'
+                         : 'Saved on this device. <a href="#" data-ts-signin style="color:#1C2A45;text-decoration:underline">Sign in</a> to get it by email.';
+      } else {
+        label = 'Alert me when '+esc(name)+' goes on sale';
+        note  = signedIn ? 'We’ll email you when its next sale starts.'
+                         : 'We’ll watch the pattern for you.';
+      }
+      html += '<button type="button" class="ts-cta" data-ts-alert="'+esc(name)+'"'+(alerted?' data-watching="1"':'')+'>'+
+                label+'</button>'+
+              '<div class="ts-cta-note">'+note+'</div>';
     }
 
     body.innerHTML = html;
@@ -4923,16 +4987,36 @@ document.addEventListener('visibilitychange', () => {
     render();
   }
 
-  // Alert-me stub clicks (delegated within the body).
-  body.addEventListener('click', (e) => {
+  // Alert-me clicks (delegated within the body). Signed-in users follow the
+  // brand for real (the daily notify-high-tide brand-sale pass then emails
+  // them); anon users keep a local intent and get a sign-in nudge.
+  body.addEventListener('click', async (e) => {
+    const signin = e.target.closest('[data-ts-signin]');
+    if(signin){ e.preventDefault(); if(window.openAuthModal) window.openAuthModal(); return; }
     const btn = e.target.closest('[data-ts-alert]');
     if(!btn || btn.hasAttribute('data-watching')) return;
     const name = btn.getAttribute('data-ts-alert');
-    addWatch(name);
-    btn.setAttribute('data-watching','1');
-    btn.textContent = '✓ We’ll watch '+name+' for you';
     const note = btn.nextElementSibling;
-    if(note && note.classList.contains('ts-cta-note')) note.textContent = 'You’ll be the first to know.';
+    const setNote = (txt, html) => { if(note && note.classList.contains('ts-cta-note')){ if(html) note.innerHTML = txt; else note.textContent = txt; } };
+    if((typeof currentUser !== 'undefined') && currentUser){
+      btn.disabled = true;
+      let ok = false;
+      try { ok = await followBrandForAlerts(name); } catch(err) { console.warn('follow failed:', err); }
+      btn.disabled = false;
+      if(ok){
+        addWatch(name);
+        btn.setAttribute('data-watching','1');
+        btn.textContent = '✓ We’ll alert you when '+name+' next goes on sale';
+        setNote('Brand sale alerts are on.');
+      } else {
+        setNote('Couldn’t save that just now — please try again.');
+      }
+    } else {
+      addWatch(name);
+      btn.setAttribute('data-watching','1');
+      btn.textContent = '✓ We’ll watch '+name+' for you';
+      setNote('Saved on this device. <a href="#" data-ts-signin style="color:#1C2A45;text-decoration:underline">Sign in</a> to get it by email.', true);
+    }
   });
 
   // Swipe-down on the grab handle to dismiss (nice-to-have, PRD §7).

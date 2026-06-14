@@ -4776,7 +4776,9 @@ document.addEventListener('visibilitychange', () => {
   //    land on its real start/end dates, so width spans duration and peak
   //    height encodes discount depth. Live swell = stage colour, past = stone.
   function rhythmSVG(eps, deepest, stageColor){
-    const W=350, base=80, padX=14, minH=7, maxH=40, minW=10;
+    const W=350, padX=14, minW=10;
+    const GOLD='#BC8A2E';
+    const trackTop=22, trackH=36, cy=trackTop+trackH/2, trackBot=trackTop+trackH, minBH=14, maxBH=30;
     const { start, end, shown } = chartWindow(eps);
     const denom = deepest || 50;
 
@@ -4795,34 +4797,35 @@ document.addEventListener('visibilitychange', () => {
       if(x<x0) x=x0; if(x>x0+drawW) x=x0+drawW; return x;
     };
 
-    // Equal month columns: faint dividers + three week ticks per month.
+    // Tinted track band behind the blocks; faint month dividers + week ticks.
+    const track = '<rect x="'+x0+'" y="'+trackTop+'" width="'+drawW.toFixed(1)+'" height="'+trackH+'" rx="10" fill="#F1EAD9"/>';
     let grid='';
-    for(let i=0;i<=n;i++){
+    for(let i=1;i<n;i++){
       const cx = x0 + i*colW;
-      grid += '<line x1="'+cx.toFixed(1)+'" y1="16" x2="'+cx.toFixed(1)+'" y2="'+base+'" stroke="#ECE4D6" stroke-width="1"/>';
+      grid += '<line x1="'+cx.toFixed(1)+'" y1="'+trackTop+'" x2="'+cx.toFixed(1)+'" y2="'+trackBot+'" stroke="#E7DDC8" stroke-width="1"/>';
     }
     for(let i=0;i<n;i++){
       for(const day of [8,15,22]){
         const tx = x0 + (i + (day-1)/dim(months[i].y, months[i].m)) * colW;
-        grid += '<line x1="'+tx.toFixed(1)+'" y1="'+base+'" x2="'+tx.toFixed(1)+'" y2="'+(base+3)+'" stroke="#D8D0C2" stroke-width="0.8"/>';
+        grid += '<line x1="'+tx.toFixed(1)+'" y1="'+(trackBot-4)+'" x2="'+tx.toFixed(1)+'" y2="'+trackBot+'" stroke="#E0D4BB" stroke-width="0.7"/>';
       }
     }
 
-    // Month labels centred in each equal column; current month called out.
+    // Month labels centred under each equal column; current month called out.
     const curIdx = (end.getFullYear()-firstY)*12 + (end.getMonth()-firstM);
     let labels='';
     for(let i=0;i<n;i++){
       const lx = x0 + (i+0.5)*colW;
       const lbl = new Date(months[i].y, months[i].m, 1).toLocaleDateString('en-GB',{month:'short'});
       const isCur = i===curIdx;
-      labels += '<text x="'+lx.toFixed(1)+'" y="95" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" '+
+      labels += '<text x="'+lx.toFixed(1)+'" y="74" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" '+
                 'fill="'+(isCur?'#1C2A45':'#9A9CA3')+'"'+(isCur?' font-weight="600"':'')+'>'+lbl+'</text>';
     }
 
-    // Swells — vertical rise at the start, then receding to the end foot.
-    // Past sale: a breaking wave that crests at the start (deepest) and eases
-    // down to its end date. Live sale: crests and holds to today (still going).
-    const swells = shown.map(ep => {
+    // One rounded block per sale: width = duration (start→end), height = depth,
+    // centred in the track. Single gold hue — full opacity = live, faded =
+    // earlier (colour intensity is the only live signal; never a daily-depth claim).
+    const blocks = shown.map(ep => {
       const sd = new Date(ep.start+'T12:00:00');
       const ed = ep.live ? end : new Date(ep.end+'T12:00:00');
       let x1=Xd(sd), x2=Xd(ed);
@@ -4832,32 +4835,17 @@ document.addEventListener('visibilitychange', () => {
         if(x1<x0){ x1=x0; x2=x0+minW; }
         if(x2>x0+drawW){ x2=x0+drawW; x1=x0+drawW-minW; }
       }
-      let h = ep.pct!=null ? minH+(ep.pct/denom)*(maxH-minH) : minH;
-      if(h<minH)h=minH; if(h>maxH)h=maxH;
-      const col = ep.live ? stageColor : '#C9CBD0';
-      const top=base-h, w=x2-x1, X1=x1.toFixed(1), X2=x2.toFixed(1), T=top.toFixed(1);
-      let d;
-      if(ep.live){
-        // Rise at start, gently rounded crest held across to today, drop at x2.
-        const midX=((x1+x2)/2).toFixed(1);
-        d = 'M'+X1+' '+base+' L'+X1+' '+T+' Q'+midX+' '+(top-3).toFixed(1)+' '+X2+' '+T+' L'+X2+' '+base+' Z';
-      } else {
-        // Rise at start, concave decline holding high then easing to the end.
-        const c1x=(x1+w*0.55).toFixed(1), c2y=(base-h*0.16).toFixed(1);
-        d = 'M'+X1+' '+base+' L'+X1+' '+T+' C'+c1x+' '+T+' '+X2+' '+c2y+' '+X2+' '+base+' Z';
-      }
-      const foot='<circle cx="'+X1+'" cy="'+base+'" r="1.5" fill="'+col+'"/>'+
-                 '<circle cx="'+X2+'" cy="'+base+'" r="1.5" fill="'+col+'"/>';
-      return '<path d="'+d+'" fill="'+col+'"/>'+foot;
+      let bh = ep.pct!=null ? minBH+(ep.pct/denom)*(maxBH-minBH) : minBH;
+      if(bh<minBH)bh=minBH; if(bh>maxBH)bh=maxBH;
+      const w=x2-x1, rx=Math.min(5, bh/2, w/2), yTop=cy-bh/2;
+      return '<rect x="'+x1.toFixed(1)+'" y="'+yTop.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="'+rx.toFixed(1)+'" fill="'+GOLD+'" fill-opacity="'+(ep.live?'1':'0.45')+'"/>';
     }).join('');
 
     const todayX = Xd(end);
-    const marker='<line x1="'+todayX.toFixed(1)+'" y1="12" x2="'+todayX.toFixed(1)+'" y2="'+base+'" stroke="#1C2A45" stroke-width="1.4"/>'+
-                 '<circle cx="'+todayX.toFixed(1)+'" cy="12" r="2.6" fill="#1C2A45"/>';
-    return '<svg class="ts-svg" viewBox="0 0 350 100" aria-hidden="true">'+
-           grid +
-           '<line x1="0" y1="'+base+'" x2="350" y2="'+base+'" stroke="#ECE4D6" stroke-width="1.5"/>'+
-           swells + marker + labels + '</svg>';
+    const marker='<line x1="'+todayX.toFixed(1)+'" y1="14" x2="'+todayX.toFixed(1)+'" y2="'+(trackBot+2)+'" stroke="#1C2A45" stroke-width="1.3"/>'+
+                 '<text x="'+todayX.toFixed(1)+'" y="10" text-anchor="middle" font-family="Inter, sans-serif" font-size="7" font-weight="600" fill="#1C2A45">now</text>';
+    return '<svg class="ts-svg" viewBox="0 0 350 84" aria-hidden="true">'+
+           track + grid + blocks + marker + labels + '</svg>';
   }
 
   function render(){
@@ -4943,13 +4931,13 @@ document.addEventListener('visibilitychange', () => {
         const endD = e.live ? now : new Date(e.end+'T12:00:00');
         return endD < ws;                                                                 // ends before the window = hidden
       });
-      let foot = 'Each sale crests at its deepest, then recedes to its end — width is how long it ran, the crest height how deep.';
+      let foot = 'Each block is a sale — its width is how long it ran, its height how deep.';
       if(olderExist) foot += ' Older sales sit before this 6-month window.';
       if(sparse) foot += ' Only a few sales on record so far — the pattern is still forming.';
       html += '<div class="ts-rhythm"><div class="ts-seclabel">Sale rhythm</div>'+
         rhythmSVG(eps, deepest, stageColor)+
-        '<div class="ts-legend"><i><b style="background:#C9CBD0"></b>Past sales</i>'+
-          (liveEp ? '<i><b style="background:'+stageColor+'"></b>On now</i>' : '')+'</div>'+
+        '<div class="ts-legend"><i><b style="background:#BC8A2E;opacity:.45"></b>Earlier sales</i>'+
+          (liveEp ? '<i><b style="background:#BC8A2E"></b>On now</i>' : '')+'</div>'+
         '<div class="ts-rhythm-foot">'+foot+'</div></div>';
     }
 

@@ -4819,7 +4819,9 @@ document.addEventListener('visibilitychange', () => {
                 'fill="'+(isCur?'#1C2A45':'#9A9CA3')+'"'+(isCur?' font-weight="600"':'')+'>'+lbl+'</text>';
     }
 
-    // Swells — feet on the real start/end dates.
+    // Swells — vertical rise at the start, then receding to the end foot.
+    // Past sale: a breaking wave that crests at the start (deepest) and eases
+    // down to its end date. Live sale: crests and holds to today (still going).
     const swells = shown.map(ep => {
       const sd = new Date(ep.start+'T12:00:00');
       const ed = ep.live ? end : new Date(ep.end+'T12:00:00');
@@ -4833,10 +4835,20 @@ document.addEventListener('visibilitychange', () => {
       let h = ep.pct!=null ? minH+(ep.pct/denom)*(maxH-minH) : minH;
       if(h<minH)h=minH; if(h>maxH)h=maxH;
       const col = ep.live ? stageColor : '#C9CBD0';
-      const midX=(x1+x2)/2, ctrlY=base-2*h;
-      const foot='<circle cx="'+x1.toFixed(1)+'" cy="'+base+'" r="1.5" fill="'+col+'"/>'+
-                 '<circle cx="'+x2.toFixed(1)+'" cy="'+base+'" r="1.5" fill="'+col+'"/>';
-      return '<path d="M'+x1.toFixed(1)+' '+base+' Q'+midX.toFixed(1)+' '+ctrlY.toFixed(1)+' '+x2.toFixed(1)+' '+base+' Z" fill="'+col+'"/>'+foot;
+      const top=base-h, w=x2-x1, X1=x1.toFixed(1), X2=x2.toFixed(1), T=top.toFixed(1);
+      let d;
+      if(ep.live){
+        // Rise at start, gently rounded crest held across to today, drop at x2.
+        const midX=((x1+x2)/2).toFixed(1);
+        d = 'M'+X1+' '+base+' L'+X1+' '+T+' Q'+midX+' '+(top-3).toFixed(1)+' '+X2+' '+T+' L'+X2+' '+base+' Z';
+      } else {
+        // Rise at start, concave decline holding high then easing to the end.
+        const c1x=(x1+w*0.55).toFixed(1), c2y=(base-h*0.16).toFixed(1);
+        d = 'M'+X1+' '+base+' L'+X1+' '+T+' C'+c1x+' '+T+' '+X2+' '+c2y+' '+X2+' '+base+' Z';
+      }
+      const foot='<circle cx="'+X1+'" cy="'+base+'" r="1.5" fill="'+col+'"/>'+
+                 '<circle cx="'+X2+'" cy="'+base+'" r="1.5" fill="'+col+'"/>';
+      return '<path d="'+d+'" fill="'+col+'"/>'+foot;
     }).join('');
 
     const todayX = Xd(end);
@@ -4931,7 +4943,7 @@ document.addEventListener('visibilitychange', () => {
         const endD = e.live ? now : new Date(e.end+'T12:00:00');
         return endD < ws;                                                                 // ends before the window = hidden
       });
-      let foot = 'Each swell is a past sale — its width is how long it ran, its height how deep.';
+      let foot = 'Each sale crests at its deepest, then recedes to its end — width is how long it ran, the crest height how deep.';
       if(olderExist) foot += ' Older sales sit before this 6-month window.';
       if(sparse) foot += ' Only a few sales on record so far — the pattern is still forming.';
       html += '<div class="ts-rhythm"><div class="ts-seclabel">Sale rhythm</div>'+

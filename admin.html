@@ -839,9 +839,14 @@ function renderConfirmedNote(review, cycle) {
     deleted:         'Cycle deleted',
   }[review.action] || review.action;
   const time = new Date(review.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Every confirmed shop gets an Edit affordance. With a live cycle, Edit opens
+  // the cycle editor (start date / % / type / delete). Without one (confirmed
+  // "No sale" or "Sale ended"), there's no cycle to edit — the meaningful edit
+  // is to start one, so Edit opens the start-sale form via the confirm_start
+  // path (handleAction already routes that to openStartForm).
   const editBtn = cycle
     ? '<button class="action-btn ghost" data-action="edit_cycle" style="width:auto;padding:5px 12px;margin:0;font-size:11px;">Edit</button>'
-    : '';
+    : '<button class="action-btn ghost" data-action="confirm_start" style="width:auto;padding:5px 12px;margin:0;font-size:11px;">Edit</button>';
   return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--stone);">'
     + '<span>' + esc(pretty) + ' · ' + esc(time) + '</span>'
     + editBtn

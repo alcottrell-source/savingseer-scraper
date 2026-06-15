@@ -3657,7 +3657,19 @@ function buildAllCentresAvgHistory() {
 // is the real all-centres daily average (buildAllCentresAvgHistory); only the
 // lead-in before our earliest real day is synthetic seasonal backfill.
 function renderTide60Light() {
-  const series = buildTide60Series(buildAllCentresAvgHistory());
+  // Anchor today's point to the LIVE all-centres average (same source as each
+  // centre card's headline), not the stored server tide_score. The stored
+  // history lags live brand data between scoring runs, so without this the
+  // landing curve dips into "today" off stale numbers while the individual
+  // cards — which read live data — show sales are up. Mirrors the per-centre
+  // fix in renderTideVessel.
+  let liveSum = 0, liveCount = 0;
+  for (let idx = 0; idx < CENTRE_NAMES.length; idx++) {
+    const c = calcCentreScore(idx);
+    if (c.total > 0) { liveSum += c.score; liveCount++; }
+  }
+  const liveTodayAvg = liveCount ? liveSum / liveCount : undefined;
+  const series = buildTide60Series(buildAllCentresAvgHistory(), liveTodayAvg);
   const n = series.length;
   const W = 480, H = 110, PL = 8, PR = 18, PT = 4, PB = 22;
   const k = 2;

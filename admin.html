@@ -1088,8 +1088,23 @@ function openEditForm(card, brandId, def) {
 // Each action does (1) the cycle/event mutation, then (2) the review log row.
 // Fire-and-forget the public-site rescore so the score / vessel / chart on
 // tidego.co reflects the admin edit within a couple of seconds — no waiting
-// for the 08:00 UTC cron. Carry-forward in score.js means only the centres
+// for the 10:00 UTC cron. Carry-forward in score.js means only the centres
 // containing this brand actually recompute; everything else mirrors yesterday.
+//
+// It's still fire-and-forget (the row's success toast/render shouldn't wait on
+// the public rescore), but a FAILURE is no longer silent: a failed rescore
+// used to leave the admin with a success toast while the public store quietly
+// went stale until the next daily cron. Now the failure raises a persistent
+// banner so the admin knows the public site is lagging and why. The banner
+// auto-clears the next time a rescore succeeds.
+let rescoreWarnActive = false;
+function clearRescoreWarn() {
+  if (rescoreWarnActive) { showStatus(''); rescoreWarnActive = false; }
+}
+function showRescoreWarn(msg) {
+  rescoreWarnActive = true;
+  showStatus(msg, true);
+}
 function triggerRescore() {
   fetch('/api/rescore', {
     method: 'POST',
@@ -1099,8 +1114,28 @@ function triggerRescore() {
     },
     body: '{}',
   }).then(async r => {
-    if (!r.ok) console.warn('Rescore returned HTTP', r.status, await r.text().catch(() => ''));
-  }).catch(err => console.warn('Rescore call failed:', err));
+    if (r.ok) { clearRescoreWarn(); return; }
+    let detail = '';
+    try { const j = await r.json(); detail = (j && j.error) ? j.error : ''; }
+    catch { try { detail = await r.text(); } catch { /* ignore */ } }
+    console.warn('Rescore returned HTTP', r.status, detail);
+    // Tailor the message to the failure so the admin knows whether it's a
+    // session problem they can fix now, a partial (chart-only) staleness, or a
+    // full lag until the daily cron self-heals it.
+    let msg;
+    if (r.status === 401 || r.status === 403) {
+      msg = '⚠ Edit saved, but the public-site rescore was rejected — your admin session may have expired. The public scores will stay stale until the 10:00 UTC daily run. Sign out and back in, then re-save to push now.';
+    } else if (r.status === 502) {
+      msg = '⚠ Edit saved and scores updated, but the 60-day chart history did not refresh — the chart may be stale until the 10:00 UTC daily run.';
+    } else {
+      msg = '⚠ Edit saved, but the public-site rescore failed (HTTP ' + r.status + '). The public scores will stay stale until the 10:00 UTC daily run.'
+          + (detail ? ' Details: ' + detail : '');
+    }
+    showRescoreWarn(msg);
+  }).catch(err => {
+    console.warn('Rescore call failed:', err);
+    showRescoreWarn('⚠ Edit saved, but the public-site rescore could not be reached (network error). The public scores will stay stale until the 10:00 UTC daily run.');
+  });
 }
 
 async function applyAction(brandId, action, opts) {

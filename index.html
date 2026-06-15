@@ -3234,7 +3234,15 @@ function renderTideVessel(pctOnSale, stage, statement, trajectory, onSaleCount, 
   // Build the 60-day series once. Both the curve and the trend pill arrow
   // derive their direction from it, so the visual slope and the arrow can
   // never disagree.
-  const series60 = buildTide60Series(Array.isArray(history) ? history : []);
+  // Anchor the chart's "today" point to the SAME live value the headline
+  // shows (pctOnSale = onSale / total, read straight from brand_sale_events),
+  // not the server's tide_history. tide_history only refreshes when the daily
+  // cron or an admin rescore runs, so when live sales jump ahead of it the
+  // headline read PEAK while the curve still sat at yesterday's stale, low
+  // level — the line hovered under QUIET while the badge said "go now". Passing
+  // the live value in makes the line always terminate at exactly what the card
+  // claims, so chart and verdict can never disagree on today.
+  const series60 = buildTide60Series(Array.isArray(history) ? history : [], pctOnSale);
   const n60 = series60.length;
   const lastSlope = n60 >= 2 ? (series60[n60 - 1].score - series60[n60 - 2].score) : 0;
   const FLAT_BAND = 0.6;
@@ -3478,7 +3486,7 @@ function syntheticSeasonalScore(date) {
 // portion by the median (real - synthetic) offset (capped at ±15) so the
 // historical curve sits at the centre's actual recent baseline rather
 // than the national-average synthetic baseline — keeps the seam invisible.
-function buildTide60Series(realHistory) {
+function buildTide60Series(realHistory, todayScore) {
   const today = new Date();
   const todayMid = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
   const realByDate = {};
@@ -3497,6 +3505,17 @@ function buildTide60Series(realHistory) {
     } else {
       series.push({ date: ymd, score: synth, synth, real: false });
     }
+  }
+  // Override today's point with the live headline value when supplied. The
+  // server's tide_history lags live brand data between scoring runs, so the
+  // last real entry can be stale (or absent) — anchoring today to the value
+  // the card actually shows keeps the curve's endpoint and the verdict in
+  // lockstep. Treated as a real anchor so the rescale/gap-fill below builds
+  // around it.
+  if (Number.isFinite(+todayScore)) {
+    const last = series[series.length - 1];
+    last.score = +todayScore;
+    last.real = true;
   }
   // Synthetic seasonal values are ONLY for the lead-in before we have any
   // real data for this centre. The national retail calendar must never leak

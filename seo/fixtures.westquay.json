@@ -27,6 +27,17 @@
   ],
   "cycles": [
     { "brand_id": "B011", "start_date": "2026-05-28", "end_date": null, "max_discount_pct": 50, "sale_type": "percent_off" },
-    { "brand_id": "B012", "start_date": "2026-05-31", "end_date": null, "max_discount_pct": 30, "sale_type": "percent_off" }
+    { "brand_id": "B012", "start_date": "2026-05-31", "end_date": null, "max_discount_pct": 30, "sale_type": "percent_off" },
+    { "brand_id": "B001", "start_date": "2026-01-02", "end_date": "2026-01-22", "max_discount_pct": 60, "sale_type": "percent_off" },
+    { "brand_id": "B001", "start_date": "2025-12-26", "end_date": "2026-01-05", "max_discount_pct": 50, "sale_type": "percent_off" },
+    { "brand_id": "B001", "start_date": "2025-07-01", "end_date": "2025-07-21", "max_discount_pct": 50, "sale_type": "percent_off" },
+    { "brand_id": "B002", "start_date": "2025-12-26", "end_date": "2026-01-08", "max_discount_pct": 40, "sale_type": "percent_off" },
+    { "brand_id": "B002", "start_date": "2025-07-01", "end_date": "2025-07-18", "max_discount_pct": 30, "sale_type": "percent_off" },
+    { "brand_id": "B004", "start_date": "2026-04-10", "end_date": "2026-04-25", "max_discount_pct": 50, "sale_type": "percent_off" },
+    { "brand_id": "B004", "start_date": "2025-11-20", "end_date": "2025-12-02", "max_discount_pct": 40, "sale_type": "percent_off" },
+    { "brand_id": "B011", "start_date": "2025-12-26", "end_date": "2026-01-15", "max_discount_pct": 50, "sale_type": "percent_off" },
+    { "brand_id": "B011", "start_date": "2025-06-20", "end_date": "2025-07-10", "max_discount_pct": 40, "sale_type": "percent_off" },
+    { "brand_id": "B012", "start_date": "2026-02-01", "end_date": "2026-02-14", "max_discount_pct": 30, "sale_type": "percent_off" },
+    { "brand_id": "B019", "start_date": "2026-03-01", "end_date": "2026-03-10", "max_discount_pct": 25, "sale_type": "percent_off" }
   ]
 }

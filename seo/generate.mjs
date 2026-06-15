@@ -74,8 +74,11 @@ async function loadCentreData(sb, centreRow) {
       .select('id,name,cluster,sale_url').in('id', brandIds));
     ({ data: saleRows } = await sb.from('brand_sale_events')
       .select('brand_id,last_verified_status,last_verified_date,active_cycle_id').in('brand_id', brandIds));
+    // ALL cycles (not just the open one): closed cycles ARE the past-sale history
+    // the brand pages render. The open cycle (end_date null) is the live episode.
     ({ data: cycleRows } = await sb.from('brand_sale_cycles')
-      .select('brand_id,start_date,end_date,max_discount_pct,sale_type').in('brand_id', brandIds).is('end_date', null));
+      .select('brand_id,start_date,end_date,max_discount_pct,sale_type').in('brand_id', brandIds)
+      .order('start_date', { ascending: false }));
   }
 
   return {
@@ -107,7 +110,9 @@ async function loadAllFromSupabase() {
 // ── Shaping ─────────────────────────────────────────────────────────────────
 function shape(raw, today) {
   const saleByBrand = Object.fromEntries((raw.sales || []).map(s => [s.brand_id, s]));
-  const cycleByBrand = Object.fromEntries((raw.cycles || []).map(c => [c.brand_id, c]));
+  // All cycles per brand (newest-first); the open one (no end_date) is the live sale.
+  const cyclesByBrand = {};
+  for (const c of (raw.cycles || [])) (cyclesByBrand[c.brand_id] ||= []).push(c);
 
   const usedSlugs = new Set();
   const brands = (raw.brands || []).map(b => {
@@ -115,10 +120,12 @@ function shape(raw, today) {
     while (usedSlugs.has(slug)) slug = `${slugify(b.name)}-${n++}`;
     usedSlugs.add(slug);
     const sale = saleByBrand[b.id] || null;
-    const cycle = cycleByBrand[b.id] || null;
+    const cyclesRaw = cyclesByBrand[b.id] || [];
+    const open = cyclesRaw.find(c => !c.end_date) || null;
     return {
       id: b.id, name: b.name, slug, cluster: b.cluster, saleUrl: b.sale_url,
-      sale, cycle: cycle ? { startDate: cycle.start_date, maxDiscountPct: cycle.max_discount_pct, saleType: cycle.sale_type } : null,
+      sale, cycle: open ? { startDate: open.start_date, maxDiscountPct: open.max_discount_pct, saleType: open.sale_type } : null,
+      cyclesRaw,
       onSale: isOnSale(sale),
     };
   }).sort((a, b) => a.name.localeCompare(b.name));

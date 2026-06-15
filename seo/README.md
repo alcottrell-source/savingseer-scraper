@@ -32,6 +32,10 @@ segmented (centre + brand) audience member.
   only — never the scraper's raw `sale_status`. (Mirrors `score.js` + `index.html`.)
 - **Browser writes use raw PostgREST**, not supabase-js (which hangs in the browser).
 - **No data, no page.** A centre with no current Tide Score is skipped entirely.
+- **No pages, no deploy.** If the data load fails or 0 pages are produced, the build
+  **fails** (non-zero exit) so Vercel keeps the last good deploy live — shipping an
+  empty `sitemap.xml` would 404 every already-indexed `/centre/` page at once. Set
+  `SEO_ALLOW_EMPTY=1` to override (intentional teardown / genuinely empty site).
 
 ## Local preview (no DB needed)
 ```

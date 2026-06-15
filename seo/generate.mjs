@@ -22,6 +22,12 @@ import { nextSaleWindow } from './next-sale-window.mjs';
 
 const ORIGIN = process.env.SEO_ORIGIN || 'https://tidego.co';
 
+// By default a build that can't produce any SEO pages FAILS (non-zero exit) so
+// Vercel keeps the last good deploy live instead of shipping an empty site that
+// 404s every already-indexed /centre/ page. Set SEO_ALLOW_EMPTY=1 to opt back
+// into the old "ship anyway" behaviour (e.g. an intentional teardown).
+const ALLOW_EMPTY = /^(1|true|yes)$/i.test(process.env.SEO_ALLOW_EMPTY || '');
+
 // Public Supabase read credentials — the same anon key the live dashboard ships
 // to browsers. The SEO generator only reads anon-readable reference data, so it
 // can build with these and needs NO private key / Vercel config. Env vars
@@ -68,8 +74,11 @@ async function loadCentreData(sb, centreRow) {
       .select('id,name,cluster,sale_url').in('id', brandIds));
     ({ data: saleRows } = await sb.from('brand_sale_events')
       .select('brand_id,last_verified_status,last_verified_date,active_cycle_id').in('brand_id', brandIds));
+    // ALL cycles (not just the open one): closed cycles ARE the past-sale history
+    // the brand pages render. The open cycle (end_date null) is the live episode.
     ({ data: cycleRows } = await sb.from('brand_sale_cycles')
-      .select('brand_id,start_date,end_date,max_discount_pct,sale_type').in('brand_id', brandIds).is('end_date', null));
+      .select('brand_id,start_date,end_date,max_discount_pct,sale_type').in('brand_id', brandIds)
+      .order('start_date', { ascending: false }));
   }
 
   return {
@@ -101,7 +110,9 @@ async function loadAllFromSupabase() {
 // ── Shaping ─────────────────────────────────────────────────────────────────
 function shape(raw, today) {
   const saleByBrand = Object.fromEntries((raw.sales || []).map(s => [s.brand_id, s]));
-  const cycleByBrand = Object.fromEntries((raw.cycles || []).map(c => [c.brand_id, c]));
+  // All cycles per brand (newest-first); the open one (no end_date) is the live sale.
+  const cyclesByBrand = {};
+  for (const c of (raw.cycles || [])) (cyclesByBrand[c.brand_id] ||= []).push(c);
 
   const usedSlugs = new Set();
   const brands = (raw.brands || []).map(b => {
@@ -109,10 +120,12 @@ function shape(raw, today) {
     while (usedSlugs.has(slug)) slug = `${slugify(b.name)}-${n++}`;
     usedSlugs.add(slug);
     const sale = saleByBrand[b.id] || null;
-    const cycle = cycleByBrand[b.id] || null;
+    const cyclesRaw = cyclesByBrand[b.id] || [];
+    const open = cyclesRaw.find(c => !c.end_date) || null;
     return {
       id: b.id, name: b.name, slug, cluster: b.cluster, saleUrl: b.sale_url,
-      sale, cycle: cycle ? { startDate: cycle.start_date, maxDiscountPct: cycle.max_discount_pct, saleType: cycle.sale_type } : null,
+      sale, cycle: open ? { startDate: open.start_date, maxDiscountPct: open.max_discount_pct, saleType: open.sale_type } : null,
+      cyclesRaw,
       onSale: isOnSale(sale),
     };
   }).sort((a, b) => a.name.localeCompare(b.name));
@@ -133,18 +146,25 @@ async function main() {
   // today is passed explicitly into pure helpers (no hidden Date.now in them).
   const today = new Date();
 
-  // The SEO generator must NEVER break the main site's deploy. If the data
-  // source can't be reached (missing build-time env vars, transient DB error,
-  // etc.), warn loudly and skip page generation with a success exit code so
-  // the rest of the static site still ships.
+  // If the data source can't be reached (missing build-time env vars, transient
+  // DB error, etc.) we must NOT ship an empty site: doing so blanks the sitemap
+  // and 404s every already-indexed /centre/ page at once. Fail the build instead
+  // so Vercel keeps the last good deploy serving. SEO_ALLOW_EMPTY=1 restores the
+  // old "warn and ship anyway" behaviour.
   let rawList;
   try {
     rawList = fixtures ? [await loadFromFixtures(fixtures)] : await loadAllFromSupabase();
   } catch (e) {
-    console.error(`[seo] WARNING: could not load data (${e.message}).`);
-    console.error('[seo] Skipping SEO page generation — the rest of the site will still deploy.');
-    console.error('[seo] If you expected pages, check SUPABASE_URL / SUPABASE_SERVICE_KEY are available to the BUILD step in Vercel.');
-    process.exit(0);
+    console.error(`[seo] ERROR: could not load data (${e.message}).`);
+    console.error('[seo] Check SUPABASE_URL / SUPABASE_ANON_KEY are available to the BUILD step in Vercel.');
+    if (ALLOW_EMPTY) {
+      console.error('[seo] SEO_ALLOW_EMPTY set — shipping the site WITHOUT SEO pages (exit 0).');
+      process.exit(0);
+    }
+    console.error('[seo] FAILING THE BUILD so Vercel keeps the last good deploy live and the');
+    console.error('[seo] already-indexed /centre/ pages do NOT all start returning 404.');
+    console.error('[seo] (Set SEO_ALLOW_EMPTY=1 to ship without SEO pages anyway.)');
+    process.exit(1);
   }
 
   const supabase = { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY };
@@ -184,6 +204,18 @@ async function main() {
     console.log(`[seo] ${centre.slug}: ${1 + brands.length} pages (Tide Score ${centre.tideScore}, ${centre.verdict}).`);
   }
 
+  // Guard: 0 pages means the data load succeeded but every centre was skipped
+  // (no score / no present brands), or RLS silently returned nothing. Writing
+  // the empty sitemap now would de-index every live /centre/ page, so fail the
+  // build and keep the last good deploy — unless SEO_ALLOW_EMPTY says otherwise.
+  if (!urls.length && !ALLOW_EMPTY) {
+    console.error('[seo] ERROR: 0 pages generated — every centre was skipped or returned no data.');
+    console.error('[seo] Refusing to overwrite sitemap.xml with an empty one and de-index every');
+    console.error('[seo] live /centre/ page. FAILING THE BUILD so the last good deploy stays up.');
+    console.error('[seo] (Set SEO_ALLOW_EMPTY=1 if a genuinely empty site is intended.)');
+    process.exit(1);
+  }
+
   // Sitemap (every generated page, across all centres). Ensure outDir exists
   // even if every centre was skipped, so the sitemap write never ENOENTs.
   await mkdir(outDir, { recursive: true });
@@ -198,9 +230,14 @@ async function main() {
 }
 
 main().catch(e => {
-  // Last-resort guard: never fail the whole site deploy because of the SEO
-  // add-on. Log loudly (visible in Vercel build logs) and exit success.
-  console.error('[seo] WARNING: SEO generation failed unexpectedly:', e.message);
-  console.error('[seo] Skipping SEO pages — the rest of the site will still deploy.');
-  process.exit(0);
+  // An unexpected crash mid-build can leave a partial/inconsistent page set, so
+  // fail the build (Vercel keeps the last good deploy) rather than silently
+  // shipping it. SEO_ALLOW_EMPTY=1 restores the old "ship anyway" behaviour.
+  console.error('[seo] ERROR: SEO generation failed unexpectedly:', e.message);
+  if (ALLOW_EMPTY) {
+    console.error('[seo] SEO_ALLOW_EMPTY set — exiting 0 so the rest of the site still deploys.');
+    process.exit(0);
+  }
+  console.error('[seo] Failing the build so Vercel keeps the last good deploy (avoids mass 404s).');
+  process.exit(1);
 });

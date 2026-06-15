@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
+# Googlebot fabricates these from inline fetch() strings like
+# SUPABASE_URL + '/rest/v1/...' and crawls them as same-origin paths. Nothing
+# real lives under /rest/ on this host (the real calls go to *.supabase.co), so
+# disallow them to keep phantom 404s out of Search Console.
+Disallow: /rest/
 
 Sitemap: https://tidego.co/sitemap.xml

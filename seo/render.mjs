@@ -31,6 +31,52 @@ export function isOnSale(sale) {
   return false;
 }
 
+// ── Sale-episode history (descriptive only — no predictions) ────────────────
+// Mirrors index.html's BRAND_CYCLES + detail-sheet aggregates so the SEO pages
+// and the live app tell the same story. Pure: `today` is passed in.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const dayMs = (s) => new Date(s + 'T12:00:00Z').getTime();
+export function fmtDate(s) { if (!s) return ''; const [y, m, d] = String(s).split('-').map(Number); return `${d} ${MONTHS[m - 1]} ${y}`; }
+export function fmtMonth(s) { if (!s) return ''; const [y, m] = String(s).split('-').map(Number); return `${MONTHS[m - 1]} ${y}`; }
+
+// Raw brand_sale_cycles rows -> sale episodes, newest-first. A row with no
+// end_date is the live episode; its length runs to `today`.
+export function buildEpisodes(rawCycles, today) {
+  const todayStr = (today instanceof Date ? today : new Date(today)).toISOString().slice(0, 10);
+  const todayMs = dayMs(todayStr);
+  const eps = (rawCycles || []).map(row => {
+    const live = !row.end_date;
+    const endRef = live ? todayMs : dayMs(row.end_date);
+    const lengthDays = Math.max(1, Math.round((endRef - dayMs(row.start_date)) / 86400000) + 1);
+    return {
+      start: row.start_date, end: row.end_date || null,
+      pct: Number.isFinite(row.max_discount_pct) ? row.max_discount_pct : null,
+      saleType: row.sale_type || 'percent_off', live, lengthDays,
+    };
+  });
+  eps.sort((a, b) => (a.start < b.start ? 1 : a.start > b.start ? -1 : 0));
+  return eps;
+}
+
+// Historical aggregates (all-time, like the detail sheet): avg length excludes
+// the live episode; deepest/typical ignore null discounts.
+export function episodeStats(episodes) {
+  const onRecord = episodes.length;
+  const completed = episodes.filter(e => !e.live);
+  const avgLength = completed.length
+    ? Math.round(completed.reduce((a, e) => a + e.lengthDays, 0) / completed.length) : null;
+  const pcts = episodes.map(e => e.pct).filter(p => p != null);
+  const deepest = pcts.length ? Math.max(...pcts) : null;
+  return {
+    onRecord, completedCount: completed.length, avgLength, deepest,
+    liveEp: episodes.find(e => e.live) || null,
+    lastCompleted: completed[0] || null,           // newest-first
+    oldestStart: onRecord ? episodes[episodes.length - 1].start : null,
+  };
+}
+
+function saleTypeLabel(t) { return t === 'percent_off' ? 'Sale on' : (t ? String(t).replace(/_/g, ' ') : 'Sale on'); }
+
 // Short centre-context phrase for the supporting line on a brand page.
 export function centreContext(verdict) {
   switch (verdict) {
@@ -223,8 +269,13 @@ export function renderBrandPage(d) {
   const onSale = isOnSale(sale);
   const ans = brandAnswer(onSale, cycle, brand.name, centre.name);
   const ctx = centreContext(centre.verdict);
+  const episodes = buildEpisodes(brand.cyclesRaw, today);
+  const stats = episodeStats(episodes);
   const title = `When does ${brand.name} go on sale at ${centre.name}? | Tide`;
-  const desc = `Live sale status for ${brand.name} at ${centre.name}: today's Tide Score, whether ${brand.name} is on sale now, and the next likely sale window.`;
+  const histBit = stats.onRecord
+    ? ` Tide has tracked ${stats.onRecord} ${brand.name} sale${stats.onRecord === 1 ? '' : 's'} since ${fmtMonth(stats.oldestStart)}${stats.deepest != null ? `, up to ${stats.deepest}% off` : ''}.`
+    : '';
+  const desc = `Is ${brand.name} on sale at ${centre.name} right now? Live status, past sale history, and the next likely UK sale window.${histBit}`.slice(0, 320);
   const canonical = `${origin}/centre/${centre.slug}/${brand.slug}`;
   const winSentence = nextSaleWindowSentence(today, centre.name);
 
@@ -243,6 +294,12 @@ export function renderBrandPage(d) {
     { q: `What time should I go to ${centre.name} to avoid crowds?`,
       a: `${centre.name} is generally quietest on weekday mornings shortly after opening${hours ? ' (' + escapeHtml(hours) + ')' : ''}.` },
   ];
+  if (stats.onRecord) {
+    faq.splice(1, 0, {
+      q: `How often does ${brand.name} go on sale at ${centre.name}?`,
+      a: `Tide has tracked ${stats.onRecord} ${brand.name} sale${stats.onRecord === 1 ? '' : 's'} since ${fmtMonth(stats.oldestStart)}${stats.avgLength != null ? `, typically lasting about ${stats.avgLength} days` : ''}${stats.deepest != null ? `, with discounts up to ${stats.deepest}% off` : ''}.`,
+    });
+  }
   const faqLd = {
     '@context': 'https://schema.org', '@type': 'FAQPage',
     mainEntity: faq.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
@@ -259,12 +316,38 @@ export function renderBrandPage(d) {
   const sibLinks = siblings.slice(0, 12)
     .map(s => `<li><a href="${origin}/centre/${centre.slug}/${s.slug}">${escapeHtml(s.name)}${s.onSale ? ' • on sale' : ''}</a></li>`).join('');
 
+  // Last completed sale, surfaced on the answer card when the brand is off-sale —
+  // the single most useful unique fact for a "not on sale today" page.
+  const lastSaleLine = (!onSale && stats.lastCompleted)
+    ? `<div class="muted" style="margin-top:8px">Last sale ended ${escapeHtml(fmtDate(stats.lastCompleted.end))}${stats.lastCompleted.pct != null ? `, up to ${stats.lastCompleted.pct}% off` : ''}.</div>`
+    : '';
+
+  // Sale-history section — descriptive past episodes (no predictions).
+  const SHOWN = 8;
+  const histRows = episodes.slice(0, SHOWN).map(e => {
+    const period = e.live
+      ? `${escapeHtml(fmtDate(e.start))} – <span class="tag">live now</span>`
+      : `${escapeHtml(fmtDate(e.start))} – ${escapeHtml(fmtDate(e.end))}`;
+    const disc = e.pct != null ? `Up to ${e.pct}% off` : escapeHtml(saleTypeLabel(e.saleType));
+    return `<tr><td>${period}</td><td>${disc}</td><td>${e.lengthDays} day${e.lengthDays === 1 ? '' : 's'}</td></tr>`;
+  }).join('');
+  const moreNote = stats.onRecord > SHOWN
+    ? `<p class="muted">Showing the ${SHOWN} most recent. ${stats.onRecord - SHOWN} earlier sale${stats.onRecord - SHOWN === 1 ? '' : 's'} also on record.</p>` : '';
+  const histIntro = `Tide has tracked <strong>${stats.onRecord}</strong> ${escapeHtml(brand.name)} sale${stats.onRecord === 1 ? '' : 's'} since ${escapeHtml(fmtMonth(stats.oldestStart))}.${stats.avgLength != null ? ` They've typically run for about ${stats.avgLength} days.` : ''}${stats.deepest != null ? ` The deepest discount we've recorded was up to ${stats.deepest}% off.` : ''}`;
+  const historySection = stats.onRecord ? `
+<h2>${escapeHtml(brand.name)} sale history</h2>
+<p>${histIntro}</p>
+<table><thead><tr><th>Sale period</th><th>Discount</th><th>Length</th></tr></thead><tbody>${histRows}</tbody></table>
+${moreNote}
+<p class="muted">Based on Tide's tracked, admin-verified sale episodes — descriptive history only, not a forecast of future sales.</p>` : '';
+
   return HEAD(title, desc, canonical) + configScript(supabase) + `
 <div class="crumbs"><a href="${origin}/">Tide</a> › <a href="${origin}/centre/${centre.slug}">${escapeHtml(centre.name)}</a> › ${escapeHtml(brand.name)}</div>
 <h1>When does ${escapeHtml(brand.name)} go on sale at ${escapeHtml(centre.name)}?</h1>
 <div class="answer">
   <div class="verdict ${ans.tone === 'go' ? 'go' : ''}">${escapeHtml(ans.headline)}</div>
   <div>${escapeHtml(ans.sub)}</div>
+  ${lastSaleLine}
   <div class="score" style="margin-top:14px"><b>${escapeHtml(String(centre.tideScore))}</b><span>/100 — ${escapeHtml(centre.name)}'s Tide Score today, ${escapeHtml(ctx)}</span></div>
   ${winSentence ? `<div class="win">${escapeHtml(winSentence)}</div>` : ''}
 </div>
@@ -272,6 +355,7 @@ export function renderBrandPage(d) {
 <h2>${escapeHtml(brand.name)} sales at ${escapeHtml(centre.name)}</h2>
 <table><thead><tr><th>Brand</th><th>Status</th><th>Offer</th><th>Started</th></tr></thead><tbody>${saleRow}</tbody></table>
 ${brand.saleUrl ? `<p class="muted">Official ${escapeHtml(brand.name)} sale page: <a href="${escapeHtml(brand.saleUrl)}" rel="nofollow noopener" target="_blank">${escapeHtml(brand.name)}</a></p>` : ''}
+${historySection}
 
 ${optInBlock(`${brand.name} at ${centre.name}`, { centre: centre.slug, brand: brand.slug, label: brand.name })}
 
@@ -297,9 +381,11 @@ export function renderCentreHub(d) {
   const winSentence = nextSaleWindowSentence(today, centre.name);
   const onSaleBrands = brands.filter(b => b.onSale);
 
-  const rows = brands.map(b =>
-    `<tr><td><a href="${origin}/centre/${centre.slug}/${b.slug}">${escapeHtml(b.name)}</a></td><td>${b.onSale ? '<span class="tag">On sale</span>' : '<span class="tag off">—</span>'}</td></tr>`
-  ).join('');
+  const rows = brands.map(b => {
+    const onRecord = (b.cyclesRaw || []).length;
+    const recCell = onRecord ? `${onRecord} sale${onRecord === 1 ? '' : 's'}` : '<span class="muted">—</span>';
+    return `<tr><td><a href="${origin}/centre/${centre.slug}/${b.slug}">${escapeHtml(b.name)}</a></td><td>${b.onSale ? '<span class="tag">On sale</span>' : '<span class="tag off">—</span>'}</td><td>${recCell}</td></tr>`;
+  }).join('');
 
   return HEAD(title, desc, canonical) + configScript(supabase) + `
 <div class="crumbs"><a href="${origin}/">Tide</a> › ${escapeHtml(centre.name)}</div>
@@ -314,7 +400,7 @@ export function renderCentreHub(d) {
 ${optInBlock(centre.name, { centre: centre.slug, brand: null, label: centre.name })}
 
 <h2>Shops tracked at ${escapeHtml(centre.name)}</h2>
-<table><thead><tr><th>Shop</th><th>Today</th></tr></thead><tbody>${rows}</tbody></table>
+<table><thead><tr><th>Shop</th><th>Today</th><th>Sales on record</th></tr></thead><tbody>${rows}</tbody></table>
 ${hours ? `<p class="muted">Opening hours: ${escapeHtml(hours)}.</p>` : ''}
 ` + FOOT(origin);
 }

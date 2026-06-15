@@ -203,6 +203,17 @@ async function calculateAllCentreScores(opts = {}) {
   const filterCentreIds = Array.isArray(opts.filterCentreIds) && opts.filterCentreIds.length
     ? new Set(opts.filterCentreIds)
     : null;
+  // forceFresh: recompute every centre from live brand state, ignoring the
+  // carry-forward "no admin activity today → freeze yesterday" shortcut. The
+  // daily cron sets this so the stored score self-heals: a sale confirmed after
+  // the cron (or an intraday rescore that silently failed) would otherwise stay
+  // frozen forever, because the carry-forward gate keys off last_verified_date
+  // == TODAY while "on sale" is also true via an active_cycle_id opened on a
+  // prior day. A fresh compute reads the same persistent on-sale state, so it
+  // matches carry-forward when nothing changed and corrects it when it has.
+  // The intraday rescore leaves this off to stay cheap and to preserve
+  // narratives on untouched centres.
+  const forceFresh = !!opts.forceFresh;
 
   console.log('═══════════════════════════════════════════════');
   console.log(`  Tide Scorer — ${TODAY}${filterCentreIds ? ` (centres: ${[...filterCentreIds].join(', ')})` : ''}`);
@@ -280,7 +291,7 @@ async function calculateAllCentreScores(opts = {}) {
       const sale = brandSaleMap.get(bid);
       return sale && sale.last_verified_date === TODAY;
     });
-    if (!adminTouchedToday) {
+    if (!adminTouchedToday && !forceFresh) {
       const ystrdy = yesterdayRowMap.get(centre.id);
       if (ystrdy) {
         // Freeze yesterday's numbers but still run the state machine forward
@@ -614,7 +625,11 @@ const isCli = (() => {
   } catch { return false; }
 })();
 if (isCli) {
-  runScoring().catch(err => {
+  // The daily cron forces a fresh recompute of every centre so the stored
+  // score self-heals from any drift (a sale confirmed after the previous cron,
+  // or a silently-failed intraday rescore). The summariser runs right after in
+  // the same workflow, repopulating the narratives this nulls.
+  runScoring({ forceFresh: true }).catch(err => {
     console.error('❌ Scorer failed:', err);
     process.exit(1);
   });

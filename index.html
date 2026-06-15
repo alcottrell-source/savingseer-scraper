@@ -3974,11 +3974,10 @@ function renderLandingHero() {
   // users with no saved centres, so gate on the session, not the funnel stage.
   const bridgeHTML = currentUser ? '' :
         '<section class="bridge-card" aria-label="Get your personal Tide">'
-      +   '<p class="bridge-card-copy">That\'s the whole centre. Sign in and Tide scores every centre for the shops <b>you</b> actually buy, and emails you the moment they go on sale.</p>'
+      +   '<p class="bridge-card-copy">Tide scores every UK centre for the shops <b>you</b> actually buy, and emails you the moment they go on sale.</p>'
       +   '<button class="bridge-card-cta" onclick="openAuthModal()">Get my personal Tide for free</button>'
       + '</section>';
   return hotHTML
-       + bridgeHTML
        + '<section class="how-it-works is-static" aria-label="What you get">'
        +   '<div class="how-it-works-title">What you get</div>'
        +   '<div class="landing-steps">'
@@ -3987,7 +3986,8 @@ function renderLandingHero() {
        +     '<div class="landing-step"><span class="landing-step-num">3</span><div class="landing-step-text"><strong>We tap you on the shoulder</strong><p>One email the morning your shops are worth the trip. Never spam, only when it earns it.</p></div></div>'
        +   '</div>'
        + '</section>'
-       + renderTide60Light();
+       + renderTide60Light()
+       + bridgeHTML;
 }
 
 async function renderCentre(centreId) {

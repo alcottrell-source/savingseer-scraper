@@ -3527,36 +3527,54 @@ function buildTide60Series(realHistory) {
   // Per-centre amplitude rescaling. The raw synthetic curve is the national
   // UK retail calendar — a quiet centre that never breaks 30 shouldn't show
   // a wild Easter peak in its history. Map raw synthetic [synthMin..synthMax]
-  // onto a target range built from the centre's own observed min/max plus a
-  // small headroom, hard-capped below the PEAK threshold (75) so a
-  // synthetic backfill never crosses into HIGH TIDE territory.
-  const realScores = series.filter(p => p.real).map(p => p.score);
+  // onto a target band whose CEILING is the centre's current (latest real)
+  // level, so the fabricated lead-in can never crest above where the line
+  // actually sits today.
+  //
+  // This is the fix for the headline-vs-line contradiction: tide_score is
+  // "% of brands on sale" and even a genuine PEAK tops out well below the
+  // chart's 0–100 axis (e.g. 26/56 = 46). The old ceiling (realMax + headroom)
+  // let a national-calendar hump in the backfilled past — a May bank-holiday
+  // anchor, say — rescale ABOVE today's value, so the curve sloped DOWN into
+  // "today" while the verdict screamed "go now / maximum sales density". The
+  // tide line read as falling at the exact moment the centre peaked. Anchoring
+  // the synthetic ceiling to the live endpoint guarantees the line rises into
+  // today whenever today is the centre's high-water mark (RISING / PEAK), and
+  // for a declining centre the real data still carries the fall — we just stop
+  // inventing a taller past out of the national calendar.
+  const realPts    = series.filter(p => p.real);
+  const realScores = realPts.map(p => p.score);
   const synthVals  = series.map(p => p.synth);
   const synthMax   = Math.max.apply(null, synthVals);
   const synthMin   = Math.min.apply(null, synthVals);
   const synthRange = Math.max(1, synthMax - synthMin);
   let targetMin, targetMax;
   if (realScores.length) {
+    // The value the line ends at — series carries the last real value forward
+    // through any trailing gap, so this is the on-screen "today" height.
+    const latestReal = series[series.length - 1].score;
     const realMax = Math.max.apply(null, realScores);
     const realMin = Math.min.apply(null, realScores);
     const observedRange = realMax - realMin;
-    // Modest headroom — synth peaks shouldn't overshoot the centre's real
-    // ceiling by much. A flat centre still gets a small bump so the
-    // seasonal shape stays visible. Hard-capped at 70 (below HIGH TIDE).
-    const headroom = Math.max(4, Math.min(12, observedRange * 0.5 + 4));
-    targetMax = Math.min(70, realMax + headroom);
-    targetMin = Math.max(0, realMin - 3);
+    // Ceiling sits a touch (2pt) below the live level so "today" reads as the
+    // crest rather than tying a synthetic past bump. Hard-capped at 70 (below
+    // HIGH TIDE) for the rare centre whose live value is itself very high.
+    targetMax = Math.max(0, Math.min(70, latestReal - 2));
+    // The band hangs DOWN from that ceiling with enough height for visible
+    // seasonal texture, but never below 0 — so the lead-in stays under today.
+    const bandHeight = Math.max(8, Math.min(20, observedRange + 4));
+    targetMin = Math.max(0, targetMax - bandHeight);
   } else {
     // No real data yet (new centre) — moderated synthetic so the chart is
     // meaningful but never claims a HIGH TIDE / PEAK past.
     targetMax = 50;
     targetMin = 16;
   }
-  const targetRange = Math.max(8, targetMax - targetMin);
+  const targetRange = Math.max(1, targetMax - targetMin);
   for (const p of series) {
     if (p.lead) {
       const t = (p.synth - synthMin) / synthRange;
-      p.score = Math.max(0, Math.min(100, targetMin + t * targetRange));
+      p.score = Math.max(0, Math.min(targetMax, targetMin + t * targetRange));
     }
   }
   return series;

@@ -456,6 +456,7 @@ Deno.serve(async (req: Request) => {
 
   const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
   const today = new Date().toISOString().split("T")[0];
+  const yesterday = new Date(new Date(today).getTime() - 86400000).toISOString().split("T")[0];
 
   // 1. Today's centre scores + centre names + brands.
   const [scoresRes, centresRes, brandsRes, salesRes, centreBrandsRes, prefsRes] = await Promise.all([
@@ -504,7 +505,25 @@ Deno.serve(async (req: Request) => {
   let alertsSent = 0, brandAlertsSent = 0, digestsSent = 0;
 
   // 2. HIGH-TIDE ALERTS. (daily run only — skipped on the Friday digest call)
-  const highTideCentres = digestOnly ? [] : scores.filter(s => stageFromVerdict(s.verdict) === "High Tide");
+  //
+  // Send-once gate: a centre can sit at Peak for several days, but the alert
+  // must fire only on the day it FIRST reaches Peak — otherwise a multi-day
+  // peak emails saved-centre users every morning it lasts. Mirrors the
+  // brand-sale pass's `startedToday` one-shot logic. We treat "Peak today but
+  // not Peak yesterday" as the fresh-peak signal; a centre that dips out of
+  // Peak and climbs back later earns a new alert, which is intended.
+  let peakYesterday = new Set<string>();
+  if (!digestOnly) {
+    const yScoresRes = await sb.from("centre_seer_scores")
+      .select("centre_id, verdict")
+      .eq("score_date", yesterday);
+    if (yScoresRes.error) return new Response(`Supabase yesterday scores read failed: ${yScoresRes.error.message}`, { status: 500 });
+    peakYesterday = new Set((yScoresRes.data || [])
+      .filter((s: { verdict: string | null }) => stageFromVerdict(s.verdict) === "High Tide")
+      .map((s: { centre_id: string }) => s.centre_id));
+  }
+  const highTideCentres = digestOnly ? [] : scores.filter(s =>
+    stageFromVerdict(s.verdict) === "High Tide" && !peakYesterday.has(s.centre_id));
   for (const score of highTideCentres) {
     const centreName = centres.get(score.centre_id);
     if (!centreName) continue;

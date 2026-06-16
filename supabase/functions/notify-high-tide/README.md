@@ -3,10 +3,13 @@
 Email job with three passes, gated by the POST body so one function serves
 two schedules:
 
-1. **Peak alerts** — for each centre at "Peak" today (verdict `Peak`; legacy
-   `Go now` still matches), email every user who has saved that centre. The
-   "top 3 brands on sale" list is filtered to the user's preferences (gender
-   + style cluster) when they have any set.
+1. **Peak alerts** — for each centre that *first* reaches "Peak" today (verdict
+   `Peak`; legacy `Go now` still matches) — i.e. Peak today but not yesterday —
+   email every user who has saved that centre. The send-once gate stops a
+   multi-day peak from emailing every morning it lasts; a centre that dips out
+   of Peak and climbs back later earns a new alert. The "top 3 brands on sale"
+   list is filtered to the user's preferences (gender + style cluster) when
+   they have any set.
 2. **Brand-sale alerts** — for each brand whose sale cycle starts today,
    email users who follow that brand (`brand_ids`, or legacy gender/cluster
    match) and have `brand_sale_alerts` on, unless the brand is in their

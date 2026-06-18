@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="#3D6B35"/>
+  <path d="M5 19c2.5-2 5-2 7 0s4.5 2 7 0 4.5-2 7 0v3c-2.5 2-5 2-7 0s-4.5-2-7 0-4.5 2-7 0Z" fill="#5EFFB0" opacity="0.95"/>
+  <text x="16" y="14" font-family="Georgia, serif" font-size="11" font-weight="600" fill="#FAF7F2" text-anchor="middle" letter-spacing="0.5">T</text>
+</svg>

@@ -28,27 +28,36 @@ import { runScoring } from '../score.js';
 
 const ADMIN_EMAIL = (process.env.RESCORE_ADMIN_EMAIL || 'alcottrell@gmail.com').toLowerCase();
 
-// Verify the Bearer token belongs to the admin. Returns the email on success,
-// or null on any failure (missing/expired/invalid token, network error,
-// non-admin user). Fail-closed by design.
+// Verify the Bearer token belongs to the admin. Returns { ok, email?, reason }.
+// Fail-closed by design, but the reason distinguishes the three very different
+// failures that all used to collapse into one opaque 401:
+//   'no_token'   — caller sent no/invalid Authorization header
+//   'misconfig'  — SUPABASE_URL / SUPABASE_SERVICE_KEY missing on the server
+//   'bad_token'  — Supabase rejected the JWT (expired session OR a stale/rotated
+//                  service key used as the apikey on the /auth lookup)
+//   'not_admin'  — valid session, but not the admin account
+// Collapsing 'misconfig' into 401 was why a missing Vercel env var looked
+// identical to an expired session and sent admins chasing the wrong fix.
 async function verifyAdmin(req) {
   const auth = req.headers?.authorization || req.headers?.Authorization || '';
   const m = /^Bearer\s+(.+)$/i.exec(String(auth));
-  if (!m) return null;
+  if (!m) return { ok: false, reason: 'no_token' };
   const token = m[1].trim();
   const url = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !serviceKey || !token) return null;
+  if (!url || !serviceKey) return { ok: false, reason: 'misconfig' };
+  if (!token) return { ok: false, reason: 'no_token' };
   try {
     const r = await fetch(url.replace(/\/$/, '') + '/auth/v1/user', {
       headers: { Authorization: 'Bearer ' + token, apikey: serviceKey },
     });
-    if (!r.ok) return null;
+    if (!r.ok) return { ok: false, reason: 'bad_token' };
     const user = await r.json();
     const email = (user?.email || '').toLowerCase();
-    return email && email === ADMIN_EMAIL ? email : null;
+    if (email && email === ADMIN_EMAIL) return { ok: true, email };
+    return { ok: false, reason: 'not_admin' };
   } catch {
-    return null;
+    return { ok: false, reason: 'bad_token' };
   }
 }
 
@@ -58,9 +67,22 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'POST only' });
   }
 
-  const adminEmail = await verifyAdmin(req);
-  if (!adminEmail) {
-    return res.status(401).json({ ok: false, error: 'Unauthorized — admin session required' });
+  const auth = await verifyAdmin(req);
+  if (!auth.ok) {
+    if (auth.reason === 'misconfig') {
+      // Server-side configuration fault, NOT an auth problem. 503 so the admin
+      // banner can say "set the Vercel env vars" instead of "sign in again".
+      return res.status(503).json({
+        ok: false,
+        reason: 'misconfig',
+        error: 'Server not configured — SUPABASE_URL / SUPABASE_SERVICE_KEY are missing on the deployment. Set them in Vercel → Project Settings → Environment Variables.',
+      });
+    }
+    if (auth.reason === 'not_admin') {
+      return res.status(403).json({ ok: false, reason: 'not_admin', error: 'Forbidden — not the admin account' });
+    }
+    // no_token | bad_token → genuine session/auth failure the admin can re-auth.
+    return res.status(401).json({ ok: false, reason: auth.reason, error: 'Unauthorized — admin session required' });
   }
 
   // centre_ids may arrive in the body (preferred) or as a CSV query param.

@@ -1145,15 +1145,17 @@ async function triggerRescore() {
     body: '{}',
   }).then(async r => {
     if (r.ok) { clearRescoreWarn(); return; }
-    let detail = '';
-    try { const j = await r.json(); detail = (j && j.error) ? j.error : ''; }
+    let detail = '', reason = '';
+    try { const j = await r.json(); detail = (j && j.error) ? j.error : ''; reason = (j && j.reason) ? j.reason : ''; }
     catch { try { detail = await r.text(); } catch { /* ignore */ } }
-    console.warn('Rescore returned HTTP', r.status, detail);
+    console.warn('Rescore returned HTTP', r.status, reason, detail);
     // Tailor the message to the failure so the admin knows whether it's a
-    // session problem they can fix now, a partial (chart-only) staleness, or a
-    // full lag until the daily cron self-heals it.
+    // server config fault, a session problem they can fix now, a partial
+    // (chart-only) staleness, or a full lag until the daily cron self-heals it.
     let msg;
-    if (r.status === 401 || r.status === 403) {
+    if (r.status === 503 || reason === 'misconfig') {
+      msg = '⚠ Edit saved, but the public-site rescore is misconfigured on the server — SUPABASE_URL / SUPABASE_SERVICE_KEY are missing on Vercel. The public scores will stay stale on every edit until those env vars are set (Vercel → Project Settings → Environment Variables). This is not a sign-in problem.';
+    } else if (r.status === 401 || r.status === 403) {
       msg = '⚠ Edit saved, but the public-site rescore was rejected — your admin session may have expired. The public scores will stay stale until the 10:00 UTC daily run. Sign out and back in, then re-save to push now.';
     } else if (r.status === 502) {
       msg = '⚠ Edit saved and scores updated, but the 60-day chart history did not refresh — the chart may be stale until the 10:00 UTC daily run.';

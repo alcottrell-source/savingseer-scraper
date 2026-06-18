@@ -314,6 +314,28 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // combinations. Use raw fetch for table reads/writes; keep supabase-js for
 // auth + realtime where it's reliable.
 let CURRENT_TOKEN = null;
+
+// Keep CURRENT_TOKEN in lock-step with the live session. Supabase access
+// tokens expire after ~1h; supabase-js refreshes them in the background and
+// fires TOKEN_REFRESHED. Without this listener CURRENT_TOKEN stayed pinned to
+// the value captured at sign-in (onSignedIn), so after an hour every raw
+// PostgREST call AND the /api/rescore POST sent a dead JWT — the rescore came
+// back 401 and the admin saw the "session may have expired" banner even though
+// the session was actually still alive (just not the cached token).
+sb.auth.onAuthStateChange((_event, session) => {
+  CURRENT_TOKEN = session?.access_token || null;
+});
+
+// Return a guaranteed-fresh access token. getSession() transparently refreshes
+// an expired token before returning, which covers the gap where the tab was
+// backgrounded/asleep and the background auto-refresh timer hasn't fired yet.
+async function getFreshToken() {
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session?.access_token) { CURRENT_TOKEN = session.access_token; return session.access_token; }
+  } catch { /* fall through to whatever we have cached */ }
+  return CURRENT_TOKEN;
+}
 async function pgFetch(method, path, body, prefer) {
   const headers = {
     apikey: SUPABASE_ANON_KEY,
@@ -1110,12 +1132,15 @@ function showRescoreWarn(msg) {
   rescoreWarnActive = true;
   showStatus(msg, true);
 }
-function triggerRescore() {
-  fetch('/api/rescore', {
+async function triggerRescore() {
+  // Refresh the token first so an hour-old admin tab doesn't post a dead JWT
+  // and trip the false "session may have expired" banner.
+  const token = await getFreshToken();
+  return fetch('/api/rescore', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(CURRENT_TOKEN ? { Authorization: 'Bearer ' + CURRENT_TOKEN } : {}),
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
     },
     body: '{}',
   }).then(async r => {

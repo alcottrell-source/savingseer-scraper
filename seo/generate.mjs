@@ -17,7 +17,8 @@
 
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { renderBrandPage, renderCentreHub, slugify, isOnSale } from './render.mjs';
+import { renderBrandPage, renderCentreHub, renderBlogIndex, renderBlogPost, slugify, isOnSale } from './render.mjs';
+import { loadPosts } from './blog.mjs';
 import { nextSaleWindow } from './next-sale-window.mjs';
 
 const ORIGIN = process.env.SEO_ORIGIN || 'https://tidego.co';
@@ -170,6 +171,7 @@ async function main() {
   const supabase = { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY };
   const buildDay = today.toISOString().slice(0, 10);
   const urls = [];
+  const centresBySlug = {}; // slug -> { name }, for resolving blog relatedCentres
   let centreCount = 0, skipped = 0;
 
   // Latest sane YYYY-MM-DD from the candidates, falling back to the build day so
@@ -211,6 +213,7 @@ async function main() {
         renderBrandPage({ centre, brand: b, sale: b.sale, cycle: b.cycle, hours, siblings, supabase, origin: ORIGIN, today }),
         lastmodFrom(centre.scoreDate, b.sale && b.sale.last_verified_date));
     }
+    centresBySlug[centre.slug] = { name: centre.name };
     centreCount++;
     console.log(`[seo] ${centre.slug}: ${1 + brands.length} pages (Tide Score ${centre.tideScore}, ${centre.verdict}).`);
   }
@@ -227,9 +230,27 @@ async function main() {
     process.exit(1);
   }
 
+  // Blog (hand-written Markdown posts). Emitted AFTER the 0-pages guard above so
+  // that guard stays keyed on CENTRE output — the blog index always emits (even
+  // empty), which would otherwise mask a Supabase outage and de-index every
+  // /centre/ page. Routed through emit() so /blog and /blog/<slug> land in the
+  // sitemap automatically. relatedCentres resolve only against centres actually
+  // generated this run (centresBySlug).
+  const posts = await loadPosts(join('seo', 'blog'), { centresBySlug });
+  await emit('blog', renderBlogIndex(posts, { origin: ORIGIN, supabase }));
+  for (const post of posts) {
+    const siblings = posts.filter(p => p.slug !== post.slug);
+    await emit(`blog/${post.slug}`, renderBlogPost(post, { origin: ORIGIN, supabase, siblings }));
+  }
+  console.log(`[seo] blog: ${posts.length} post(s) + index.`);
+
   // Sitemap (every generated page, across all centres). Ensure outDir exists
   // even if every centre was skipped, so the sitemap write never ENOENTs.
   await mkdir(outDir, { recursive: true });
+  // Homepage first — the dynamic app at / carries its own canonical/description
+  // and is the entry point, so it belongs in the sitemap alongside the /centre/
+  // pages (which are the only URLs collected in `urls` during page emit).
+  urls.unshift({ loc: `${ORIGIN}/`, lastmod: buildDay });
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
     urls.map(u => `  <url><loc>${u.loc}</loc><lastmod>${u.lastmod}</lastmod></url>`).join('\n') + `\n</urlset>\n`;
   await writeFile(join(outDir, 'sitemap.xml'), sitemap, 'utf8');

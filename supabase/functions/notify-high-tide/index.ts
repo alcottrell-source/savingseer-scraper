@@ -54,20 +54,21 @@ interface CentreRow      { id: string; name: string }
 interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null }
 interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; brand_ids: string[] | null; excluded_brand_ids: string[] | null; email_alerts: boolean; brand_sale_alerts: boolean; daily_digest: boolean }
 interface BrandRow       { id: string; name: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; cluster: string | null }
-interface SaleEventRow   { brand_id: string; sale_status: boolean | null; date_first_detected: string | null; max_discount_pct: number | null; scraper_error: boolean | null; last_verified_status: boolean | null; last_verified_date: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null } | null }
+interface SaleEventRow   { brand_id: string; max_discount_pct: number | null; last_verified_status: boolean | null; last_verified_date: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null } | null }
 interface CentreBrandRow { centre_id: string; brand_id: string }
 
 // ──────────────────────────────────────────────────────────────────────────
 // Utility — derive whether a brand_sale_events row is "on sale" today.
-// Mirrors the precedence logic in index.html (admin verdict > scraper).
+// Admin-verified only (the scraper was removed): an open cycle, else the
+// admin's last verified decision.
 function isOnSale(r: SaleEventRow): boolean {
   if (r.active_cycle_id) return true;
   if (r.last_verified_date) return !!r.last_verified_status;
-  return !!r.sale_status && !r.scraper_error;
+  return false;
 }
 
 function daysOnSale(r: SaleEventRow, today: string): number {
-  const startStr = r.cycle?.start_date || r.date_first_detected;
+  const startStr = r.cycle?.start_date || r.last_verified_date;
   if (!startStr) return 0;
   const start = new Date(startStr).getTime();
   const now = new Date(today).getTime();
@@ -76,11 +77,12 @@ function daysOnSale(r: SaleEventRow, today: string): number {
 }
 
 // True only on the day a brand's sale begins. Admin-verified cycles carry an
-// explicit start_date; scraper-only rows fall back to date_first_detected.
-// Because this is true for exactly one day, it doubles as send-once dedup.
+// explicit start_date; brands verified on without a cycle fall back to the
+// admin's last_verified_date. Because this is true for exactly one day, it
+// doubles as send-once dedup.
 function startedToday(r: SaleEventRow, today: string): boolean {
   if (r.active_cycle_id) return r.cycle?.start_date === today;
-  return isOnSale(r) && r.date_first_detected === today;
+  return isOnSale(r) && r.last_verified_date === today;
 }
 
 function brandMatchesPrefs(b: BrandRow, p: PrefsRow): boolean {
@@ -466,7 +468,7 @@ Deno.serve(async (req: Request) => {
     sb.from("centres").select("id, name").eq("active", true),
     sb.from("brands").select("id, name, womenswear, menswear, childrenswear, cluster"),
     sb.from("brand_sale_events")
-      .select("brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)"),
+      .select("brand_id, max_discount_pct, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)"),
     sb.from("centre_brands").select("centre_id, brand_id"),
     // No saved_centres filter: brand-sale alerts target followed brands, so
     // users who follow brands without saving a centre must be included too.

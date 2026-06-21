@@ -176,6 +176,19 @@
   .score-card.has-vessel .score-statement { display: none; }
   .score-card.has-vessel .score-top { display: none; }
   .score-card.has-vessel { padding: 0; border-radius: 22px; background: transparent; box-shadow: none; }
+  /* ── "On sale now" named-brand teaser ──────────────────────────────
+     Names come straight from centre_seer_scores.top_brands (pipeline-
+     computed from admin-verified cycles, newest-verified first). Followed
+     brands lead the row and are amber. Never client-recomputed; hidden
+     entirely when top_brands is absent. */
+  .onsale-now { margin: 14px 2px 2px; }
+  .onsale-now-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 10px; }
+  .onsale-now-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .onsale-now-chip { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; color: var(--bark); background: var(--stone-lt); border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; line-height: 1.2; }
+  .onsale-now-chip.is-followed { color: #fff; background: var(--amber); border-color: var(--amber); font-weight: 600; }
+  .onsale-now-legend { display: flex; align-items: center; gap: 6px; margin-top: 9px; font-size: 11px; color: var(--stone); letter-spacing: 0.02em; }
+  .onsale-now-legend-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
+  .onsale-now-count { margin-top: 8px; font-size: 12px; color: var(--stone); letter-spacing: 0.02em; }
   .brands-section { padding: 24px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.15s, transform 0.4s ease 0.15s; }
   .brands-section.visible { opacity: 1; transform: translateY(0); }
   .seo-hub-link { display: block; margin: 20px 24px 28px; font-family: 'Inter', sans-serif; font-size: 13px; color: var(--leaf); text-decoration: none; border-top: 1px solid var(--border); padding-top: 16px; }
@@ -270,6 +283,10 @@
   .tide60-trend-arrow { color: rgba(245,241,235,0.40); margin-right: 6px; font-weight: 400; }
   .tide60-chart { position: relative; z-index: 1; margin-top: 10px; }
   .tide60-chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .tide60-tabs { position: relative; z-index: 1; display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
+  .tide60-tab { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: rgba(245,241,235,0.5); background: transparent; border: none; padding: 7px 18px; border-radius: 9px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+  .tide60-tab:hover { color: rgba(245,241,235,0.82); }
+  .tide60-tab.is-active { color: #5EFFB0; background: rgba(94,255,176,0.12); }
   .tide60-sample { padding: 0 24px 28px; max-width: 560px; margin: 0 auto; }
 
   /* Inline "why Tide / install" section above the footer */
@@ -339,6 +356,36 @@
   .tide-vessel.verdict-wait { background: linear-gradient(135deg, #1d1a17 0%, #1A1612 60%); }
   .tide-vessel.verdict-wait::before { background: radial-gradient(ellipse at 50% 105%, rgba(140,128,112,0.25) 0%, transparent 60%); }
 
+  /* ── Centre-detail hero rebuild (Jun 2026) ──────────────────────────
+     % + verdict headline, "Verified {when}" badge, saved-shops line,
+     direction-in-shops count line, faithful 0–100 chart + period tabs. */
+  .tide-vessel-centre-loc { color: rgba(245,241,235,0.36); }
+  .tide-vessel-verified { display: inline-flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: #5FD6A6; white-space: nowrap; }
+  .tide-vessel-verified-dot { width: 7px; height: 7px; border-radius: 50%; background: #5FD6A6; box-shadow: 0 0 8px rgba(95,214,166,0.7); }
+  .tide-vessel-headline-row { position: relative; z-index: 6; display: flex; align-items: baseline; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tide-vessel-pct { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 60px; line-height: 0.95; letter-spacing: -0.03em; color: var(--tide-cream); }
+  .tide-vessel-pct-sign { font-size: 30px; font-weight: 500; color: rgba(245,241,235,0.42); margin-left: 1px; }
+  .tide-vessel-headline-row .tide-vessel-verdict-word { font-size: 34px; margin-bottom: 0; }
+  .tide-saved-line { position: relative; z-index: 6; display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; margin-bottom: 14px; padding: 13px 16px; border-radius: 14px; border: 1px solid rgba(245,241,235,0.10); background: rgba(245,241,235,0.03); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.4; color: rgba(245,241,235,0.82); }
+  .tide-saved-line.is-hit { border-color: rgba(230,169,75,0.40); background: rgba(230,169,75,0.08); }
+  .tide-saved-line.is-prompt { cursor: pointer; justify-content: space-between; color: rgba(245,241,235,0.74); transition: background 0.15s, border-color 0.15s; }
+  .tide-saved-line.is-prompt:hover { border-color: rgba(245,241,235,0.22); background: rgba(245,241,235,0.06); }
+  .tide-saved-star { color: #E6A94B; font-size: 15px; line-height: 1; flex-shrink: 0; }
+  .tide-saved-text strong { color: var(--tide-cream); font-weight: 600; }
+  .tide-saved-line.is-hit .tide-saved-text strong { color: #F0C079; }
+  .tide-saved-arrow { color: rgba(245,241,235,0.6); font-size: 16px; flex-shrink: 0; }
+  .tide-count-line { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 400; line-height: 1.4; color: rgba(245,241,235,0.78); margin-bottom: 20px; }
+  /* Flat black card + black chart panel — no verdict haze. The neon line is
+     the hero; this kills the brown radial wash on the merged vessel. */
+  .tide-vessel.tide-vessel--merged { background: #0B0B0D; box-shadow: 0 12px 44px rgba(0,0,0,0.5); }
+  .tide-vessel.tide-vessel--merged::before { display: none; }
+  .tide-vessel--merged .tide-vessel-chart { margin-top: 6px; }
+  .tide-vessel-chart-svg-host { position: relative; z-index: 6; background: #050506; border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 8px 6px 4px; }
+  .tide-period-tabs { position: relative; z-index: 6; display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
+  .tide-period-tab { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: rgba(245,241,235,0.5); background: transparent; border: none; padding: 7px 18px; border-radius: 9px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+  .tide-period-tab:hover { color: rgba(245,241,235,0.82); }
+  .tide-period-tab.is-active { color: #5EFFB0; background: rgba(94,255,176,0.12); }
+
   /* ── Auth modal: email-preview card on signup step ────────────── */
   .auth-email-preview { background: var(--leaf-lt); border: 1px solid rgba(61,107,53,0.18); border-radius: 12px; padding: 14px 16px; margin: 14px 0 18px; }
   .auth-email-preview-eyebrow { display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--leaf); font-weight: 500; margin-bottom: 8px; }
@@ -354,17 +401,37 @@
   .hot-centres-eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--leaf); animation: pulse 2s ease-in-out infinite; }
   .hot-centres-timestamp { font-size: 11px; letter-spacing: 0.04em; color: var(--stone); }
   .hot-centres-list { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--border); }
-  .hot-centre-row { display: flex; align-items: center; gap: 12px; padding: 14px 4px; background: transparent; border: none; border-bottom: 1px solid var(--border); border-radius: 0; cursor: pointer; transition: background 0.15s; text-align: left; font-family: inherit; width: 100%; }
+  /* Row is now a stacked card: head (rank · name/loc · %/badge), count line, brand strip. */
+  .hot-centre-row { display: flex; flex-direction: column; gap: 10px; padding: 18px 4px; background: transparent; border: none; border-bottom: 1px solid var(--border); border-radius: 0; cursor: pointer; transition: background 0.15s; text-align: left; font-family: inherit; width: 100%; }
   .hot-centre-row:hover { background: var(--stone-lt); }
-  .hot-centre-row-rank { flex-shrink: 0; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; color: var(--stone); width: 14px; text-align: left; line-height: 1; }
-  .hot-centre-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .hot-centre-row-name { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600; color: var(--ink); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .hot-centre-row-reason { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 400; color: var(--stone); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .hot-centre-row-verdict { flex-shrink: 0; font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 10px; border-radius: 100px; white-space: nowrap; }
+  .hot-centre-head { display: flex; align-items: flex-start; gap: 12px; }
+  .hot-centre-rank { flex-shrink: 0; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: var(--stone); width: 16px; text-align: left; line-height: 1.4; }
+  .hot-centre-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .hot-centre-name { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; color: var(--ink); line-height: 1.1; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hot-centre-loc { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 400; color: var(--stone); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hot-centre-score { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .hot-centre-pct { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 600; color: var(--amber); line-height: 1; letter-spacing: -0.01em; }
+  .hot-centre-pct-sign { font-size: 15px; font-weight: 600; margin-left: 1px; }
+  .hot-centre-row-verdict { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 9px; border-radius: 100px; white-space: nowrap; }
   .hot-centre-row-verdict.tone-go   { background: var(--amber-lt); color: var(--amber); }
   .hot-centre-row-verdict.tone-rise { background: var(--leaf-lt);  color: var(--leaf); }
   .hot-centre-row-verdict.tone-fall { background: var(--red-lt);   color: var(--red); }
   .hot-centre-row-verdict.tone-wait { background: var(--stone-lt); color: var(--stone); }
+  .hot-centre-count { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 400; color: var(--bark); line-height: 1.3; padding-left: 28px; }
+  /* Brand strip — newest-first monogram tiles + overflow chip. */
+  .hot-centre-strip { display: flex; align-items: flex-start; gap: 8px; padding-left: 28px; flex-wrap: wrap; }
+  .hot-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .hot-tile-box { position: relative; overflow: hidden; width: 52px; height: 44px; display: flex; align-items: center; justify-content: center; background: var(--cream); border: 1px solid var(--border); border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: var(--bark); }
+  .hot-tile-mono { line-height: 1; }
+  .hot-tile-logo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 8px; box-sizing: border-box; background: #fff; border-radius: inherit; }
+  .hot-tile.is-new .hot-tile-box { border-color: rgba(61,107,53,0.30); }
+  .hot-tile-new { position: absolute; top: -7px; left: 50%; transform: translateX(-50%); z-index: 1; font-family: 'Inter', sans-serif; font-size: 8px; font-weight: 700; letter-spacing: 0.06em; color: #fff; background: var(--leaf); border-radius: 100px; padding: 2px 6px; line-height: 1; }
+  .hot-tile-age { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 400; color: var(--stone); line-height: 1; }
+  .hot-tile-more { align-self: center; margin-top: 0; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; color: var(--stone); padding: 0 2px; height: 44px; display: flex; align-items: center; }
+  .hot-centre-pending { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 400; font-style: italic; color: var(--stone); line-height: 1.4; padding-left: 28px; }
+  @media (prefers-reduced-motion: reduce) {
+    .hot-centres-eyebrow::before { animation: none; }
+  }
 
   /* ── Notification toggles + saved-centres list (prefs modal step 3) ── */
   .pref-toggle-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
@@ -2099,6 +2166,10 @@ function setBrandFilter(which) {
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
 let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SALE_TYPE = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
+// dashboard brand name -> last date the admin verified this brand's state
+// (brand_sale_events.last_verified_date). Drives the hero's "Verified {when}"
+// freshness badge — the most-recent verification across brands at a centre.
+let LAST_VERIFIED_DATE = {};
 // dashboard brand name -> [{start,end,pct,saleType,live,lengthDays}, ...] newest-first.
 // The full sale-episode history that powers the shop detail sheet. Empty until
 // loadTideData runs (or stays empty if the cycle history can't be read).
@@ -2127,7 +2198,7 @@ const SALE_TYPE_LABEL = {
   flash:         'Flash sale',
   seasonal:      'Seasonal',
 };
-let CENTRE_SCORES = {};      // supabase centre_id -> { tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands }
+let CENTRE_SCORES = {};      // supabase centre_id -> { tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands, top_brands, narrative }
 let CENTRE_HISTORY = {};     // supabase centre_id -> [{date, score}, ...]
 let CENTRE_ID_BY_IDX = [];   // centreIdx (0-based, matches CENTRE_NAMES) -> supabase centre_id
 // supabase centre_id -> { [dashboard_brand_name]: [{label, order}, ...] }.
@@ -2150,7 +2221,7 @@ async function loadTideData() {
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,last_verified_status,last_verified_date,active_cycle_id'),
       pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type&end_date=is.null'),
-      pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,narrative&score_date=eq.' + today),
+      pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,top_brands,narrative&score_date=eq.' + today),
       pgRead('centre_brand_floors?select=centre_id,brand_id,floor_label,floor_order'),
       // Full sale-episode history (every cycle, open or closed) for the shop
       // detail sheet. Each closed cycle is one past sale; the open cycle (if
@@ -2255,6 +2326,7 @@ async function loadTideData() {
       // so legacy rows render the same as before.
       const saleType = (cycle && cycle.sale_type) || 'percent_off';
       SALE_STATUS[name] = isOnSale;
+      LAST_VERIFIED_DATE[name] = row.last_verified_date || null;
       MAX_DISCOUNT_PCT[name] = (isOnSale && discountPct !== null) ? discountPct : null;
       SALE_TYPE[name] = isOnSale ? saleType : null;
       if (isOnSale && startDate) {
@@ -2981,10 +3053,10 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
     + '</div>';
 
   // Ranked deals list — newest first (days asc), tie-broken by discount
-  // desc. Top 5 within the freshness window (matches FRESH_WINDOW_DAYS).
+  // desc. Shows ALL deals within the freshness window so the list length
+  // matches the headline count (if it says "8 new sales", all 8 are listed).
   const topDeals = freshDeals.slice()
-    .sort((a, b) => (a.days || 0) - (b.days || 0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)))
-    .slice(0, 5);
+    .sort((a, b) => (a.days || 0) - (b.days || 0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)));
   const rankList = topDeals.length
     ? '<ul class="rank-list">' + topDeals.map((b, i) => {
         const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
@@ -3228,7 +3300,7 @@ function stageStyle(stage) {
   const s = {
     'Turning':   {label:'Quiet',     statement:'Quiet',                color:'#8C8070',bg:'#F2EFE9',msg:'Quiet — only a handful of brands on sale right now.'},
     'Rising':    {label:'Rising',    statement:'Sales\nbuilding',     color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building across the centre. Not at peak yet.'},
-    'High Tide': {label:'Peak',      statement:'Peak\nsales',         color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum sales density. This is the moment.'},
+    'High Tide': {label:'Peak',      statement:'Peak\nsales',         color:'#C17A2B',bg:'#FBF2E4',msg:'Plenty on sale right now, and freshly cut.'},
     'Falling':   {label:'Easing',    statement:'Sales\neasing',       color:'#B84C3A',bg:'#FAEAE7',msg:'Sales tapering off. Picks getting thinner.'},
     'Low':       {label:'Over',      statement:'Cycle\nended',        color:'#8C8070',bg:'#F2EFE9',msg:'Sale cycle ended. Check back in a few weeks.'},
   };
@@ -3353,166 +3425,330 @@ function deriveVerdict(ctx) {
   }
 }
 
-// Merged tide card. One card carries: centre eyebrow, trend pill, verdict
-// word, sales fact, statement subtitle, and the live 60-day curve. Everything
-// downstream of the verdict (pill arrow, eyebrow tail word, curve glow,
-// statement tint) is keyed off the same `verdict` object so the four
-// directional signals on the card can never disagree.
-function renderTideVessel(pctOnSale, stage, statement, trajectory, onSaleCount, totalCount, serverVerdict, history, centreName, centreLocation) {
-  const pct = Math.max(0, Math.min(100, +pctOnSale || 0));
-  const verdict = deriveVerdict({
-    serverVerdict,
-    brandsOnSale: onSaleCount,
-    totalBrands: totalCount,
-    pctOnSale: pct,
-    trajectory,
-    stage,
-  });
+// Verdict thresholds — a deliberate, documented MIRROR of score.js's
+// HIGH_TIDE_ENTER (40) and RISING_FLOOR (15). The browser can't import the
+// Node scorer, so these can't be a shared constant; keep them in sync with
+// score.js:49,51 if the verdict bands ever move.
+const TIDE_PEAK_LINE = 40;
+const TIDE_QUIET_LINE = 15;
 
-  const hasCount = Number.isFinite(+onSaleCount) && Number.isFinite(+totalCount) && +totalCount > 0;
-  const factText = hasCount ? (onSaleCount + ' of ' + totalCount + ' brands on sale')
-                            : (pct + '% of brands on sale');
+// Endpoint-pill + curve colour per verdict tone (on the dark vessel).
+const TIDE_TONE_COLOR = {
+  go:   '#E6A94B',  // amber  — PEAK
+  rise: '#5EFFB0',  // neon   — RISING
+  fall: '#F4B79F',  // warm   — EASING
+  wait: '#9A9CA3',  // stone  — QUIET / OVER
+};
 
-  // Mixed-case headline. PEAK absorbs the retired GO NOW pill copy — it is
-  // the only stage allowed recommendation language. The dataset attribute
-  // gives tests a stable handle that doesn't rely on the displayed string.
+// Most-recent admin verification across the brands present at a centre →
+// "Verified today / yesterday / D Mon". Drives the hero freshness badge.
+// Empty when no brand here has ever been verified (badge then omitted).
+function verifiedLabelForCentre(centreIdx) {
+  let max = null;
+  for (const b of BRANDS) {
+    if ((PRESENCE[b.id] || [])[centreIdx] !== 1) continue;
+    const d = LAST_VERIFIED_DATE[b.name];
+    if (d && (!max || d > max)) max = d;
+  }
+  if (!max) return '';
+  const today = new Date().toISOString().slice(0, 10);
+  const yest  = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  if (max === today) return 'Verified today';
+  if (max === yest)  return 'Verified yesterday';
+  const dt = new Date(max + 'T00:00:00Z');
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return 'Verified ' + dt.getUTCDate() + ' ' + MON[dt.getUTCMonth()];
+}
+
+// Direction clause for the count line (Change 2). The WORD comes from the
+// engine trajectory, never a client count comparison; the comparison NUMBER
+// is the real brands_on_sale stored in tide_history two weeks ago — no
+// approximation. Data-gated: returns '' when history doesn't reach back ~two
+// weeks, or the stored count for that day is missing. If trajectory and the
+// raw count delta disagree, trajectory wins the word and the conflict is
+// logged (per the brief — the card must never contradict the engine).
+function tideDirectionClause(trajectory, history, nowCount, sparseHistory) {
+  if (sparseHistory || !Array.isArray(history) || !history.length) return '';
+  if (!Number.isFinite(+nowCount)) return '';
+  const sorted = history.filter(h => h && h.date).slice().sort((a, b) => a.date < b.date ? -1 : 1);
+  if (!sorted.length) return '';
+  const t = new Date();
+  const target = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()) - 14 * 86400000)
+    .toISOString().slice(0, 10);
+  // Data-gate: if our earliest day is newer than two weeks ago, there is no
+  // real comparison point — omit the clause rather than invent one.
+  if (sorted[0].date > target) return '';
+  let pick = null;
+  for (const h of sorted) { if (h.date <= target) pick = h; else break; }
+  if (!pick || !Number.isFinite(+pick.brands_on_sale)) return '';  // no real count → no approximation
+  const past = +pick.brands_on_sale, now = +nowCount;
+  let word;
+  if (trajectory === 'RISING')      word = 'up from';
+  else if (trajectory === 'FALLING') word = 'down from';
+  else                               word = (past === now) ? 'holding at' : 'around';
+  if ((trajectory === 'RISING' && now < past) || (trajectory === 'FALLING' && now > past)) {
+    try { console.warn('[tide] trajectory/count conflict — trajectory=' + trajectory
+      + ' now=' + now + ' twoWeeksAgo=' + past + '; using trajectory for the word'); } catch (e) {}
+  }
+  return ', ' + word + ' ' + past + ' two weeks ago';
+}
+
+// Faithful real-history series for the centre-detail chart. Unlike
+// buildTide60Series (the landing chart) this does NOT backfill synthetic
+// seasonal data, rescale amplitude, or monotonise — it plots tide_history
+// exactly as stored (dips and recessions intact), with today anchored to the
+// live headline value so the chart endpoint always matches the card's "X%".
+// Returns [{date, score, onSale, total}] ascending by date.
+function buildTideRealSeries(history, todayPct, todayOnSale, todayTotal) {
+  const byDate = {};
+  if (Array.isArray(history)) {
+    for (const h of history) {
+      if (h && h.date && Number.isFinite(+h.score)) {
+        byDate[h.date] = {
+          date: h.date,
+          score: Math.max(0, Math.min(100, +h.score)),
+          onSale: Number.isFinite(+h.brands_on_sale) ? +h.brands_on_sale : null,
+          total:  Number.isFinite(+h.total_brands)   ? +h.total_brands   : null,
+        };
+      }
+    }
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  if (Number.isFinite(+todayPct)) {
+    byDate[today] = {
+      date: today,
+      score: Math.max(0, Math.min(100, Math.round(+todayPct))),
+      onSale: Number.isFinite(+todayOnSale) ? +todayOnSale : null,
+      total:  Number.isFinite(+todayTotal)  ? +todayTotal  : null,
+    };
+  }
+  return Object.keys(byDate).sort().map(d => byDate[d]);
+}
+
+function _tideDaysBetween(a, b) {
+  return Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 86400000);
+}
+
+// Window the full real series to the selected period. We window by the last N
+// real DATA POINTS (not calendar days) so the curve always has ≥2 points to
+// draw a line — a centre whose stored history skips days used to render 7D as
+// a lone dot with no line. For dense daily history (the common case) last-7-
+// points == last-7-days. MAX returns everything.
+// Window the full real series to the selected period by CALENDAR DATE so the
+// tab labels are literal: 7D = last 7 days, 30D = last 30, 60D = last 60,
+// MAX = everything stored (up to score.js's retention window). A date window
+// can yield 0–1 points on a gappy centre, so if the slice has <2 points we fall
+// back to the last 2 real points (preserves the "always draw a line" intent).
+// ISO YYYY-MM-DD dates compare lexically and the series is already ascending by
+// date. NOTE: tabs only render visibly different when the centre actually has
+// points spanning those ranges — a centre with ≤30 days of history shows the
+// same line on 30D/60D/MAX until more days accrue.
+function windowTideSeries(series, period) {
+  if (!series.length || period === 'MAX') return series;
+  const days = period === '7D' ? 6 : period === '30D' ? 29 : 59;  // inclusive of today
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const win = series.filter(p => p.date >= cutoff);
+  return win.length >= 2 ? win : series.slice(-2);
+}
+
+// Centre-detail history chart — the line is the hero. Pure-black panel, a bold
+// neon-green curve with glow + gradient fill (the old TIDE neon, restored),
+// and a neon endpoint value pill. The y-axis is a FIXED 0–100% scale, so every
+// value sits at its true height (58% reads as 58%) and the 100% reference line
+// is always shown. We no longer draw "PEAK"/"QUIET" threshold lines — instead
+// the axis carries faint gridlines at 0/25/50/75/100 with numeric labels, and
+// every point where the centre ENTERS peak (score crosses up through
+// TIDE_PEAK_LINE) is marked with a small amber dot on the curve. Even
+// x-spacing across the window so the line always spans the full width.
+function buildTideChartSVG(series, period, tone, endpointPct) {
+  const NEON = '#5EFFB0';
+  const W = 400, H = 356, PL = 8, PR = 8, PT = 20, PB = 14;
+  const X0 = PL, X1 = PL + W;
+
+  const win = windowTideSeries(Array.isArray(series) ? series : [], period);
+  const n = win.length;
+  // Fixed 0–100% axis: every value sits at its TRUE height (58% reads as 58%,
+  // not jammed near the top by an auto-zoom) and the 100% line is always shown.
+  // We trade some headroom for honest positioning.
+  const ceiling = 100;
+  const yFor = s => +(PT + (1 - Math.max(0, Math.min(ceiling, s)) / ceiling) * H).toFixed(2);
+
+  const xFor = i => +(X0 + (n > 1 ? (i / (n - 1)) * W : W)).toFixed(2);
+  const pts = win.map((p, i) => [xFor(i), yFor(p.score)]);
+
+  // Faint horizontal gridlines at round %% values (0 → ceiling), each with a
+  // small numeric label so the auto-zoom reads honestly — no PEAK/QUIET words.
+  const step = ceiling <= 30 ? 10 : ceiling <= 60 ? 20 : 25;
+  const gridVals = [];
+  for (let v = 0; v <= ceiling - step / 2; v += step) gridVals.push(v);
+  gridVals.push(ceiling);
+  const refs = gridVals.map(v => {
+    const gy = yFor(v);
+    return '<line x1="' + X0 + '" y1="' + gy + '" x2="' + X1 + '" y2="' + gy + '" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" stroke-dasharray="6 6"/>'
+      + '<text x="' + (X1 - 2) + '" y="' + (v === 0 ? gy - 6 : gy + 13).toFixed(1) + '" text-anchor="end" font-family="Inter,sans-serif" font-size="11" font-weight="700" fill="rgba(255,255,255,0.8)">' + v + '</text>';
+  }).join('');
+
+  // Peak-hit dots: mark each point where the centre ENTERS peak (score crosses
+  // up through TIDE_PEAK_LINE) — one amber dot per peak episode. Replaces the
+  // old "PEAK" threshold line; no text, just a marker. Drawn before the live
+  // endpoint so today's neon dot/pill stays on top.
+  const PEAK_DOT = '#E6A94B';
+  let peakDots = '';
+  for (let i = 0; i < win.length; i++) {
+    const sc = +win[i].score;
+    const prev = i > 0 ? +win[i - 1].score : -1;
+    if (Number.isFinite(sc) && sc >= TIDE_PEAK_LINE && !(prev >= TIDE_PEAK_LINE)) {
+      peakDots += '<circle cx="' + pts[i][0] + '" cy="' + pts[i][1] + '" r="4" fill="' + PEAK_DOT + '" stroke="#0B0B0D" stroke-width="1.4"><title>Peak</title></circle>';
+    }
+  }
+
+  const defs =
+      '<linearGradient id="tideArea" x1="0" y1="0" x2="0" y2="1">'
+    +   '<stop offset="0%" stop-color="' + NEON + '" stop-opacity="0.34"/>'
+    +   '<stop offset="100%" stop-color="' + NEON + '" stop-opacity="0"/>'
+    + '</linearGradient>'
+    + '<filter id="tideGlow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+
+  let area = '', line = '';
+  if (pts.length >= 2) {
+    const d = smoothCurvePath(pts);
+    area = '<path d="' + d + ' L ' + pts[pts.length - 1][0] + ' ' + yFor(0) + ' L ' + pts[0][0] + ' ' + yFor(0) + ' Z" fill="url(#tideArea)"/>';
+    line = '<path d="' + d + '" fill="none" stroke="' + NEON + '" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" filter="url(#tideGlow)"/>';
+  }
+
+  // Neon endpoint dot + value pill.
+  let endpoint = '';
+  if (pts.length) {
+    const ex = pts[pts.length - 1][0], ey = pts[pts.length - 1][1];
+    const label = Math.round(endpointPct) + '%';
+    const pw = 22 + label.length * 10;
+    const px = Math.min(ex + 8, X1 - pw);
+    // Endpoint sits high after the auto-zoom — drop the pill below the dot when
+    // it's in the upper quarter so it never clips the top edge.
+    const py = ey < PT + H * 0.25 ? ey + 12 : ey - 33;
+    endpoint = '<circle cx="' + ex + '" cy="' + ey + '" r="11" fill="' + NEON + '" opacity="0.20"/>'
+      + '<circle cx="' + ex + '" cy="' + ey + '" r="4.2" fill="' + NEON + '" stroke="#0B0B0D" stroke-width="1.6" filter="url(#tideGlow)"/>'
+      + '<g transform="translate(' + px.toFixed(1) + ',' + py.toFixed(1) + ')">'
+      +   '<rect width="' + pw + '" height="26" rx="13" fill="' + NEON + '"/>'
+      +   '<text x="' + (pw / 2) + '" y="17.5" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="800" fill="#06281C">' + label + '</text>'
+      + '</g>';
+  }
+
+  return '<svg viewBox="0 0 ' + (W + PL + PR) + ' ' + (H + PT + PB) + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tide history, ' + period + '">'
+    + '<defs>' + defs + '</defs>'
+    + refs + area + line + peakDots + endpoint
+    + '</svg>';
+}
+
+// Period-tab handler. Rebuilds only the chart SVG (cheap) from the stash set
+// in renderTideVessel, and toggles the active tab. Global for inline onclick.
+function setTideChartPeriod(period) {
+  if (!['7D', '30D', '60D', 'MAX'].includes(period)) return;
+  window._tideChartPeriod = period;
+  const c = window._tideChart;
+  if (c) {
+    const host = document.querySelector('.tide-vessel-chart-svg-host');
+    if (host) host.innerHTML = buildTideChartSVG(c.series, period, c.tone, c.pct);
+  }
+  document.querySelectorAll('.tide-period-tab').forEach(t =>
+    t.classList.toggle('is-active', t.getAttribute('data-period') === period));
+}
+
+// Saved-shops personal line (Change 3). Three states; mirrors the brand-sale
+// alert copy ("N of your shops"). The on-sale set is admin-verified and
+// resolved by the caller (followed ∩ present-at-centre ∩ SALE_STATUS) — never
+// scraper sale_status, no recompute here.
+function renderSavedShopsLine(v) {
+  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const names = Array.isArray(v.followedOnSale) ? v.followedOnSale : [];
+  if (v.hasFollowed && names.length) {
+    const shown = names.slice(0, 3).map(esc).join(', ');
+    const extra = names.length > 3 ? ' +' + (names.length - 3) + ' more' : '';
+    return '<div class="tide-saved-line is-hit">'
+      + '<span class="tide-saved-star" aria-hidden="true">★</span>'
+      + '<span class="tide-saved-text"><strong>' + names.length + ' of your shops</strong> on sale &middot; ' + shown + extra + '</span>'
+      + '</div>';
+  }
+  if (v.hasFollowed) {
+    const others = Number.isFinite(+v.onSaleCount) ? Math.max(0, +v.onSaleCount) : 0;
+    const tail = others > 0 ? ' — ' + others + ' other' + (others === 1 ? ' is' : 's are') : '';
+    return '<div class="tide-saved-line">'
+      + '<span class="tide-saved-text">None of your shops on sale yet' + tail + '.</span>'
+      + '</div>';
+  }
+  const signedIn = (typeof currentUser !== 'undefined' && currentUser);
+  return '<button type="button" class="tide-saved-line is-prompt" onclick="' + (signedIn ? 'openOnboarding()' : 'openAuthModal()') + '">'
+    + '<span class="tide-saved-text">Follow your shops for an alert the day they drop</span>'
+    + '<span class="tide-saved-arrow" aria-hidden="true">→</span>'
+    + '</button>';
+}
+
+// Centre-detail hero. Leads with the Tide Score as a large % + the verdict
+// word, pairs it with the raw "N of M shops on sale" count (server
+// brands_on_sale — the same source tide_score is computed from), folds
+// direction into the count line in shops (not points), surfaces the user's
+// followed shops, and renders the faithful 0–100 history chart with 7D/30D/MAX
+// tabs. Takes a single ctx object `v` (see the call site in renderCentre).
+function renderTideVessel(v) {
+  v = v || {};
+  const verdict = deriveVerdict({ serverVerdict: v.serverVerdict, stage: v.stage });
+  const tone = verdict.tone;
   const HEADLINE = { PEAK: 'Go now', RISING: 'Rising', EASING: 'Easing', OVER: 'Over', QUIET: 'Quiet' };
   const headlineWord = HEADLINE[verdict.word] || verdict.word;
+  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // Subtitle copy. Prefer the caller-supplied statement (the same string the
-  // .score-message block used to render — server bluf, falling back to
-  // stageStyle.msg). Recommendation language is allowed only on PEAK; for
-  // every other stage this is pure trend description.
-  const subtitle = String(statement || (stageStyle(stage) || {}).msg || '');
+  const hasCount = Number.isFinite(+v.onSaleCount) && Number.isFinite(+v.totalCount) && +v.totalCount > 0;
+  const pct = Math.max(0, Math.min(100, Math.round(+v.pct || 0)));
 
-  // Build the 60-day series once. Both the curve and the trend pill arrow
-  // derive their direction from it, so the visual slope and the arrow can
-  // never disagree.
-  // Anchor the chart's "today" point to the SAME live value the headline
-  // shows (pctOnSale = onSale / total, read straight from brand_sale_events),
-  // not the server's tide_history. tide_history only refreshes when the daily
-  // cron or an admin rescore runs, so when live sales jump ahead of it the
-  // headline read PEAK while the curve still sat at yesterday's stale, low
-  // level — the line hovered under QUIET while the badge said "go now". Passing
-  // the live value in makes the line always terminate at exactly what the card
-  // claims, so chart and verdict can never disagree on today.
-  const series60 = buildTide60Series(Array.isArray(history) ? history : [], pctOnSale);
-  const n60 = series60.length;
-  const lastSlope = n60 >= 2 ? (series60[n60 - 1].score - series60[n60 - 2].score) : 0;
-  const FLAT_BAND = 0.6;
-  const slopeDir = lastSlope >  FLAT_BAND ? 'up'
-                 : lastSlope < -FLAT_BAND ? 'down'
-                 : 'flat';
+  // Eyebrow: centre name + location (left), "Verified {when}" badge (right).
+  const safeCentre = esc(v.centreName);
+  const safeLoc = esc(v.centreLocation);
+  const eyebrowName = '<span class="tide-vessel-centre-name">' + safeCentre
+    + (safeLoc ? ' <span class="tide-vessel-centre-loc">' + safeLoc + '</span>' : '') + '</span>';
+  const verifiedHTML = v.verifiedLabel
+    ? '<span class="tide-vessel-verified"><span class="tide-vessel-verified-dot" aria-hidden="true"></span>' + esc(v.verifiedLabel) + '</span>'
+    : '';
 
-  // Trend pill: word is the same as the headline (so the two never read as
-  // different states on the same card); arrow follows verdict tone but is
-  // OVERRIDDEN to neutral '→' if the live curve contradicts it. Belt-and-
-  // braces so a stale server verdict can never put an ↑ next to a falling
-  // line.
-  let pillArrow;
-  let pillCls = '';
-  if (verdict.tone === 'go') {
-    pillArrow = '★';                                  // PEAK — non-directional
-  } else if (verdict.tone === 'rise') {
-    pillArrow = (slopeDir === 'down') ? '→' : '↑';
-    pillCls = (slopeDir === 'down') ? '' : 'is-up';
-  } else if (verdict.tone === 'fall') {
-    pillArrow = (slopeDir === 'up') ? '→' : '↓';
-    pillCls = (slopeDir === 'up') ? '' : 'is-down';
-  } else {
-    pillArrow = '→';                                  // QUIET / OVER
-  }
-  const pillWord = headlineWord;
+  const headlineRow = '<div class="tide-vessel-headline-row">'
+    + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
+    + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
+    + '</div>';
 
-  const safeCentre = String(centreName || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const safeLoc    = String(centreLocation || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const eyebrowText = safeCentre + (safeLoc ? ' &middot; ' + safeLoc : '');
+  const savedHTML = renderSavedShopsLine(v);
 
-  const ariaLabel = (headlineWord + '. ' + factText + '. ' + subtitle)
+  const countText = hasCount
+    ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale' + (v.directionClause || ''))
+    : (pct + '% of shops on sale');
+  const countHTML = '<div class="tide-count-line">' + countText + '</div>';
+
+  // Faithful real-history series + period-tab state. Stash for the tabs'
+  // cheap re-render. Anchor today to the live headline value (pct).
+  const series = buildTideRealSeries(v.history, pct, v.onSaleCount, v.totalCount);
+  const period = (typeof window !== 'undefined' && window._tideChartPeriod) || '60D';
+  if (typeof window !== 'undefined') window._tideChart = { series, tone, pct };
+  const chartSVG = buildTideChartSVG(series, period, tone, pct);
+  // Always show the full 7D / 30D / 60D / MAX control set; the chart defaults
+  // to 60D. Windows are date-based (see windowTideSeries), so the tabs are only
+  // visibly different where the centre has points spanning those date ranges —
+  // a thin centre draws the same line on 30D/60D/MAX until more days accrue.
+  const tabs = ['7D', '30D', '60D', 'MAX'].map(p =>
+    '<button type="button" class="tide-period-tab' + (p === period ? ' is-active' : '')
+    + '" data-period="' + p + '" onclick="setTideChartPeriod(\'' + p + '\')">' + p + '</button>'
+  ).join('');
+
+  const ariaLabel = (headlineWord + '. ' + countText)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-  // ── Chart geometry (relocated from the retired renderHistoryChart) ──
-  // Same viewBox / smoothing / threshold lines, no outer card wrapper —
-  // the vessel itself is the card now.
-  const W = 480, H = 110, PL = 8, PR = 18, PT = 4, PB = 22;
-  const k = 2;
-  const smoothed = series60.map((_, i) => {
-    let sum = 0, w = 0;
-    for (let j = Math.max(0, i - k); j <= Math.min(n60 - 1, i + k); j++) {
-      const wt = k + 1 - Math.abs(i - j);
-      sum += series60[j].score * wt;
-      w += wt;
-    }
-    return n60 ? sum / w : 0;
-  });
-  const pts = smoothed.map((s, i) => [
-    +(PL + (n60 > 1 ? (i / (n60 - 1)) * W : 0)).toFixed(2),
-    +(PT + (1 - s / 100) * H).toFixed(2),
-  ]);
-  const lineD = pts.length >= 2 ? smoothCurvePath(pts) : '';
-  const [lx, ly] = pts.length ? pts[pts.length - 1] : [PL + W, PT + H];
-  const NEON = '#5EFFB0';
-  const thresholds = [
-    { pct: 75, label: 'PEAK',  stroke: 'rgba(255,200,120,0.32)', dash: '4 4', textFill: 'rgba(255,200,120,0.62)' },
-    { pct: 50, label: null,    stroke: 'rgba(245,241,235,0.10)', dash: '0',   textFill: null },
-    { pct: 25, label: 'QUIET', stroke: 'rgba(245,241,235,0.20)', dash: '4 4', textFill: 'rgba(245,241,235,0.45)' },
-  ];
-  const gridLines = thresholds.map(g => {
-    const gy = +(PT + (1 - g.pct / 100) * H).toFixed(1);
-    const dashAttr = g.dash !== '0' ? ' stroke-dasharray="' + g.dash + '"' : '';
-    let line = '<line x1="' + PL + '" y1="' + gy + '" x2="' + (PL + W) + '" y2="' + gy + '" stroke="' + g.stroke + '" stroke-width="0.7"' + dashAttr + '/>';
-    if (g.label) {
-      line += '<text x="' + (PL + 4) + '" y="' + (gy - 3).toFixed(1) + '" font-family="Inter,sans-serif" font-size="8" font-weight="700" letter-spacing="0.14em" fill="' + g.textFill + '">' + g.label + '</text>';
-    }
-    return line;
-  }).join('');
-  const midIdx = Math.round((n60 - 1) / 2);
-  const xLabels = pts.length ? [
-    { x: pts[0][0],      anchor: 'start',  text: '60d'   },
-    { x: pts[midIdx][0], anchor: 'middle', text: '30d ago' },
-    { x: pts[n60 - 1][0], anchor: 'end',   text: 'today' },
-  ].map(l => (
-    '<text x="' + l.x + '" y="' + (PT + H + 16) + '" font-family="Inter,sans-serif" font-size="9.5" fill="rgba(245,241,235,0.45)" letter-spacing="0.04em" text-anchor="' + l.anchor + '">' + l.text + '</text>'
-  )).join('') : '';
-  const filterDef = '<filter id="t60Glow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
-
-  const eyebrowHTML = eyebrowText
-    ? '<div class="tide-vessel-eyebrow-row"><span class="tide-vessel-centre-name">' + eyebrowText + '</span>'
-        + '<span class="tide-vessel-trend-pill ' + pillCls + '" data-verdict-word="' + verdict.word + '" data-pill-arrow="' + pillArrow + '">'
-        +   '<span class="tide-vessel-trend-pill-arrow">' + pillArrow + '</span>'
-        +   '<span class="tide-vessel-trend-pill-word">' + pillWord + '</span>'
-        + '</span>'
-        + '</div>'
-    : '<div class="tide-vessel-eyebrow-row tide-vessel-eyebrow-row--pill-only">'
-        + '<span class="tide-vessel-trend-pill ' + pillCls + '" data-verdict-word="' + verdict.word + '" data-pill-arrow="' + pillArrow + '">'
-        +   '<span class="tide-vessel-trend-pill-arrow">' + pillArrow + '</span>'
-        +   '<span class="tide-vessel-trend-pill-word">' + pillWord + '</span>'
-        + '</span>'
-        + '</div>';
-
-  return '<div class="tide-vessel has-verdict verdict-' + verdict.tone + ' tide-vessel--merged" data-verdict-word="' + verdict.word + '" data-slope-direction="' + slopeDir + '" data-pill-arrow="' + pillArrow + '" role="img" aria-label="' + ariaLabel + '">'
-       +   eyebrowHTML
-       +   '<div class="tide-vessel-verdict">'
-       +     '<div class="tide-vessel-verdict-word tone-' + verdict.tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</div>'
-       +     '<div class="tide-vessel-fact">' + factText + '</div>'
-       +     (subtitle ? '<div class="tide-vessel-statement tone-' + verdict.tone + '">' + subtitle.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>' : '')
-       +   '</div>'
-       +   '<div class="tide-vessel-chart-eyebrow">'
-       +     'TIDE &middot; 60 DAYS &middot; '
-       +     '<span class="tide-vessel-chart-eyebrow-tail tone-' + verdict.tone + '" data-verdict-word="' + verdict.word + '">' + verdict.word + '</span>'
-       +   '</div>'
-       +   '<div class="tide-vessel-chart">'
-       +     '<svg viewBox="0 0 ' + (W + PL + PR) + ' ' + (H + PT + PB) + '" xmlns="http://www.w3.org/2000/svg">'
-       +       '<defs>' + filterDef + '</defs>'
-       +       gridLines
-       +       (lineD ? '<path d="' + lineD + '" fill="none" stroke="' + NEON + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" filter="url(#t60Glow)"/>' : '')
-       +       (pts.length ? '<text x="' + lx + '" y="' + (ly - 11).toFixed(1) + '" text-anchor="middle" font-family="Inter,sans-serif" font-size="9.5" fill="' + NEON + '" font-weight="600">today</text>' : '')
-       +       (pts.length ? '<circle cx="' + lx + '" cy="' + ly + '" r="9" fill="' + NEON + '" opacity="0.18"/>' : '')
-       +       (pts.length ? '<circle cx="' + lx + '" cy="' + ly + '" r="3.6" fill="' + NEON + '" filter="url(#t60Glow)"/>' : '')
-       +       xLabels
-       +     '</svg>'
-       +   '</div>'
-       + '</div>';
+  return '<div class="tide-vessel has-verdict verdict-' + tone + ' tide-vessel--merged" data-verdict-word="' + verdict.word + '" role="img" aria-label="' + ariaLabel + '">'
+    +   '<div class="tide-vessel-eyebrow-row">' + eyebrowName + verifiedHTML + '</div>'
+    +   headlineRow
+    +   savedHTML
+    +   countHTML
+    +   '<div class="tide-vessel-chart">'
+    +     '<div class="tide-vessel-chart-svg-host">' + chartSVG + '</div>'
+    +     '<div class="tide-period-tabs">' + tabs + '</div>'
+    +   '</div>'
+    + '</div>';
 }
 
 function renderArcWidget(stage, color) {
@@ -3810,78 +4046,128 @@ function buildAllCentresAvgHistory() {
 // neon green curve and no score-number footer. The series is the real
 // all-centres daily average (buildAllCentresAvgHistory); only the lead-in
 // before our earliest real day is synthetic seasonal backfill.
-function renderTide60Light() {
-  // Anchor today's point to the LIVE all-centres average (same source as each
-  // centre card's headline), not the stored server tide_score. The stored
-  // history lags live brand data between scoring runs, so without this the
-  // landing curve dips into "today" off stale numbers while the individual
-  // cards — which read live data — show sales are up. Mirrors the per-centre
-  // fix in renderTideVessel.
+// Full 60-point all-centres average series (real daily average + synthetic
+// seasonal lead-in), today anchored to the LIVE all-centres average — the same
+// source each centre card's headline uses. The stored history lags live brand
+// data between scoring runs, so without the live anchor the landing curve dips
+// into "today" off stale numbers while the cards show sales up. Mirrors the
+// per-centre fix in renderTideVessel.
+function tide60FullSeries() {
   let liveSum = 0, liveCount = 0;
   for (let idx = 0; idx < CENTRE_NAMES.length; idx++) {
     const c = calcCentreScore(idx);
     if (c.total > 0) { liveSum += c.score; liveCount++; }
   }
   const liveTodayAvg = liveCount ? liveSum / liveCount : undefined;
-  const series = buildTide60Series(buildAllCentresAvgHistory(), liveTodayAvg);
-  const n = series.length;
-  const W = 480, H = 160, PL = 8, PR = 18, PT = 4, PB = 22;
+  return buildTide60Series(buildAllCentresAvgHistory(), liveTodayAvg);
+}
+
+// Window the full series to the selected period — last 7 / 30 points, or all.
+function tide60Window(series, period) {
+  if (period === '7D') return series.slice(-7);
+  if (period === '30D') return series.slice(-30);
+  return series;
+}
+
+// Trend pill (same rule as before): last point vs mean of the previous
+// fortnight — but now computed over the windowed series so the pill agrees
+// with the line the user is looking at.
+function tide60Trend(scores) {
+  const n = scores.length;
+  const tail = scores.slice(Math.max(0, n - 15), n - 1);
+  const recentAvg = tail.reduce((a, b) => a + b, 0) / Math.max(1, tail.length);
+  const delta = scores[n - 1] - recentAvg;
+  const traj = delta > 4 ? 'RISING' : delta < -4 ? 'FALLING' : 'HOLDING';
+  return {
+    arrow: traj === 'RISING' ? '↑' : traj === 'FALLING' ? '↓' : '→',
+    text:  traj === 'RISING' ? 'Rising' : traj === 'FALLING' ? 'Falling' : 'Holding',
+    cls:   traj === 'FALLING' ? ' is-down' : '',
+  };
+}
+
+const TIDE60_PERIOD_LABEL = { '7D': '7-day', '30D': '30-day', 'MAX': '60-day' };
+
+// The landing chart SVG, identical to before (neon curve, soft fill, faint
+// 33/66 gridlines, today dot + x-axis labels) — only now 50% taller (viewBox
+// height 186 → 279) and windowed to the chosen period. The x-axis labels adapt
+// to the window (7d / 30d / 60d ago).
+function tide60ChartSVG(period) {
+  const win = tide60Window(tide60FullSeries(), period);
+  const n = win.length;
+  const W = 480, H = 253, PL = 8, PR = 18, PT = 4, PB = 22;   // H 160 → 253 = +50% overall
   const k = 2;
-  const smoothed = series.map((_, i) => {
+  const smoothed = win.map((_, i) => {
     let sum = 0, w = 0;
     for (let j = Math.max(0, i - k); j <= Math.min(n - 1, i + k); j++) {
       const wt = k + 1 - Math.abs(i - j);
-      sum += series[j].score * wt;
+      sum += win[j].score * wt;
       w += wt;
     }
     return sum / w;
   });
   const pts = smoothed.map((s, i) => [
-    +(PL + (i / (n - 1)) * W).toFixed(2),
+    +(PL + (n > 1 ? (i / (n - 1)) * W : W)).toFixed(2),
     +(PT + (1 - s / 100) * H).toFixed(2),
   ]);
-  const lineD = smoothCurvePath(pts);
-  const fillD = lineD + ' L ' + (PL + W).toFixed(2) + ',' + (PT + H) + ' L ' + PL + ',' + (PT + H) + ' Z';
-  const [lx, ly] = pts[n - 1];
-  // Bright neon green (var(--tide-neon)) reads on the dark card surface; the
-  // forest LEAF was tuned for the old white variant.
+  const lineD = pts.length >= 2 ? smoothCurvePath(pts) : '';
+  const fillD = lineD ? (lineD + ' L ' + (PL + W).toFixed(2) + ',' + (PT + H) + ' L ' + PL + ',' + (PT + H) + ' Z') : '';
+  const [lx, ly] = pts.length ? pts[n - 1] : [PL + W, PT + H];
   const LINE = '#5EFFB0';
-  // Trend = last point vs mean of previous fortnight.
-  const tail = smoothed.slice(-15, -1);
-  const recentAvg = tail.reduce((a, b) => a + b, 0) / Math.max(1, tail.length);
-  const delta = smoothed[n - 1] - recentAvg;
-  const traj = delta > 4 ? 'RISING' : delta < -4 ? 'FALLING' : 'HOLDING';
-  const trendArrow = traj === 'RISING' ? '↑' : traj === 'FALLING' ? '↓' : '→';
-  const trendText  = traj === 'RISING' ? 'Rising' : traj === 'FALLING' ? 'Falling' : 'Holding';
-  const trendCls   = traj === 'FALLING' ? ' is-down' : '';
   const gridLines = [33, 66].map(pct => {
     const gy = +(PT + (1 - pct / 100) * H).toFixed(1);
     return '<line x1="' + PL + '" y1="' + gy + '" x2="' + (PL + W) + '" y2="' + gy + '" stroke="rgba(245,241,235,0.08)" stroke-width="0.7"/>';
   }).join('');
+  const leftText = period === '7D' ? '7d ago' : period === '30D' ? '30d ago' : '60d ago';
+  const midText  = period === '7D' ? '3d ago' : period === '30D' ? '15d ago' : '30d ago';
   const midIdx = Math.round((n - 1) / 2);
-  const xLabels = [
-    { x: pts[0][0],      anchor: 'start',  text: '60d ago' },
-    { x: pts[midIdx][0], anchor: 'middle', text: '30d ago' },
-    { x: pts[n - 1][0],  anchor: 'end',    text: 'Today'   },
+  const xLabels = pts.length ? [
+    { x: pts[0][0],      anchor: 'start',  text: leftText },
+    { x: pts[midIdx][0], anchor: 'middle', text: midText  },
+    { x: pts[n - 1][0],  anchor: 'end',    text: 'Today'  },
   ].map(l => (
     '<text x="' + l.x + '" y="' + (PT + H + 16) + '" font-family="Inter,sans-serif" font-size="9.5" fill="rgba(245,241,235,0.45)" letter-spacing="0.04em" text-anchor="' + l.anchor + '">' + l.text + '</text>'
-  )).join('');
-  return '<section class="tide60-sample" aria-label="All centres average tide over 60 days">'
+  )).join('') : '';
+  return '<svg viewBox="0 0 ' + (W + PL + PR) + ' ' + (H + PT + PB) + '" xmlns="http://www.w3.org/2000/svg">'
+       +   gridLines
+       +   (fillD ? '<path d="' + fillD + '" fill="' + LINE + '" fill-opacity="0.12" stroke="none"/>' : '')
+       +   (lineD ? '<path d="' + lineD + '" fill="none" stroke="' + LINE + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' : '')
+       +   (pts.length ? '<text x="' + lx + '" y="' + (ly - 11).toFixed(1) + '" text-anchor="middle" font-family="Inter,sans-serif" font-size="9.5" fill="' + LINE + '" font-weight="600">today</text>' : '')
+       +   (pts.length ? '<circle cx="' + lx + '" cy="' + ly + '" r="3.6" fill="white" stroke="' + LINE + '" stroke-width="1.8"/>' : '')
+       +   xLabels
+       + '</svg>';
+}
+
+// Period-tab handler for the landing chart. Re-renders the chart, title and
+// trend pill in place. Global for the inline onclick.
+function setTide60Period(period) {
+  if (!['7D', '30D', 'MAX'].includes(period)) return;
+  window._tide60Period = period;
+  const host = document.querySelector('.tide60-chart');
+  if (host) host.innerHTML = tide60ChartSVG(period);
+  const sliced = tide60Window(tide60FullSeries(), period);
+  const tr = tide60Trend(sliced.map(p => p.score));
+  const tp = document.getElementById('tide60-trend');
+  if (tp) { tp.className = 'tide60-trend' + tr.cls; tp.innerHTML = '<span class="tide60-trend-arrow">' + tr.arrow + '</span>' + tr.text; }
+  const tt = document.getElementById('tide60-title');
+  if (tt) tt.innerHTML = 'All centres &middot; ' + TIDE60_PERIOD_LABEL[period] + ' average';
+  document.querySelectorAll('.tide60-tab').forEach(t => t.classList.toggle('is-active', t.getAttribute('data-period') === period));
+}
+
+function renderTide60Light() {
+  const period = (typeof window !== 'undefined' && window._tide60Period) || 'MAX';
+  const sliced = tide60Window(tide60FullSeries(), period);
+  const tr = tide60Trend(sliced.map(p => p.score));
+  const tabs = ['7D', '30D', 'MAX'].map(p =>
+    '<button type="button" class="tide60-tab' + (p === period ? ' is-active' : '') + '" data-period="' + p + '" onclick="setTide60Period(\'' + p + '\')">' + p + '</button>'
+  ).join('');
+  return '<section class="tide60-sample" aria-label="All centres average tide">'
        +   '<div class="tide60-card">'
        +     '<div class="tide60-header">'
-       +       '<span class="tide60-title">All centres &middot; 60-day average</span>'
-       +       '<span class="tide60-trend' + trendCls + '"><span class="tide60-trend-arrow">' + trendArrow + '</span>' + trendText + '</span>'
+       +       '<span class="tide60-title" id="tide60-title">All centres &middot; ' + TIDE60_PERIOD_LABEL[period] + ' average</span>'
+       +       '<span class="tide60-trend' + tr.cls + '" id="tide60-trend"><span class="tide60-trend-arrow">' + tr.arrow + '</span>' + tr.text + '</span>'
        +     '</div>'
-       +     '<div class="tide60-chart">'
-       +       '<svg viewBox="0 0 ' + (W + PL + PR) + ' ' + (H + PT + PB) + '" xmlns="http://www.w3.org/2000/svg">'
-       +         gridLines
-       +         '<path d="' + fillD + '" fill="' + LINE + '" fill-opacity="0.12" stroke="none"/>'
-       +         '<path d="' + lineD + '" fill="none" stroke="' + LINE + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
-       +         '<text x="' + lx + '" y="' + (ly - 11).toFixed(1) + '" text-anchor="middle" font-family="Inter,sans-serif" font-size="9.5" fill="' + LINE + '" font-weight="600">today</text>'
-       +         '<circle cx="' + lx + '" cy="' + ly + '" r="3.6" fill="white" stroke="' + LINE + '" stroke-width="1.8"/>'
-       +         xLabels
-       +       '</svg>'
-       +     '</div>'
+       +     '<div class="tide60-chart">' + tide60ChartSVG(period) + '</div>'
+       +     '<div class="tide60-tabs">' + tabs + '</div>'
        +   '</div>'
        + '</section>';
 }
@@ -4042,17 +4328,33 @@ function renderSavedCentresLanding(savedIds) {
        + '<span class="saved-centres-divider">All centres</span>';
 }
 
-// Top N centres for the neutral "Today's tide" snapshot, with everything
-// needed to render a row. `excludeIds` optionally filters out saved centres so
-// signed-in users see "what else is good" rather than duplicating their own
-// list.
-// Ranked by verdict SEVERITY (Peak → Rising → Easing → Quiet → Over), then by
-// Tide Score as a tiebreaker — the list leads with the centres most worth a
-// look today. (It previously ranked by today's proportional brand gain, to
-// justify a "N new sales today" row; that rationale was retired when the row
-// switched to the neutral "X of Y shops on sale" density fact, so a momentum
-// filter no longer matched what the row claims.) Eligibility is just: at least
-// one brand on sale (tide_score > 0) and a valid brand count.
+// "Today's tide" ranking + brand-strip tunables (Jun 2026 component rebuild).
+// All four are owner-signed-off knobs — change them here, nowhere else.
+//   TOP_N               how many centres the list shows.
+//   MIN_TRACKED_BRANDS  denominator floor: a thin centre (e.g. 3/3 = 100%)
+//                       can't top the list on a tiny sample. Real malls track
+//                       ~20–44 brands, well above this.
+//   NEW_DAYS            a verified cycle younger than this earns a "NEW" pip.
+//   STRIP_TILES         max logo tiles before the "+N" overflow chip.
+const HOT_TOP_N = 3;
+const HOT_MIN_TRACKED_BRANDS = 10;
+const HOT_NEW_DAYS = 3;
+const HOT_STRIP_TILES = 4;
+// Outlet exclusion. No centre_type/is_outlet flag exists on `centres` (DB or
+// client) yet, so the rule is enforced by this explicit C-id set rather than a
+// data column. All 30 tracked centres are full malls today, so it's empty —
+// add e.g. 'C31' here (and document which centre) if an outlet-format centre
+// is ever onboarded. Mirror into a DB flag if the list ever grows.
+const HOT_EXCLUDE_OUTLET_CIDS = new Set([]);
+
+// Ranked by Tide Score DESCENDING (the brief's ordering — the list leads with
+// the highest-density centres), with verdict severity then name as
+// deterministic tiebreakers so equal scores never reorder between renders.
+// (It previously ranked by verdict severity first; that justified a momentum
+// row that no longer exists.) Eligibility: at least one brand on sale
+// (tide_score > 0), a valid brand count, the denominator floor, and not an
+// excluded outlet. `excludeIds` optionally filters out the user's own saved
+// centres so the discovery list reads as "what else is good".
 const HOT_VERDICT_SEVERITY = { PEAK: 5, RISING: 4, EASING: 3, QUIET: 2, OVER: 1 };
 function getHotCentres(n, excludeIds) {
   const exclude = new Set(Array.isArray(excludeIds) ? excludeIds : []);
@@ -4060,11 +4362,14 @@ function getHotCentres(n, excludeIds) {
   for (let idx = 0; idx < CENTRE_NAMES.length; idx++) {
     const cid = 'C' + (idx + 1);
     if (exclude.has(cid)) continue;
+    if (HOT_EXCLUDE_OUTLET_CIDS.has(cid)) continue;
     const s = getServerScore(idx);
     if (!s || !Number.isFinite(+s.tide_score) || +s.tide_score <= 0) continue;
     const totalBrands  = Number.isFinite(+s.total_brands)   ? +s.total_brands   : 0;
     const brandsOnSale = Number.isFinite(+s.brands_on_sale) ? +s.brands_on_sale : null;
     if (totalBrands <= 0 || brandsOnSale === null) continue;
+    // Denominator floor — a thin centre can't top the list on a tiny sample.
+    if (totalBrands < HOT_MIN_TRACKED_BRANDS) continue;
     const stage = deriveStageFromVerdict(s.verdict) || getTideStage(+s.tide_score, s.trajectory || 'FLAT');
     const verdict = deriveVerdict({
       serverVerdict: s.verdict,
@@ -4087,34 +4392,144 @@ function getHotCentres(n, excludeIds) {
       severity: HOT_VERDICT_SEVERITY[verdict.word] || 0,
     });
   }
-  ranked.sort((a, b) => (b.severity - a.severity) || (b.tideScore - a.tideScore));
+  ranked.sort((a, b) =>
+    (b.tideScore - a.tideScore) ||
+    (b.severity - a.severity) ||
+    a.name.localeCompare(b.name));
   return ranked.slice(0, n);
 }
 
-// "Today's tide" — top centres by verdict severity then Tide Score, with a
-// visible timestamp so it reads as a shared, dated snapshot. Returns '' when
-// no centre has anything on sale (or scores haven't loaded yet) so the section
+// Short, deterministic tile label for the brand strip — a monogram/wordmark,
+// not a fetched logo. We have no committed logo assets (runtime favicons are
+// low-res and load-flaky in a dense strip), so the brief's accepted monogram
+// fallback is the primary here, matching the component mock's text tiles.
+// First word (skipping a leading symbol like "&"), capped at 4 chars, with
+// SCREAMING tokens title-cased: "JD Sports"→"JD", "FLANNELS"→"Flan",
+// "Hugo Boss"→"Hugo", "Zara"→"Zara".
+function hotTileLabel(name) {
+  const words = String(name || '').trim().split(/\s+/);
+  let w = words[0] || '';
+  if (!/[A-Za-z]/.test(w) && words[1]) w = words[1];
+  if (w.length > 5) w = w.slice(0, 4);
+  if (/^[A-Z]{3,}$/.test(w)) w = w.charAt(0) + w.slice(1).toLowerCase();
+  return w;
+}
+
+// Brand-logo favicon src for a strip tile — same source the centre-detail
+// brand chips use (BRAND_URL_BY_NAME → urlToDomain → Google favicon service).
+// Returns '' when we have no URL for the brand, in which case the tile shows
+// its monogram. The <img> also has an onerror that drops it back to the
+// monogram, so a missing/blocked favicon degrades cleanly too.
+function hotTileLogoSrc(name) {
+  const url = (typeof BRAND_URL_BY_NAME !== 'undefined') ? BRAND_URL_BY_NAME[name] : null;
+  const d = urlToDomain(url);
+  return d ? 'https://www.google.com/s2/favicons?sz=128&domain=' + d : '';
+}
+
+// Admin-verified on-sale brands at a centre, newest-cycle-start first, for the
+// brand strip. Reads ONLY reconciled client state already loaded by
+// loadTideData — PRESENCE (brand@centre), SALE_STATUS (admin-verified on/off,
+// derived from active_cycle_id / last_verified_status, NEVER scraper
+// sale_status) and DAYS_RUNNING (age from the verified cycle start_date,
+// falling back to last_verified_date). No extra query, no N+1, no scraper read.
+// Newest-first = smallest age first; ties break on BRANDS order (a stable,
+// roughly-prominence-ordered curated list — never discount depth). Returns
+// {tiles, moreCount, hasVerified}; `hasVerified` false → the row renders the
+// score-only "brands being verified" state instead of a fabricated strip.
+function getCentreSaleStrip(idx, brandsOnSale) {
+  const onSale = [];
+  for (let bi = 0; bi < BRANDS.length; bi++) {
+    const b = BRANDS[bi];
+    if ((PRESENCE[b.id] || [])[idx] !== 1) continue;
+    if (SALE_STATUS[b.name] !== true) continue;
+    const age = DAYS_RUNNING[b.name];
+    if (!Number.isFinite(age) || age <= 0) continue;  // on sale but no verified start date → can't place it
+    onSale.push({ name: b.name, age, order: bi });
+  }
+  onSale.sort((a, b) => (a.age - b.age) || (a.order - b.order));
+  const shown = onSale.slice(0, HOT_STRIP_TILES);
+  const tiles = shown.map(o => ({
+    label: hotTileLabel(o.name),
+    name:  o.name,
+    age:   o.age,
+    isNew: o.age <= HOT_NEW_DAYS,
+  }));
+  // Overflow count is anchored to the SERVER's brands_on_sale (the truth the
+  // "X of Y" line shows), minus what we placed — so the tiles + "+N" never
+  // claim more or fewer on sale than the count line. If the client reconciled
+  // nothing (name-mapping gap, data still settling) the row degrades to the
+  // score-only state rather than inventing tiles.
+  const total = Number.isFinite(+brandsOnSale) ? +brandsOnSale : shown.length;
+  const moreCount = Math.max(0, total - shown.length);
+  return { tiles, moreCount, hasVerified: tiles.length > 0 };
+}
+
+// "Today's tide" — top centres by Tide Score, each row leading with the score
+// as a large %, the reused verdict badge, an "X of Y shops on sale" count, and
+// (top-N only) a newest-first admin-verified brand strip that degrades to a
+// score-only state when no verified brand data is reconciled yet. Returns ''
+// when no centre qualifies (or scores haven't loaded) so the section
 // gracefully no-shows rather than rendering empty rows.
 function renderHotCentres(opts) {
   opts = opts || {};
-  const limit = opts.limit || 3;
+  const limit = opts.limit || HOT_TOP_N;
   const excludeIds = opts.excludeIds || [];
   const hot = getHotCentres(limit, excludeIds);
   if (!hot.length) return '';
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const stamp = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const rows = hot.map((h, i) => {
-    const safeName = h.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    // Row fact reads straight from the same server values that drive the
-    // verdict pill (brands_on_sale / total_brands). No client recompute, so
-    // it always matches the centre card's "X of Y" line.
-    const reasonText = h.brandsOnSale + ' of ' + h.totalBrands + ' shops on sale';
-    return '<button class="hot-centre-row" onclick="goToCentre(\''+h.cid+'\')" aria-label="'+safeName+', '+reasonText+', '+h.verdict.word+'">'
-         +   '<div class="hot-centre-row-rank">'+(i+1)+'</div>'
-         +   '<div class="hot-centre-row-text">'
-         +     '<div class="hot-centre-row-name">'+safeName+'</div>'
-         +     '<div class="hot-centre-row-reason">'+reasonText+'</div>'
+    const safeName = esc(h.name);
+    const safeLoc  = esc(h.location);
+    // Score % shown to one decimal only when it has one, matching the gauge.
+    const pctNum = Math.round(h.tideScore * 10) / 10;
+    const pctStr = Number.isInteger(pctNum) ? String(pctNum) : pctNum.toFixed(1);
+    // Count reads straight from the same server values that drive the verdict
+    // (brands_on_sale / total_brands) — no client recompute, so it always
+    // matches the centre card's "X of Y" line.
+    const countText = h.brandsOnSale + ' of ' + h.totalBrands + ' shops on sale';
+    const strip = getCentreSaleStrip(h.idx, h.brandsOnSale);
+    let stripHTML, countSuffix;
+    if (strip.hasVerified) {
+      const tilesHTML = strip.tiles.map(t => {
+        const logoSrc = hotTileLogoSrc(t.name);
+        // Monogram is the base; the logo <img> layers over it and reveals the
+        // monogram again if it fails to load (onerror removes the img).
+        const logoHTML = logoSrc
+          ? '<img class="hot-tile-logo" alt="" loading="lazy" src="'+logoSrc+'" onerror="this.remove()">'
+          : '';
+        return '<div class="hot-tile'+(t.isNew ? ' is-new' : '')+'">'
+          + (t.isNew ? '<span class="hot-tile-new">NEW</span>' : '')
+          + '<span class="hot-tile-box" title="'+esc(t.name)+'">'
+          +   '<span class="hot-tile-mono">'+esc(t.label)+'</span>'
+          +   logoHTML
+          + '</span>'
+          + '<span class="hot-tile-age">'+t.age+'d</span>'
+          + '</div>';
+      }).join('');
+      const moreHTML = strip.moreCount > 0
+        ? '<span class="hot-tile-more">+'+strip.moreCount+'</span>' : '';
+      stripHTML = '<div class="hot-centre-strip" aria-hidden="true">'+tilesHTML+moreHTML+'</div>';
+      countSuffix = ' &middot; newest first';
+    } else {
+      // Graceful degradation — no fabricated tiles, no scraper fallback.
+      stripHTML = '<div class="hot-centre-pending">Brands being verified &mdash; logos appear once reconciled</div>';
+      countSuffix = '';
+    }
+    return '<button class="hot-centre-row" onclick="goToCentre(\''+h.cid+'\')" aria-label="'+safeName+', '+pctStr+' percent, '+countText+', '+h.verdict.word+'">'
+         +   '<div class="hot-centre-head">'
+         +     '<div class="hot-centre-rank">'+(i+1)+'</div>'
+         +     '<div class="hot-centre-id">'
+         +       '<div class="hot-centre-name">'+safeName+'</div>'
+         +       (safeLoc ? '<div class="hot-centre-loc">'+safeLoc+'</div>' : '')
+         +     '</div>'
+         +     '<div class="hot-centre-score">'
+         +       '<div class="hot-centre-pct">'+pctStr+'<span class="hot-centre-pct-sign">%</span></div>'
+         +       '<span class="hot-centre-row-verdict tone-'+h.verdict.tone+'">'+h.verdict.word+'</span>'
+         +     '</div>'
          +   '</div>'
-         +   '<span class="hot-centre-row-verdict tone-'+h.verdict.tone+'">'+h.verdict.word+'</span>'
+         +   '<div class="hot-centre-count">'+countText+countSuffix+'</div>'
+         +   stripHTML
          + '</button>';
   }).join('');
   return '<section class="hot-centres" aria-label="Today\'s tide">'
@@ -4236,7 +4651,6 @@ async function renderCentre(centreId) {
     ? { label: 'New', statement: 'New tide\ntracking', color: '#8C8070', bg: '#F2EFE9',
         msg: 'Building from today. Direction will appear once a few days have been scored.' }
     : stageStyle(stage);
-  const verdictLabel = sparseHistory ? style.label : (serverScore&&serverScore.verdict?serverScore.verdict:style.label);
   const verdictMsg = sparseHistory ? style.msg : (serverScore&&serverScore.bluf?serverScore.bluf:style.msg);
 
   let personalResult=null;
@@ -4250,11 +4664,7 @@ async function renderCentre(centreId) {
 
   // Personal score number used to render here as a "YOUR SCORE 21" badge,
   // but users found the bare number confusing — the gauge already shows
-  // "when to go" visually, and personalVerdictLine below ("Your brands
-  // are particularly well-placed") communicates the personal context in
-  // plain English. Score is internal; users see the verdict.
-  const statementHTML='<div class="score-statement">'+style.statement.replace('\n','<br>')+'</div>';
-  const scoreHeader = statementHTML;
+  // "when to go" visually. Score is internal; users see the verdict.
 
   const arcSVG=buildArcSVG(centreScore,personalScore,style.color);
   let arcLegend='';
@@ -4262,37 +4672,6 @@ async function renderCentre(centreId) {
     arcLegend='<div class="arc-legend"><span class="arc-legend-item"><span class="arc-legend-dot" style="background:'+style.color+'"></span> Centre</span><span class="arc-legend-item"><span class="arc-legend-dot" style="background:var(--amber)"></span> Your brands</span></div>';
   } else if (personalScore!==null&&scoresEqual) {
     arcLegend='<div class="arc-legend"><span class="arc-legend-item"><span class="arc-legend-dot" style="background:var(--amber)"></span> Your score matches the centre</span></div>';
-  }
-
-  // Evidence strip — pairs the personalised view with the centre-wide view so
-  // it's clear how the user's brands compare to the whole centre. "X of Y"
-  // reads as "your brands of all tracked here" / "yours on sale of all on
-  // sale today". Only shown when we have a personalResult to anchor against.
-  let evidenceStrip='';
-  if (personalResult) {
-    const totalAtCentreCount = (typeof total !== 'undefined') ? total : 0;
-    const totalOnSaleCount = Array.isArray(onSale) ? onSale.length : 0;
-    evidenceStrip='<div class="evidence-strip">'
-      + '<span class="evidence-item">'
-      +   '<span class="evidence-num">'+personalResult.matchingBrands+' <span class="evidence-num-total">of '+totalAtCentreCount+'</span></span>'
-      +   '<span class="evidence-label">brands here are yours</span>'
-      + '</span>'
-      + '<span class="evidence-item">'
-      +   '<span class="evidence-num">'+personalResult.onSale+' <span class="evidence-num-total">of '+totalOnSaleCount+'</span></span>'
-      +   '<span class="evidence-label">on sale today</span>'
-      + '</span>'
-      + '</div>';
-  }
-
-  let noMatchMsg='';
-  if (userPrefs&&(userPrefs.womenswear||userPrefs.menswear||userPrefs.childrenswear)&&!personalResult) {
-    noMatchMsg='<p class="personal-no-match">We don\'t track brands matching your preferences at this centre yet.</p>';
-  }
-
-  let personalVerdictLine='';
-  if (personalScore!==null&&!scoresEqual) {
-    const diff=personalScore-centreScore;
-    personalVerdictLine='<p class="personal-verdict-line">'+(diff>0?'Your brands are particularly well-placed right now -- better than the centre average.':'Your brands are a little quieter than the centre average today.')+'</p>';
   }
 
   const userBrandIds = (userPrefs && Array.isArray(userPrefs.brand_ids)) ? new Set(userPrefs.brand_ids) : null;
@@ -4556,30 +4935,58 @@ async function renderCentre(centreId) {
   // markers down the right wall. The duplicated Playfair statement and
   // the top accent stripe are hidden via .has-vessel CSS — the vessel
   // carries that copy itself.
+  // The legacy score-top row (Playfair statement + a "Peak"/"Easing" phase
+  // badge) was a second verdict surface that duplicated the vessel's headline
+  // word + PEAK badge. It has been hidden by `.has-vessel` CSS for some time;
+  // it is now removed outright so recommendation/verdict language lives in
+  // exactly one place on the card (the vessel headline). The save control is a
+  // separate "Save this centre" button in the hero — it never doubled as a
+  // verdict pill.
   const scoreCardHTML = '<div class="score-section">'
     + '<div class="score-card has-vessel" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'">'
-    +   '<div class="score-top">'+scoreHeader
-    +     '<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div></div>'
-    +   '</div>'
     +   (() => {
-          // Vessel headline is consumer-friendly "X of Y brands on sale".
-          // Counts are derived from the local CSV / inline presence matrix
-          // so they match the brand chips rendered below (using the server
-          // counts could disagree with what the user can actually see).
-          // The internal Tide Score (0-100 quality signal) still drives the
-          // verdict word via sScore, just not the visible numbers.
           const sScore = (typeof getServerScore === 'function') ? getServerScore(centreIdx) : null;
-          const onSaleN = onSale.length;
-          const totalN  = total;
-          const pctOnSale = totalN > 0 ? Math.round((onSaleN / totalN) * 100) : 0;
-          // The merged vessel shows the trend pill + 60-day curve, not a
-          // day-on-day brand-delta arrow — the delta line was retired when the
-          // dark TIDE card was folded into the vessel. (The day-on-day count
-          // has no live consumer now: the "Today's tide" list ranks by verdict
-          // severity + score, not by overnight gain.)
-          return renderTideVessel(pctOnSale, stage, verdictMsg, trajectory, onSaleN, totalN, sScore && sScore.verdict, history, centreName, location);
+          // Counts come from the server's brands_on_sale / total_brands — the
+          // SAME source tide_score is computed from (round(onSale/total×100)),
+          // so the big "X%" and the "N of M shops" line can never contradict
+          // each other. Fall back to the local PRESENCE×SALE_STATUS count only
+          // when the server hasn't scored this centre yet (new/sparse centre),
+          // so the hero never renders blank. The brand-chip grid below is
+          // filter-dependent (My/All), so it was never locked to this count.
+          const srvOnSale = sScore && Number.isFinite(+sScore.brands_on_sale) ? +sScore.brands_on_sale : null;
+          const srvTotal  = sScore && Number.isFinite(+sScore.total_brands) && +sScore.total_brands > 0 ? +sScore.total_brands : null;
+          const onSaleN = (srvOnSale != null) ? srvOnSale : onSale.length;
+          const totalN  = (srvTotal  != null) ? srvTotal  : total;
+          // Big % = tide_score (the number the gauge shows); fall back to the
+          // local proportion only when the server hasn't scored this centre.
+          const heroPct = (sScore && Number.isFinite(+sScore.tide_score)) ? Math.round(+sScore.tide_score)
+                        : (totalN > 0 ? Math.round((onSaleN / totalN) * 100) : 0);
+          // Followed shops on sale HERE — admin-verified (SALE_STATUS),
+          // present at this centre, in the user's follow set. Single source;
+          // no scraper sale_status, no recompute of sale state.
+          let followedOnSale = [];
+          if (userBrandIds && userBrandIds.size) {
+            followedOnSale = BRANDS
+              .filter(b => userBrandIds.has(b.id) && (PRESENCE[b.id]||[])[centreIdx] === 1 && SALE_STATUS[b.name] === true)
+              .map(b => b.name)
+              .sort((a, b) => a.localeCompare(b));
+          }
+          return renderTideVessel({
+            pct: heroPct,
+            stage,
+            serverVerdict: sScore && sScore.verdict,
+            onSaleCount: onSaleN,
+            totalCount: totalN,
+            trajectory,
+            history,
+            centreName,
+            centreLocation: location,
+            verifiedLabel: verifiedLabelForCentre(centreIdx),
+            hasFollowed: !!(userBrandIds && userBrandIds.size),
+            followedOnSale,
+            directionClause: tideDirectionClause(trajectory, history, onSaleN, sparseHistory),
+          });
         })()
-    +   evidenceStrip + noMatchMsg + personalVerdictLine
     + '</div></div>';
 
   // Centre Intelligence card — real-data stat row + narrative + opening hours.

@@ -1,40 +1,11 @@
-name: Daily Scrape & Score
+name: Daily Score & Summarise
 
 on:
   schedule:
-    - cron: '0 6 * * *'    # 06:00 UTC — scraper runs
-    - cron: '0 10 * * *'   # 10:00 UTC — scorer + summariser run (4-hr buffer for scraper)
+    - cron: '0 10 * * *'   # 10:00 UTC — scorer + summariser run
   workflow_dispatch:       # Manual trigger from GitHub UI
 
 jobs:
-  scrape:
-    name: Scrape brand sale status
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    if: github.event.schedule == '0 6 * * *' || github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
-
-      - name: Run scraper
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: node scraper.js
-
   score:
     name: Calculate Tide scores
     runs-on: ubuntu-latest

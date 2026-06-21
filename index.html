@@ -3388,8 +3388,8 @@ function buildTideChartSVG(series, period, tone, endpointPct) {
   gridVals.push(ceiling);
   const refs = gridVals.map(v => {
     const gy = yFor(v);
-    return '<line x1="' + X0 + '" y1="' + gy + '" x2="' + X1 + '" y2="' + gy + '" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>'
-      + '<text x="' + (X1 - 2) + '" y="' + (v === 0 ? gy - 4 : gy + 11).toFixed(1) + '" text-anchor="end" font-family="Inter,sans-serif" font-size="9" fill="rgba(255,255,255,0.28)">' + v + '</text>';
+    return '<line x1="' + X0 + '" y1="' + gy + '" x2="' + X1 + '" y2="' + gy + '" stroke="rgba(255,255,255,0.32)" stroke-width="1.2" stroke-dasharray="2 5"/>'
+      + '<text x="' + (X1 - 2) + '" y="' + (v === 0 ? gy - 5 : gy + 12).toFixed(1) + '" text-anchor="end" font-family="Inter,sans-serif" font-size="10" font-weight="600" fill="rgba(255,255,255,0.55)">' + v + '</text>';
   }).join('');
 
   // Peak-hit dots: mark each point where the centre ENTERS peak (score crosses

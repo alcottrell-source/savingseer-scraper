@@ -225,6 +225,14 @@ async function calculateAllCentreScores(opts = {}) {
   const YESTERDAY      = dateStr(-1);
   const THREE_DAYS_AGO = dateStr(-3);
   const SIXTY_DAYS_AGO = dateStr(-60);
+  // Rolling window of daily scores rebuilt into centres.tide_history each run.
+  // Drives the centre-detail chart's MAX tab, so it must exceed the 60D tab to
+  // stay meaningfully longer than it; 180 days is a few KB of JSON per centre
+  // (trivial at ~30 centres) and reads fine as a trend on the fixed-width
+  // chart. (Distinct from SIXTY_DAYS_AGO above, which gates the literal
+  // "highest in 60 days" Peak superlative and must remain 60.)
+  const HISTORY_RETENTION_DAYS = 180;
+  const HISTORY_START = dateStr(-HISTORY_RETENTION_DAYS);
   const filterCentreIds = Array.isArray(opts.filterCentreIds) && opts.filterCentreIds.length
     ? new Set(opts.filterCentreIds)
     : null;
@@ -479,7 +487,7 @@ async function calculateAllCentreScores(opts = {}) {
   const { data: historyData, error: historyError } = await supabase
     .from('centre_seer_scores')
     .select('centre_id, score_date, tide_score, brands_on_sale, total_brands')
-    .gte('score_date', SIXTY_DAYS_AGO)
+    .gte('score_date', HISTORY_START)
     .not('tide_score', 'is', null)
     .order('score_date', { ascending: true });
 

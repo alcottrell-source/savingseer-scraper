@@ -33,6 +33,8 @@ Run after every visual change. Anything that was working before must still work.
 
 ## C. Data layer integrity (the north star)
 
+> The automated scraper was **removed (Jun 2026)** — sale state is admin-verified only. The `brand_sale_events.sale_status` / `date_first_detected` / `scraper_error` columns are frozen and unread; the "NEVER use scraper X" rules below remain as belt-and-braces guardrails. The admin console surfaces review work via **user reports** (not a scraper signal).
+
 - [ ] **C1** Brand cards / on-sale counts use **admin-verified** state only — `active_cycle_id` OR `last_verified_status` (when `last_verified_date` set). NEVER `brand_sale_events.sale_status`.
 - [ ] **C2** "Days running" uses `brand_sale_cycles.start_date` (or `last_verified_date` fallback). NEVER `date_first_detected`.
 - [ ] **C3** Discount % uses `brand_sale_cycles.max_discount_pct`. Brand-cards that have no cycle show no %.

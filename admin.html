@@ -185,9 +185,9 @@
   }
 
   /* ── User-reports (advisory signal) ───────────────────────────────── */
-  /* Third state column. Grid widened to 3 in .row-state-grid above is
-     applied via this override so Scraper / Verified / Users line up. */
-  .row-state-grid { grid-template-columns: 1fr 1fr 1fr; }
+  /* Two state columns: Verified / Users (the Scraper column was removed when
+     the scraper was binned — user reports are now the review nudge). */
+  .row-state-grid { grid-template-columns: 1fr 1fr; }
   .state-value.users-ended { color: var(--red);   font-weight: 500; }
   .state-value.users-diff  { color: var(--amber); font-weight: 500; }
   .state-value.users-match { color: var(--leaf);  font-weight: 500; }
@@ -479,7 +479,7 @@ async function onSignedIn(session) {
 async function loadAndRender() {
   showStatus('Loading…');
   const [eventsRes, cyclesRes, reviewsRes, reportsRes] = await Promise.all([
-    pg.read('brand_sale_events?select=brand_id,sale_status,date_first_detected,max_discount_pct,sale_type,scraper_error,last_verified_date,last_verified_status,active_cycle_id'),
+    pg.read('brand_sale_events?select=brand_id,max_discount_pct,sale_type,last_verified_date,last_verified_status,active_cycle_id'),
     pg.read('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct,sale_type&end_date=is.null'),
     pg.read('admin_review_log?select=brand_id,action,created_at&reviewed_date=eq.' + TODAY),
     // Advisory user-report signal. Tolerant: if the view/migration isn't
@@ -532,12 +532,12 @@ async function loadAndRender() {
   }
 
   // Queue priority (spec §3.C.4): urgent → easy → routine. Within each band
-  // keep the legacy tiebreak: scraper-disagrees, then anchors, then alpha.
+  // float never-reviewed brands up, then anchors, then alpha.
   const QUEUE_RANK = { urgent: 0, easy: 1, routine: 2 };
   needs.sort((a, b) => {
     if (QUEUE_RANK[a.queue] !== QUEUE_RANK[b.queue]) return QUEUE_RANK[a.queue] - QUEUE_RANK[b.queue];
-    const aDis = scraperDisagrees(a.ev) ? 1 : 0;
-    const bDis = scraperDisagrees(b.ev) ? 1 : 0;
+    const aDis = needsAttention(a.ev, a.queue) ? 1 : 0;
+    const bDis = needsAttention(b.ev, b.queue) ? 1 : 0;
     if (aDis !== bDis) return bDis - aDis;
     const aAnc = ANCHOR_BRAND_IDS.has(a.ev.brand_id) ? 1 : 0;
     const bAnc = ANCHOR_BRAND_IDS.has(b.ev.brand_id) ? 1 : 0;
@@ -584,13 +584,13 @@ async function loadAndRender() {
   wireRowActions();
 }
 
-function scraperDisagrees(ev) {
-  if (ev.scraper_error) return false;  // can't disagree with a broken scraper
-  if (ev.last_verified_status === null || ev.last_verified_status === undefined) {
-    // Never verified — treat as disagreement so it surfaces for first review
-    return true;
-  }
-  return ev.sale_status !== ev.last_verified_status;
+// Which cards deserve a visual nudge / float to the top of a queue band: the
+// crowd contradicts the admin-verified state (queue === 'urgent'), or the brand
+// has never been reviewed. (Replaces the old scraper-vs-verified disagreement
+// signal now that the scraper is gone — user reports are the nudge.)
+function needsAttention(ev, queue) {
+  if (queue === 'urgent') return true;
+  return ev.last_verified_status === null || ev.last_verified_status === undefined;
 }
 
 // ── User-reports advisory signal ──────────────────────────────────────────
@@ -645,21 +645,21 @@ function dominantSignal(rep) {
 }
 
 // Queue band (spec §3.C.4). routine = no user signal (status quo);
-// urgent = users contradict the scraper, or scraper errored with any signal;
-// easy = users agree with the scraper.
+// urgent = users contradict the admin-VERIFIED state; easy = users agree.
+// (Was scraper-vs-users; the scraper is gone, so user reports are weighed
+// against what you've verified — an open cycle or last_verified_status.)
 function classifyQueue({ ev, cycle, reports }) {
   const dom = dominantSignal(reports);
   if (!dom) return 'routine';
-  if (ev.scraper_error) return 'urgent';
-  const scraperOn = !!ev.sale_status;
+  const verifiedOn = cycle ? true : (ev.last_verified_status === true);
   const curPct = cycle ? cycle.max_discount_pct : ev.max_discount_pct;
   let disagree;
   switch (dom.kind) {
-    case 'ended':             disagree = scraperOn; break;
-    case 'no_sale_confirmed': disagree = scraperOn; break;
-    case 'started':           disagree = !scraperOn; break;
-    case 'confirmed':         disagree = !scraperOn; break;
-    case 'discount':          disagree = !scraperOn || (dom.pct != null && Number(curPct) !== Number(dom.pct)); break;
+    case 'ended':             disagree = verifiedOn; break;
+    case 'no_sale_confirmed': disagree = verifiedOn; break;
+    case 'started':           disagree = !verifiedOn; break;
+    case 'confirmed':         disagree = !verifiedOn; break;
+    case 'discount':          disagree = !verifiedOn || (dom.pct != null && Number(curPct) !== Number(dom.pct)); break;
     default:                  disagree = false;
   }
   return disagree ? 'urgent' : 'easy';
@@ -748,7 +748,7 @@ function renderContextualButton(reports, ev, cycle) {
   }
   // Users affirm the current state — one-tap re-confirm via the existing
   // generic confirm_on / confirm_off verbs (no new handler needed).
-  if (dom.kind === 'confirmed' && (cycle || ev.sale_status || ev.last_verified_status === true)) {
+  if (dom.kind === 'confirmed' && (cycle || ev.last_verified_status === true)) {
     return '<button class="contextual-action confirm" data-action="confirm_on">Confirm still on</button>'
          + '<div class="contextual-cap">' + dom.count + ' users confirm the sale</div>';
   }
@@ -763,16 +763,6 @@ function renderContextualButton(reports, ev, cycle) {
 function renderRow({ ev, def, cycle, review, reports, queue }, isConfirmed) {
   const tier = ANCHOR_BRAND_IDS.has(ev.brand_id) ? 'Anchor' : (def.cluster || '');
   const tierClass = ANCHOR_BRAND_IDS.has(ev.brand_id) ? ' anchor' : '';
-
-  let scraperHtml;
-  if (ev.scraper_error) {
-    scraperHtml = '<span class="state-value err">Error</span>';
-  } else if (ev.sale_status) {
-    const pct = ev.max_discount_pct ? ' <span class="state-pct">' + ev.max_discount_pct + '%</span>' : '';
-    scraperHtml = '<span class="state-value on">On sale</span>' + pct;
-  } else {
-    scraperHtml = '<span class="state-value off">No sale</span>';
-  }
 
   let verifiedHtml;
   if (cycle) {
@@ -796,7 +786,7 @@ function renderRow({ ev, def, cycle, review, reports, queue }, isConfirmed) {
 
   const cardClass = 'brand-card'
     + (isConfirmed ? ' confirmed' : '')
-    + (!isConfirmed && scraperDisagrees(ev) ? ' disagrees' : '');
+    + (!isConfirmed && needsAttention(ev, queue) ? ' disagrees' : '');
 
   const usersHtml = renderUsersCell(reports, ev, cycle);
   const distHtml = isConfirmed ? '' : renderDistribution(reports);
@@ -817,7 +807,6 @@ function renderRow({ ev, def, cycle, review, reports, queue }, isConfirmed) {
         (def.url ? '<a class="row-link" href="' + esc(def.url) + '" target="_blank" rel="noopener">open shop</a>' : '') +
       '</div>' +
       '<div class="row-state-grid">' +
-        '<div class="row-state-cell"><div class="state-label">Scraper</div>' + scraperHtml + '</div>' +
         '<div class="row-state-cell"><div class="state-label">Verified</div>' + verifiedHtml + '</div>' +
         '<div class="row-state-cell"><div class="state-label">Users</div>' + usersHtml + '</div>' +
       '</div>' +

@@ -1,7 +1,7 @@
 # Savingseer / Tide — Claude context
 
 ## Project overview
-Single-file static web app (`index.html`) deployed to Vercel. No build step. Talks directly to Supabase for auth and data. Pipeline lives in separate Node scripts: `scraper.js` (scrape brand sale state) → `score.js` (compute Tide Score per centre) → `summarise.js` (Claude-written 1–2 sentence Centre Intelligence narrative).
+Single-file static web app (`index.html`) deployed to Vercel. No build step. Talks directly to Supabase for auth and data. Pipeline lives in separate Node scripts: `score.js` (compute Tide Score per centre) → `summarise.js` (Claude-written 1–2 sentence Centre Intelligence narrative). **Sale state is admin-verified only** — an operator confirms each brand's sale in the admin console (`admin.html`), writing `brand_sale_cycles` + `brand_sale_events` (`active_cycle_id` / `last_verified_status`). The old automated `scraper.js` was **removed** (Jun 2026); the now-frozen `brand_sale_events.sale_status` / `date_first_detected` / `scraper_error` columns remain in the DB but are unread. Admins find sales via the "open shop" link + crowd user-reports (the review nudge), not a scraper.
 
 ## Running locally
 ```bash

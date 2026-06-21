@@ -401,7 +401,9 @@
   /* Brand strip — newest-first monogram tiles + overflow chip. */
   .hot-centre-strip { display: flex; align-items: flex-start; gap: 8px; padding-left: 28px; flex-wrap: wrap; }
   .hot-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-  .hot-tile-box { width: 52px; height: 44px; display: flex; align-items: center; justify-content: center; background: var(--cream); border: 1px solid var(--border); border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: var(--bark); }
+  .hot-tile-box { position: relative; overflow: hidden; width: 52px; height: 44px; display: flex; align-items: center; justify-content: center; background: var(--cream); border: 1px solid var(--border); border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: var(--bark); }
+  .hot-tile-mono { line-height: 1; }
+  .hot-tile-logo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 8px; box-sizing: border-box; background: #fff; border-radius: inherit; }
   .hot-tile.is-new .hot-tile-box { border-color: rgba(61,107,53,0.30); }
   .hot-tile-new { position: absolute; top: -7px; left: 50%; transform: translateX(-50%); z-index: 1; font-family: 'Inter', sans-serif; font-size: 8px; font-weight: 700; letter-spacing: 0.06em; color: #fff; background: var(--leaf); border-radius: 100px; padding: 2px 6px; line-height: 1; }
   .hot-tile-age { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 400; color: var(--stone); line-height: 1; }
@@ -3373,26 +3375,6 @@ function windowTideSeries(series, period) {
   return series.slice(-(n + 1));
 }
 
-// Which period tabs to show for a given series. The windows are nested
-// (7D ⊆ 30D ⊆ MAX), so two periods that produce the same number of points show
-// an identical chart — a brand-new centre with ≤31 stored points renders 30D
-// and MAX pixel-for-pixel the same, which reads as a bug. Keep only periods
-// that add data (length strictly grows), and relabel the largest kept one to
-// MAX so the full-series view is always reachable and honestly named. A centre
-// with ≥32 points gets all three back automatically; one with ≤8 collapses to
-// a single MAX tab. Returns e.g. ['7D','MAX'] or ['7D','30D','MAX'].
-function tideChartPeriods(series) {
-  const arr = Array.isArray(series) ? series : [];
-  const kept = [];
-  let lastLen = -1;
-  for (const p of ['7D', '30D', 'MAX']) {
-    const len = windowTideSeries(arr, p).length;
-    if (len > lastLen) { kept.push(p); lastLen = len; }
-  }
-  if (kept.length && kept[kept.length - 1] !== 'MAX') kept[kept.length - 1] = 'MAX';
-  return kept.length ? kept : ['MAX'];
-}
-
 // Centre-detail history chart — the line is the hero. Pure-black panel, a bold
 // neon-green curve with glow + gradient fill (the old TIDE neon, restored),
 // and a neon endpoint value pill. The y-axis is a FIXED 0–100% scale, so every
@@ -3566,18 +3548,18 @@ function renderTideVessel(v) {
   // Faithful real-history series + period-tab state. Stash for the tabs'
   // cheap re-render. Anchor today to the live headline value (pct).
   const series = buildTideRealSeries(v.history, pct, v.onSaleCount, v.totalCount);
-  // Only show period tabs that render a distinct window — a new centre with
-  // ≤31 points would otherwise show 30D and MAX identically.
-  const periods = tideChartPeriods(series);
-  let period = (typeof window !== 'undefined' && window._tideChartPeriod) || 'MAX';
-  if (!periods.includes(period)) period = 'MAX';  // selected tab not available for this centre
+  const period = (typeof window !== 'undefined' && window._tideChartPeriod) || 'MAX';
   if (typeof window !== 'undefined') window._tideChart = { series, tone, pct };
   const chartSVG = buildTideChartSVG(series, period, tone, pct);
-  // A lone period (≤8 points) needs no toggle — drop the bar entirely.
-  const tabs = periods.length > 1 ? periods.map(p =>
+  // Always show the full 7D / 30D / MAX control set. On a brand-new centre
+  // with ≤31 stored points the 30D and MAX windows are identical (windows are
+  // point-based) so those two tabs draw the same line until more history
+  // accrues — that's expected, not a bug, and the tabs stay put rather than
+  // appearing/disappearing as data lands.
+  const tabs = ['7D', '30D', 'MAX'].map(p =>
     '<button type="button" class="tide-period-tab' + (p === period ? ' is-active' : '')
     + '" data-period="' + p + '" onclick="setTideChartPeriod(\'' + p + '\')">' + p + '</button>'
-  ).join('') : '';
+  ).join('');
 
   const ariaLabel = (headlineWord + '. ' + countText)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -3589,7 +3571,7 @@ function renderTideVessel(v) {
     +   countHTML
     +   '<div class="tide-vessel-chart">'
     +     '<div class="tide-vessel-chart-svg-host">' + chartSVG + '</div>'
-    +     (tabs ? '<div class="tide-period-tabs">' + tabs + '</div>' : '')
+    +     '<div class="tide-period-tabs">' + tabs + '</div>'
     +   '</div>'
     + '</div>';
 }
@@ -4258,6 +4240,17 @@ function hotTileLabel(name) {
   return w;
 }
 
+// Brand-logo favicon src for a strip tile — same source the centre-detail
+// brand chips use (BRAND_URL_BY_NAME → urlToDomain → Google favicon service).
+// Returns '' when we have no URL for the brand, in which case the tile shows
+// its monogram. The <img> also has an onerror that drops it back to the
+// monogram, so a missing/blocked favicon degrades cleanly too.
+function hotTileLogoSrc(name) {
+  const url = (typeof BRAND_URL_BY_NAME !== 'undefined') ? BRAND_URL_BY_NAME[name] : null;
+  const d = urlToDomain(url);
+  return d ? 'https://www.google.com/s2/favicons?sz=128&domain=' + d : '';
+}
+
 // Admin-verified on-sale brands at a centre, newest-cycle-start first, for the
 // brand strip. Reads ONLY reconciled client state already loaded by
 // loadTideData — PRESENCE (brand@centre), SALE_STATUS (admin-verified on/off,
@@ -4323,12 +4316,22 @@ function renderHotCentres(opts) {
     const strip = getCentreSaleStrip(h.idx, h.brandsOnSale);
     let stripHTML, countSuffix;
     if (strip.hasVerified) {
-      const tilesHTML = strip.tiles.map(t =>
-        '<div class="hot-tile'+(t.isNew ? ' is-new' : '')+'">'
-        + (t.isNew ? '<span class="hot-tile-new">NEW</span>' : '')
-        + '<span class="hot-tile-box">'+esc(t.label)+'</span>'
-        + '<span class="hot-tile-age">'+t.age+'d</span>'
-        + '</div>').join('');
+      const tilesHTML = strip.tiles.map(t => {
+        const logoSrc = hotTileLogoSrc(t.name);
+        // Monogram is the base; the logo <img> layers over it and reveals the
+        // monogram again if it fails to load (onerror removes the img).
+        const logoHTML = logoSrc
+          ? '<img class="hot-tile-logo" alt="" loading="lazy" src="'+logoSrc+'" onerror="this.remove()">'
+          : '';
+        return '<div class="hot-tile'+(t.isNew ? ' is-new' : '')+'">'
+          + (t.isNew ? '<span class="hot-tile-new">NEW</span>' : '')
+          + '<span class="hot-tile-box" title="'+esc(t.name)+'">'
+          +   '<span class="hot-tile-mono">'+esc(t.label)+'</span>'
+          +   logoHTML
+          + '</span>'
+          + '<span class="hot-tile-age">'+t.age+'d</span>'
+          + '</div>';
+      }).join('');
       const moreHTML = strip.moreCount > 0
         ? '<span class="hot-tile-more">+'+strip.moreCount+'</span>' : '';
       stripHTML = '<div class="hot-centre-strip" aria-hidden="true">'+tilesHTML+moreHTML+'</div>';

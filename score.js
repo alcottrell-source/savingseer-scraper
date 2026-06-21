@@ -51,6 +51,31 @@ const HIGH_TIDE_EXIT  = 30;
 const RISING_FLOOR    = 15;  // Climb path: ≥15 → Rising, else Quiet
 const OVER_CEILING    = 8;   // Descent path: <8 → Over, else Easing
 
+// Peak subtitle (bluf) copy. The old global-Peak line — "Maximum sales density.
+// This is the moment." — asserted a falsifiable superlative on EVERY Peak: at
+// Peak 40–60% of brands are typically still off-sale, and the 60-day curve can
+// visibly contradict "maximum". The recommendation ("Go now") already lives in
+// the headline + PEAK badge, so the subtitle stays evidence-based.
+//
+// PEAK_BLUF_GENERIC is always true of a global Peak (plenty on sale, recently
+// cut). It is upgraded to PEAK_BLUF_60DAY_HIGH only when today's score is
+// literally the centre's highest in the trailing 60 days — see the
+// upgradePeakBluf() gate in calculateAllCentreScores. The local-peak bluf is a
+// separate, already-honest string ("This centre just peaked…") and is left
+// untouched.
+const PEAK_BLUF_GENERIC    = 'Plenty on sale right now, and freshly cut.';
+const PEAK_BLUF_60DAY_HIGH = "Highest it's been in 60 days.";
+
+// Upgrade a global-Peak subtitle to the 60-day-high superlative ONLY when it is
+// literally true for this centre/day (today's score ≥ the max of the prior
+// 60 days). Anything that isn't the generic global-Peak line — a non-Peak
+// verdict, or the local-peak bluf — is returned unchanged.
+function upgradePeakBluf(verdict, bluf, score, prior60Max) {
+  if (verdict !== 'Peak' || bluf !== PEAK_BLUF_GENERIC) return bluf;
+  if (prior60Max != null && score >= prior60Max) return PEAK_BLUF_60DAY_HIGH;
+  return bluf;
+}
+
 // Trend-only verdict vocabulary. Headlines describe the cycle direction;
 // the PEAK badge is the only recommendation language the dashboard shows.
 // Legacy verdict strings are retained so the lookup still resolves yesterday's
@@ -110,7 +135,7 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
 
   // Hysteresis: enter High Tide at 40, hold until score drops below 30
   if (score >= HIGH_TIDE_ENTER || (wasHighTide && score >= HIGH_TIDE_EXIT)) {
-    return { stage: 'High Tide', verdict: 'Peak', bluf: 'Maximum sales density. This is the moment.' };
+    return { stage: 'High Tide', verdict: 'Peak', bluf: PEAK_BLUF_GENERIC };
   }
 
   // Descent path: was at peak yesterday and has now dropped below the hold,
@@ -219,7 +244,7 @@ async function calculateAllCentreScores(opts = {}) {
   console.log(`  Tide Scorer — ${TODAY}${filterCentreIds ? ` (centres: ${[...filterCentreIds].join(', ')})` : ''}`);
   console.log('═══════════════════════════════════════════════');
 
-  const [centresRes, centreBrandsRes, brandSaleRes, recentScoresRes, yesterdayRowsRes] = await Promise.all([
+  const [centresRes, centreBrandsRes, brandSaleRes, recentScoresRes, yesterdayRowsRes, sixtyDayScoresRes] = await Promise.all([
     supabase.from('centres').select('*').eq('active', true),
     supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
     supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(max_discount_pct)'),
@@ -233,6 +258,15 @@ async function calculateAllCentreScores(opts = {}) {
     supabase.from('centre_seer_scores')
       .select('centre_id, tide_score, phase, verdict, bluf, trajectory, brands_on_sale, total_brands, top_brands, avg_discount_pct')
       .eq('score_date', YESTERDAY),
+    // Prior 60-day scores per centre — used to gate the "Highest it's been in
+    // 60 days" Peak subtitle so the superlative is only ever shown when it's
+    // literally true. Excludes TODAY so a fresh score is compared against its
+    // own history, not itself.
+    supabase.from('centre_seer_scores')
+      .select('centre_id, tide_score')
+      .gte('score_date', SIXTY_DAYS_AGO)
+      .lt('score_date', TODAY)
+      .not('tide_score', 'is', null),
   ]);
 
   if (centresRes.error || centreBrandsRes.error || brandSaleRes.error) {
@@ -241,6 +275,13 @@ async function calculateAllCentreScores(opts = {}) {
   }
 
   const yesterdayRowMap = new Map((yesterdayRowsRes.data || []).map(r => [r.centre_id, r]));
+
+  // Max prior-60-day tide_score per centre, for the 60-day-high Peak subtitle.
+  const sixtyDayMaxMap = new Map();
+  for (const row of (sixtyDayScoresRes.data || [])) {
+    const cur = sixtyDayMaxMap.get(row.centre_id);
+    if (cur === undefined || row.tide_score > cur) sixtyDayMaxMap.set(row.centre_id, row.tide_score);
+  }
 
   const brandSaleMap = new Map(brandSaleRes.data.map(b => [b.brand_id, b]));
 
@@ -307,13 +348,14 @@ async function calculateAllCentreScores(opts = {}) {
         const trajectory = getTrajectory(carriedScore, recent, yTraj);
         const yStage = yesterdayStageMap.get(centre.id) ?? deriveStageFromVerdict(ystrdy.verdict);
         const { stage, verdict, bluf } = getTideStage(carriedScore, yStage, trajectory, yTraj);
+        const carriedBluf = upgradePeakBluf(verdict, bluf, carriedScore, sixtyDayMaxMap.get(centre.id));
         scoreRows.push({
           centre_id: centre.id,
           score_date: TODAY,
           tide_score: carriedScore,
           phase: PHASE_NUMBER[stage],
           verdict,
-          bluf,
+          bluf: carriedBluf,
           trajectory,
           brands_on_sale: ystrdy.brands_on_sale,
           total_brands: ystrdy.total_brands,
@@ -374,6 +416,7 @@ async function calculateAllCentreScores(opts = {}) {
     const trajectory = getTrajectory(tideScore, recent, yesterdayTrajectory);
     const yesterdayStage = yesterdayStageMap.get(centre.id) ?? null;
     const { stage, verdict, bluf } = getTideStage(tideScore, yesterdayStage, trajectory, yesterdayTrajectory);
+    const finalBluf = upgradePeakBluf(verdict, bluf, tideScore, sixtyDayMaxMap.get(centre.id));
 
     // Most-recently-verified-first — admin's latest confirmations bubble up.
     const topBrands = saleDetails
@@ -394,7 +437,7 @@ async function calculateAllCentreScores(opts = {}) {
       tide_score: tideScore,
       phase: PHASE_NUMBER[stage],
       verdict,
-      bluf,
+      bluf: finalBluf,
       trajectory,
       brands_on_sale: brandsOnSale,
       total_brands: totalBrands,

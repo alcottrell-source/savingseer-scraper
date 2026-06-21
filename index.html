@@ -158,6 +158,19 @@
   .score-card.has-vessel .score-statement { display: none; }
   .score-card.has-vessel .score-top { display: none; }
   .score-card.has-vessel { padding: 0; border-radius: 22px; background: transparent; box-shadow: none; }
+  /* ── "On sale now" named-brand teaser ──────────────────────────────
+     Names come straight from centre_seer_scores.top_brands (pipeline-
+     computed from admin-verified cycles, newest-verified first). Followed
+     brands lead the row and are amber. Never client-recomputed; hidden
+     entirely when top_brands is absent. */
+  .onsale-now { margin: 14px 2px 2px; }
+  .onsale-now-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 10px; }
+  .onsale-now-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .onsale-now-chip { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; color: var(--bark); background: var(--stone-lt); border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; line-height: 1.2; }
+  .onsale-now-chip.is-followed { color: #fff; background: var(--amber); border-color: var(--amber); font-weight: 600; }
+  .onsale-now-legend { display: flex; align-items: center; gap: 6px; margin-top: 9px; font-size: 11px; color: var(--stone); letter-spacing: 0.02em; }
+  .onsale-now-legend-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
+  .onsale-now-count { margin-top: 8px; font-size: 12px; color: var(--stone); letter-spacing: 0.02em; }
   .brands-section { padding: 24px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.15s, transform 0.4s ease 0.15s; }
   .brands-section.visible { opacity: 1; transform: translateY(0); }
   .section-heading { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
@@ -2003,7 +2016,7 @@ const SALE_TYPE_LABEL = {
   flash:         'Flash sale',
   seasonal:      'Seasonal',
 };
-let CENTRE_SCORES = {};      // supabase centre_id -> { tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands }
+let CENTRE_SCORES = {};      // supabase centre_id -> { tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands, top_brands, narrative }
 let CENTRE_HISTORY = {};     // supabase centre_id -> [{date, score}, ...]
 let CENTRE_ID_BY_IDX = [];   // centreIdx (0-based, matches CENTRE_NAMES) -> supabase centre_id
 // supabase centre_id -> { [dashboard_brand_name]: [{label, order}, ...] }.
@@ -2026,7 +2039,7 @@ async function loadTideData() {
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,last_verified_status,last_verified_date,active_cycle_id'),
       pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type&end_date=is.null'),
-      pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,narrative&score_date=eq.' + today),
+      pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,top_brands,narrative&score_date=eq.' + today),
       pgRead('centre_brand_floors?select=centre_id,brand_id,floor_label,floor_order'),
       // Full sale-episode history (every cycle, open or closed) for the shop
       // detail sheet. Each closed cycle is one past sale; the open cycle (if
@@ -3063,7 +3076,7 @@ function stageStyle(stage) {
   const s = {
     'Turning':   {label:'Quiet',     statement:'Quiet',                color:'#8C8070',bg:'#F2EFE9',msg:'Quiet — only a handful of brands on sale right now.'},
     'Rising':    {label:'Rising',    statement:'Sales\nbuilding',     color:'#3D6B35',bg:'#EEF4EC',msg:'Sales building across the centre. Not at peak yet.'},
-    'High Tide': {label:'Peak',      statement:'Peak\nsales',         color:'#C17A2B',bg:'#FBF2E4',msg:'Maximum sales density. This is the moment.'},
+    'High Tide': {label:'Peak',      statement:'Peak\nsales',         color:'#C17A2B',bg:'#FBF2E4',msg:'Plenty on sale right now, and freshly cut.'},
     'Falling':   {label:'Easing',    statement:'Sales\neasing',       color:'#B84C3A',bg:'#FAEAE7',msg:'Sales tapering off. Picks getting thinner.'},
     'Low':       {label:'Over',      statement:'Cycle\nended',        color:'#8C8070',bg:'#F2EFE9',msg:'Sale cycle ended. Check back in a few weeks.'},
   };
@@ -3990,6 +4003,53 @@ function renderLandingHero() {
        + bridgeHTML;
 }
 
+// "On sale now" — a compact, named teaser of the brands on sale at this
+// centre, the conversion lever above the full chip grid. Names are read
+// verbatim from the server's centre_seer_scores.top_brands (pipeline-
+// computed from admin-verified cycles, newest-verified first, capped at 5)
+// — never derived client-side. Followed brands lead the list and render
+// amber; logged-out / no-follow users see the names with no highlight. If
+// top_brands is absent for this centre/day, the whole section is hidden
+// (no fabricated or empty list). The count line is the server's own
+// brands_on_sale/total_brands (same source as top_brands) so this section
+// can never become a competing source of truth.
+function renderOnSaleNow(serverScore, userBrandIds) {
+  const raw = (serverScore && typeof serverScore.top_brands === 'string') ? serverScore.top_brands.trim() : '';
+  if (!raw) return '';
+  const names = raw.split(',').map(s => s.trim()).filter(Boolean);
+  if (!names.length) return '';
+  // Followed = the user's tracked brands. top_brands names share the inline
+  // BRANDS name/id space (same as brands.js), so match by name → id.
+  const followedNames = new Set();
+  if (userBrandIds && userBrandIds.size) {
+    for (const b of BRANDS) if (userBrandIds.has(b.id)) followedNames.add(b.name);
+  }
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Followed brands first (stable sort preserves the newest-verified order
+  // within each group), so the user's triggers lead the row.
+  const ordered = names.slice().sort((a, b) => (followedNames.has(b) ? 1 : 0) - (followedNames.has(a) ? 1 : 0));
+  let anyFollowed = false;
+  const chips = ordered.map(n => {
+    const followed = followedNames.has(n);
+    if (followed) anyFollowed = true;
+    return '<span class="onsale-now-chip'+(followed ? ' is-followed' : '')+'">'+esc(n)+'</span>';
+  }).join('');
+  const legend = anyFollowed
+    ? '<div class="onsale-now-legend"><span class="onsale-now-legend-dot" aria-hidden="true"></span>Amber = brands you follow.</div>'
+    : '';
+  const onSaleN = Number.isFinite(+serverScore.brands_on_sale) ? +serverScore.brands_on_sale : null;
+  const totalN  = Number.isFinite(+serverScore.total_brands)  ? +serverScore.total_brands  : null;
+  const countLine = (onSaleN != null && totalN != null)
+    ? '<div class="onsale-now-count">'+onSaleN+' of '+totalN+' tracked brands on sale</div>'
+    : '';
+  return '<div class="onsale-now">'
+    + '<div class="onsale-now-label">On sale now</div>'
+    + '<div class="onsale-now-chips">'+chips+'</div>'
+    + legend
+    + countLine
+    + '</div>';
+}
+
 async function renderCentre(centreId) {
   const content=document.getElementById('main-content');
   const picker = document.getElementById('picker-section');
@@ -4071,7 +4131,6 @@ async function renderCentre(centreId) {
     ? { label: 'New', statement: 'New tide\ntracking', color: '#8C8070', bg: '#F2EFE9',
         msg: 'Building from today. Direction will appear once a few days have been scored.' }
     : stageStyle(stage);
-  const verdictLabel = sparseHistory ? style.label : (serverScore&&serverScore.verdict?serverScore.verdict:style.label);
   const verdictMsg = sparseHistory ? style.msg : (serverScore&&serverScore.bluf?serverScore.bluf:style.msg);
 
   let personalResult=null;
@@ -4088,8 +4147,6 @@ async function renderCentre(centreId) {
   // "when to go" visually, and personalVerdictLine below ("Your brands
   // are particularly well-placed") communicates the personal context in
   // plain English. Score is internal; users see the verdict.
-  const statementHTML='<div class="score-statement">'+style.statement.replace('\n','<br>')+'</div>';
-  const scoreHeader = statementHTML;
 
   const arcSVG=buildArcSVG(centreScore,personalScore,style.color);
   let arcLegend='';
@@ -4376,11 +4433,15 @@ async function renderCentre(centreId) {
   // markers down the right wall. The duplicated Playfair statement and
   // the top accent stripe are hidden via .has-vessel CSS — the vessel
   // carries that copy itself.
+  // The legacy score-top row (Playfair statement + a "Peak"/"Easing" phase
+  // badge) was a second verdict surface that duplicated the vessel's headline
+  // word + PEAK badge. It has been hidden by `.has-vessel` CSS for some time;
+  // it is now removed outright so recommendation/verdict language lives in
+  // exactly one place on the card (the vessel headline). The save control is a
+  // separate "Save this centre" button in the hero — it never doubled as a
+  // verdict pill.
   const scoreCardHTML = '<div class="score-section">'
     + '<div class="score-card has-vessel" id="score-card" style="--phase-color:'+style.color+';--phase-bg:'+style.bg+'">'
-    +   '<div class="score-top">'+scoreHeader
-    +     '<div class="score-right"><div class="phase-badge">'+verdictLabel+'</div></div>'
-    +   '</div>'
     +   (() => {
           // Vessel headline is consumer-friendly "X of Y brands on sale".
           // Counts are derived from the local CSV / inline presence matrix
@@ -4399,6 +4460,7 @@ async function renderCentre(centreId) {
           // severity + score, not by overnight gain.)
           return renderTideVessel(pctOnSale, stage, verdictMsg, trajectory, onSaleN, totalN, sScore && sScore.verdict, history, centreName, location);
         })()
+    +   renderOnSaleNow(serverScore, userBrandIds)
     +   evidenceStrip + noMatchMsg + personalVerdictLine
     + '</div></div>';
 

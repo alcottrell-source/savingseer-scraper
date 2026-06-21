@@ -4881,6 +4881,15 @@ async function renderCentre(centreId) {
   // Pre-resolve the share text + deep link here (slug == supabaseCentreId) and
   // stash on window so the click handler stays synchronous — iOS requires
   // navigator.share to be called inside the user gesture, with no await before it.
+  // Verdict word comes from the same deriveVerdict() the hero vessel uses, so the
+  // shared copy ("<centre> — RISING.") matches what's on screen.
+  const verdictLabel = deriveVerdict({
+    serverVerdict: serverScore && serverScore.verdict,
+    brandsOnSale: onSale.length,
+    totalBrands: total,
+    trajectory,
+    stage,
+  }).word;
   window._tideShareCtx = {
     name: centreName,
     verdict: verdictLabel,

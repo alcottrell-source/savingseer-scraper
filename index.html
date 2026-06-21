@@ -3373,6 +3373,26 @@ function windowTideSeries(series, period) {
   return series.slice(-(n + 1));
 }
 
+// Which period tabs to show for a given series. The windows are nested
+// (7D ⊆ 30D ⊆ MAX), so two periods that produce the same number of points show
+// an identical chart — a brand-new centre with ≤31 stored points renders 30D
+// and MAX pixel-for-pixel the same, which reads as a bug. Keep only periods
+// that add data (length strictly grows), and relabel the largest kept one to
+// MAX so the full-series view is always reachable and honestly named. A centre
+// with ≥32 points gets all three back automatically; one with ≤8 collapses to
+// a single MAX tab. Returns e.g. ['7D','MAX'] or ['7D','30D','MAX'].
+function tideChartPeriods(series) {
+  const arr = Array.isArray(series) ? series : [];
+  const kept = [];
+  let lastLen = -1;
+  for (const p of ['7D', '30D', 'MAX']) {
+    const len = windowTideSeries(arr, p).length;
+    if (len > lastLen) { kept.push(p); lastLen = len; }
+  }
+  if (kept.length && kept[kept.length - 1] !== 'MAX') kept[kept.length - 1] = 'MAX';
+  return kept.length ? kept : ['MAX'];
+}
+
 // Centre-detail history chart — the line is the hero. Pure-black panel, a bold
 // neon-green curve with glow + gradient fill (the old TIDE neon, restored),
 // and a neon endpoint value pill. The y-axis is a FIXED 0–100% scale, so every
@@ -3546,13 +3566,18 @@ function renderTideVessel(v) {
   // Faithful real-history series + period-tab state. Stash for the tabs'
   // cheap re-render. Anchor today to the live headline value (pct).
   const series = buildTideRealSeries(v.history, pct, v.onSaleCount, v.totalCount);
-  const period = (typeof window !== 'undefined' && window._tideChartPeriod) || 'MAX';
+  // Only show period tabs that render a distinct window — a new centre with
+  // ≤31 points would otherwise show 30D and MAX identically.
+  const periods = tideChartPeriods(series);
+  let period = (typeof window !== 'undefined' && window._tideChartPeriod) || 'MAX';
+  if (!periods.includes(period)) period = 'MAX';  // selected tab not available for this centre
   if (typeof window !== 'undefined') window._tideChart = { series, tone, pct };
   const chartSVG = buildTideChartSVG(series, period, tone, pct);
-  const tabs = ['7D', '30D', 'MAX'].map(p =>
+  // A lone period (≤8 points) needs no toggle — drop the bar entirely.
+  const tabs = periods.length > 1 ? periods.map(p =>
     '<button type="button" class="tide-period-tab' + (p === period ? ' is-active' : '')
     + '" data-period="' + p + '" onclick="setTideChartPeriod(\'' + p + '\')">' + p + '</button>'
-  ).join('');
+  ).join('') : '';
 
   const ariaLabel = (headlineWord + '. ' + countText)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -3564,7 +3589,7 @@ function renderTideVessel(v) {
     +   countHTML
     +   '<div class="tide-vessel-chart">'
     +     '<div class="tide-vessel-chart-svg-host">' + chartSVG + '</div>'
-    +     '<div class="tide-period-tabs">' + tabs + '</div>'
+    +     (tabs ? '<div class="tide-period-tabs">' + tabs + '</div>' : '')
     +   '</div>'
     + '</div>';
 }

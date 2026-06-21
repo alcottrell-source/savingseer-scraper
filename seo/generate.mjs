@@ -17,7 +17,8 @@
 
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { renderBrandPage, renderCentreHub, slugify, isOnSale } from './render.mjs';
+import { renderBrandPage, renderCentreHub, renderBlogIndex, renderBlogPost, slugify, isOnSale } from './render.mjs';
+import { loadPosts } from './blog.mjs';
 import { nextSaleWindow } from './next-sale-window.mjs';
 
 const ORIGIN = process.env.SEO_ORIGIN || 'https://tidego.co';
@@ -169,6 +170,7 @@ async function main() {
 
   const supabase = { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY };
   const urls = [];
+  const centresBySlug = {}; // slug -> { name }, for resolving blog relatedCentres
   let centreCount = 0, skipped = 0;
 
   async function emit(relPath, html) {
@@ -200,6 +202,7 @@ async function main() {
       await emit(`centre/${centre.slug}/${b.slug}`,
         renderBrandPage({ centre, brand: b, sale: b.sale, cycle: b.cycle, hours, siblings, supabase, origin: ORIGIN, today }));
     }
+    centresBySlug[centre.slug] = { name: centre.name };
     centreCount++;
     console.log(`[seo] ${centre.slug}: ${1 + brands.length} pages (Tide Score ${centre.tideScore}, ${centre.verdict}).`);
   }
@@ -215,6 +218,20 @@ async function main() {
     console.error('[seo] (Set SEO_ALLOW_EMPTY=1 if a genuinely empty site is intended.)');
     process.exit(1);
   }
+
+  // Blog (hand-written Markdown posts). Emitted AFTER the 0-pages guard above so
+  // that guard stays keyed on CENTRE output — the blog index always emits (even
+  // empty), which would otherwise mask a Supabase outage and de-index every
+  // /centre/ page. Routed through emit() so /blog and /blog/<slug> land in the
+  // sitemap automatically. relatedCentres resolve only against centres actually
+  // generated this run (centresBySlug).
+  const posts = await loadPosts(join('seo', 'blog'), { centresBySlug });
+  await emit('blog', renderBlogIndex(posts, { origin: ORIGIN, supabase }));
+  for (const post of posts) {
+    const siblings = posts.filter(p => p.slug !== post.slug);
+    await emit(`blog/${post.slug}`, renderBlogPost(post, { origin: ORIGIN, supabase, siblings }));
+  }
+  console.log(`[seo] blog: ${posts.length} post(s) + index.`);
 
   // Sitemap (every generated page, across all centres). Ensure outDir exists
   // even if every centre was skipped, so the sitemap write never ENOENTs.

@@ -4,7 +4,25 @@
 <meta name="google-site-verification" content="nv9T1KDi-LxMrVFyPAocgM5OK2zh059ivOp1YdLIX0Y" />
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tide</title>
+<title>Tide — when UK shopping centres are worth the trip</title>
+<meta name="description" content="Tide tracks the brands you actually buy across UK shopping centres and tells you the day sales peak — so you never make a wasted trip to the shops.">
+<link rel="canonical" href="https://tidego.co/">
+<link rel="icon" href="/favicon.png" type="image/png">
+<!-- Open Graph / social preview. The SPA can't vary these per centre (crawlers
+     don't run the JS that would swap them), so the homepage ships one static
+     branded card; per-centre previews come from the static /centre/<slug> SEO
+     pages. og:image is fetched directly by crawlers, so the CSP img-src doesn't
+     gate it. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Tide">
+<meta property="og:title" content="Tide — when UK shopping centres are worth the trip">
+<meta property="og:description" content="Tide tracks the brands you actually buy across UK shopping centres and tells you the day sales peak — so you never make a wasted trip to the shops.">
+<meta property="og:url" content="https://tidego.co/">
+<meta property="og:image" content="https://tidego.co/og-default.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Tide — when UK shopping centres are worth the trip">
+<meta name="twitter:description" content="Tide tracks the brands you actually buy across UK shopping centres and tells you the day sales peak — so you never make a wasted trip to the shops.">
+<meta name="twitter:image" content="https://tidego.co/og-default.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -173,6 +191,8 @@
   .onsale-now-count { margin-top: 8px; font-size: 12px; color: var(--stone); letter-spacing: 0.02em; }
   .brands-section { padding: 24px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.15s, transform 0.4s ease 0.15s; }
   .brands-section.visible { opacity: 1; transform: translateY(0); }
+  .seo-hub-link { display: block; margin: 20px 24px 28px; font-family: 'Inter', sans-serif; font-size: 13px; color: var(--leaf); text-decoration: none; border-top: 1px solid var(--border); padding-top: 16px; }
+  .seo-hub-link:hover { text-decoration: underline; }
   .section-heading { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
   .on-sale-count { background: var(--leaf-lt); color: var(--leaf); font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
   .brand-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
@@ -454,6 +474,10 @@
   .account-section-title { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin-bottom: 10px; }
   .account-user-email { font-size: 15px; font-weight: 500; color: var(--ink); margin-bottom: 2px; }
   .account-user-sub { font-size: 13px; color: var(--stone); }
+  .account-invite-row { display: flex; gap: 8px; align-items: stretch; }
+  .account-invite-input { flex: 1; min-width: 0; font-family: 'Inter', sans-serif; font-size: 13px; color: var(--bark); background: var(--stone-lt); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; }
+  .account-invite-copy { flex-shrink: 0; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: #fff; background: var(--leaf); border: none; border-radius: 10px; padding: 9px 16px; cursor: pointer; transition: opacity 0.15s; }
+  .account-invite-copy:hover { opacity: 0.9; }
 
   /* ── Email-capture banner (logged-out users, after centre pick) ── */
   .notify-banner { position: fixed; left: 12px; right: 12px; bottom: 12px; background: white; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 8px 24px rgba(44,24,16,0.12); padding: 14px 16px 14px 18px; z-index: 250; display: none; flex-direction: column; gap: 10px; max-width: 480px; margin-left: auto; margin-right: auto; }
@@ -613,6 +637,10 @@
   .save-centre-btn:hover { background: var(--leaf-lt); }
   .save-centre-btn.is-saved { color: var(--stone); border-color: var(--border); }
   .save-centre-btn.is-saved:hover { color: var(--bark); background: var(--stone-lt); }
+  .centre-hero-actions { display: inline-flex; align-items: center; gap: 8px; }
+  .share-centre-btn { display: inline-flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; color: var(--stone); cursor: pointer; background: none; border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px; letter-spacing: 0.02em; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .share-centre-btn:hover { color: var(--bark); background: var(--stone-lt); border-color: var(--stone); }
+  .share-centre-btn svg { flex-shrink: 0; }
   .centre-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .centre-type { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--stone); }
   .centre-meta-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--stone); opacity: 0.4; }
@@ -894,6 +922,8 @@
     <span id="scoring-status" class="scoring-status" aria-live="polite"></span>
   </div>
   <div class="footer-links">
+    <a href="/blog">Blog</a>
+    &middot;
     <a href="privacy.html">Privacy Policy</a>
     &middot;
     <a href="mailto:privacy@tidego.co">Contact</a>
@@ -1037,6 +1067,14 @@
           <span class="pref-switch-track"></span>
           <span class="pref-switch-thumb"></span>
         </label>
+      </div>
+    </div>
+    <div class="account-section">
+      <div class="account-section-title">Invite a friend</div>
+      <div class="pref-toggle-sub" style="margin-bottom:10px">Share Tide with someone who hates wasted trips. They get the tide; you both keep shopping smarter.</div>
+      <div class="account-invite-row">
+        <input type="text" id="account-invite-link" class="account-invite-input" readonly aria-label="Your invite link" onclick="this.select()">
+        <button type="button" class="account-invite-copy" id="account-invite-copy" onclick="copyInviteLink()">Copy</button>
       </div>
     </div>
     <button class="btn btn-secondary" onclick="closeAccountPanel(); openPrefsModal()" style="margin-bottom:12px">Edit shopping preferences</button>
@@ -1192,6 +1230,13 @@ let userPrefs   = null;
 // magic-link callback. Used to distinguish "this page-load started with
 // a fresh sign-in" from "this is a returning user's session restore".
 const _tideFromAuthCallback = /[#&](access_token|refresh_token|error_code)=/.test(window.location.hash || '');
+// Referral capture: stash any ?ref=<referrer-uid> now, before auth resolves.
+// localStorage survives the magic-link round-trip (sign-up may bounce through
+// email), exactly like tide_pending_save_centre. Consumed on first sign-up.
+try {
+  const _ref = new URLSearchParams(window.location.search).get('ref');
+  if (_ref) localStorage.setItem('tide_pending_ref', _ref);
+} catch (e) {}
 // First onAuthStateChange call after page load is always Supabase's
 // session-restore probe — never treat it as a fresh sign-in (unless we
 // know we just came back from a magic-link redirect).
@@ -1216,6 +1261,29 @@ sb.auth.onAuthStateChange(async (event, session) => {
       const sel = document.getElementById('centre-select');
       if (sel && !sel.value) sel.value = pendingCentre;
       await saveCentreToUserPrefs(pendingCentre);
+    }
+    // Consume a pending referral (?ref=<referrer-uid> stashed at page load).
+    // Credit only on a genuine fresh sign-in this page-load (a real sign-up /
+    // sign-in, not Supabase's session-restore replay — same signal the
+    // onboarding gate below uses), and only when the user has no referrer yet
+    // and isn't referring themselves. Consume the key regardless so it can't
+    // re-fire on a later session-restore event.
+    let pendingRef = null;
+    try { pendingRef = localStorage.getItem('tide_pending_ref'); } catch(e) {}
+    if (pendingRef) {
+      try { localStorage.removeItem('tide_pending_ref'); } catch(e) {}
+      const freshSignIn = event === 'SIGNED_IN' && (!isFirstEvent || _tideFromAuthCallback);
+      const alreadyReferred = userPrefs && userPrefs.referred_by;
+      if (freshSignIn && !alreadyReferred && pendingRef !== currentUser.id) {
+        const { error } = await pgUpsert('user_preferences',
+          { user_id: currentUser.id, referred_by: pendingRef },
+          'user_id'
+        );
+        if (!error) {
+          if (!userPrefs) userPrefs = { user_id: currentUser.id };
+          userPrefs.referred_by = pendingRef;
+        }
+      }
     }
     // Onboarding gate: fire only on a real sign-in event (magic-link
     // callback or password sign-in), never on session restoration. We
@@ -1254,6 +1322,19 @@ sb.auth.onAuthStateChange(async (event, session) => {
   const hasCompletedSetup = currentUser && userPrefs &&
     Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length > 0 &&
     Array.isArray(userPrefs.saved_centres) && userPrefs.saved_centres.length > 0;
+  // Deep link: a shared ?centre=<slug> URL must win over the saved-centre
+  // auto-land. Map the slug back to a client code and pre-select it so the
+  // existing `if (sel.value)` branch renders it. Once-flag (mirrors
+  // _tideAutoLanded) so back-navigation isn't re-overridden on later events.
+  if (!sel.value && !window._tideDeepLinked) {
+    const deepSlug = new URLSearchParams(location.search).get('centre');
+    if (deepSlug) {
+      window._tideDeepLinked = true;
+      await ensureCentreIdMaps();
+      const code = _centreCodeBySlug && _centreCodeBySlug[deepSlug];
+      if (code) sel.value = code;
+    }
+  }
   if (sel.value) {
     renderCentre(sel.value);
   } else if (hasCompletedSetup && !window._tideAutoLanded) {
@@ -1270,6 +1351,18 @@ sb.auth.onAuthStateChange(async (event, session) => {
     // Empty state — promo card and (if any) saved-centre cards appear here.
     renderCentre('');
   }
+});
+
+// Back/forward: re-read ?centre= and re-render so the view tracks the URL.
+// Without this, the browser changes the URL but leaves the previous centre on
+// screen. renderCentre('') (no param) restores the picker.
+window.addEventListener('popstate', async () => {
+  const slug = new URLSearchParams(location.search).get('centre');
+  const sel = document.getElementById('centre-select');
+  let code = '';
+  if (slug) { await ensureCentreIdMaps(); code = (_centreCodeBySlug && _centreCodeBySlug[slug]) || ''; }
+  if (sel) sel.value = code;
+  renderCentre(code || '');
 });
 
 async function loadUserPrefs() {
@@ -1511,7 +1604,38 @@ function openAccountPanel() {
   document.getElementById('account-toggle-brand-alerts').checked = userPrefs ? userPrefs.brand_sale_alerts !== false : true;
   document.getElementById('account-toggle-digest').checked = userPrefs ? userPrefs.daily_digest === true : false;
 
+  // Invite link — referral code is the user's own uid (captured on the
+  // invitee's first sign-up via ?ref=). Delivery is the user's own channel.
+  const inviteEl = document.getElementById('account-invite-link');
+  if (inviteEl) inviteEl.value = 'https://tidego.co/?ref=' + currentUser.id;
+  const copyBtn = document.getElementById('account-invite-copy');
+  if (copyBtn) copyBtn.textContent = 'Copy';
+
   document.getElementById('account-panel').style.display = 'flex';
+}
+
+// Copy the invite link — same clipboard + consent-gated GA pattern as
+// shareCentre. Falls back to native share / select-on-click.
+function copyInviteLink() {
+  const inviteEl = document.getElementById('account-invite-link');
+  const btn = document.getElementById('account-invite-copy');
+  if (!inviteEl) return;
+  const link = inviteEl.value;
+  function track() {
+    try {
+      if (getConsent() === 'granted' && typeof window.gtag === 'function') {
+        window.gtag('event', 'invite_share', { method: 'clipboard' });
+      }
+    } catch (e) {}
+  }
+  function flash(msg) { if (btn) { const r = 'Copy'; btn.textContent = msg; setTimeout(function () { btn.textContent = r; }, 1800); } }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(function () { flash('Copied'); track(); })
+      .catch(function () { inviteEl.select(); flash('Copy failed'); });
+  } else {
+    inviteEl.select();
+    try { document.execCommand('copy'); flash('Copied'); track(); } catch (e) { flash('Select & copy'); }
+  }
 }
 
 function closeAccountPanel(e) {
@@ -3022,6 +3146,8 @@ function clearCentreSelection() {
   if (sel) sel.value = '';
   if (search) search.value = '';
   renderCentre('');
+  // Drop the ?centre= deep-link param so the picker URL is clean and shareable.
+  try { history.replaceState({}, '', location.pathname); } catch (e) {}
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -3095,6 +3221,45 @@ function goToCentre(centreId) {
   document.body.classList.remove('is-search-open');
   renderCentre(centreId);
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Share the open centre — native share sheet (mobile) with a clipboard
+// fallback. Reads window._tideShareCtx, pre-resolved in renderCentre so this
+// handler is synchronous (iOS needs navigator.share inside the user gesture).
+function shareCentre() {
+  const ctx = window._tideShareCtx;
+  if (!ctx) return;
+  const density = (ctx.total > 0) ? ctx.onSale + ' of ' + ctx.total + ' shops on sale right now. ' : '';
+  const text = ctx.name + ' — ' + ctx.verdict + '. ' + density + "See when it's worth the trip:";
+  const title = ctx.name + ' on Tide';
+  // Consent-gated GA — only if the user accepted cookies AND gtag is loaded.
+  // Never call loadGA() here (that would load analytics without consent).
+  function track(method) {
+    try {
+      if (getConsent() === 'granted' && typeof window.gtag === 'function') {
+        window.gtag('event', 'share', { method: method, centre_slug: ctx.slug || '' });
+      }
+    } catch (e) {}
+  }
+  if (navigator.share) {
+    navigator.share({ title: title, text: text, url: ctx.url })
+      .then(function () { track('web_share'); })
+      .catch(function () { /* user cancelled or share failed — no-op */ });
+    return;
+  }
+  // Clipboard fallback — copy text + link, briefly confirm on the button.
+  const btn = document.querySelector('.share-centre-btn');
+  const label = btn ? btn.querySelector('span') : null;
+  const restore = label ? label.textContent : '';
+  function flash(msg) { if (label) { label.textContent = msg; setTimeout(function () { label.textContent = restore; }, 1800); } }
+  const payload = text + ' ' + ctx.url;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(payload).then(function () { flash('Link copied'); track('clipboard'); })
+      .catch(function () { flash('Copy failed'); });
+  } else {
+    // Last-resort: prompt so the user can copy manually.
+    try { window.prompt('Copy this link', payload); track('prompt'); } catch (e) {}
+  }
 }
 
 const TRAJECTORY_FLAT_BAND = 1.5;
@@ -4712,6 +4877,21 @@ async function renderCentre(centreId) {
   const saveBtnHTML = currentUser
     ? '<button class="save-centre-btn'+(isCentreSaved?' is-saved':'')+'" onclick="toggleSaveCentre(\''+centreId+'\')" aria-pressed="'+(isCentreSaved?'true':'false')+'">'+(isCentreSaved?'Saved &#10003;':'Save this centre')+'</button>'
     : '';
+  // Share button — for everyone (signed-in or not), it's the word-of-mouth loop.
+  // Pre-resolve the share text + deep link here (slug == supabaseCentreId) and
+  // stash on window so the click handler stays synchronous — iOS requires
+  // navigator.share to be called inside the user gesture, with no await before it.
+  window._tideShareCtx = {
+    name: centreName,
+    verdict: verdictLabel,
+    onSale: onSale.length,
+    total: total,
+    url: supabaseCentreId ? 'https://tidego.co/?centre=' + encodeURIComponent(supabaseCentreId) : 'https://tidego.co/',
+    slug: supabaseCentreId || null,
+  };
+  const shareBtnHTML = '<button class="share-centre-btn" onclick="shareCentre()" aria-label="Share this centre">'
+    + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a3 3 0 1 0-2.83-4M18 8a3 3 0 0 1-2.83-4M18 8l-9 4m9 8a3 3 0 1 0-2.83-4M18 16a3 3 0 0 1-2.83-4m0 0L9 12m0 0a3 3 0 1 0 0 0Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    + '<span>Share</span></button>';
   const heroHTML = '<div class="centre-hero">'
     + '<div class="centre-hero-top">'
     +   '<button class="back-btn" onclick="clearCentreSelection()" aria-label="Back to centres">'
@@ -4720,7 +4900,7 @@ async function renderCentre(centreId) {
     +     '</svg>'
     +     'Centres'
     +   '</button>'
-    +   saveBtnHTML
+    +   '<div class="centre-hero-actions">' + shareBtnHTML + saveBtnHTML + '</div>'
     + '</div>'
     + '<div class="centre-meta">'
     +   '<span class="centre-type">Shopping Centre</span>'
@@ -4840,13 +5020,32 @@ async function renderCentre(centreId) {
     ? '<p class="contrib-intro">Shopping here? <strong>Swipe any shop left</strong> to flag a sale that just started &mdash; or one that has ended. Your reports keep the Tide honest for every shopper.</p>'
     : '<p class="contrib-intro"><a onclick="openAuthModal();return false;">Sign in</a> to confirm sales in store and help other shoppers &mdash; it keeps the Tide accurate for everyone.</p>';
 
+  // Real crawlable <a> into the static /centre/<slug> SEO hub page (full sale
+  // history + FAQ). Links the dynamic app to those otherwise-orphaned pages so
+  // they get internal link equity, and gives users a stable canonical URL to
+  // share. Must be a real href (not a JS onclick) so crawlers follow it. Slug
+  // == supabaseCentreId.
+  const seoHubLinkHTML = supabaseCentreId
+    ? '<a class="seo-hub-link" href="/centre/'+supabaseCentreId+'">Full sale history &amp; FAQ for '+safeCentreName+' &rarr;</a>'
+    : '';
+
   content.innerHTML = heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
-    + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+contribIntro+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>';
+    + '<div class="brands-section" id="brands-section"><div class="section-heading">Brands at this centre <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+contribIntro+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>'
+    + seoHubLinkHTML;
 
   // Detail content is in the DOM — only now flip the chrome into centre-view.
   // If anything above threw, the catch below restores the picker so the user
   // isn't stranded.
   if (picker) picker.classList.add('is-hidden');
+  // Reflect the open centre in the URL so it's bookmarkable/shareable. The slug
+  // (== Supabase centre id) is already in scope as supabaseCentreId. replaceState
+  // (not push) — renderCentre re-runs on every realtime refresh, so we mustn't
+  // pollute history; real back-to-picker navigation is handled in
+  // clearCentreSelection. ?centre= can't collide with the static /centre/<slug>
+  // SEO pages (different pathname) or the magic-link auth hash.
+  if (supabaseCentreId) {
+    try { history.replaceState({ centre: centreId }, '', '?centre=' + encodeURIComponent(supabaseCentreId)); } catch (e) {}
+  }
   document.body.classList.add('is-centre-view');
   const homeInfo = document.getElementById('home-info-section');
   if (homeInfo) homeInfo.style.display = '';

@@ -247,13 +247,13 @@ function analyticsAndConsent() {
 
 const FOOT = (origin) => `
 <footer>
-Sale timing is shown for guidance, based on Tide's tracked, admin-verified sale data and the UK retail sale calendar — always check in store.
+Sale timing is shown for guidance, based on Tide's tracked, admin-verified sale data and the UK retail sale calendar. Always check in store.
 <a href="${origin}/">Tide home</a> · <a href="${origin}/blog">Blog</a> · <a href="${origin}/privacy">Privacy</a> · <a href="#" onclick="event.preventDefault();tideCookieSettings()">Cookie settings</a>
 </footer>
 </div>
 ${analyticsAndConsent()}
 <script>
-// Browser write — raw PostgREST fetch (the pgUpsert pattern). NOT supabase-js.
+// Browser write: raw PostgREST fetch (the pgUpsert pattern). NOT supabase-js.
 window.__tideOptIn = async function(form, ctx){
   const email = form.email.value.trim(); if(!email) return false;
   const status = form.querySelector('.ok'); status.textContent = 'Saving…';
@@ -264,7 +264,7 @@ window.__tideOptIn = async function(form, ctx){
                'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
       body: JSON.stringify({ email, centre_slug: ctx.centre, brand_slug: ctx.brand || null, source_url: location.pathname })
     });
-    status.textContent = r.ok ? "Done — we'll email you when "+ctx.label+" peaks." : 'Something went wrong, please try again.';
+    status.textContent = r.ok ? "Done. We'll email you when "+ctx.label+" peaks." : 'Something went wrong, please try again.';
   }catch(e){ status.textContent = 'Something went wrong, please try again.'; }
   return false;
 };
@@ -442,12 +442,12 @@ ${p.description ? `<div class="desc">${escapeHtml(p.description)}</div>` : ''}
 }
 
 export function renderBlogIndex(posts, { origin, supabase }) {
-  const title = 'The Tide blog — UK shopping centre sales, explained';
-  const desc = 'Guides to when UK shopping centres go on sale, how the Tide Score works, and how to time your trip — from the team tracking sales across the UK.';
+  const title = 'The Tide blog: UK shopping centre sales, explained';
+  const desc = 'Guides to when UK shopping centres go on sale, how the Tide Score works, and how to time your trip, from the team tracking sales across the UK.';
   const canonical = `${origin}/blog`;
   const list = posts.length
     ? `<ul class="post-list">${posts.map(p => postCard(p, origin)).join('')}</ul>`
-    : `<div class="answer"><div class="verdict">No posts yet.</div><div class="muted">We're just getting started — check back soon for guides on UK sale timing.</div></div>`;
+    : `<div class="answer"><div class="verdict">No posts yet.</div><div class="muted">We're just getting started. Check back soon for guides on UK sale timing.</div></div>`;
 
   const breadcrumbLd = {
     '@context': 'https://schema.org', '@type': 'BreadcrumbList',
@@ -460,7 +460,7 @@ export function renderBlogIndex(posts, { origin, supabase }) {
   return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `
 <div class="crumbs"><a href="${origin}/">Tide</a> › Blog</div>
 <h1>The Tide blog</h1>
-<p class="muted">When UK shopping centres go on sale, what the Tide Score means, and how to catch the peak — not the start.</p>
+<p class="muted">When UK shopping centres go on sale, what the Tide Score means, and how to catch the peak, not the start.</p>
 ${list}
 
 ${optInBlock('the Tide blog', { centre: null, brand: null, label: 'the Tide blog' })}

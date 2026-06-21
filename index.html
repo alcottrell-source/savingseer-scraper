@@ -381,17 +381,35 @@
   .hot-centres-eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--leaf); animation: pulse 2s ease-in-out infinite; }
   .hot-centres-timestamp { font-size: 11px; letter-spacing: 0.04em; color: var(--stone); }
   .hot-centres-list { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--border); }
-  .hot-centre-row { display: flex; align-items: center; gap: 12px; padding: 14px 4px; background: transparent; border: none; border-bottom: 1px solid var(--border); border-radius: 0; cursor: pointer; transition: background 0.15s; text-align: left; font-family: inherit; width: 100%; }
+  /* Row is now a stacked card: head (rank · name/loc · %/badge), count line, brand strip. */
+  .hot-centre-row { display: flex; flex-direction: column; gap: 10px; padding: 18px 4px; background: transparent; border: none; border-bottom: 1px solid var(--border); border-radius: 0; cursor: pointer; transition: background 0.15s; text-align: left; font-family: inherit; width: 100%; }
   .hot-centre-row:hover { background: var(--stone-lt); }
-  .hot-centre-row-rank { flex-shrink: 0; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; color: var(--stone); width: 14px; text-align: left; line-height: 1; }
-  .hot-centre-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .hot-centre-row-name { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600; color: var(--ink); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .hot-centre-row-reason { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 400; color: var(--stone); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .hot-centre-row-verdict { flex-shrink: 0; font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 10px; border-radius: 100px; white-space: nowrap; }
+  .hot-centre-head { display: flex; align-items: flex-start; gap: 12px; }
+  .hot-centre-rank { flex-shrink: 0; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: var(--stone); width: 16px; text-align: left; line-height: 1.4; }
+  .hot-centre-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .hot-centre-name { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; color: var(--ink); line-height: 1.1; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hot-centre-loc { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 400; color: var(--stone); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hot-centre-score { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .hot-centre-pct { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 600; color: var(--amber); line-height: 1; letter-spacing: -0.01em; }
+  .hot-centre-pct-sign { font-size: 15px; font-weight: 600; margin-left: 1px; }
+  .hot-centre-row-verdict { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 9px; border-radius: 100px; white-space: nowrap; }
   .hot-centre-row-verdict.tone-go   { background: var(--amber-lt); color: var(--amber); }
   .hot-centre-row-verdict.tone-rise { background: var(--leaf-lt);  color: var(--leaf); }
   .hot-centre-row-verdict.tone-fall { background: var(--red-lt);   color: var(--red); }
   .hot-centre-row-verdict.tone-wait { background: var(--stone-lt); color: var(--stone); }
+  .hot-centre-count { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 400; color: var(--bark); line-height: 1.3; padding-left: 28px; }
+  /* Brand strip — newest-first monogram tiles + overflow chip. */
+  .hot-centre-strip { display: flex; align-items: flex-start; gap: 8px; padding-left: 28px; flex-wrap: wrap; }
+  .hot-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .hot-tile-box { width: 52px; height: 44px; display: flex; align-items: center; justify-content: center; background: var(--cream); border: 1px solid var(--border); border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: var(--bark); }
+  .hot-tile.is-new .hot-tile-box { border-color: rgba(61,107,53,0.30); }
+  .hot-tile-new { position: absolute; top: -7px; left: 50%; transform: translateX(-50%); z-index: 1; font-family: 'Inter', sans-serif; font-size: 8px; font-weight: 700; letter-spacing: 0.06em; color: #fff; background: var(--leaf); border-radius: 100px; padding: 2px 6px; line-height: 1; }
+  .hot-tile-age { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 400; color: var(--stone); line-height: 1; }
+  .hot-tile-more { align-self: center; margin-top: 0; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; color: var(--stone); padding: 0 2px; height: 44px; display: flex; align-items: center; }
+  .hot-centre-pending { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 400; font-style: italic; color: var(--stone); line-height: 1.4; padding-left: 28px; }
+  @media (prefers-reduced-motion: reduce) {
+    .hot-centres-eyebrow::before { animation: none; }
+  }
 
   /* ── Notification toggles + saved-centres list (prefs modal step 3) ── */
   .pref-toggle-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
@@ -3355,6 +3373,26 @@ function windowTideSeries(series, period) {
   return series.slice(-(n + 1));
 }
 
+// Which period tabs to show for a given series. The windows are nested
+// (7D ⊆ 30D ⊆ MAX), so two periods that produce the same number of points show
+// an identical chart — a brand-new centre with ≤31 stored points renders 30D
+// and MAX pixel-for-pixel the same, which reads as a bug. Keep only periods
+// that add data (length strictly grows), and relabel the largest kept one to
+// MAX so the full-series view is always reachable and honestly named. A centre
+// with ≥32 points gets all three back automatically; one with ≤8 collapses to
+// a single MAX tab. Returns e.g. ['7D','MAX'] or ['7D','30D','MAX'].
+function tideChartPeriods(series) {
+  const arr = Array.isArray(series) ? series : [];
+  const kept = [];
+  let lastLen = -1;
+  for (const p of ['7D', '30D', 'MAX']) {
+    const len = windowTideSeries(arr, p).length;
+    if (len > lastLen) { kept.push(p); lastLen = len; }
+  }
+  if (kept.length && kept[kept.length - 1] !== 'MAX') kept[kept.length - 1] = 'MAX';
+  return kept.length ? kept : ['MAX'];
+}
+
 // Centre-detail history chart — the line is the hero. Pure-black panel, a bold
 // neon-green curve with glow + gradient fill (the old TIDE neon, restored),
 // and a neon endpoint value pill. The y-axis is a FIXED 0–100% scale, so every
@@ -3528,13 +3566,18 @@ function renderTideVessel(v) {
   // Faithful real-history series + period-tab state. Stash for the tabs'
   // cheap re-render. Anchor today to the live headline value (pct).
   const series = buildTideRealSeries(v.history, pct, v.onSaleCount, v.totalCount);
-  const period = (typeof window !== 'undefined' && window._tideChartPeriod) || 'MAX';
+  // Only show period tabs that render a distinct window — a new centre with
+  // ≤31 points would otherwise show 30D and MAX identically.
+  const periods = tideChartPeriods(series);
+  let period = (typeof window !== 'undefined' && window._tideChartPeriod) || 'MAX';
+  if (!periods.includes(period)) period = 'MAX';  // selected tab not available for this centre
   if (typeof window !== 'undefined') window._tideChart = { series, tone, pct };
   const chartSVG = buildTideChartSVG(series, period, tone, pct);
-  const tabs = ['7D', '30D', 'MAX'].map(p =>
+  // A lone period (≤8 points) needs no toggle — drop the bar entirely.
+  const tabs = periods.length > 1 ? periods.map(p =>
     '<button type="button" class="tide-period-tab' + (p === period ? ' is-active' : '')
     + '" data-period="' + p + '" onclick="setTideChartPeriod(\'' + p + '\')">' + p + '</button>'
-  ).join('');
+  ).join('') : '';
 
   const ariaLabel = (headlineWord + '. ' + countText)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -3546,7 +3589,7 @@ function renderTideVessel(v) {
     +   countHTML
     +   '<div class="tide-vessel-chart">'
     +     '<div class="tide-vessel-chart-svg-host">' + chartSVG + '</div>'
-    +     '<div class="tide-period-tabs">' + tabs + '</div>'
+    +     (tabs ? '<div class="tide-period-tabs">' + tabs + '</div>' : '')
     +   '</div>'
     + '</div>';
 }
@@ -4128,17 +4171,33 @@ function renderSavedCentresLanding(savedIds) {
        + '<span class="saved-centres-divider">All centres</span>';
 }
 
-// Top N centres for the neutral "Today's tide" snapshot, with everything
-// needed to render a row. `excludeIds` optionally filters out saved centres so
-// signed-in users see "what else is good" rather than duplicating their own
-// list.
-// Ranked by verdict SEVERITY (Peak → Rising → Easing → Quiet → Over), then by
-// Tide Score as a tiebreaker — the list leads with the centres most worth a
-// look today. (It previously ranked by today's proportional brand gain, to
-// justify a "N new sales today" row; that rationale was retired when the row
-// switched to the neutral "X of Y shops on sale" density fact, so a momentum
-// filter no longer matched what the row claims.) Eligibility is just: at least
-// one brand on sale (tide_score > 0) and a valid brand count.
+// "Today's tide" ranking + brand-strip tunables (Jun 2026 component rebuild).
+// All four are owner-signed-off knobs — change them here, nowhere else.
+//   TOP_N               how many centres the list shows.
+//   MIN_TRACKED_BRANDS  denominator floor: a thin centre (e.g. 3/3 = 100%)
+//                       can't top the list on a tiny sample. Real malls track
+//                       ~20–44 brands, well above this.
+//   NEW_DAYS            a verified cycle younger than this earns a "NEW" pip.
+//   STRIP_TILES         max logo tiles before the "+N" overflow chip.
+const HOT_TOP_N = 3;
+const HOT_MIN_TRACKED_BRANDS = 10;
+const HOT_NEW_DAYS = 3;
+const HOT_STRIP_TILES = 4;
+// Outlet exclusion. No centre_type/is_outlet flag exists on `centres` (DB or
+// client) yet, so the rule is enforced by this explicit C-id set rather than a
+// data column. All 30 tracked centres are full malls today, so it's empty —
+// add e.g. 'C31' here (and document which centre) if an outlet-format centre
+// is ever onboarded. Mirror into a DB flag if the list ever grows.
+const HOT_EXCLUDE_OUTLET_CIDS = new Set([]);
+
+// Ranked by Tide Score DESCENDING (the brief's ordering — the list leads with
+// the highest-density centres), with verdict severity then name as
+// deterministic tiebreakers so equal scores never reorder between renders.
+// (It previously ranked by verdict severity first; that justified a momentum
+// row that no longer exists.) Eligibility: at least one brand on sale
+// (tide_score > 0), a valid brand count, the denominator floor, and not an
+// excluded outlet. `excludeIds` optionally filters out the user's own saved
+// centres so the discovery list reads as "what else is good".
 const HOT_VERDICT_SEVERITY = { PEAK: 5, RISING: 4, EASING: 3, QUIET: 2, OVER: 1 };
 function getHotCentres(n, excludeIds) {
   const exclude = new Set(Array.isArray(excludeIds) ? excludeIds : []);
@@ -4146,11 +4205,14 @@ function getHotCentres(n, excludeIds) {
   for (let idx = 0; idx < CENTRE_NAMES.length; idx++) {
     const cid = 'C' + (idx + 1);
     if (exclude.has(cid)) continue;
+    if (HOT_EXCLUDE_OUTLET_CIDS.has(cid)) continue;
     const s = getServerScore(idx);
     if (!s || !Number.isFinite(+s.tide_score) || +s.tide_score <= 0) continue;
     const totalBrands  = Number.isFinite(+s.total_brands)   ? +s.total_brands   : 0;
     const brandsOnSale = Number.isFinite(+s.brands_on_sale) ? +s.brands_on_sale : null;
     if (totalBrands <= 0 || brandsOnSale === null) continue;
+    // Denominator floor — a thin centre can't top the list on a tiny sample.
+    if (totalBrands < HOT_MIN_TRACKED_BRANDS) continue;
     const stage = deriveStageFromVerdict(s.verdict) || getTideStage(+s.tide_score, s.trajectory || 'FLAT');
     const verdict = deriveVerdict({
       serverVerdict: s.verdict,
@@ -4173,34 +4235,123 @@ function getHotCentres(n, excludeIds) {
       severity: HOT_VERDICT_SEVERITY[verdict.word] || 0,
     });
   }
-  ranked.sort((a, b) => (b.severity - a.severity) || (b.tideScore - a.tideScore));
+  ranked.sort((a, b) =>
+    (b.tideScore - a.tideScore) ||
+    (b.severity - a.severity) ||
+    a.name.localeCompare(b.name));
   return ranked.slice(0, n);
 }
 
-// "Today's tide" — top centres by verdict severity then Tide Score, with a
-// visible timestamp so it reads as a shared, dated snapshot. Returns '' when
-// no centre has anything on sale (or scores haven't loaded yet) so the section
+// Short, deterministic tile label for the brand strip — a monogram/wordmark,
+// not a fetched logo. We have no committed logo assets (runtime favicons are
+// low-res and load-flaky in a dense strip), so the brief's accepted monogram
+// fallback is the primary here, matching the component mock's text tiles.
+// First word (skipping a leading symbol like "&"), capped at 4 chars, with
+// SCREAMING tokens title-cased: "JD Sports"→"JD", "FLANNELS"→"Flan",
+// "Hugo Boss"→"Hugo", "Zara"→"Zara".
+function hotTileLabel(name) {
+  const words = String(name || '').trim().split(/\s+/);
+  let w = words[0] || '';
+  if (!/[A-Za-z]/.test(w) && words[1]) w = words[1];
+  if (w.length > 5) w = w.slice(0, 4);
+  if (/^[A-Z]{3,}$/.test(w)) w = w.charAt(0) + w.slice(1).toLowerCase();
+  return w;
+}
+
+// Admin-verified on-sale brands at a centre, newest-cycle-start first, for the
+// brand strip. Reads ONLY reconciled client state already loaded by
+// loadTideData — PRESENCE (brand@centre), SALE_STATUS (admin-verified on/off,
+// derived from active_cycle_id / last_verified_status, NEVER scraper
+// sale_status) and DAYS_RUNNING (age from the verified cycle start_date,
+// falling back to last_verified_date). No extra query, no N+1, no scraper read.
+// Newest-first = smallest age first; ties break on BRANDS order (a stable,
+// roughly-prominence-ordered curated list — never discount depth). Returns
+// {tiles, moreCount, hasVerified}; `hasVerified` false → the row renders the
+// score-only "brands being verified" state instead of a fabricated strip.
+function getCentreSaleStrip(idx, brandsOnSale) {
+  const onSale = [];
+  for (let bi = 0; bi < BRANDS.length; bi++) {
+    const b = BRANDS[bi];
+    if ((PRESENCE[b.id] || [])[idx] !== 1) continue;
+    if (SALE_STATUS[b.name] !== true) continue;
+    const age = DAYS_RUNNING[b.name];
+    if (!Number.isFinite(age) || age <= 0) continue;  // on sale but no verified start date → can't place it
+    onSale.push({ name: b.name, age, order: bi });
+  }
+  onSale.sort((a, b) => (a.age - b.age) || (a.order - b.order));
+  const shown = onSale.slice(0, HOT_STRIP_TILES);
+  const tiles = shown.map(o => ({
+    label: hotTileLabel(o.name),
+    name:  o.name,
+    age:   o.age,
+    isNew: o.age <= HOT_NEW_DAYS,
+  }));
+  // Overflow count is anchored to the SERVER's brands_on_sale (the truth the
+  // "X of Y" line shows), minus what we placed — so the tiles + "+N" never
+  // claim more or fewer on sale than the count line. If the client reconciled
+  // nothing (name-mapping gap, data still settling) the row degrades to the
+  // score-only state rather than inventing tiles.
+  const total = Number.isFinite(+brandsOnSale) ? +brandsOnSale : shown.length;
+  const moreCount = Math.max(0, total - shown.length);
+  return { tiles, moreCount, hasVerified: tiles.length > 0 };
+}
+
+// "Today's tide" — top centres by Tide Score, each row leading with the score
+// as a large %, the reused verdict badge, an "X of Y shops on sale" count, and
+// (top-N only) a newest-first admin-verified brand strip that degrades to a
+// score-only state when no verified brand data is reconciled yet. Returns ''
+// when no centre qualifies (or scores haven't loaded) so the section
 // gracefully no-shows rather than rendering empty rows.
 function renderHotCentres(opts) {
   opts = opts || {};
-  const limit = opts.limit || 3;
+  const limit = opts.limit || HOT_TOP_N;
   const excludeIds = opts.excludeIds || [];
   const hot = getHotCentres(limit, excludeIds);
   if (!hot.length) return '';
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const stamp = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const rows = hot.map((h, i) => {
-    const safeName = h.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    // Row fact reads straight from the same server values that drive the
-    // verdict pill (brands_on_sale / total_brands). No client recompute, so
-    // it always matches the centre card's "X of Y" line.
-    const reasonText = h.brandsOnSale + ' of ' + h.totalBrands + ' shops on sale';
-    return '<button class="hot-centre-row" onclick="goToCentre(\''+h.cid+'\')" aria-label="'+safeName+', '+reasonText+', '+h.verdict.word+'">'
-         +   '<div class="hot-centre-row-rank">'+(i+1)+'</div>'
-         +   '<div class="hot-centre-row-text">'
-         +     '<div class="hot-centre-row-name">'+safeName+'</div>'
-         +     '<div class="hot-centre-row-reason">'+reasonText+'</div>'
+    const safeName = esc(h.name);
+    const safeLoc  = esc(h.location);
+    // Score % shown to one decimal only when it has one, matching the gauge.
+    const pctNum = Math.round(h.tideScore * 10) / 10;
+    const pctStr = Number.isInteger(pctNum) ? String(pctNum) : pctNum.toFixed(1);
+    // Count reads straight from the same server values that drive the verdict
+    // (brands_on_sale / total_brands) — no client recompute, so it always
+    // matches the centre card's "X of Y" line.
+    const countText = h.brandsOnSale + ' of ' + h.totalBrands + ' shops on sale';
+    const strip = getCentreSaleStrip(h.idx, h.brandsOnSale);
+    let stripHTML, countSuffix;
+    if (strip.hasVerified) {
+      const tilesHTML = strip.tiles.map(t =>
+        '<div class="hot-tile'+(t.isNew ? ' is-new' : '')+'">'
+        + (t.isNew ? '<span class="hot-tile-new">NEW</span>' : '')
+        + '<span class="hot-tile-box">'+esc(t.label)+'</span>'
+        + '<span class="hot-tile-age">'+t.age+'d</span>'
+        + '</div>').join('');
+      const moreHTML = strip.moreCount > 0
+        ? '<span class="hot-tile-more">+'+strip.moreCount+'</span>' : '';
+      stripHTML = '<div class="hot-centre-strip" aria-hidden="true">'+tilesHTML+moreHTML+'</div>';
+      countSuffix = ' &middot; newest first';
+    } else {
+      // Graceful degradation — no fabricated tiles, no scraper fallback.
+      stripHTML = '<div class="hot-centre-pending">Brands being verified &mdash; logos appear once reconciled</div>';
+      countSuffix = '';
+    }
+    return '<button class="hot-centre-row" onclick="goToCentre(\''+h.cid+'\')" aria-label="'+safeName+', '+pctStr+' percent, '+countText+', '+h.verdict.word+'">'
+         +   '<div class="hot-centre-head">'
+         +     '<div class="hot-centre-rank">'+(i+1)+'</div>'
+         +     '<div class="hot-centre-id">'
+         +       '<div class="hot-centre-name">'+safeName+'</div>'
+         +       (safeLoc ? '<div class="hot-centre-loc">'+safeLoc+'</div>' : '')
+         +     '</div>'
+         +     '<div class="hot-centre-score">'
+         +       '<div class="hot-centre-pct">'+pctStr+'<span class="hot-centre-pct-sign">%</span></div>'
+         +       '<span class="hot-centre-row-verdict tone-'+h.verdict.tone+'">'+h.verdict.word+'</span>'
+         +     '</div>'
          +   '</div>'
-         +   '<span class="hot-centre-row-verdict tone-'+h.verdict.tone+'">'+h.verdict.word+'</span>'
+         +   '<div class="hot-centre-count">'+countText+countSuffix+'</div>'
+         +   stripHTML
          + '</button>';
   }).join('');
   return '<section class="hot-centres" aria-label="Today\'s tide">'

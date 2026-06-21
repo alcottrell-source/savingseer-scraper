@@ -116,7 +116,7 @@ export function verdictCopy(verdict, trajectory) {
   }
 }
 
-const HEAD = (title, desc, canonical) => `<!doctype html>
+const HEAD = (title, desc, canonical, ogImage) => `<!doctype html>
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
@@ -127,6 +127,13 @@ const HEAD = (title, desc, canonical) => `<!doctype html>
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(desc)}">
 <meta property="og:type" content="website">
+<meta property="og:url" content="${escapeHtml(canonical)}">
+<meta property="og:site_name" content="Tide">
+${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">` : ''}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${escapeHtml(title)}">
+<meta name="twitter:description" content="${escapeHtml(desc)}">
+${ogImage ? `<meta name="twitter:image" content="${escapeHtml(ogImage)}">` : ''}
 <style>
 :root{--bg:#0b1410;--card:#11201a;--ink:#f5f1eb;--muted:#9fb3a8;--neon:#5EFFB0;--line:rgba(245,241,235,.12)}
 *{box-sizing:border-box}body{margin:0;font:16px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}
@@ -341,7 +348,7 @@ export function renderBrandPage(d) {
 ${moreNote}
 <p class="muted">Based on Tide's tracked, admin-verified sale episodes — descriptive history only, not a forecast of future sales.</p>` : '';
 
-  return HEAD(title, desc, canonical) + configScript(supabase) + `
+  return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `
 <div class="crumbs"><a href="${origin}/">Tide</a> › <a href="${origin}/centre/${centre.slug}">${escapeHtml(centre.name)}</a> › ${escapeHtml(brand.name)}</div>
 <h1>When does ${escapeHtml(brand.name)} go on sale at ${escapeHtml(centre.name)}?</h1>
 <div class="answer">
@@ -387,7 +394,7 @@ export function renderCentreHub(d) {
     return `<tr><td><a href="${origin}/centre/${centre.slug}/${b.slug}">${escapeHtml(b.name)}</a></td><td>${b.onSale ? '<span class="tag">On sale</span>' : '<span class="tag off">—</span>'}</td><td>${recCell}</td></tr>`;
   }).join('');
 
-  return HEAD(title, desc, canonical) + configScript(supabase) + `
+  return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `
 <div class="crumbs"><a href="${origin}/">Tide</a> › ${escapeHtml(centre.name)}</div>
 <h1>${escapeHtml(centre.name)} sales today</h1>
 <div class="answer">

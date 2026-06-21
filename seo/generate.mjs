@@ -219,6 +219,10 @@ async function main() {
   // Sitemap (every generated page, across all centres). Ensure outDir exists
   // even if every centre was skipped, so the sitemap write never ENOENTs.
   await mkdir(outDir, { recursive: true });
+  // Homepage first — the dynamic app at / carries its own canonical/description
+  // and is the entry point, so it belongs in the sitemap alongside the /centre/
+  // pages (which are the only URLs collected in `urls` during page emit).
+  urls.unshift(`${ORIGIN}/`);
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
     urls.map(u => `  <url><loc>${u}</loc></url>`).join('\n') + `\n</urlset>\n`;
   await writeFile(join(outDir, 'sitemap.xml'), sitemap, 'utf8');

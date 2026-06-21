@@ -3357,14 +3357,13 @@ function windowTideSeries(series, period) {
 
 // Centre-detail history chart — the line is the hero. Pure-black panel, a bold
 // neon-green curve with glow + gradient fill (the old TIDE neon, restored),
-// and a neon endpoint value pill. The y-axis auto-zooms to just above the
-// window's max so the line fills the panel (no dead black space up to 100).
-// We no longer draw "PEAK"/"QUIET" threshold lines — they read as confusing on
-// a 0–100 axis; instead the axis carries a few faint gridlines with honest
-// numeric labels, and every point where the centre ENTERS peak (score crosses
-// up through TIDE_PEAK_LINE) is marked with a small amber dot on the curve.
-// Values are never rescaled — only the visible window of the axis changes.
-// Even x-spacing across the window so the line always spans the full width.
+// and a neon endpoint value pill. The y-axis is a FIXED 0–100% scale, so every
+// value sits at its true height (58% reads as 58%) and the 100% reference line
+// is always shown. We no longer draw "PEAK"/"QUIET" threshold lines — instead
+// the axis carries faint gridlines at 0/25/50/75/100 with numeric labels, and
+// every point where the centre ENTERS peak (score crosses up through
+// TIDE_PEAK_LINE) is marked with a small amber dot on the curve. Even
+// x-spacing across the window so the line always spans the full width.
 function buildTideChartSVG(series, period, tone, endpointPct) {
   const NEON = '#5EFFB0';
   const W = 400, H = 356, PL = 8, PR = 8, PT = 20, PB = 14;
@@ -3372,12 +3371,10 @@ function buildTideChartSVG(series, period, tone, endpointPct) {
 
   const win = windowTideSeries(Array.isArray(series) ? series : [], period);
   const n = win.length;
-  const winScores = win.map(p => Number.isFinite(+p.score) ? +p.score : 0);
-  const dataMax = winScores.length ? Math.max.apply(null, winScores) : TIDE_PEAK_LINE;
-  // Zoom the top of the axis to ~12% above the data, rounded to a clean 5,
-  // floored at a modest 20 (so a near-flat quiet line doesn't over-zoom into
-  // noise) and capped at 100.
-  const ceiling = Math.min(100, Math.max(20, Math.ceil((dataMax * 1.12) / 5) * 5));
+  // Fixed 0–100% axis: every value sits at its TRUE height (58% reads as 58%,
+  // not jammed near the top by an auto-zoom) and the 100% line is always shown.
+  // We trade some headroom for honest positioning.
+  const ceiling = 100;
   const yFor = s => +(PT + (1 - Math.max(0, Math.min(ceiling, s)) / ceiling) * H).toFixed(2);
 
   const xFor = i => +(X0 + (n > 1 ? (i / (n - 1)) * W : W)).toFixed(2);

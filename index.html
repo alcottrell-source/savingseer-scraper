@@ -2929,10 +2929,10 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
     + '</div>';
 
   // Ranked deals list — newest first (days asc), tie-broken by discount
-  // desc. Top 5 within the freshness window (matches FRESH_WINDOW_DAYS).
+  // desc. Shows ALL deals within the freshness window so the list length
+  // matches the headline count (if it says "8 new sales", all 8 are listed).
   const topDeals = freshDeals.slice()
-    .sort((a, b) => (a.days || 0) - (b.days || 0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)))
-    .slice(0, 5);
+    .sort((a, b) => (a.days || 0) - (b.days || 0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)));
   const rankList = topDeals.length
     ? '<ul class="rank-list">' + topDeals.map((b, i) => {
         const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
@@ -4405,53 +4405,6 @@ function renderLandingHero() {
        + bridgeHTML;
 }
 
-// "On sale now" — a compact, named teaser of the brands on sale at this
-// centre, the conversion lever above the full chip grid. Names are read
-// verbatim from the server's centre_seer_scores.top_brands (pipeline-
-// computed from admin-verified cycles, newest-verified first, capped at 5)
-// — never derived client-side. Followed brands lead the list and render
-// amber; logged-out / no-follow users see the names with no highlight. If
-// top_brands is absent for this centre/day, the whole section is hidden
-// (no fabricated or empty list). The count line is the server's own
-// brands_on_sale/total_brands (same source as top_brands) so this section
-// can never become a competing source of truth.
-function renderOnSaleNow(serverScore, userBrandIds) {
-  const raw = (serverScore && typeof serverScore.top_brands === 'string') ? serverScore.top_brands.trim() : '';
-  if (!raw) return '';
-  const names = raw.split(',').map(s => s.trim()).filter(Boolean);
-  if (!names.length) return '';
-  // Followed = the user's tracked brands. top_brands names share the inline
-  // BRANDS name/id space (same as brands.js), so match by name → id.
-  const followedNames = new Set();
-  if (userBrandIds && userBrandIds.size) {
-    for (const b of BRANDS) if (userBrandIds.has(b.id)) followedNames.add(b.name);
-  }
-  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // Followed brands first (stable sort preserves the newest-verified order
-  // within each group), so the user's triggers lead the row.
-  const ordered = names.slice().sort((a, b) => (followedNames.has(b) ? 1 : 0) - (followedNames.has(a) ? 1 : 0));
-  let anyFollowed = false;
-  const chips = ordered.map(n => {
-    const followed = followedNames.has(n);
-    if (followed) anyFollowed = true;
-    return '<span class="onsale-now-chip'+(followed ? ' is-followed' : '')+'">'+esc(n)+'</span>';
-  }).join('');
-  const legend = anyFollowed
-    ? '<div class="onsale-now-legend"><span class="onsale-now-legend-dot" aria-hidden="true"></span>Amber = brands you follow.</div>'
-    : '';
-  const onSaleN = Number.isFinite(+serverScore.brands_on_sale) ? +serverScore.brands_on_sale : null;
-  const totalN  = Number.isFinite(+serverScore.total_brands)  ? +serverScore.total_brands  : null;
-  const countLine = (onSaleN != null && totalN != null)
-    ? '<div class="onsale-now-count">'+onSaleN+' of '+totalN+' tracked brands on sale</div>'
-    : '';
-  return '<div class="onsale-now">'
-    + '<div class="onsale-now-label">On sale now</div>'
-    + '<div class="onsale-now-chips">'+chips+'</div>'
-    + legend
-    + countLine
-    + '</div>';
-}
-
 async function renderCentre(centreId) {
   const content=document.getElementById('main-content');
   const picker = document.getElementById('picker-section');
@@ -4546,9 +4499,7 @@ async function renderCentre(centreId) {
 
   // Personal score number used to render here as a "YOUR SCORE 21" badge,
   // but users found the bare number confusing — the gauge already shows
-  // "when to go" visually, and personalVerdictLine below ("Your brands
-  // are particularly well-placed") communicates the personal context in
-  // plain English. Score is internal; users see the verdict.
+  // "when to go" visually. Score is internal; users see the verdict.
 
   const arcSVG=buildArcSVG(centreScore,personalScore,style.color);
   let arcLegend='';
@@ -4556,37 +4507,6 @@ async function renderCentre(centreId) {
     arcLegend='<div class="arc-legend"><span class="arc-legend-item"><span class="arc-legend-dot" style="background:'+style.color+'"></span> Centre</span><span class="arc-legend-item"><span class="arc-legend-dot" style="background:var(--amber)"></span> Your brands</span></div>';
   } else if (personalScore!==null&&scoresEqual) {
     arcLegend='<div class="arc-legend"><span class="arc-legend-item"><span class="arc-legend-dot" style="background:var(--amber)"></span> Your score matches the centre</span></div>';
-  }
-
-  // Evidence strip — pairs the personalised view with the centre-wide view so
-  // it's clear how the user's brands compare to the whole centre. "X of Y"
-  // reads as "your brands of all tracked here" / "yours on sale of all on
-  // sale today". Only shown when we have a personalResult to anchor against.
-  let evidenceStrip='';
-  if (personalResult) {
-    const totalAtCentreCount = (typeof total !== 'undefined') ? total : 0;
-    const totalOnSaleCount = Array.isArray(onSale) ? onSale.length : 0;
-    evidenceStrip='<div class="evidence-strip">'
-      + '<span class="evidence-item">'
-      +   '<span class="evidence-num">'+personalResult.matchingBrands+' <span class="evidence-num-total">of '+totalAtCentreCount+'</span></span>'
-      +   '<span class="evidence-label">brands here are yours</span>'
-      + '</span>'
-      + '<span class="evidence-item">'
-      +   '<span class="evidence-num">'+personalResult.onSale+' <span class="evidence-num-total">of '+totalOnSaleCount+'</span></span>'
-      +   '<span class="evidence-label">on sale today</span>'
-      + '</span>'
-      + '</div>';
-  }
-
-  let noMatchMsg='';
-  if (userPrefs&&(userPrefs.womenswear||userPrefs.menswear||userPrefs.childrenswear)&&!personalResult) {
-    noMatchMsg='<p class="personal-no-match">We don\'t track brands matching your preferences at this centre yet.</p>';
-  }
-
-  let personalVerdictLine='';
-  if (personalScore!==null&&!scoresEqual) {
-    const diff=personalScore-centreScore;
-    personalVerdictLine='<p class="personal-verdict-line">'+(diff>0?'Your brands are particularly well-placed right now -- better than the centre average.':'Your brands are a little quieter than the centre average today.')+'</p>';
   }
 
   const userBrandIds = (userPrefs && Array.isArray(userPrefs.brand_ids)) ? new Set(userPrefs.brand_ids) : null;
@@ -4887,8 +4807,6 @@ async function renderCentre(centreId) {
             directionClause: tideDirectionClause(trajectory, history, onSaleN, sparseHistory),
           });
         })()
-    +   renderOnSaleNow(serverScore, userBrandIds)
-    +   evidenceStrip + noMatchMsg + personalVerdictLine
     + '</div></div>';
 
   // Centre Intelligence card — real-data stat row + narrative + opening hours.

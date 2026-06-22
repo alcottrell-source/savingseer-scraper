@@ -1003,9 +1003,9 @@ function saleTypeOptions(selected) {
 
 function openStartForm(card, brandId, def) {
   const mount = card.querySelector('.inline-form-mount');
-  // Fetch latest scraped pct as the prefill
-  const ev = card.__ev || null;
-  const prefilledPct = (ev && ev.max_discount_pct) || '';
+  // No prefill: the scraper (which used to suggest a pct) was removed Jun 2026,
+  // so the admin enters the discount manually.
+  const prefilledPct = '';
   mount.innerHTML =
     '<div class="inline-form">' +
       '<div class="inline-form-row">' +

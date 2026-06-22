@@ -5495,8 +5495,9 @@ document.addEventListener('visibilitychange', () => {
     }
 
     // One rounded block per sale: width = duration (start→end), height = depth,
-    // centred in the track. Single gold hue — full opacity = live, faded =
-    // earlier (colour intensity is the only live signal; never a daily-depth claim).
+    // centred in the track. The LIVE crest takes the brand's stage colour (per
+    // the prototype / CLAUDE.md); past episodes are faded gold. Colour/opacity
+    // are the only live signal; never a daily-depth claim.
     const blocks = shown.map(ep => {
       const sd = new Date(ep.start+'T12:00:00');
       const ed = ep.live ? end : new Date(ep.end+'T12:00:00');
@@ -5510,7 +5511,7 @@ document.addEventListener('visibilitychange', () => {
       let bh = ep.pct!=null ? minBH+(ep.pct/denom)*(maxBH-minBH) : minBH;
       if(bh<minBH)bh=minBH; if(bh>maxBH)bh=maxBH;
       const w=x2-x1, rx=Math.min(5, bh/2, w/2), yTop=cy-bh/2;
-      return '<rect x="'+x1.toFixed(1)+'" y="'+yTop.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="'+rx.toFixed(1)+'" fill="'+GOLD+'" fill-opacity="'+(ep.live?'1':'0.45')+'"/>';
+      return '<rect x="'+x1.toFixed(1)+'" y="'+yTop.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="'+rx.toFixed(1)+'" fill="'+(ep.live ? (stageColor||GOLD) : GOLD)+'" fill-opacity="'+(ep.live?'1':'0.45')+'"/>';
     }).join('');
 
     const todayX = Xd(end);

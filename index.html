@@ -959,6 +959,23 @@
   <div class="notify-banner-msg" id="notify-msg" style="display:none"></div>
 </div>
 
+<!-- Non-UK expansion waitlist. Shown only to visitors Vercel geo-locates outside
+     the UK, who land on a UK-only product. Reuses the .notify-banner styling. -->
+<div id="waitlist-banner" class="notify-banner" role="region" aria-label="Tide is UK-only — join the waitlist">
+  <div class="notify-banner-top">
+    <div class="notify-banner-text">
+      <strong>🌍 Tide is UK-only — for now.</strong><br>
+      We track 30 UK shopping centres today. Want it in <span id="waitlist-country">your country</span>? Leave your email and we'll tell you the moment we expand.
+    </div>
+    <button class="notify-banner-close" onclick="dismissWaitlistBanner()" aria-label="Dismiss">&times;</button>
+  </div>
+  <form class="notify-banner-form" onsubmit="event.preventDefault(); submitWaitlistSignup();">
+    <input type="email" id="waitlist-email" placeholder="Your email" autocomplete="email" required>
+    <button type="submit" class="notify-banner-btn" id="waitlist-btn">Notify me</button>
+  </form>
+  <div class="notify-banner-msg" id="waitlist-msg" style="display:none"></div>
+</div>
+
 <div id="auth-modal" class="modal-overlay" style="display:none" onclick="closeAuthModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeAuthModal()">&times;</button>
@@ -1664,6 +1681,8 @@ async function quickSavePref(key, value) {
 // ── Email-capture banner (logged-out users, after centre pick) ──
 function showNotifyBanner() {
   if (currentUser) return;
+  // The non-UK waitlist banner owns the same fixed-bottom slot — don't stack.
+  if (window._waitlistActive) return;
   try { if (localStorage.getItem('tide_notify_dismissed') === '1') return; } catch(e) {}
   const el = document.getElementById('notify-banner');
   if (el) el.classList.add('visible');
@@ -1709,6 +1728,99 @@ async function submitNotifySignup() {
   msg.textContent = "Check your email — we've sent you a link to activate your alerts.";
   msg.style.display = 'block';
   emailEl.disabled = true;
+}
+
+// ── Non-UK expansion waitlist (geo-gated email capture) ──
+// A traffic spike from US/Sweden visitors hit a UK-only product and bounced.
+// This turns that bounce into an expansion-demand signal + a contactable list.
+// Capture-only: delivery (emailing when we expand) is a separate ticket.
+const WAITLIST_COUNTRY_NAMES = {
+  US: 'the US', SE: 'Sweden', IE: 'Ireland', DE: 'Germany', FR: 'France',
+  NL: 'the Netherlands', ES: 'Spain', IT: 'Italy', CA: 'Canada', AU: 'Australia',
+  NZ: 'New Zealand', PT: 'Portugal', BE: 'Belgium', DK: 'Denmark', NO: 'Norway',
+  FI: 'Finland', PL: 'Poland', AT: 'Austria', CH: 'Switzerland', IN: 'India',
+};
+let _waitlistCountry = null; // ISO-2 we'll store with the signup
+
+// Best-effort country detection. Primary: /api/geo (Vercel injects the country).
+// Fallbacks: ?wl=XX override (for testing), then a rough read of the browser
+// timezone. Returns an ISO-2 code or null when we genuinely can't tell.
+async function detectCountry() {
+  try {
+    const override = new URLSearchParams(window.location.search).get('wl');
+    if (override) return override.toUpperCase();
+  } catch (e) {}
+  try {
+    const r = await fetch('/api/geo', { cache: 'no-store' });
+    if (r.ok) {
+      const j = await r.json();
+      if (j && j.country) return String(j.country).toUpperCase();
+    }
+  } catch (e) {}
+  // Timezone fallback — only used to recognise an obviously non-UK visitor when
+  // the geo endpoint is unavailable (e.g. local dev). UK is 'Europe/London'.
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    if (tz && tz !== 'Europe/London') {
+      if (tz.startsWith('America/')) return 'US';
+      if (tz === 'Europe/Stockholm') return 'SE';
+      if (tz === 'Europe/Dublin') return 'IE';
+      return 'XX'; // non-UK, country unknown — enough to show the banner
+    }
+  } catch (e) {}
+  return null;
+}
+
+async function maybeShowWaitlistBanner() {
+  if (currentUser) return;                       // signed-in users are already in
+  try {
+    if (localStorage.getItem('tide_waitlist_dismissed') === '1') return;
+    if (localStorage.getItem('tide_waitlist_done') === '1') return;
+  } catch (e) {}
+  const country = await detectCountry();
+  // Fail safe: only show when we're confident the visitor is NOT in the UK.
+  if (!country || country === 'GB') return;
+  _waitlistCountry = country === 'XX' ? null : country;
+  const nameEl = document.getElementById('waitlist-country');
+  if (nameEl) nameEl.textContent = WAITLIST_COUNTRY_NAMES[country] || 'your country';
+  window._waitlistActive = true;
+  hideNotifyBanner();                            // this banner wins the slot
+  const el = document.getElementById('waitlist-banner');
+  if (el) el.classList.add('visible');
+}
+
+function dismissWaitlistBanner() {
+  window._waitlistActive = false;
+  const el = document.getElementById('waitlist-banner');
+  if (el) el.classList.remove('visible');
+  try { localStorage.setItem('tide_waitlist_dismissed', '1'); } catch (e) {}
+}
+
+async function submitWaitlistSignup() {
+  const emailEl = document.getElementById('waitlist-email');
+  const btn = document.getElementById('waitlist-btn');
+  const msg = document.getElementById('waitlist-msg');
+  const email = (emailEl.value || '').trim().toLowerCase();
+  msg.style.display = 'none'; msg.classList.remove('error');
+  if (!email) return;
+  btn.disabled = true;
+  // pgUpsert resolves to { data, error } (it doesn't throw) — check the error.
+  const { error } = await pgUpsert('waitlist',
+    { email, country: _waitlistCountry, source_url: window.location.href },
+    'email');
+  if (error) {
+    btn.disabled = false;
+    msg.textContent = "Couldn't save that just now — please try again shortly.";
+    msg.classList.add('error');
+    msg.style.display = 'block';
+    return;
+  }
+  const where = (_waitlistCountry && WAITLIST_COUNTRY_NAMES[_waitlistCountry]) || 'your area';
+  msg.textContent = `You're on the list — we'll email you when Tide reaches ${where}.`;
+  msg.style.display = 'block';
+  emailEl.disabled = true;
+  btn.disabled = true;
+  try { localStorage.setItem('tide_waitlist_done', '1'); } catch (e) {}
 }
 
 // Save the currently-selected centre to the user's saved_centres array.
@@ -5109,6 +5221,9 @@ try {
 } catch (e) { /* render helpers may not be ready yet — auth flow will retry */ }
 
 loadTideData().then(ok => { if (!ok) loadSheetData(); });
+
+// Geo-gated: offer the expansion waitlist to visitors outside the UK.
+maybeShowWaitlistBanner();
 
 // Subscribe to real-time Supabase changes so admin confirmations appear
 // instantly without a page refresh. 60-second poll is a belt-and-braces

@@ -505,6 +505,11 @@ Deno.serve(async (req: Request) => {
 
   const log: { type: string; to?: string; centre?: string; brand?: string; status?: number; ok?: boolean; skipped?: string }[] = [];
   let alertsSent = 0, brandAlertsSent = 0, digestsSent = 0;
+  // Track delivery failures so the function can report a non-2xx when it sent
+  // nothing despite trying — otherwise a run where Resend rejects every email
+  // returns HTTP 200 and the notify workflow (which only checks the status
+  // code) reports green while delivering zero notifications.
+  let sendFailures = 0;
 
   // 2. HIGH-TIDE ALERTS. (daily run only — skipped on the Friday digest call)
   //
@@ -571,7 +576,7 @@ Deno.serve(async (req: Request) => {
       if (dryRun) { log.push({ type: "alert", to, centre: centreName, ok: true, skipped: "dryRun" }); continue; }
       const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
       log.push({ type: "alert", to, centre: centreName, ok: result.ok, status: result.status });
-      if (result.ok) alertsSent++;
+      if (result.ok) alertsSent++; else sendFailures++;
     }
   }
 
@@ -631,7 +636,7 @@ Deno.serve(async (req: Request) => {
     if (dryRun) { log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: true, skipped: "dryRun" }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
     log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: result.ok, status: result.status });
-    if (result.ok) brandAlertsSent++;
+    if (result.ok) brandAlertsSent++; else sendFailures++;
   }
 
   // 3. WEEKEND DIGEST. Sent only on the Friday 19:00 UTC invocation
@@ -665,22 +670,31 @@ Deno.serve(async (req: Request) => {
     if (dryRun) { log.push({ type: "digest", to, ok: true, skipped: "dryRun" }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
     log.push({ type: "digest", to, ok: result.ok, status: result.status });
-    if (result.ok) digestsSent++;
+    if (result.ok) digestsSent++; else sendFailures++;
   }
 
+  const totalSent = alertsSent + brandAlertsSent + digestsSent;
+  const attempted = totalSent + sendFailures;
+  // Report a failure status when we tried to deliver but every send failed
+  // (total delivery failure), so the scheduling workflow doesn't go green on a
+  // run that notified nobody. Partial failures stay 200 but are surfaced via
+  // sendFailures in the body for monitoring.
+  const httpStatus = (attempted > 0 && totalSent === 0) ? 502 : 200;
   return new Response(JSON.stringify({
-    ok: true,
+    ok: httpStatus === 200,
     today,
     dryRun,
     mode: digestOnly ? "digestOnly" : "daily",
     alertsSent,
     brandAlertsSent,
     digestsSent,
+    sendFailures,
     highTideCentres: highTideCentres.length,
     brandsStartedToday: startedBrands.length,
     eligibleUsers: allPrefs.length,
     log,
   }, null, 2), {
+    status: httpStatus,
     headers: { "content-type": "application/json" },
   });
 });

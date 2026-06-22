@@ -1009,7 +1009,7 @@ function openStartForm(card, brandId, def) {
   mount.innerHTML =
     '<div class="inline-form">' +
       '<div class="inline-form-row">' +
-        '<label>Started <input class="input" type="date" id="frm-start" value="' + TODAY + '"></label>' +
+        '<label>Started <input class="input" type="date" id="frm-start" max="' + TODAY + '" value="' + TODAY + '"></label>' +
         '<label>Sale type <select class="input" id="frm-type">' + saleTypeOptions('percent_off') + '</select></label>' +
         '<label>Discount % <input class="input" type="number" id="frm-pct" min="1" max="99" placeholder="e.g. 30" value="' + esc(prefilledPct) + '"></label>' +
       '</div>' +
@@ -1051,7 +1051,7 @@ function openEditForm(card, brandId, def) {
   mount.innerHTML =
     '<div class="inline-form">' +
       '<div class="inline-form-row">' +
-        '<label>Started <input class="input" type="date" id="edit-start" value="' + esc(currentStart) + '"></label>' +
+        '<label>Started <input class="input" type="date" id="edit-start" max="' + TODAY + '" value="' + esc(currentStart) + '"></label>' +
         '<label>Sale type <select class="input" id="edit-type">' + saleTypeOptions(currentType) + '</select></label>' +
         '<label>Discount % <input class="input" type="number" id="edit-pct" min="1" max="99" placeholder="e.g. 30" value="' + esc(currentPct) + '"></label>' +
       '</div>' +
@@ -1161,6 +1161,20 @@ async function triggerRescore() {
 
 async function applyAction(brandId, action, opts) {
   if (action === 'confirm_start') {
+    // A sale can't start in the future — a future-dated cycle would still be
+    // counted as "on sale today" by score.js (which only checks active_cycle_id),
+    // inflating the Tide Score and rendering "day -N" on the card.
+    if (opts.start_date > TODAY) throw new Error('Start date cannot be in the future');
+    // Refuse if an open cycle already exists for this brand — prevents the
+    // double-open race (the DB unique partial index is the hard backstop, see
+    // 20260622_unique_open_cycle.sql; this gives a clean error instead of a 409).
+    const { data: existingOpen, error: oErr } = await pg.read(
+      'brand_sale_cycles?select=id&brand_id=eq.' + brandId + '&end_date=is.null&limit=1'
+    );
+    if (oErr) throw oErr;
+    if ((existingOpen || []).length) {
+      throw new Error('This brand already has an open sale cycle — use "Still on" or "Edit" instead');
+    }
     const { data: cycleRows, error: cErr } = await pg.insert('brand_sale_cycles', {
       brand_id: brandId,
       start_date: opts.start_date,
@@ -1171,12 +1185,17 @@ async function applyAction(brandId, action, opts) {
     if (cErr) throw cErr;
     const cycle = (cycleRows || [])[0];
     if (!cycle) throw new Error('Insert returned no row');
-    const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
+    // Upsert (not update) the event row: a brand may not yet have a
+    // brand_sale_events row, and a bare PATCH against a missing row is a
+    // silent no-op that would leave active_cycle_id unset → the just-confirmed
+    // sale would be invisible to the public score.
+    const { error: uErr } = await pg.upsert('brand_sale_events', {
+      brand_id: brandId,
       active_cycle_id: cycle.id,
       last_verified_status: true,
       last_verified_date: TODAY,
       sale_type: opts.sale_type || 'percent_off',
-    });
+    }, 'brand_id');
     if (uErr) throw uErr;
     await logReview(brandId, 'confirmed_start', cycle.id);
     return;
@@ -1233,6 +1252,7 @@ async function applyAction(brandId, action, opts) {
 }
 
 async function applyEdit(brandId, cycleId, opts) {
+  if (opts.start_date > TODAY) throw new Error('Start date cannot be in the future');
   if (cycleId) {
     const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + cycleId, {
       start_date: opts.start_date,
@@ -1272,8 +1292,17 @@ async function deleteCycle(brandId, cycleId) {
   // 2. Delete the cycle row itself.
   const { error: dErr } = await pg.delete('brand_sale_cycles', 'id=eq.' + cycleId);
   if (dErr) throw dErr;
-  // 3. Log the action so the brand leaves "needs review" today.
-  await logReview(brandId, 'deleted', cycleId);
+  // 3. Log the action so the brand leaves "needs review" today. BEST-EFFORT:
+  //    the cycle is already gone and the brand reset by this point, so a
+  //    failure here (e.g. the admin_review_log CHECK constraint not yet
+  //    widened to allow 'deleted' — see 20260622_admin_log_allow_deleted.sql)
+  //    must NOT throw, or the caller skips triggerRescore() and the public
+  //    store silently goes stale while the admin sees "Delete failed".
+  try {
+    await logReview(brandId, 'deleted', cycleId);
+  } catch (logErr) {
+    console.warn('deleteCycle: audit-log write failed (delete itself succeeded):', logErr.message);
+  }
 }
 
 async function logReview(brandId, action, cycleId) {

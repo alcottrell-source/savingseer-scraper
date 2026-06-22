@@ -13,6 +13,19 @@ export function escapeHtml(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// Serialise an object for embedding inside <script type="application/ld+json">.
+// JSON.stringify does NOT escape '<', '>' or '/', so a value containing
+// "</script>" (or "<!--") would break out of the script element — both a
+// latent injection and a silent break of Google's structured-data parsing.
+// Escaping these as \uXXXX keeps the JSON valid while making break-out
+// impossible. Use this for EVERY ld+json emit instead of bare JSON.stringify.
+export function jsonLd(obj) {
+  return JSON.stringify(obj)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+}
+
 // Brands have no slug column (ids are 'Bxxx' codes), so we derive a stable,
 // URL-safe slug from the name. Shared by generate.mjs for link building.
 export function slugify(name) {
@@ -48,9 +61,13 @@ export function buildEpisodes(rawCycles, today) {
     const live = !row.end_date;
     const endRef = live ? todayMs : dayMs(row.end_date);
     const lengthDays = Math.max(1, Math.round((endRef - dayMs(row.start_date)) / 86400000) + 1);
+    // PostgREST serialises numeric columns as strings, so coerce before the
+    // finite check — Number.isFinite('25') is false and would silently drop a
+    // real discount, rendering "Sale on" instead of "Up to 25% off".
+    const pctNum = row.max_discount_pct == null ? NaN : Number(row.max_discount_pct);
     return {
       start: row.start_date, end: row.end_date || null,
-      pct: Number.isFinite(row.max_discount_pct) ? row.max_discount_pct : null,
+      pct: Number.isFinite(pctNum) ? pctNum : null,
       saleType: row.sale_type || 'percent_off', live, lengthDays,
     };
   });
@@ -91,7 +108,8 @@ export function centreContext(verdict) {
 // The brand-specific headline answer — this is what the searcher actually asked.
 export function brandAnswer(onSale, cycle, brandName, centreName) {
   if (onSale) {
-    const pct = cycle && cycle.maxDiscountPct ? `, up to ${cycle.maxDiscountPct}% off` : '';
+    const cyclePct = cycle && Number.isFinite(Number(cycle.maxDiscountPct)) ? Number(cycle.maxDiscountPct) : null;
+    const pct = cyclePct ? `, up to ${cyclePct}% off` : '';
     return {
       tone: 'go',
       headline: `Yes — ${brandName} is on sale at ${centreName} now${pct}.`,
@@ -303,14 +321,14 @@ export function renderBrandPage(d) {
   const winSentence = nextSaleWindowSentence(today, centre.name);
 
   const saleRow = cycle
-    ? `<tr><td>${escapeHtml(brand.name)}</td><td><span class="tag">On sale</span></td><td>${cycle.maxDiscountPct ? 'Up to ' + cycle.maxDiscountPct + '% off' : escapeHtml(cycle.saleType || 'Sale on')}</td><td>${escapeHtml(cycle.startDate || '')}</td></tr>`
+    ? `<tr><td>${escapeHtml(brand.name)}</td><td><span class="tag">On sale</span></td><td>${Number(cycle.maxDiscountPct) ? 'Up to ' + Number(cycle.maxDiscountPct) + '% off' : escapeHtml(cycle.saleType || 'Sale on')}</td><td>${escapeHtml(cycle.startDate || '')}</td></tr>`
     : onSale
       ? `<tr><td>${escapeHtml(brand.name)}</td><td><span class="tag">On sale</span></td><td>Sale confirmed</td><td>—</td></tr>`
       : `<tr><td>${escapeHtml(brand.name)}</td><td><span class="tag off">Not on sale</span></td><td>No verified sale right now</td><td>—</td></tr>`;
 
   const faq = [
     { q: `Is ${brand.name} on sale at ${centre.name} right now?`,
-      a: onSale ? `Yes — ${brand.name} has a sale confirmed at ${centre.name}. ${cycle && cycle.maxDiscountPct ? 'Up to ' + cycle.maxDiscountPct + '% off.' : ''}`.trim()
+      a: onSale ? `Yes — ${brand.name} has a sale confirmed at ${centre.name}. ${cycle && Number(cycle.maxDiscountPct) ? 'Up to ' + Number(cycle.maxDiscountPct) + '% off.' : ''}`.trim()
                 : `Not right now — there's no verified ${brand.name} sale at ${centre.name} today. Set an alert above and we'll email you when one starts.` },
     { q: `When is the next sale at ${centre.name}?`,
       a: winSentence || `Sales tend to follow the UK retail calendar — Boxing Day, summer, and Black Friday are the biggest windows.` },
@@ -389,8 +407,8 @@ ${hours ? `<h2>Visiting ${escapeHtml(centre.name)}</h2><p>Opening hours: ${escap
 
 <h2>FAQ</h2>
 ${faq.map(f => `<details><summary>${escapeHtml(f.q)}</summary><p>${escapeHtml(f.a)}</p></details>`).join('')}
-<script type="application/ld+json">${JSON.stringify(faqLd)}</script>
-<script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
+<script type="application/ld+json">${jsonLd(faqLd)}</script>
+<script type="application/ld+json">${jsonLd(breadcrumbLd)}</script>
 ` + FOOT(origin);
 }
 
@@ -467,7 +485,7 @@ ${optInBlock('the Tide blog', { centre: null, brand: null, label: 'the Tide blog
 
 <h2>Track a centre live</h2>
 <p class="muted">Every guide here is backed by Tide's live, admin-verified sale tracker. <a href="${origin}/">See today's scores →</a></p>
-<script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
+<script type="application/ld+json">${jsonLd(breadcrumbLd)}</script>
 ` + FOOT(origin);
 }
 
@@ -522,7 +540,7 @@ ${relatedBlock}
 
 ${optInBlock('the Tide blog', { centre: null, brand: null, label: 'the Tide blog' })}
 ${moreBlock}
-<script type="application/ld+json">${JSON.stringify(blogPostingLd)}</script>
-<script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
+<script type="application/ld+json">${jsonLd(blogPostingLd)}</script>
+<script type="application/ld+json">${jsonLd(breadcrumbLd)}</script>
 ` + FOOT(origin);
 }

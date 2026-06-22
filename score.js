@@ -219,6 +219,33 @@ function getTrajectory(todayScore, recentScores, yesterdayTrajectory) {
   return 'FLAT';
 }
 
+// ── On-sale predicate (admin-verified only) ──────────────────────────────────
+// Single source of truth for "is this brand on sale today". Priority:
+//   1. Active verified cycle (admin opened a cycle) — but only if the cycle's
+//      window is live: a future start_date isn't on sale YET, and a closed
+//      cycle (end_date set, e.g. a half-failed admin edit that left a dangling
+//      active_cycle_id) isn't on sale ANY MORE.
+//   2. last_verified_status — the admin's most recent decision.
+//   3. otherwise not on sale.
+// The scraper's sale_status is intentionally NOT a fallback.
+//
+// The cycle window is only enforced when the joined `cycle` is present (the
+// centre-score query joins it). Callers without the join (personal scores)
+// fall back to trusting active_cycle_id, preserving prior behaviour.
+// Pure — exported for unit testing.
+export function isBrandOnSale(sale, today) {
+  if (!sale) return false;
+  if (sale.active_cycle_id) {
+    const c = sale.cycle;
+    if (c) {
+      if (c.start_date && today && c.start_date > today) return false; // not started yet
+      if (c.end_date) return false;                                    // already closed
+    }
+    return true;
+  }
+  return sale.last_verified_date ? !!sale.last_verified_status : false;
+}
+
 async function calculateAllCentreScores(opts = {}) {
   const supabase = getSupabase();
   const TODAY          = opts.today || dateStr(0);
@@ -255,7 +282,7 @@ async function calculateAllCentreScores(opts = {}) {
   const [centresRes, centreBrandsRes, brandSaleRes, recentScoresRes, yesterdayRowsRes, sixtyDayScoresRes] = await Promise.all([
     supabase.from('centres').select('*').eq('active', true),
     supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
-    supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(max_discount_pct)'),
+    supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(max_discount_pct, start_date, end_date)'),
     supabase.from('centre_seer_scores')
       .select('centre_id, score_date, tide_score, verdict, trajectory')
       .gte('score_date', THREE_DAYS_AGO)
@@ -387,19 +414,9 @@ async function calculateAllCentreScores(opts = {}) {
       if (!sale) continue;
 
       // Admin is the only source of truth for sale state and discount %.
-      // Priority for "is this brand on sale today":
-      //   1. Active verified cycle  (admin opened a cycle, treat as on sale)
-      //   2. last_verified_status   (admin's most recent decision)
-      //   3. otherwise              not on sale
-      // The scraper's sale_status is intentionally NOT a fallback — it lives
-      // in the admin panel as a recommendation only and never reaches the
-      // public dashboard until an admin verifies it.
-      const isOnSale = sale.active_cycle_id
-        ? true
-        : sale.last_verified_date
-          ? sale.last_verified_status
-          : false;
-      if (!isOnSale) continue;
+      // See isBrandOnSale — honours the cycle window so a future-dated or
+      // already-closed cycle can't be counted as on sale today.
+      if (!isBrandOnSale(sale, TODAY)) continue;
 
       brandsOnSale++;
       // Discount % comes only from a verified cycle. Without one, no
@@ -605,14 +622,10 @@ async function calculatePersonalScores(opts = {}) {
       for (const brandId of matchingBrandIds) {
         const sale = brandSaleMap.get(brandId);
         if (!sale) continue;
-        // Admin-only source of truth (mirrors the centre-score path above):
-        // verified cycle, or last verified status. No scraper fallback.
-        const isOnSale = sale.active_cycle_id
-          ? true
-          : sale.last_verified_date
-            ? sale.last_verified_status
-            : false;
-        if (!isOnSale) continue;
+        // Admin-only source of truth (mirrors the centre-score path above).
+        // The personal-score query doesn't join the cycle, so isBrandOnSale
+        // falls back to trusting active_cycle_id — same as before.
+        if (!isBrandOnSale(sale, TODAY)) continue;
 
         matchingOnSale++;
       }

@@ -8,9 +8,9 @@
 //   1. headline word === trend-pill word === chart-eyebrow tail word
 //      (three places inside the merged tide card; all read off the same
 //      `deriveVerdict()` so they must match)
-//   2. "Go now" headline copy appears iff the verdict word is PEAK
-//      (the GO NOW pill is gone — recommendation language is absorbed
-//      into the verdict word, which is PEAK-only)
+//   2. The headline word is a pure trend signal (PEAK/RISING/EASING/OVER/
+//      QUIET) — recommendation language never appears in it. The "Go now"
+//      call-to-action lives only in the GO NOW badge, shown iff PEAK.
 //   3. trend-pill arrow never contradicts the curve's last-segment slope:
 //      no '↑' while data-slope-direction='down', no '↓' while
 //      data-slope-direction='up' (PEAK's '★' is non-directional and
@@ -267,9 +267,10 @@ test('verdict alignment holds for every scored centre', async ({ page }, testInf
         historySection: !!document.querySelector('#history-section'),
       };
       const narrative = (document.querySelector('.narrative-insight')?.textContent || '').trim();
+      const goBadge = !!document.querySelector('.tide-vessel-go-badge');
       return {
         rendered: !!vEl,
-        vWord, pWord, tWord, headlineText, slopeDir, pillArrow, stale, narrative,
+        vWord, pWord, tWord, headlineText, slopeDir, pillArrow, stale, narrative, goBadge,
         serverVerdict: window.getServerScore(idx)?.verdict ?? null,
         vesselHTML: vessel?.outerHTML?.slice(0, 1200) || '(none)',
         pillHTML: pillEl?.outerHTML || '(none)',
@@ -292,10 +293,15 @@ test('verdict alignment holds for every scored centre', async ({ page }, testInf
     if (snap.tWord && snap.vWord && snap.tWord !== snap.vWord) {
       why.push(`chart-eyebrow tail "${snap.tWord}" != headline "${snap.vWord}"`);
     }
-    // 2. "Go now" headline copy iff PEAK
-    const isGoNowCopy = /go now/i.test(snap.headlineText);
-    if (isGoNowCopy && snap.vWord !== 'PEAK') why.push(`"Go now" headline shown on ${snap.vWord}`);
-    if (!isGoNowCopy && snap.vWord === 'PEAK') why.push(`PEAK without "Go now" headline (got "${snap.headlineText}")`);
+    // 2. The headline WORD is a pure trend signal (never recommendation copy);
+    //    the "Go now" recommendation lives ONLY in the GO NOW badge, shown iff
+    //    PEAK. (Per the CLAUDE.md verdict-vocabulary contract: headline word
+    //    PEAK, badge GO NOW.)
+    if (/go now|worth it|worth a visit/i.test(snap.headlineText)) {
+      why.push(`recommendation copy leaked into the headline word: "${snap.headlineText}"`);
+    }
+    if (snap.goBadge && snap.vWord !== 'PEAK') why.push(`GO NOW badge shown on ${snap.vWord}`);
+    if (!snap.goBadge && snap.vWord === 'PEAK') why.push(`PEAK without the GO NOW badge`);
     // 3. trend-pill arrow never contradicts the live curve slope. PEAK's
     // '★' is non-directional and permitted on either slope; the rule is
     // strictly: no '↑' while descending, no '↓' while ascending.

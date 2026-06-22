@@ -386,6 +386,43 @@
   .tide-period-tab:hover { color: rgba(245,241,235,0.82); }
   .tide-period-tab.is-active { color: #5EFFB0; background: rgba(94,255,176,0.12); }
 
+  /* ── Landing hero showcase card (Jun 2026) ──────────────────────────
+     Static "this is what Tide tells you" proof card, shown above the fold
+     on the main page. Mirrors the dark centre-detail vessel aesthetic but
+     leads with a bold centre name, a "% on sale" headline, the gold verdict
+     word, the live shop count, and a 14-day growth pill. Showcase only —
+     not wired to live data; the real card is renderTideVessel(). */
+  .hero-card { position: relative; max-width: 560px; margin: 30px auto 10px; padding: 30px 32px 32px; background: #0B0B0D; border-radius: 26px; box-shadow: 0 18px 54px rgba(11,11,13,0.32); overflow: hidden; }
+  .hero-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 26px; }
+  .hero-card-name { font-family: 'Inter', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 0.01em; line-height: 1.15; color: var(--tide-cream); text-transform: uppercase; }
+  .hero-card-loc { font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; line-height: 1.2; color: rgba(245,241,235,0.36); text-transform: uppercase; margin-top: 5px; }
+  .hero-card-verified { display: inline-flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; color: #5FD6A6; white-space: nowrap; flex-shrink: 0; padding-top: 2px; }
+  .hero-card-dot { width: 9px; height: 9px; border-radius: 50%; background: #5FD6A6; box-shadow: 0 0 10px rgba(95,214,166,0.85); }
+  .hero-card-pct-row { display: flex; align-items: baseline; gap: 16px; margin-bottom: 4px; }
+  .hero-card-num { display: inline-flex; align-items: baseline; }
+  .hero-card-pct { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 88px; line-height: 0.9; letter-spacing: -0.03em; color: #F0EBE2; background: linear-gradient(180deg, #FFFFFF 30%, #C8C2B7); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero-card-pct-sign { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 42px; color: rgba(245,241,235,0.42); margin-left: 2px; }
+  .hero-card-onsale { font-family: 'Inter', sans-serif; font-size: 27px; font-weight: 400; color: rgba(245,241,235,0.58); }
+  .hero-card-verdict { font-family: 'Playfair Display', serif; font-style: italic; font-weight: 700; font-size: 70px; line-height: 1; letter-spacing: -0.01em; color: #E6B368; background: linear-gradient(180deg, #F1C681, #D99A44); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin: 12px 0 22px; }
+  .hero-card-count { font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 400; color: rgba(245,241,235,0.5); margin-bottom: 26px; }
+  .hero-card-count-sep { color: rgba(245,241,235,0.28); }
+  .hero-card-pill { display: inline-flex; align-items: center; gap: 9px; font-family: 'Inter', sans-serif; font-size: 21px; font-weight: 600; color: #5FD6A6; background: rgba(95,214,166,0.08); border: 1px solid rgba(95,214,166,0.22); border-radius: 100px; padding: 13px 26px; }
+  .hero-card-tri { font-size: 15px; line-height: 1; }
+  @media (max-width: 480px) {
+    .hero-card { margin: 22px auto 6px; padding: 24px 22px 26px; border-radius: 22px; }
+    .hero-card-top { margin-bottom: 22px; }
+    .hero-card-name { font-size: 17px; }
+    .hero-card-loc { font-size: 13px; }
+    .hero-card-verified { font-size: 13px; }
+    .hero-card-pct { font-size: 68px; }
+    .hero-card-pct-sign { font-size: 33px; }
+    .hero-card-onsale { font-size: 21px; }
+    .hero-card-verdict { font-size: 54px; margin: 8px 0 18px; }
+    .hero-card-count { font-size: 18px; margin-bottom: 22px; }
+    .hero-card-pill { font-size: 17px; padding: 11px 20px; gap: 8px; }
+    .hero-card-tri { font-size: 13px; }
+  }
+
   /* ── Auth modal: email-preview card on signup step ────────────── */
   .auth-email-preview { background: var(--leaf-lt); border: 1px solid rgba(61,107,53,0.18); border-radius: 12px; padding: 14px 16px; margin: 14px 0 18px; }
   .auth-email-preview-eyebrow { display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--leaf); font-weight: 500; margin-bottom: 8px; }
@@ -4548,6 +4585,30 @@ function renderHotCentres(opts) {
 // above; this fills in the live "Hot right now" ticker and an optional
 // expandable "How does Tide work?" panel. No CTA on the landing — the
 // search itself is the engagement; sign-up surfaces after a centre view.
+// Static landing showcase card — a fixed Westfield London example that shows
+// a newcomer exactly what a Tide card delivers (verified-today freshness,
+// % on sale, the verdict word, the shop count, and a 14-day growth signal)
+// before they search. Hardcoded by design: it's a hero, not live data. The
+// live equivalent is renderTideVessel().
+function renderHeroShowcaseCard() {
+  return '<section class="hero-card" role="img" aria-label="Example Tide card: Westfield London, 58% on sale, go now. 23 of 40 shops on sale, up 14 shops in 14 days.">'
+    +   '<div class="hero-card-top">'
+    +     '<div class="hero-card-id">'
+    +       '<div class="hero-card-name">Westfield London</div>'
+    +       '<div class="hero-card-loc">Shepherd’s Bush, London</div>'
+    +     '</div>'
+    +     '<div class="hero-card-verified"><span class="hero-card-dot" aria-hidden="true"></span>Verified today</div>'
+    +   '</div>'
+    +   '<div class="hero-card-pct-row">'
+    +     '<span class="hero-card-num"><span class="hero-card-pct">58</span><span class="hero-card-pct-sign">%</span></span>'
+    +     '<span class="hero-card-onsale">on sale</span>'
+    +   '</div>'
+    +   '<div class="hero-card-verdict">Go now</div>'
+    +   '<div class="hero-card-count">23 of 40 shops <span class="hero-card-count-sep">&middot;</span></div>'
+    +   '<div class="hero-card-pill"><span class="hero-card-tri" aria-hidden="true">▲</span> +14 shops in 14 days</div>'
+    +   '</section>';
+}
+
 function renderLandingHero() {
   const hotHTML = renderHotCentres({ limit: 3 });
   // Bridge card: logged-out only. renderLandingHero also serves signed-in
@@ -4557,7 +4618,8 @@ function renderLandingHero() {
       +   '<p class="bridge-card-copy">Tide scores every UK centre for the shops <b>you</b> actually buy, and emails you the moment they go on sale.</p>'
       +   '<button class="bridge-card-cta" onclick="openAuthModal()">Get my personal Tide for free</button>'
       + '</section>';
-  return hotHTML
+  return renderHeroShowcaseCard()
+       + hotHTML
        + '<section class="how-it-works is-static" aria-label="What you get">'
        +   '<div class="how-it-works-title">What you get</div>'
        +   '<div class="landing-steps">'

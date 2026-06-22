@@ -4364,11 +4364,11 @@ const HOT_STRIP_TILES = 4;
 // is ever onboarded. Mirror into a DB flag if the list ever grows.
 const HOT_EXCLUDE_OUTLET_CIDS = new Set([]);
 
-// Ranked by Tide Score DESCENDING (the brief's ordering — the list leads with
-// the highest-density centres), with verdict severity then name as
-// deterministic tiebreakers so equal scores never reorder between renders.
-// (It previously ranked by verdict severity first; that justified a momentum
-// row that no longer exists.) Eligibility: at least one brand on sale
+// Ranked by VERDICT SEVERITY descending (Peak > Rising > Easing > Quiet >
+// Over), then Tide Score, then name — so the "what's worth going to" list
+// leads with the centres actually at peak, not merely the highest raw
+// density. Name is the final deterministic tiebreaker so equal rows never
+// reorder between renders. Eligibility: at least one brand on sale
 // (tide_score > 0), a valid brand count, the denominator floor, and not an
 // excluded outlet. `excludeIds` optionally filters out the user's own saved
 // centres so the discovery list reads as "what else is good".
@@ -4410,8 +4410,8 @@ function getHotCentres(n, excludeIds) {
     });
   }
   ranked.sort((a, b) =>
-    (b.tideScore - a.tideScore) ||
     (b.severity - a.severity) ||
+    (b.tideScore - a.tideScore) ||
     a.name.localeCompare(b.name));
   return ranked.slice(0, n);
 }
@@ -5427,12 +5427,15 @@ document.addEventListener('visibilitychange', () => {
     return true;
   }
 
-  // ── Chart window: a fixed trailing 6 months (current month + the previous
-  //    five), so the axis always shows six equal, named month columns. Sales
-  //    that end before the window are clipped (the caption flags it). Returns
-  //    the Date bounds + the episodes that overlap the window.
+  // ── Chart window: a fixed trailing 12 months (current month + the previous
+  //    eleven), so the axis always shows a year of equal, named month columns.
+  //    Sales that end before the window are clipped (the caption flags it).
+  //    Returns the Date bounds + the episodes that overlap the window.
+  //    NOTE: 12 months caters for the simulated older-sale history currently
+  //    seeded for centres; once real data has accrued and the simulated data
+  //    is removed, revisit whether a tighter window reads better.
   function chartWindow(eps){
-    const MONTHS=6;
+    const MONTHS=12;
     const now=new Date();
     const end=new Date(now.getFullYear(), now.getMonth(), now.getDate());        // today
     const start=new Date(end.getFullYear(), end.getMonth()-(MONTHS-1), 1);       // 1st of the earliest month
@@ -5446,7 +5449,7 @@ document.addEventListener('visibilitychange', () => {
   //    width regardless of day count), with every month labelled and little
   //    week ticks inside each column. Each sale is a soft swell whose two feet
   //    land on its real start/end dates, so width spans duration and peak
-  //    height encodes discount depth. Live swell = stage colour, past = stone.
+  //    height encodes discount depth. Live swell = stage colour, past = gold.
   function rhythmSVG(eps, deepest, stageColor){
     const W=350, padX=14, minW=10;
     const GOLD='#BC8A2E';
@@ -5454,7 +5457,7 @@ document.addEventListener('visibilitychange', () => {
     const { start, end, shown } = chartWindow(eps);
     const denom = deepest || 50;
 
-    // Six fixed month columns from the window start month → current month.
+    // Fixed month columns from the window start month → current month.
     const firstY = start.getFullYear(), firstM = start.getMonth();
     const months=[]; let yy=firstY, mm=firstM, g=0;
     while((yy<end.getFullYear() || (yy===end.getFullYear() && mm<=end.getMonth())) && g++<24){

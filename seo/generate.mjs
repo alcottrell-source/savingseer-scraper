@@ -135,7 +135,7 @@ function shape(raw, today) {
   const centre = {
     slug: raw.centre.slug, name: raw.centre.name,
     tideScore: s.tide_score ?? 0, verdict: s.verdict || 'Quiet', trajectory: s.trajectory || 'FLAT',
-    bluf: s.bluf || '',
+    bluf: s.bluf || '', scoreDate: s.score_date || null,
   };
   return { centre, brands, hasScore: !!raw.score };
 }
@@ -169,15 +169,23 @@ async function main() {
   }
 
   const supabase = { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY };
+  const buildDay = today.toISOString().slice(0, 10);
   const urls = [];
   const centresBySlug = {}; // slug -> { name }, for resolving blog relatedCentres
   let centreCount = 0, skipped = 0;
 
-  async function emit(relPath, html) {
+  // Latest sane YYYY-MM-DD from the candidates, falling back to the build day so
+  // every <url> still gets a <lastmod> even when a centre/brand has no date.
+  function lastmodFrom(...candidates) {
+    const days = candidates.filter(d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)).map(d => d.slice(0, 10));
+    return days.length ? days.sort().at(-1) : buildDay;
+  }
+
+  async function emit(relPath, html, lastmod) {
     const full = join(outDir, relPath, 'index.html');
     await mkdir(dirname(full), { recursive: true });
     await writeFile(full, html, 'utf8');
-    urls.push(`${ORIGIN}/${relPath}`);
+    urls.push({ loc: `${ORIGIN}/${relPath}`, lastmod: lastmod || buildDay });
   }
 
   for (const raw of rawList) {
@@ -193,14 +201,17 @@ async function main() {
 
     const hours = CENTRE_HOURS[centre.slug] || null;
 
-    // Centre hub
-    await emit(`centre/${centre.slug}`, renderCentreHub({ centre, brands, hours, supabase, origin: ORIGIN, today }));
+    // Centre hub — freshness = the centre's score date.
+    await emit(`centre/${centre.slug}`, renderCentreHub({ centre, brands, hours, supabase, origin: ORIGIN, today }),
+      lastmodFrom(centre.scoreDate));
 
-    // Brand × centre pages (the workhorse)
+    // Brand × centre pages (the workhorse) — freshness = newest of the brand's
+    // last verified date and the centre score date.
     for (const b of brands) {
       const siblings = brands.filter(x => x.slug !== b.slug).map(x => ({ slug: x.slug, name: x.name, onSale: x.onSale }));
       await emit(`centre/${centre.slug}/${b.slug}`,
-        renderBrandPage({ centre, brand: b, sale: b.sale, cycle: b.cycle, hours, siblings, supabase, origin: ORIGIN, today }));
+        renderBrandPage({ centre, brand: b, sale: b.sale, cycle: b.cycle, hours, siblings, supabase, origin: ORIGIN, today }),
+        lastmodFrom(centre.scoreDate, b.sale && b.sale.last_verified_date));
     }
     centresBySlug[centre.slug] = { name: centre.name };
     centreCount++;
@@ -239,9 +250,9 @@ async function main() {
   // Homepage first — the dynamic app at / carries its own canonical/description
   // and is the entry point, so it belongs in the sitemap alongside the /centre/
   // pages (which are the only URLs collected in `urls` during page emit).
-  urls.unshift(`${ORIGIN}/`);
+  urls.unshift({ loc: `${ORIGIN}/`, lastmod: buildDay });
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    urls.map(u => `  <url><loc>${u}</loc></url>`).join('\n') + `\n</urlset>\n`;
+    urls.map(u => `  <url><loc>${u.loc}</loc><lastmod>${u.lastmod}</lastmod></url>`).join('\n') + `\n</urlset>\n`;
   await writeFile(join(outDir, 'sitemap.xml'), sitemap, 'utf8');
 
   const w = nextSaleWindow(today);

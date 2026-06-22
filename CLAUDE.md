@@ -102,6 +102,7 @@ Supabase project: `vrezzwadwzrmumjpdgge.supabase.co`
 Key tables:
 - `user_preferences` — one row per user, RLS enforced.
 - `centre_seer_scores` — per-centre, per-day Tide Score + verdict + `narrative` (anon read enabled).
+- `admins` — enrolled admin `user_id`s. `is_admin()` (the gate on every admin write/PII-read RLS policy) checks `auth.uid()` against this table, **not** the user-mutable `email` JWT claim (migration `20260622_admins_table.sql`). Add/remove admins by inserting/deleting a `user_id` (service-role only). `notifications_sent` — per-day idempotency ledger for `notify-high-tide`.
 
 ## Instant rescore (May 2026)
 

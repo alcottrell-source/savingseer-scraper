@@ -400,17 +400,31 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+// Constant-time string compare for the trigger secret — avoids leaking the
+// secret length-prefix via early-exit timing on the gate protecting a
+// mass-email/DB credential.
+function safeEqual(a: string, b: string): boolean {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Resend wrapper.
 
 async function sendEmail(to: string, subject: string, html: string, text: string, apiKey: string): Promise<{ ok: boolean; status: number; body: unknown }> {
+  // Strip CR/LF from the subject — centre/brand names are admin-typed (not a
+  // trusted-by-design boundary), and a newline in a subject is the classic
+  // email-header-injection primitive if the provider ever builds raw headers.
+  const safeSubject = String(subject).replace(/[\r\n]+/g, " ").trim();
   const res = await fetch(RESEND_URL, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, html, text }),
+    body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject: safeSubject, html, text }),
   });
   let body: unknown = null;
   try { body = await res.json(); } catch { body = await res.text().catch(() => null); }
@@ -447,8 +461,8 @@ Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get("Authorization") || "";
   const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
   const authorized =
-    (bearer && bearer === SERVICE_KEY) ||
-    (TRIGGER_SECRET && req.headers.get("x-notify-secret") === TRIGGER_SECRET);
+    (!!bearer && safeEqual(bearer, SERVICE_KEY)) ||
+    (!!TRIGGER_SECRET && safeEqual(req.headers.get("x-notify-secret") || "", TRIGGER_SECRET));
   if (!authorized) {
     return new Response("Unauthorized", { status: 401 });
   }
@@ -493,23 +507,54 @@ Deno.serve(async (req: Request) => {
   }
   const allPrefs: PrefsRow[] = prefsRes.data || [];
 
-  // Build email lookup for users with saved_centres. Need to call the auth
-  // admin API because user_preferences only stores user_id.
-  const userIds = Array.from(new Set(allPrefs.map(p => p.user_id)));
+  const log: { type: string; to?: string; centre?: string; brand?: string; brands?: string[]; count?: number; status?: number; ok?: boolean; skipped?: string }[] = [];
+
+  // Build email lookup (user_preferences only stores user_id). Paginate the
+  // Auth admin API once rather than one getUserById round-trip per user — the
+  // N+1 version blew the function/workflow time budget as the user base grew,
+  // silently sending nothing.
+  const wantedIds = new Set(allPrefs.map(p => p.user_id));
   const emailById = new Map<string, string>();
-  for (const uid of userIds) {
-    const { data, error } = await sb.auth.admin.getUserById(uid);
-    if (error || !data?.user?.email) continue;
-    emailById.set(uid, data.user.email);
+  {
+    const perPage = 1000;
+    for (let page = 1; page <= 100; page++) {
+      const { data, error } = await sb.auth.admin.listUsers({ page, perPage });
+      if (error) { log.push({ type: "auth", skipped: `listUsers page ${page} failed: ${error.message}` }); break; }
+      const users = data?.users || [];
+      for (const u of users) {
+        if (u.email && wantedIds.has(u.id)) emailById.set(u.id, u.email);
+      }
+      if (users.length < perPage) break; // last page
+    }
   }
 
-  const log: { type: string; to?: string; centre?: string; brand?: string; status?: number; ok?: boolean; skipped?: string }[] = [];
   let alertsSent = 0, brandAlertsSent = 0, digestsSent = 0;
   // Track delivery failures so the function can report a non-2xx when it sent
   // nothing despite trying — otherwise a run where Resend rejects every email
   // returns HTTP 200 and the notify workflow (which only checks the status
   // code) reports green while delivering zero notifications.
   let sendFailures = 0;
+
+  // Idempotency: a (user, kind, ref) that's already been emailed today is
+  // skipped, so a double invocation (manual run + cron, or a retry) can't
+  // re-send peak/digest emails. BEST-EFFORT — if the notifications_sent table
+  // doesn't exist yet (migration not applied) we log and proceed without
+  // dedup, so the function keeps working either way.
+  const sentKeys = new Set<string>();
+  let dedupAvailable = true;
+  const sentKey = (uid: string, kind: string, ref: string) => `${uid}|${kind}|${ref}`;
+  {
+    const { data, error } = await sb.from("notifications_sent").select("user_id, kind, ref").eq("sent_date", today);
+    if (error) { dedupAvailable = false; log.push({ type: "dedup", skipped: `load failed: ${error.message}` }); }
+    else for (const r of (data || []) as { user_id: string; kind: string; ref: string | null }[]) sentKeys.add(sentKey(r.user_id, r.kind, r.ref || ""));
+  }
+  const alreadySent = (uid: string, kind: string, ref: string) => sentKeys.has(sentKey(uid, kind, ref));
+  async function markSent(uid: string, kind: string, ref: string) {
+    sentKeys.add(sentKey(uid, kind, ref));
+    if (!dedupAvailable) return;
+    const { error } = await sb.from("notifications_sent").insert({ user_id: uid, kind, ref: ref || null, sent_date: today });
+    if (error && !/duplicate key|unique/i.test(error.message)) log.push({ type: "dedup", skipped: `mark failed: ${error.message}` });
+  }
 
   // 2. HIGH-TIDE ALERTS. (daily run only — skipped on the Friday digest call)
   //
@@ -574,9 +619,10 @@ Deno.serve(async (req: Request) => {
         narrative: score.bluf || undefined,
       });
       if (dryRun) { log.push({ type: "alert", to, centre: centreName, ok: true, skipped: "dryRun" }); continue; }
+      if (alreadySent(p.user_id, "peak", score.centre_id)) { log.push({ type: "alert", to, centre: centreName, skipped: "already sent today" }); continue; }
       const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
       log.push({ type: "alert", to, centre: centreName, ok: result.ok, status: result.status });
-      if (result.ok) alertsSent++; else sendFailures++;
+      if (result.ok) { alertsSent++; await markSent(p.user_id, "peak", score.centre_id); } else sendFailures++;
     }
   }
 
@@ -634,9 +680,11 @@ Deno.serve(async (req: Request) => {
       ? renderBrandSaleEmail(items[0])
       : renderBrandSaleDigestEmail({ brands: items });
     if (dryRun) { log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: true, skipped: "dryRun" }); continue; }
+    const brandRef = items.map(i => i.brandName).sort().join(",");
+    if (alreadySent(p.user_id, "brand", brandRef)) { log.push({ type: "brand", to, brands: items.map(i => i.brandName), skipped: "already sent today" }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
     log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: result.ok, status: result.status });
-    if (result.ok) brandAlertsSent++; else sendFailures++;
+    if (result.ok) { brandAlertsSent++; await markSent(p.user_id, "brand", brandRef); } else sendFailures++;
   }
 
   // 3. WEEKEND DIGEST. Sent only on the Friday 19:00 UTC invocation
@@ -668,9 +716,10 @@ Deno.serve(async (req: Request) => {
     if (highTideCount === 0) { log.push({ type: "digest", to, skipped: "no centre at Rising or above" }); continue; }
     const { subject, html, text } = renderDigestEmail({ dateLabel, highTideCount, centres: cards });
     if (dryRun) { log.push({ type: "digest", to, ok: true, skipped: "dryRun" }); continue; }
+    if (alreadySent(p.user_id, "digest", today)) { log.push({ type: "digest", to, skipped: "already sent today" }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
     log.push({ type: "digest", to, ok: result.ok, status: result.status });
-    if (result.ok) digestsSent++; else sendFailures++;
+    if (result.ok) { digestsSent++; await markSent(p.user_id, "digest", today); } else sendFailures++;
   }
 
   const totalSent = alertsSent + brandAlertsSent + digestsSent;

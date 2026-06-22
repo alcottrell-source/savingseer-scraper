@@ -365,7 +365,17 @@ const pg = {
   update: (table, query, body) => pgFetch('PATCH', table + '?' + query, body),
   upsert: (table, body, onConflict) => pgFetch('POST', table + (onConflict ? '?on_conflict=' + onConflict : ''), body, 'resolution=merge-duplicates'),
   delete: (table, query) => pgFetch('DELETE', table + '?' + query),
+  rpc:    (fn, args) => pgFetch('POST', 'rpc/' + fn, args || {}),
 };
+
+// True when a PostgREST error means the RPC doesn't exist yet (migration
+// 20260622_admin_write_rpcs.sql not applied). Lets the write verbs fall back to
+// the legacy multi-step path so the console works pre- and post-migration.
+function isRpcMissing(err) {
+  if (!err) return false;
+  const m = err.message || '';
+  return err.status === 404 || err.status === 400 && /PGRST202/.test(m) || /PGRST202|Could not find the function|function .* does not exist/i.test(m);
+}
 
 const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B011','B012']);
 const TODAY = new Date().toISOString().split('T')[0];
@@ -1159,7 +1169,47 @@ async function triggerRescore() {
   });
 }
 
+// Extract a human-readable message from a PostgREST/Postgres error. pgFetch
+// stuffs the raw response body (JSON) into err.message; the RAISE EXCEPTION
+// text lives in its .message field.
+function rpcErrMessage(err) {
+  const raw = (err && err.message) || 'Action failed';
+  try { const j = JSON.parse(raw); return j.message || j.error || raw; } catch { return raw; }
+}
+
+// Try the atomic RPC for a confirm_* action. Returns {handled:true} when the
+// RPC ran (success), {handled:false} when the RPC is absent (caller falls back
+// to the legacy path) or the action has no RPC. Throws the RPC's own error when
+// it ran and rejected (e.g. future date, double-open, not authorized).
+async function tryActionRpc(brandId, action, opts) {
+  let res;
+  if (action === 'confirm_start') {
+    res = await pg.rpc('admin_confirm_start', {
+      p_brand_id: brandId, p_start_date: opts.start_date,
+      p_max_discount_pct: opts.max_discount_pct, p_sale_type: opts.sale_type || 'percent_off',
+    });
+  } else if (action === 'confirm_end') {
+    res = await pg.rpc('admin_confirm_end', { p_brand_id: brandId });
+  } else if (action === 'confirm_on') {
+    res = await pg.rpc('admin_confirm_status', { p_brand_id: brandId, p_on: true });
+  } else if (action === 'confirm_off') {
+    res = await pg.rpc('admin_confirm_status', { p_brand_id: brandId, p_on: false });
+  } else {
+    return { handled: false }; // dismiss / unknown: no RPC, single-write legacy path
+  }
+  if (!res.error) return { handled: true };
+  if (isRpcMissing(res.error)) return { handled: false };
+  throw new Error(rpcErrMessage(res.error));
+}
+
 async function applyAction(brandId, action, opts) {
+  // Prefer the atomic SECURITY DEFINER RPCs (20260622_admin_write_rpcs.sql):
+  // each verb commits as one transaction, so no half-commit / orphan-cycle /
+  // double-open state is possible. If the RPC isn't deployed yet, fall through
+  // to the legacy multi-step path below so the console keeps working.
+  const rpcResult = await tryActionRpc(brandId, action, opts);
+  if (rpcResult.handled) return;
+
   if (action === 'confirm_start') {
     // A sale can't start in the future — a future-dated cycle would still be
     // counted as "on sale today" by score.js (which only checks active_cycle_id),
@@ -1255,6 +1305,15 @@ async function applyAction(brandId, action, opts) {
 }
 
 async function applyEdit(brandId, cycleId, opts) {
+  // Atomic RPC first; fall back to the legacy two-step path if not deployed.
+  const r = await pg.rpc('admin_edit_cycle', {
+    p_brand_id: brandId, p_cycle_id: cycleId || null,
+    p_start_date: opts.start_date, p_max_discount_pct: opts.max_discount_pct,
+    p_sale_type: opts.sale_type || 'percent_off',
+  });
+  if (!r.error) return;
+  if (!isRpcMissing(r.error)) throw new Error(rpcErrMessage(r.error));
+
   if (opts.start_date > TODAY) throw new Error('Start date cannot be in the future');
   if (cycleId) {
     const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + cycleId, {
@@ -1281,6 +1340,12 @@ async function applyEdit(brandId, cycleId, opts) {
 // level), resets the verification state to "no sale today" so the brand
 // goes back to "Needs review", then removes the brand_sale_cycles row.
 async function deleteCycle(brandId, cycleId) {
+  // Atomic RPC first (event reset + cycle delete + log in one transaction);
+  // fall back to the legacy multi-step path if not deployed.
+  const r = await pg.rpc('admin_delete_cycle', { p_brand_id: brandId, p_cycle_id: cycleId });
+  if (!r.error) return;
+  if (!isRpcMissing(r.error)) throw new Error(rpcErrMessage(r.error));
+
   // 1. Clear the FK + verification state on brand_sale_events so deleting
   //    the cycle doesn't violate any relational constraints, and so the
   //    score pipeline immediately stops counting this brand as on-sale.

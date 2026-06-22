@@ -84,6 +84,16 @@
     background: var(--stone-lt); color: var(--stone);
   }
   .count-pill.urgent { background: var(--amber-lt); color: var(--amber); }
+  .wl-copy-btn {
+    font: inherit; font-size: 11px; font-weight: 500; letter-spacing: 0.02em;
+    border: 1px solid var(--border); background: white; color: var(--stone);
+    border-radius: 8px; padding: 4px 10px; cursor: pointer;
+  }
+  .wl-copy-btn:hover { color: var(--leaf); border-color: var(--leaf); }
+  .wl-summary {
+    padding: 0 20px 4px; font-size: 12px; color: var(--stone); line-height: 1.5;
+  }
+  .wl-summary:empty { display: none; }
 
   /* ── Brand row card ─────────────────────────────────────────────── */
   .brand-list { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
@@ -297,6 +307,17 @@
   </div>
   <div class="brand-list" id="confirmed-list"></div>
   <div id="confirmed-empty" class="empty-section" style="display:none">No actions yet today.</div>
+
+  <div class="section-bar">
+    <div class="section-title">Waitlist</div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button id="waitlist-copy" class="wl-copy-btn" type="button" style="display:none">Copy emails</button>
+      <div class="count-pill" id="waitlist-count">0</div>
+    </div>
+  </div>
+  <div id="waitlist-summary" class="wl-summary"></div>
+  <div class="brand-list" id="waitlist-list"></div>
+  <div id="waitlist-empty" class="empty-section" style="display:none">No expansion signups yet.</div>
 </main>
 
 <div id="toast" class="toast"></div>
@@ -465,6 +486,7 @@ async function onSignedIn(session) {
       console.error('loadAndRender failed:', err);
       showStatus('Could not load brand data: ' + (err.message || err), true);
     }),
+    loadWaitlist().catch(err => console.error('loadWaitlist failed:', err)),
   ]);
   if (probeRes.error) {
     showStatus(
@@ -814,6 +836,67 @@ function renderRow({ ev, def, cycle, review, reports, queue }, isConfirmed) {
       contextualHtml +
       actions +
       '<div class="inline-form-mount"></div>' +
+    '</div>';
+}
+
+// ── Expansion waitlist (read-only audience view) ───────────────────────────
+// Decoupled from loadAndRender so it survives that function's early-returns
+// (it bails when brand_sale_events is empty). Tolerant of the table/migration
+// not being live yet — mirrors the user_reports_24h_summary read.
+async function loadWaitlist() {
+  const res = await pg.read('waitlist?select=email,country,source_url,created_at&order=created_at.desc');
+  if (res.error) {
+    console.warn('waitlist unavailable (admin panel still works):', res.error.message);
+    $('waitlist-count').textContent = '0';
+    $('waitlist-summary').textContent = '';
+    $('waitlist-list').innerHTML = '';
+    $('waitlist-empty').style.display = 'block';
+    $('waitlist-copy').style.display = 'none';
+    return;
+  }
+  const rows = res.data || [];
+  $('waitlist-count').textContent = rows.length;
+  $('waitlist-list').innerHTML = rows.map(renderWaitlistRow).join('');
+  $('waitlist-empty').style.display = rows.length ? 'none' : 'block';
+
+  // Demand-by-country summary — the expansion signal, busiest first.
+  const byCountry = {};
+  for (const r of rows) {
+    const c = (r.country || '??').toUpperCase();
+    byCountry[c] = (byCountry[c] || 0) + 1;
+  }
+  $('waitlist-summary').textContent = Object.entries(byCountry)
+    .sort((a, b) => b[1] - a[1])
+    .map(([c, n]) => c + ' · ' + n)
+    .join('   ·   ');
+
+  // Copy-all-emails — lets the operator actually contact the list.
+  const copyBtn = $('waitlist-copy');
+  copyBtn.style.display = rows.length ? 'inline-block' : 'none';
+  copyBtn.onclick = async () => {
+    const emails = rows.map(r => r.email).filter(Boolean);
+    try {
+      await navigator.clipboard.writeText(emails.join('\n'));
+      toast('Copied ' + emails.length + ' email' + (emails.length === 1 ? '' : 's'));
+    } catch (e) {
+      toast('Copy failed — ' + (e.message || e));
+    }
+  };
+}
+
+function renderWaitlistRow(row) {
+  const country = (row.country || '').toUpperCase() || 'Unknown';
+  return '' +
+    '<div class="brand-card">' +
+      '<div class="row-top">' +
+        '<div class="row-name">' + esc(row.email) + '</div>' +
+      '</div>' +
+      '<div class="row-state-grid">' +
+        '<div class="row-state-cell"><div class="state-label">Country</div>' +
+          '<span class="state-value">' + esc(country) + '</span></div>' +
+        '<div class="row-state-cell"><div class="state-label">Joined</div>' +
+          '<span class="state-value">' + esc(relTime(row.created_at)) + '</span></div>' +
+      '</div>' +
     '</div>';
 }
 

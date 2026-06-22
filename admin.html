@@ -365,7 +365,17 @@ const pg = {
   update: (table, query, body) => pgFetch('PATCH', table + '?' + query, body),
   upsert: (table, body, onConflict) => pgFetch('POST', table + (onConflict ? '?on_conflict=' + onConflict : ''), body, 'resolution=merge-duplicates'),
   delete: (table, query) => pgFetch('DELETE', table + '?' + query),
+  rpc:    (fn, args) => pgFetch('POST', 'rpc/' + fn, args || {}),
 };
+
+// True when a PostgREST error means the RPC doesn't exist yet (migration
+// 20260622_admin_write_rpcs.sql not applied). Lets the write verbs fall back to
+// the legacy multi-step path so the console works pre- and post-migration.
+function isRpcMissing(err) {
+  if (!err) return false;
+  const m = err.message || '';
+  return err.status === 404 || err.status === 400 && /PGRST202/.test(m) || /PGRST202|Could not find the function|function .* does not exist/i.test(m);
+}
 
 const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B011','B012']);
 const TODAY = new Date().toISOString().split('T')[0];
@@ -1003,13 +1013,13 @@ function saleTypeOptions(selected) {
 
 function openStartForm(card, brandId, def) {
   const mount = card.querySelector('.inline-form-mount');
-  // Fetch latest scraped pct as the prefill
-  const ev = card.__ev || null;
-  const prefilledPct = (ev && ev.max_discount_pct) || '';
+  // No prefill: the scraper (which used to suggest a pct) was removed Jun 2026,
+  // so the admin enters the discount manually.
+  const prefilledPct = '';
   mount.innerHTML =
     '<div class="inline-form">' +
       '<div class="inline-form-row">' +
-        '<label>Started <input class="input" type="date" id="frm-start" value="' + TODAY + '"></label>' +
+        '<label>Started <input class="input" type="date" id="frm-start" max="' + TODAY + '" value="' + TODAY + '"></label>' +
         '<label>Sale type <select class="input" id="frm-type">' + saleTypeOptions('percent_off') + '</select></label>' +
         '<label>Discount % <input class="input" type="number" id="frm-pct" min="1" max="99" placeholder="e.g. 30" value="' + esc(prefilledPct) + '"></label>' +
       '</div>' +
@@ -1051,7 +1061,7 @@ function openEditForm(card, brandId, def) {
   mount.innerHTML =
     '<div class="inline-form">' +
       '<div class="inline-form-row">' +
-        '<label>Started <input class="input" type="date" id="edit-start" value="' + esc(currentStart) + '"></label>' +
+        '<label>Started <input class="input" type="date" id="edit-start" max="' + TODAY + '" value="' + esc(currentStart) + '"></label>' +
         '<label>Sale type <select class="input" id="edit-type">' + saleTypeOptions(currentType) + '</select></label>' +
         '<label>Discount % <input class="input" type="number" id="edit-pct" min="1" max="99" placeholder="e.g. 30" value="' + esc(currentPct) + '"></label>' +
       '</div>' +
@@ -1159,8 +1169,62 @@ async function triggerRescore() {
   });
 }
 
-async function applyAction(brandId, action, opts) {
+// Extract a human-readable message from a PostgREST/Postgres error. pgFetch
+// stuffs the raw response body (JSON) into err.message; the RAISE EXCEPTION
+// text lives in its .message field.
+function rpcErrMessage(err) {
+  const raw = (err && err.message) || 'Action failed';
+  try { const j = JSON.parse(raw); return j.message || j.error || raw; } catch { return raw; }
+}
+
+// Try the atomic RPC for a confirm_* action. Returns {handled:true} when the
+// RPC ran (success), {handled:false} when the RPC is absent (caller falls back
+// to the legacy path) or the action has no RPC. Throws the RPC's own error when
+// it ran and rejected (e.g. future date, double-open, not authorized).
+async function tryActionRpc(brandId, action, opts) {
+  let res;
   if (action === 'confirm_start') {
+    res = await pg.rpc('admin_confirm_start', {
+      p_brand_id: brandId, p_start_date: opts.start_date,
+      p_max_discount_pct: opts.max_discount_pct, p_sale_type: opts.sale_type || 'percent_off',
+    });
+  } else if (action === 'confirm_end') {
+    res = await pg.rpc('admin_confirm_end', { p_brand_id: brandId });
+  } else if (action === 'confirm_on') {
+    res = await pg.rpc('admin_confirm_status', { p_brand_id: brandId, p_on: true });
+  } else if (action === 'confirm_off') {
+    res = await pg.rpc('admin_confirm_status', { p_brand_id: brandId, p_on: false });
+  } else {
+    return { handled: false }; // dismiss / unknown: no RPC, single-write legacy path
+  }
+  if (!res.error) return { handled: true };
+  if (isRpcMissing(res.error)) return { handled: false };
+  throw new Error(rpcErrMessage(res.error));
+}
+
+async function applyAction(brandId, action, opts) {
+  // Prefer the atomic SECURITY DEFINER RPCs (20260622_admin_write_rpcs.sql):
+  // each verb commits as one transaction, so no half-commit / orphan-cycle /
+  // double-open state is possible. If the RPC isn't deployed yet, fall through
+  // to the legacy multi-step path below so the console keeps working.
+  const rpcResult = await tryActionRpc(brandId, action, opts);
+  if (rpcResult.handled) return;
+
+  if (action === 'confirm_start') {
+    // A sale can't start in the future — a future-dated cycle would still be
+    // counted as "on sale today" by score.js (which only checks active_cycle_id),
+    // inflating the Tide Score and rendering "day -N" on the card.
+    if (opts.start_date > TODAY) throw new Error('Start date cannot be in the future');
+    // Refuse if an open cycle already exists for this brand — prevents the
+    // double-open race (the DB unique partial index is the hard backstop, see
+    // 20260622_unique_open_cycle.sql; this gives a clean error instead of a 409).
+    const { data: existingOpen, error: oErr } = await pg.read(
+      'brand_sale_cycles?select=id&brand_id=eq.' + brandId + '&end_date=is.null&limit=1'
+    );
+    if (oErr) throw oErr;
+    if ((existingOpen || []).length) {
+      throw new Error('This brand already has an open sale cycle — use "Still on" or "Edit" instead');
+    }
     const { data: cycleRows, error: cErr } = await pg.insert('brand_sale_cycles', {
       brand_id: brandId,
       start_date: opts.start_date,
@@ -1171,12 +1235,17 @@ async function applyAction(brandId, action, opts) {
     if (cErr) throw cErr;
     const cycle = (cycleRows || [])[0];
     if (!cycle) throw new Error('Insert returned no row');
-    const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
+    // Upsert (not update) the event row: a brand may not yet have a
+    // brand_sale_events row, and a bare PATCH against a missing row is a
+    // silent no-op that would leave active_cycle_id unset → the just-confirmed
+    // sale would be invisible to the public score.
+    const { error: uErr } = await pg.upsert('brand_sale_events', {
+      brand_id: brandId,
       active_cycle_id: cycle.id,
       last_verified_status: true,
       last_verified_date: TODAY,
       sale_type: opts.sale_type || 'percent_off',
-    });
+    }, 'brand_id');
     if (uErr) throw uErr;
     await logReview(brandId, 'confirmed_start', cycle.id);
     return;
@@ -1215,8 +1284,11 @@ async function applyAction(brandId, action, opts) {
   }
 
   if (action === 'confirm_off') {
+    // Also clear active_cycle_id: leaving it set while status=false is an
+    // inconsistency the score engine would resolve in favour of "on sale"
+    // (an in-window active cycle wins over last_verified_status).
     const { error } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
-      last_verified_status: false, last_verified_date: TODAY,
+      last_verified_status: false, last_verified_date: TODAY, active_cycle_id: null,
     });
     if (error) throw error;
     await logReview(brandId, 'confirmed_off', null);
@@ -1233,6 +1305,16 @@ async function applyAction(brandId, action, opts) {
 }
 
 async function applyEdit(brandId, cycleId, opts) {
+  // Atomic RPC first; fall back to the legacy two-step path if not deployed.
+  const r = await pg.rpc('admin_edit_cycle', {
+    p_brand_id: brandId, p_cycle_id: cycleId || null,
+    p_start_date: opts.start_date, p_max_discount_pct: opts.max_discount_pct,
+    p_sale_type: opts.sale_type || 'percent_off',
+  });
+  if (!r.error) return;
+  if (!isRpcMissing(r.error)) throw new Error(rpcErrMessage(r.error));
+
+  if (opts.start_date > TODAY) throw new Error('Start date cannot be in the future');
   if (cycleId) {
     const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + cycleId, {
       start_date: opts.start_date,
@@ -1258,6 +1340,12 @@ async function applyEdit(brandId, cycleId, opts) {
 // level), resets the verification state to "no sale today" so the brand
 // goes back to "Needs review", then removes the brand_sale_cycles row.
 async function deleteCycle(brandId, cycleId) {
+  // Atomic RPC first (event reset + cycle delete + log in one transaction);
+  // fall back to the legacy multi-step path if not deployed.
+  const r = await pg.rpc('admin_delete_cycle', { p_brand_id: brandId, p_cycle_id: cycleId });
+  if (!r.error) return;
+  if (!isRpcMissing(r.error)) throw new Error(rpcErrMessage(r.error));
+
   // 1. Clear the FK + verification state on brand_sale_events so deleting
   //    the cycle doesn't violate any relational constraints, and so the
   //    score pipeline immediately stops counting this brand as on-sale.
@@ -1272,8 +1360,17 @@ async function deleteCycle(brandId, cycleId) {
   // 2. Delete the cycle row itself.
   const { error: dErr } = await pg.delete('brand_sale_cycles', 'id=eq.' + cycleId);
   if (dErr) throw dErr;
-  // 3. Log the action so the brand leaves "needs review" today.
-  await logReview(brandId, 'deleted', cycleId);
+  // 3. Log the action so the brand leaves "needs review" today. BEST-EFFORT:
+  //    the cycle is already gone and the brand reset by this point, so a
+  //    failure here (e.g. the admin_review_log CHECK constraint not yet
+  //    widened to allow 'deleted' — see 20260622_admin_log_allow_deleted.sql)
+  //    must NOT throw, or the caller skips triggerRescore() and the public
+  //    store silently goes stale while the admin sees "Delete failed".
+  try {
+    await logReview(brandId, 'deleted', cycleId);
+  } catch (logErr) {
+    console.warn('deleteCycle: audit-log write failed (delete itself succeeded):', logErr.message);
+  }
 }
 
 async function logReview(brandId, action, cycleId) {

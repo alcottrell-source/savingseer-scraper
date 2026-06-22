@@ -2,7 +2,7 @@
 // Tide — daily Centre Intelligence narrative writer.
 //
 // Runs after score.js on the daily GitHub Action. For each centre with a
-// score row for today, asks Gemini 2.5 Flash for a 1-2 sentence factual
+// score row for today, asks Gemini 2.0 Flash-Lite for a 1-2 sentence factual
 // narrative summarising the current sale state (which brands just opened,
 // which are picked-over, whether the tide is rising/falling), and writes
 // it back to centre_seer_scores.narrative for today's row.

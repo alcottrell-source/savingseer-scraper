@@ -366,6 +366,9 @@
   .tide-vessel-pct { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 60px; line-height: 0.95; letter-spacing: -0.03em; color: var(--tide-cream); }
   .tide-vessel-pct-sign { font-size: 30px; font-weight: 500; color: rgba(245,241,235,0.42); margin-left: 1px; }
   .tide-vessel-headline-row .tide-vessel-verdict-word { font-size: 34px; margin-bottom: 0; }
+  /* The ONLY place the centre hero prescribes action — gated on the Peak tone.
+     The headline word stays a pure trend signal (PEAK); GO NOW is the badge. */
+  .tide-vessel-go-badge { align-self: center; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #2A1C08; background: #FFD79A; padding: 5px 10px; border-radius: 999px; line-height: 1; }
   .tide-saved-line { position: relative; z-index: 6; display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; margin-bottom: 14px; padding: 13px 16px; border-radius: 14px; border: 1px solid rgba(245,241,235,0.10); background: rgba(245,241,235,0.03); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.4; color: rgba(245,241,235,0.82); }
   .tide-saved-line.is-hit { border-color: rgba(230,169,75,0.40); background: rgba(230,169,75,0.08); }
   .tide-saved-line.is-prompt { cursor: pointer; justify-content: space-between; color: rgba(245,241,235,0.74); transition: background 0.15s, border-color 0.15s; }
@@ -1331,10 +1334,12 @@ sb.auth.onAuthStateChange(async (event, session) => {
     //
     // For returning users without saved prefs, "Edit shopping
     // preferences" in the My Tide menu is the path back in.
-    const noPrefsYet = !userPrefs || (
-      !(Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length) &&
-      !userPrefs.womenswear && !userPrefs.menswear && !userPrefs.childrenswear
-    );
+    // Onboarding is "not done" when there's no prefs row, or a row exists
+    // (created by save-centre / a notification toggle / a referral) but the
+    // wizard was never completed. Keyed off the explicit onboarding_completed
+    // flag — NOT a gender/style-field heuristic, which re-blasted partial-row
+    // users with the wizard on every fresh sign-in.
+    const noPrefsYet = !userPrefs || userPrefs.onboarding_completed !== true;
     // Auto-open the prefs wizard ONLY on a fresh sign-in this page-load —
     // never on session restore for returning users. The first SIGNED_IN
     // after page load is Supabase replaying the stored session, which
@@ -1625,7 +1630,7 @@ function renderAccountSavedCentres() {
   centresList.innerHTML = '<div class="saved-centres-list">' + centres.map(cid => {
     const idx = parseInt(String(cid).replace('C',''), 10) - 1;
     const rawName = (typeof CENTRE_NAMES !== 'undefined' && CENTRE_NAMES[idx]) ? CENTRE_NAMES[idx] : cid;
-    const safeName = rawName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const safeName = rawName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     return '<div class="saved-centre-row">'
          +   '<span>' + safeName + '</span>'
          +   '<button class="saved-centre-row-remove" onclick="removeSavedCentre(\''+cid+'\')" aria-label="Remove '+safeName+'" title="Remove">&times;</button>'
@@ -1959,7 +1964,7 @@ function obRenderStep3() {
       const logo = domain
         ? '<img src="https://www.google.com/s2/favicons?sz=64&domain='+domain+'" alt="" onerror="this.style.display=\'none\'">'
         : '';
-      const safeName = b.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const safeName = b.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       return '<button class="ob-brand-chip '+(isOn?'active':'')+'" onclick="obToggleBrand(\''+b.id+'\')">'
            + '<div class="ob-brand-logo">'+logo+'</div>'
            + '<div class="ob-brand-name">'+safeName+'</div>'
@@ -1996,8 +2001,8 @@ function obRenderStep4Centres() {
     : allCentres.slice().sort((a,b) => a.name.localeCompare(b.name));
   const rows = filtered.map(c => {
     const on = onb.centres.has(c.id);
-    const safeName = c.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const safeLoc = c.loc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const safeName = c.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const safeLoc = c.loc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     return '<button class="ob-centre-row '+(on?'active':'')+'" onclick="obToggleCentre(\''+c.id+'\')">'
          + '<div class="ob-centre-row-text">'
          +   '<div class="ob-centre-row-name">'+safeName+'</div>'
@@ -2162,6 +2167,11 @@ async function obSave() {
     email_alerts:      onb.email_alerts,
     brand_sale_alerts: onb.brand_sale_alerts,
     daily_digest:      onb.daily_digest,
+    // Explicit completion flag — the onboarding gate keys off THIS, not a
+    // gender/style-field heuristic (which mis-fired for users who'd created a
+    // prefs row via save-centre / a notification toggle / a referral before
+    // ever onboarding, re-blasting them with the wizard).
+    onboarding_completed: true,
   };
   // Persist DB ids (centre slug, scraper brand_id) so notify-high-tide can
   // match them; keep userPrefs in client-code space for the rest of the UI.
@@ -3076,7 +3086,7 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
     ? onSale.slice().sort((a, b) => (a.days || 0) - (b.days || 0))[0]
     : null;
   const histCount = history.length;
-  const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   const numClass = freshCount > 0 ? 'narrative-headline-num' : 'narrative-headline-num muted';
   const heroBlock = '<div class="narrative-hero">'
@@ -3133,7 +3143,12 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
   const sScore = getServerScore(centreIdx) || {};
   const rawNarrative = sScore.narrative;
   const aiNarrative = (typeof rawNarrative === 'string') ? rawNarrative.trim() : '';
-  const aiUsable = aiNarrative.length > 0 && !/\d/.test(aiNarrative);
+  // Reject digits (above) AND recommendation language: CLAUDE.md hard-forbids
+  // action copy outside the PEAK/GO NOW badge, and the Gemini prompt is the
+  // only thing enforcing it server-side — this is the client-side backstop if
+  // the model ever leaks "go now"/"worth it"/etc. Falls back to the template.
+  const RECO_RE = /\b(go now|worth (it|a visit|going)|don'?t wait|act fast|hurry|grab|snap up|skip it)\b/i;
+  const aiUsable = aiNarrative.length > 0 && !/\d/.test(aiNarrative) && !RECO_RE.test(aiNarrative);
   // The "{N} brands on sale" lead is now in the headline, so the template
   // narrative leads with the trend signal. No prescriptive tail (CLAUDE.md
   // reserves recommendation language for the PEAK / GO NOW badge).
@@ -3566,11 +3581,6 @@ function _tideDaysBetween(a, b) {
   return Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 86400000);
 }
 
-// Window the full real series to the selected period. We window by the last N
-// real DATA POINTS (not calendar days) so the curve always has ≥2 points to
-// draw a line — a centre whose stored history skips days used to render 7D as
-// a lone dot with no line. For dense daily history (the common case) last-7-
-// points == last-7-days. MAX returns everything.
 // Window the full real series to the selected period by CALENDAR DATE so the
 // tab labels are literal: 7D = last 7 days, 30D = last 30, 60D = last 60,
 // MAX = everything stored (up to score.js's retention window). A date window
@@ -3696,7 +3706,7 @@ function setTideChartPeriod(period) {
 // resolved by the caller (followed ∩ present-at-centre ∩ SALE_STATUS) — never
 // scraper sale_status, no recompute here.
 function renderSavedShopsLine(v) {
-  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const names = Array.isArray(v.followedOnSale) ? v.followedOnSale : [];
   if (v.hasFollowed && names.length) {
     const shown = names.slice(0, 3).map(esc).join(', ');
@@ -3730,9 +3740,15 @@ function renderTideVessel(v) {
   v = v || {};
   const verdict = deriveVerdict({ serverVerdict: v.serverVerdict, stage: v.stage });
   const tone = verdict.tone;
-  const HEADLINE = { PEAK: 'Go now', RISING: 'Rising', EASING: 'Easing', OVER: 'Over', QUIET: 'Quiet' };
+  // The headline word is a PURE TREND SIGNAL (PEAK/RISING/EASING/OVER/QUIET) —
+  // never recommendation language. Action language ("GO NOW") is reserved for
+  // the badge below, gated on the Peak tone, mirroring the all-centres list
+  // which already shows the plain word. (Previously this remapped PEAK→"Go now"
+  // in the headline, which contradicted the list and the CLAUDE.md contract.)
+  const HEADLINE = { PEAK: 'Peak', RISING: 'Rising', EASING: 'Easing', OVER: 'Over', QUIET: 'Quiet' };
   const headlineWord = HEADLINE[verdict.word] || verdict.word;
-  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const goBadge = tone === 'go' ? '<span class="tide-vessel-go-badge">Go now</span>' : '';
+  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   const hasCount = Number.isFinite(+v.onSaleCount) && Number.isFinite(+v.totalCount) && +v.totalCount > 0;
   const pct = Math.max(0, Math.min(100, Math.round(+v.pct || 0)));
@@ -3749,6 +3765,7 @@ function renderTideVessel(v) {
   const headlineRow = '<div class="tide-vessel-headline-row">'
     + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
     + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
+    + goBadge
     + '</div>';
 
   const savedHTML = renderSavedShopsLine(v);
@@ -3773,7 +3790,7 @@ function renderTideVessel(v) {
     + '" data-period="' + p + '" onclick="setTideChartPeriod(\'' + p + '\')">' + p + '</button>'
   ).join('');
 
-  const ariaLabel = (headlineWord + '. ' + countText)
+  const ariaLabel = (headlineWord + (tone === 'go' ? ' — go now' : '') + '. ' + countText)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   return '<div class="tide-vessel has-verdict verdict-' + tone + ' tide-vessel--merged" data-verdict-word="' + verdict.word + '" role="img" aria-label="' + ariaLabel + '">'
@@ -4335,8 +4352,8 @@ function renderSavedCentresLanding(savedIds) {
     const idx = parseInt(String(cid).replace('C',''), 10) - 1;
     const name = CENTRE_NAMES[idx] || cid;
     const loc = (typeof CENTRE_LOCATIONS !== 'undefined' && CENTRE_LOCATIONS[idx]) ? CENTRE_LOCATIONS[idx] : '';
-    const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const safeLoc = loc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const safeLoc = loc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     if (_savedCentresEditMode) {
       return '<div class="saved-centre-card is-edit">'
            + '<div class="saved-centre-card-left">'
@@ -4384,11 +4401,11 @@ const HOT_STRIP_TILES = 4;
 // is ever onboarded. Mirror into a DB flag if the list ever grows.
 const HOT_EXCLUDE_OUTLET_CIDS = new Set([]);
 
-// Ranked by Tide Score DESCENDING (the brief's ordering — the list leads with
-// the highest-density centres), with verdict severity then name as
-// deterministic tiebreakers so equal scores never reorder between renders.
-// (It previously ranked by verdict severity first; that justified a momentum
-// row that no longer exists.) Eligibility: at least one brand on sale
+// Ranked by VERDICT SEVERITY descending (Peak > Rising > Easing > Quiet >
+// Over), then Tide Score, then name — so the "what's worth going to" list
+// leads with the centres actually at peak, not merely the highest raw
+// density. Name is the final deterministic tiebreaker so equal rows never
+// reorder between renders. Eligibility: at least one brand on sale
 // (tide_score > 0), a valid brand count, the denominator floor, and not an
 // excluded outlet. `excludeIds` optionally filters out the user's own saved
 // centres so the discovery list reads as "what else is good".
@@ -4430,8 +4447,8 @@ function getHotCentres(n, excludeIds) {
     });
   }
   ranked.sort((a, b) =>
-    (b.tideScore - a.tideScore) ||
     (b.severity - a.severity) ||
+    (b.tideScore - a.tideScore) ||
     a.name.localeCompare(b.name));
   return ranked.slice(0, n);
 }
@@ -4513,7 +4530,7 @@ function renderHotCentres(opts) {
   const excludeIds = opts.excludeIds || [];
   const hot = getHotCentres(limit, excludeIds);
   if (!hot.length) return '';
-  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const stamp = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const rows = hot.map((h, i) => {
     const safeName = esc(h.name);
@@ -4857,7 +4874,7 @@ async function renderCentre(centreId) {
   const hasFullFloors = !!floorsForCentre
     && allCentreBrands.length > 0
     && allCentreBrands.every(b => Array.isArray(floorsForCentre[b.name]) && floorsForCentre[b.name].length > 0);
-  const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   // Group a brand list into floors. A brand on two floors yields a chip in
   // each floor (the floor rows in centre_brand_floors already encode this —
@@ -4930,10 +4947,10 @@ async function renderCentre(centreId) {
   }
 
   // Centre identity hero — back button + name + location label.
-  const safeCentreName = centreName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const safeCentreName = centreName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const location = CENTRE_LOCATIONS[centreIdx];
   const locationHTML = location
-    ? '<span class="centre-meta-dot"></span><span class="centre-location">'+location.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span>'
+    ? '<span class="centre-meta-dot"></span><span class="centre-location">'+location.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')+'</span>'
     : '';
   const isCentreSaved = !!(currentUser && userPrefs && Array.isArray(userPrefs.saved_centres) && userPrefs.saved_centres.includes(centreId));
   const saveBtnHTML = currentUser
@@ -4991,7 +5008,7 @@ async function renderCentre(centreId) {
     const chips = savedCentreIds.slice().reverse().map(cid => {
       const idx = parseInt(String(cid).replace('C',''), 10) - 1;
       const name = CENTRE_NAMES[idx] || cid;
-      const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       const isCurrent = cid === centreId;
       return '<button class="saved-chip'+(isCurrent?' current':'')+'" onclick="goToCentre(\''+cid+'\')">'+safeName+'</button>';
     }).join('');
@@ -5024,13 +5041,17 @@ async function renderCentre(centreId) {
           // when the server hasn't scored this centre yet (new/sparse centre),
           // so the hero never renders blank. The brand-chip grid below is
           // filter-dependent (My/All), so it was never locked to this count.
-          const srvOnSale = sScore && Number.isFinite(+sScore.brands_on_sale) ? +sScore.brands_on_sale : null;
-          const srvTotal  = sScore && Number.isFinite(+sScore.total_brands) && +sScore.total_brands > 0 ? +sScore.total_brands : null;
-          const onSaleN = (srvOnSale != null) ? srvOnSale : onSale.length;
-          const totalN  = (srvTotal  != null) ? srvTotal  : total;
-          // Big % = tide_score (the number the gauge shows); fall back to the
-          // local proportion only when the server hasn't scored this centre.
-          const heroPct = (sScore && Number.isFinite(+sScore.tide_score)) ? Math.round(+sScore.tide_score)
+          // "Scored" is ATOMIC: take the %, count AND total all from the server
+          // together, or all from the local fallback together. Mixing them (a
+          // server tide_score with local counts) is the one way the big "X%"
+          // and the "N of M shops" line could contradict each other.
+          const hasServer = sScore
+            && Number.isFinite(+sScore.tide_score)
+            && Number.isFinite(+sScore.brands_on_sale)
+            && Number.isFinite(+sScore.total_brands) && +sScore.total_brands > 0;
+          const onSaleN = hasServer ? +sScore.brands_on_sale : onSale.length;
+          const totalN  = hasServer ? +sScore.total_brands  : total;
+          const heroPct = hasServer ? Math.round(+sScore.tide_score)
                         : (totalN > 0 ? Math.round((onSaleN / totalN) * 100) : 0);
           // Followed shops on sale HERE — admin-verified (SALE_STATUS),
           // present at this centre, in the user's follow set. Single source;
@@ -5185,20 +5206,23 @@ loadTideData().then(ok => { if (!ok) loadSheetData(); });
 // instantly without a page refresh. 60-second poll is a belt-and-braces
 // fallback for environments where Realtime isn't enabled.
 let _reloadTimer;
+// Single debounced entry point for ALL reload triggers (realtime push, 60s
+// poll, tab refocus) so rapid tab-switching or a burst of realtime events
+// can't fire overlapping fetches against the anon Supabase tier.
+function scheduleReload(delay = 400) {
+  clearTimeout(_reloadTimer);
+  _reloadTimer = setTimeout(() => loadTideData(), delay);
+}
 sb.channel('tide-brand-sale-updates')
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'brand_sale_events' }, () => {
-    clearTimeout(_reloadTimer);
-    _reloadTimer = setTimeout(() => loadTideData(), 400);
-  })
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'brand_sale_events' }, () => scheduleReload())
   .subscribe();
 // Belt-and-braces fallback only — the realtime channel above delivers
-// admin confirmations instantly. Poll at 60s (matching the comment's
-// intent, not the old 15s) and skip entirely while the tab is hidden, so
-// idle/background tabs don't hammer the anon Supabase tier at launch
-// traffic. A tab returning to the foreground refreshes immediately.
-setInterval(() => { if (document.visibilityState === 'visible') loadTideData(); }, 60000);
+// admin confirmations instantly. Poll at 60s and skip entirely while the tab
+// is hidden, so idle/background tabs don't hammer the anon Supabase tier. A
+// tab returning to the foreground refreshes (debounced).
+setInterval(() => { if (document.visibilityState === 'visible') scheduleReload(0); }, 60000);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') loadTideData();
+  if (document.visibilityState === 'visible') scheduleReload(0);
 });
 </script>
 
@@ -5472,12 +5496,15 @@ document.addEventListener('visibilitychange', () => {
     return true;
   }
 
-  // ── Chart window: a fixed trailing 6 months (current month + the previous
-  //    five), so the axis always shows six equal, named month columns. Sales
-  //    that end before the window are clipped (the caption flags it). Returns
-  //    the Date bounds + the episodes that overlap the window.
+  // ── Chart window: a fixed trailing 12 months (current month + the previous
+  //    eleven), so the axis always shows a year of equal, named month columns.
+  //    Sales that end before the window are clipped (the caption flags it).
+  //    Returns the Date bounds + the episodes that overlap the window.
+  //    NOTE: 12 months caters for the simulated older-sale history currently
+  //    seeded for centres; once real data has accrued and the simulated data
+  //    is removed, revisit whether a tighter window reads better.
   function chartWindow(eps){
-    const MONTHS=6;
+    const MONTHS=12;
     const now=new Date();
     const end=new Date(now.getFullYear(), now.getMonth(), now.getDate());        // today
     const start=new Date(end.getFullYear(), end.getMonth()-(MONTHS-1), 1);       // 1st of the earliest month
@@ -5491,7 +5518,7 @@ document.addEventListener('visibilitychange', () => {
   //    width regardless of day count), with every month labelled and little
   //    week ticks inside each column. Each sale is a soft swell whose two feet
   //    land on its real start/end dates, so width spans duration and peak
-  //    height encodes discount depth. Live swell = stage colour, past = stone.
+  //    height encodes discount depth. Live swell = stage colour, past = gold.
   function rhythmSVG(eps, deepest, stageColor){
     const W=350, padX=14, minW=10;
     const GOLD='#BC8A2E';
@@ -5499,7 +5526,7 @@ document.addEventListener('visibilitychange', () => {
     const { start, end, shown } = chartWindow(eps);
     const denom = deepest || 50;
 
-    // Six fixed month columns from the window start month → current month.
+    // Fixed month columns from the window start month → current month.
     const firstY = start.getFullYear(), firstM = start.getMonth();
     const months=[]; let yy=firstY, mm=firstM, g=0;
     while((yy<end.getFullYear() || (yy===end.getFullYear() && mm<=end.getMonth())) && g++<24){
@@ -5540,8 +5567,9 @@ document.addEventListener('visibilitychange', () => {
     }
 
     // One rounded block per sale: width = duration (start→end), height = depth,
-    // centred in the track. Single gold hue — full opacity = live, faded =
-    // earlier (colour intensity is the only live signal; never a daily-depth claim).
+    // centred in the track. The LIVE crest takes the brand's stage colour (per
+    // the prototype / CLAUDE.md); past episodes are faded gold. Colour/opacity
+    // are the only live signal; never a daily-depth claim.
     const blocks = shown.map(ep => {
       const sd = new Date(ep.start+'T12:00:00');
       const ed = ep.live ? end : new Date(ep.end+'T12:00:00');
@@ -5555,7 +5583,7 @@ document.addEventListener('visibilitychange', () => {
       let bh = ep.pct!=null ? minBH+(ep.pct/denom)*(maxBH-minBH) : minBH;
       if(bh<minBH)bh=minBH; if(bh>maxBH)bh=maxBH;
       const w=x2-x1, rx=Math.min(5, bh/2, w/2), yTop=cy-bh/2;
-      return '<rect x="'+x1.toFixed(1)+'" y="'+yTop.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="'+rx.toFixed(1)+'" fill="'+GOLD+'" fill-opacity="'+(ep.live?'1':'0.45')+'"/>';
+      return '<rect x="'+x1.toFixed(1)+'" y="'+yTop.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="'+rx.toFixed(1)+'" fill="'+(ep.live ? (stageColor||GOLD) : GOLD)+'" fill-opacity="'+(ep.live?'1':'0.45')+'"/>';
     }).join('');
 
     const todayX = Xd(end);

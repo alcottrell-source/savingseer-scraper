@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { nextSaleWindow } from '../seo/next-sale-window.mjs';
-import { isOnSale, slugify, verdictCopy, renderBrandPage } from '../seo/render.mjs';
+import { isOnSale, slugify, verdictCopy, renderBrandPage, jsonLd } from '../seo/render.mjs';
 
 test('nextSaleWindow returns the soonest future window', () => {
   // Early June → next notable window is the summer sale (8 July).
@@ -23,6 +23,27 @@ test('isOnSale follows the admin-verified rule, ignores scraper sale_status', ()
   assert.equal(isOnSale({ last_verified_date: '2026-06-01', last_verified_status: false }), false);
   assert.equal(isOnSale({ sale_status: true }), false); // scraper-raw must NOT make it on-sale
   assert.equal(isOnSale(null), false);
+});
+
+test('jsonLd escapes < > & so a name cannot break out of the script tag', () => {
+  const out = jsonLd({ name: 'Evil</script><img src=x onerror=alert(1)>', q: 'a & b < c' });
+  assert.ok(!out.includes('</script>'), 'must not contain a literal </script>');
+  assert.ok(!out.includes('<img'), 'raw < must be escaped');
+  assert.ok(out.includes('\\u003c'), 'angle brackets escaped as unicode');
+  assert.deepEqual(JSON.parse(out), { name: 'Evil</script><img src=x onerror=alert(1)>', q: 'a & b < c' }, 'still valid JSON, round-trips');
+});
+
+test('renderBrandPage escapes a hostile brand name in both HTML and JSON-LD', () => {
+  const html = renderBrandPage({
+    centre: { slug: 'westquay-southampton', name: 'Westquay', tideScore: 34, verdict: 'Rising', trajectory: 'RISING' },
+    brand: { id: 'B001', name: 'Evil</script><script>alert(1)</script>', slug: 'evil', saleUrl: 'https://x' },
+    sale: { last_verified_date: '2026-06-02', last_verified_status: true },
+    cycle: null, hours: 'Mon–Fri 9am–8pm', siblings: [],
+    supabase: { url: 'u', anonKey: 'k' }, origin: 'https://tidego.co',
+    today: new Date(Date.UTC(2026, 5, 3)),
+  });
+  assert.ok(!/<script>alert\(1\)<\/script>/.test(html), 'no injected executable script');
+  assert.ok(!/Evil<\/script>/.test(html), 'brand name must never appear with a raw </script>');
 });
 
 test('slugify handles ampersands and apostrophes', () => {

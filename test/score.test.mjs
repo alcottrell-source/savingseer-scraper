@@ -10,7 +10,26 @@ import {
   getTrajectory,
   getTideStage,
   deriveStageFromVerdict,
+  isBrandOnSale,
 } from '../score.js';
+
+test('isBrandOnSale — admin-verified rule, scraper status ignored, cycle window honoured', () => {
+  const TODAY = '2026-06-22';
+  // active cycle, no join → trusted on-sale (personal-score path)
+  assert.equal(isBrandOnSale({ active_cycle_id: 'c1' }, TODAY), true);
+  // active cycle with a live window → on sale
+  assert.equal(isBrandOnSale({ active_cycle_id: 'c1', cycle: { start_date: '2026-06-01', end_date: null } }, TODAY), true);
+  // future-dated cycle → NOT on sale yet (H2 guard)
+  assert.equal(isBrandOnSale({ active_cycle_id: 'c1', cycle: { start_date: '2026-07-01', end_date: null } }, TODAY), false);
+  // closed cycle still pointed at by active_cycle_id → NOT on sale (dangling-FK guard)
+  assert.equal(isBrandOnSale({ active_cycle_id: 'c1', cycle: { start_date: '2026-06-01', end_date: '2026-06-20' } }, TODAY), false);
+  // last_verified_status fallback
+  assert.equal(isBrandOnSale({ last_verified_date: '2026-06-01', last_verified_status: true }, TODAY), true);
+  assert.equal(isBrandOnSale({ last_verified_date: '2026-06-01', last_verified_status: false }, TODAY), false);
+  // scraper-raw sale_status must NOT make it on-sale
+  assert.equal(isBrandOnSale({ sale_status: true }, TODAY), false);
+  assert.equal(isBrandOnSale(null, TODAY), false);
+});
 
 test('getTrajectory — <3 days history defaults to RISING (spec §9.3)', () => {
   assert.equal(getTrajectory(50, [], null), 'RISING');

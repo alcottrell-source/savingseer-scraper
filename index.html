@@ -3544,11 +3544,6 @@ function _tideDaysBetween(a, b) {
   return Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 86400000);
 }
 
-// Window the full real series to the selected period. We window by the last N
-// real DATA POINTS (not calendar days) so the curve always has ≥2 points to
-// draw a line — a centre whose stored history skips days used to render 7D as
-// a lone dot with no line. For dense daily history (the common case) last-7-
-// points == last-7-days. MAX returns everything.
 // Window the full real series to the selected period by CALENDAR DATE so the
 // tab labels are literal: 7D = last 7 days, 30D = last 30, 60D = last 60,
 // MAX = everything stored (up to score.js's retention window). A date window
@@ -5149,20 +5144,23 @@ loadTideData().then(ok => { if (!ok) loadSheetData(); });
 // instantly without a page refresh. 60-second poll is a belt-and-braces
 // fallback for environments where Realtime isn't enabled.
 let _reloadTimer;
+// Single debounced entry point for ALL reload triggers (realtime push, 60s
+// poll, tab refocus) so rapid tab-switching or a burst of realtime events
+// can't fire overlapping fetches against the anon Supabase tier.
+function scheduleReload(delay = 400) {
+  clearTimeout(_reloadTimer);
+  _reloadTimer = setTimeout(() => loadTideData(), delay);
+}
 sb.channel('tide-brand-sale-updates')
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'brand_sale_events' }, () => {
-    clearTimeout(_reloadTimer);
-    _reloadTimer = setTimeout(() => loadTideData(), 400);
-  })
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'brand_sale_events' }, () => scheduleReload())
   .subscribe();
 // Belt-and-braces fallback only — the realtime channel above delivers
-// admin confirmations instantly. Poll at 60s (matching the comment's
-// intent, not the old 15s) and skip entirely while the tab is hidden, so
-// idle/background tabs don't hammer the anon Supabase tier at launch
-// traffic. A tab returning to the foreground refreshes immediately.
-setInterval(() => { if (document.visibilityState === 'visible') loadTideData(); }, 60000);
+// admin confirmations instantly. Poll at 60s and skip entirely while the tab
+// is hidden, so idle/background tabs don't hammer the anon Supabase tier. A
+// tab returning to the foreground refreshes (debounced).
+setInterval(() => { if (document.visibilityState === 'visible') scheduleReload(0); }, 60000);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') loadTideData();
+  if (document.visibilityState === 'visible') scheduleReload(0);
 });
 </script>
 

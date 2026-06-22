@@ -1234,8 +1234,11 @@ async function applyAction(brandId, action, opts) {
   }
 
   if (action === 'confirm_off') {
+    // Also clear active_cycle_id: leaving it set while status=false is an
+    // inconsistency the score engine would resolve in favour of "on sale"
+    // (an in-window active cycle wins over last_verified_status).
     const { error } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
-      last_verified_status: false, last_verified_date: TODAY,
+      last_verified_status: false, last_verified_date: TODAY, active_cycle_id: null,
     });
     if (error) throw error;
     await logReview(brandId, 'confirmed_off', null);

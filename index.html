@@ -1593,7 +1593,7 @@ function renderAccountSavedCentres() {
   centresList.innerHTML = '<div class="saved-centres-list">' + centres.map(cid => {
     const idx = parseInt(String(cid).replace('C',''), 10) - 1;
     const rawName = (typeof CENTRE_NAMES !== 'undefined' && CENTRE_NAMES[idx]) ? CENTRE_NAMES[idx] : cid;
-    const safeName = rawName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const safeName = rawName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     return '<div class="saved-centre-row">'
          +   '<span>' + safeName + '</span>'
          +   '<button class="saved-centre-row-remove" onclick="removeSavedCentre(\''+cid+'\')" aria-label="Remove '+safeName+'" title="Remove">&times;</button>'
@@ -1927,7 +1927,7 @@ function obRenderStep3() {
       const logo = domain
         ? '<img src="https://www.google.com/s2/favicons?sz=64&domain='+domain+'" alt="" onerror="this.style.display=\'none\'">'
         : '';
-      const safeName = b.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const safeName = b.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       return '<button class="ob-brand-chip '+(isOn?'active':'')+'" onclick="obToggleBrand(\''+b.id+'\')">'
            + '<div class="ob-brand-logo">'+logo+'</div>'
            + '<div class="ob-brand-name">'+safeName+'</div>'
@@ -1964,8 +1964,8 @@ function obRenderStep4Centres() {
     : allCentres.slice().sort((a,b) => a.name.localeCompare(b.name));
   const rows = filtered.map(c => {
     const on = onb.centres.has(c.id);
-    const safeName = c.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const safeLoc = c.loc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const safeName = c.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const safeLoc = c.loc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     return '<button class="ob-centre-row '+(on?'active':'')+'" onclick="obToggleCentre(\''+c.id+'\')">'
          + '<div class="ob-centre-row-text">'
          +   '<div class="ob-centre-row-name">'+safeName+'</div>'
@@ -3049,7 +3049,7 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
     ? onSale.slice().sort((a, b) => (a.days || 0) - (b.days || 0))[0]
     : null;
   const histCount = history.length;
-  const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   const numClass = freshCount > 0 ? 'narrative-headline-num' : 'narrative-headline-num muted';
   const heroBlock = '<div class="narrative-hero">'
@@ -3106,7 +3106,12 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
   const sScore = getServerScore(centreIdx) || {};
   const rawNarrative = sScore.narrative;
   const aiNarrative = (typeof rawNarrative === 'string') ? rawNarrative.trim() : '';
-  const aiUsable = aiNarrative.length > 0 && !/\d/.test(aiNarrative);
+  // Reject digits (above) AND recommendation language: CLAUDE.md hard-forbids
+  // action copy outside the PEAK/GO NOW badge, and the Gemini prompt is the
+  // only thing enforcing it server-side — this is the client-side backstop if
+  // the model ever leaks "go now"/"worth it"/etc. Falls back to the template.
+  const RECO_RE = /\b(go now|worth (it|a visit|going)|don'?t wait|act fast|hurry|grab|snap up|skip it)\b/i;
+  const aiUsable = aiNarrative.length > 0 && !/\d/.test(aiNarrative) && !RECO_RE.test(aiNarrative);
   // The "{N} brands on sale" lead is now in the headline, so the template
   // narrative leads with the trend signal. No prescriptive tail (CLAUDE.md
   // reserves recommendation language for the PEAK / GO NOW badge).
@@ -3669,7 +3674,7 @@ function setTideChartPeriod(period) {
 // resolved by the caller (followed ∩ present-at-centre ∩ SALE_STATUS) — never
 // scraper sale_status, no recompute here.
 function renderSavedShopsLine(v) {
-  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const names = Array.isArray(v.followedOnSale) ? v.followedOnSale : [];
   if (v.hasFollowed && names.length) {
     const shown = names.slice(0, 3).map(esc).join(', ');
@@ -3711,7 +3716,7 @@ function renderTideVessel(v) {
   const HEADLINE = { PEAK: 'Peak', RISING: 'Rising', EASING: 'Easing', OVER: 'Over', QUIET: 'Quiet' };
   const headlineWord = HEADLINE[verdict.word] || verdict.word;
   const goBadge = tone === 'go' ? '<span class="tide-vessel-go-badge">Go now</span>' : '';
-  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   const hasCount = Number.isFinite(+v.onSaleCount) && Number.isFinite(+v.totalCount) && +v.totalCount > 0;
   const pct = Math.max(0, Math.min(100, Math.round(+v.pct || 0)));
@@ -4315,8 +4320,8 @@ function renderSavedCentresLanding(savedIds) {
     const idx = parseInt(String(cid).replace('C',''), 10) - 1;
     const name = CENTRE_NAMES[idx] || cid;
     const loc = (typeof CENTRE_LOCATIONS !== 'undefined' && CENTRE_LOCATIONS[idx]) ? CENTRE_LOCATIONS[idx] : '';
-    const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const safeLoc = loc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const safeLoc = loc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     if (_savedCentresEditMode) {
       return '<div class="saved-centre-card is-edit">'
            + '<div class="saved-centre-card-left">'
@@ -4493,7 +4498,7 @@ function renderHotCentres(opts) {
   const excludeIds = opts.excludeIds || [];
   const hot = getHotCentres(limit, excludeIds);
   if (!hot.length) return '';
-  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const stamp = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const rows = hot.map((h, i) => {
     const safeName = esc(h.name);
@@ -4812,7 +4817,7 @@ async function renderCentre(centreId) {
   const hasFullFloors = !!floorsForCentre
     && allCentreBrands.length > 0
     && allCentreBrands.every(b => Array.isArray(floorsForCentre[b.name]) && floorsForCentre[b.name].length > 0);
-  const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const escapeHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   // Group a brand list into floors. A brand on two floors yields a chip in
   // each floor (the floor rows in centre_brand_floors already encode this —
@@ -4885,10 +4890,10 @@ async function renderCentre(centreId) {
   }
 
   // Centre identity hero — back button + name + location label.
-  const safeCentreName = centreName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const safeCentreName = centreName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const location = CENTRE_LOCATIONS[centreIdx];
   const locationHTML = location
-    ? '<span class="centre-meta-dot"></span><span class="centre-location">'+location.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span>'
+    ? '<span class="centre-meta-dot"></span><span class="centre-location">'+location.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')+'</span>'
     : '';
   const isCentreSaved = !!(currentUser && userPrefs && Array.isArray(userPrefs.saved_centres) && userPrefs.saved_centres.includes(centreId));
   const saveBtnHTML = currentUser
@@ -4946,7 +4951,7 @@ async function renderCentre(centreId) {
     const chips = savedCentreIds.slice().reverse().map(cid => {
       const idx = parseInt(String(cid).replace('C',''), 10) - 1;
       const name = CENTRE_NAMES[idx] || cid;
-      const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       const isCurrent = cid === centreId;
       return '<button class="saved-chip'+(isCurrent?' current':'')+'" onclick="goToCentre(\''+cid+'\')">'+safeName+'</button>';
     }).join('');
@@ -4979,13 +4984,17 @@ async function renderCentre(centreId) {
           // when the server hasn't scored this centre yet (new/sparse centre),
           // so the hero never renders blank. The brand-chip grid below is
           // filter-dependent (My/All), so it was never locked to this count.
-          const srvOnSale = sScore && Number.isFinite(+sScore.brands_on_sale) ? +sScore.brands_on_sale : null;
-          const srvTotal  = sScore && Number.isFinite(+sScore.total_brands) && +sScore.total_brands > 0 ? +sScore.total_brands : null;
-          const onSaleN = (srvOnSale != null) ? srvOnSale : onSale.length;
-          const totalN  = (srvTotal  != null) ? srvTotal  : total;
-          // Big % = tide_score (the number the gauge shows); fall back to the
-          // local proportion only when the server hasn't scored this centre.
-          const heroPct = (sScore && Number.isFinite(+sScore.tide_score)) ? Math.round(+sScore.tide_score)
+          // "Scored" is ATOMIC: take the %, count AND total all from the server
+          // together, or all from the local fallback together. Mixing them (a
+          // server tide_score with local counts) is the one way the big "X%"
+          // and the "N of M shops" line could contradict each other.
+          const hasServer = sScore
+            && Number.isFinite(+sScore.tide_score)
+            && Number.isFinite(+sScore.brands_on_sale)
+            && Number.isFinite(+sScore.total_brands) && +sScore.total_brands > 0;
+          const onSaleN = hasServer ? +sScore.brands_on_sale : onSale.length;
+          const totalN  = hasServer ? +sScore.total_brands  : total;
+          const heroPct = hasServer ? Math.round(+sScore.tide_score)
                         : (totalN > 0 ? Math.round((onSaleN / totalN) * 100) : 0);
           // Followed shops on sale HERE — admin-verified (SALE_STATUS),
           // present at this centre, in the user's follow set. Single source;

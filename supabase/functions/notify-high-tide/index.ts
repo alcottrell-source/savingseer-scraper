@@ -54,7 +54,7 @@ interface CentreRow      { id: string; name: string }
 interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null }
 interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; brand_ids: string[] | null; excluded_brand_ids: string[] | null; email_alerts: boolean; brand_sale_alerts: boolean; daily_digest: boolean }
 interface BrandRow       { id: string; name: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; cluster: string | null }
-interface SaleEventRow   { brand_id: string; max_discount_pct: number | null; last_verified_status: boolean | null; last_verified_date: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null } | null }
+interface SaleEventRow   { brand_id: string; max_discount_pct: number | null; last_verified_status: boolean | null; last_verified_date: string | null; date_first_detected: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null } | null }
 interface CentreBrandRow { centre_id: string; brand_id: string }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -77,12 +77,18 @@ function daysOnSale(r: SaleEventRow, today: string): number {
 }
 
 // True only on the day a brand's sale begins. Admin-verified cycles carry an
-// explicit start_date; brands verified on without a cycle fall back to the
-// admin's last_verified_date. Because this is true for exactly one day, it
-// doubles as send-once dedup.
+// explicit start_date that is fixed for the life of the cycle (admin.html's
+// confirm_start reuses an open cycle rather than reopening one, so re-
+// confirming a live sale never moves this date). Brands verified on without a
+// cycle fall back to date_first_detected — the IMMUTABLE first-seen date, NOT
+// last_verified_date. last_verified_date is bumped to today by every admin
+// re-verification (confirm_on, edits, …); keying off it re-armed this "started
+// today" signal each time a no-cycle sale was re-affirmed, re-sending the
+// brand-sale alert. Both keys are now stable for the cycle's lifetime, so this
+// stays true for exactly one day and doubles as send-once dedup.
 function startedToday(r: SaleEventRow, today: string): boolean {
   if (r.active_cycle_id) return r.cycle?.start_date === today;
-  return isOnSale(r) && r.last_verified_date === today;
+  return isOnSale(r) && r.date_first_detected === today;
 }
 
 function brandMatchesPrefs(b: BrandRow, p: PrefsRow): boolean {
@@ -468,7 +474,7 @@ Deno.serve(async (req: Request) => {
     sb.from("centres").select("id, name").eq("active", true),
     sb.from("brands").select("id, name, womenswear, menswear, childrenswear, cluster"),
     sb.from("brand_sale_events")
-      .select("brand_id, max_discount_pct, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)"),
+      .select("brand_id, max_discount_pct, last_verified_status, last_verified_date, date_first_detected, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)"),
     sb.from("centre_brands").select("centre_id, brand_id"),
     // No saved_centres filter: brand-sale alerts target followed brands, so
     // users who follow brands without saving a centre must be included too.

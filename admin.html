@@ -1244,24 +1244,52 @@ async function triggerRescore() {
 
 async function applyAction(brandId, action, opts) {
   if (action === 'confirm_start') {
-    const { data: cycleRows, error: cErr } = await pg.insert('brand_sale_cycles', {
-      brand_id: brandId,
-      start_date: opts.start_date,
-      max_discount_pct: opts.max_discount_pct,
-      sale_type: opts.sale_type || 'percent_off',
-      source: 'admin',
-    }, true);
-    if (cErr) throw cErr;
-    const cycle = (cycleRows || [])[0];
-    if (!cycle) throw new Error('Insert returned no row');
+    // Reuse an already-open cycle instead of inserting a duplicate. A brand
+    // with an open cycle is already "on sale"; re-confirming it (e.g. via the
+    // crowd-report "Confirm on sale" nudge, which routes here with
+    // start_date=TODAY) must NOT mint a second cycle. Doing so reset the
+    // cycle's start_date to today, which re-armed the one-shot brand-sale
+    // alert — sending "X just went on sale" every morning — and orphaned the
+    // previous open cycle (left open, never end-dated). When a cycle is
+    // already open we update its %/type in place and preserve its original
+    // start_date (the sale didn't restart). A genuinely new sale only reaches
+    // the insert path once the prior cycle has been end-dated (confirm_end).
+    const { data: openCycles, error: lookupErr } = await pg.read(
+      'brand_sale_cycles?select=id,start_date&brand_id=eq.' + brandId + '&end_date=is.null&order=start_date.desc&limit=1'
+    );
+    if (lookupErr) throw lookupErr;
+    const existing = (openCycles || [])[0];
+    let cycleId;
+    if (existing) {
+      const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + existing.id, {
+        max_discount_pct: opts.max_discount_pct,
+        sale_type: opts.sale_type || 'percent_off',
+        // start_date intentionally preserved — re-confirming an open sale is
+        // not a fresh start. Use Edit to deliberately change the start date.
+      });
+      if (cErr) throw cErr;
+      cycleId = existing.id;
+    } else {
+      const { data: cycleRows, error: cErr } = await pg.insert('brand_sale_cycles', {
+        brand_id: brandId,
+        start_date: opts.start_date,
+        max_discount_pct: opts.max_discount_pct,
+        sale_type: opts.sale_type || 'percent_off',
+        source: 'admin',
+      }, true);
+      if (cErr) throw cErr;
+      const cycle = (cycleRows || [])[0];
+      if (!cycle) throw new Error('Insert returned no row');
+      cycleId = cycle.id;
+    }
     const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
-      active_cycle_id: cycle.id,
+      active_cycle_id: cycleId,
       last_verified_status: true,
       last_verified_date: TODAY,
       sale_type: opts.sale_type || 'percent_off',
     });
     if (uErr) throw uErr;
-    await logReview(brandId, 'confirmed_start', cycle.id);
+    await logReview(brandId, 'confirmed_start', cycleId);
     return;
   }
 

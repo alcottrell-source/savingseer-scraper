@@ -14,7 +14,8 @@ two schedules:
    they follow (`brand_ids`, or legacy gender/cluster match) that has
    `brand_sale_alerts` on and isn't in their `excluded_brand_ids`, drop any sale
    already emailed to them, and send **one combined email** listing what's left
-   (single-brand layout when only one survives). Send-once dedup is tracked in
+   — always the roundup layout, even when only one shop survives. Send-once
+   dedup is tracked in
    the `brand_sale_notifications` table keyed by (`user_id`, `sale_key`), where
    `sale_key` is the active cycle id (or `nocycle:<brand_id>:<date_first_detected>`
    for an admin-verified sale with no cycle). This replaces the old "started

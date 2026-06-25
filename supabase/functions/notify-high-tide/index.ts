@@ -231,50 +231,24 @@ export function renderHighTideEmail(opts: {
   return { subject, html, text: textParts.join('\n') };
 }
 
-export function renderBrandSaleEmail(opts: {
-  brandName: string;
-  centre1: string;
-  centre2?: string;
-  discount?: string;
-}): { subject: string; html: string; text: string } {
-  const { brandName, centre1, centre2, discount } = opts;
-  const subject = `${brandName} is on sale`;
-  const locationPhrase = centre2 ? `${centre1} and ${centre2}` : centre1;
-  const previewText = `On now at ${locationPhrase}.${discount ? ` Up to ${discount} off.` : ''}`;
-
-  const bodyParagraph = `${discount ? `Up to ${escapeHtml(discount)} off. ` : ''}On now at ${escapeHtml(centre1)}${centre2 ? ` and ${escapeHtml(centre2)}` : ''}.`;
-
-  const bodyHtml = `
-    <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${LEAF};margin:0 0 16px;line-height:1.25">${escapeHtml(brandName)} is on sale.</div>
-    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">${bodyParagraph}</p>
-    <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See the full picture &rarr;</a>`;
-
-  const html = baseEmailWrap({
-    previewText,
-    bodyHtml,
-    footerReason: `You're receiving this because you follow ${brandName} on Tide and Brand Sale Alerts are switched on. Unsubscribing here turns off alerts for all followed brands.`,
-    unsubLabel: 'Brand Sale Alerts',
-  });
-
-  const text = `${brandName} is on sale.\n\n${discount ? `Up to ${discount} off. ` : ''}On now at ${locationPhrase}.\n\nSee the full picture: ${APP_URL}`;
-
-  return { subject, html, text };
-}
-
-// Multi-brand sibling of renderBrandSaleEmail. When more than one of a user's
-// followed brands has an un-sent active sale on a given run we send ONE summary
-// email listing them all, instead of N separate "X is on sale" messages. The
-// single-brand path above still handles the one-brand case.
+// The brand-sale roundup. One email per user listing every un-sent active sale
+// among their followed brands, newest-relevant first. Always used — even a
+// single on-sale shop renders here as a one-row roundup (the copy flexes on
+// count) rather than a standalone hero email.
 export function renderBrandSaleDigestEmail(opts: {
   brands: { brandName: string; centre1: string; centre2?: string; discount?: string }[];
 }): { subject: string; html: string; text: string } {
   const { brands } = opts;
   const n = brands.length;
   const names = brands.map(b => b.brandName);
-  const nameList = names.length === 2
-    ? `${names[0]} and ${names[1]}`
-    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-  const subject = `${n} of your shops are on sale`;
+  const nameList = names.length === 1
+    ? names[0]
+    : names.length === 2
+      ? `${names[0]} and ${names[1]}`
+      : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  // Always the roundup layout, even for one shop — grammar flexes on count.
+  const heading = n === 1 ? `${nameList} is on sale` : `${n} of your shops are on sale`;
+  const subject = heading;
   const previewText = `${nameList} — on now.`;
 
   const rows = brands.map((b, i, arr) => {
@@ -288,8 +262,8 @@ export function renderBrandSaleDigestEmail(opts: {
   }).join('');
 
   const bodyHtml = `
-    <div style="font-family:Georgia,serif;font-size:26px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">${n} of your shops are on sale.</div>
-    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 8px;max-width:420px">All on now — here's where to find them.</p>
+    <div style="font-family:Georgia,serif;font-size:26px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">${heading}.</div>
+    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 8px;max-width:420px">${n === 1 ? "On now — here's where to find it." : "All on now — here's where to find them."}</p>
     <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:20px 0 0">
     ${rows}
     <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See the full picture &rarr;</a>`;
@@ -297,12 +271,12 @@ export function renderBrandSaleDigestEmail(opts: {
   const html = baseEmailWrap({
     previewText,
     bodyHtml,
-    footerReason: `You're receiving this because you follow these brands on Tide and Brand Sale Alerts are switched on. Unsubscribing here turns off alerts for all followed brands.`,
+    footerReason: `You're receiving this because you follow ${n === 1 ? 'this brand' : 'these brands'} on Tide and Brand Sale Alerts are switched on. Unsubscribing here turns off alerts for all followed brands.`,
     unsubLabel: 'Brand Sale Alerts',
   });
 
   const textLines = [
-    `${n} of your shops are on sale.`,
+    `${heading}.`,
     '',
     ...brands.map(b => `${b.brandName} — ${b.discount ? `up to ${b.discount} off, ` : ''}on now at ${b.centre2 ? `${b.centre1} and ${b.centre2}` : b.centre1}`),
     '',
@@ -648,9 +622,9 @@ Deno.serve(async (req: Request) => {
   for (const { p, items, keys } of perUser.values()) {
     const to = emailById.get(p.user_id);
     if (!to) { log.push({ type: "brand", skipped: `no email for user ${p.user_id}`, brands: items.map(i => i.brandName) }); continue; }
-    const { subject, html, text } = items.length === 1
-      ? renderBrandSaleEmail(items[0])
-      : renderBrandSaleDigestEmail({ brands: items });
+    // Always the roundup layout — even a single on-sale shop renders as a
+    // one-row digest rather than a standalone "X is on sale" hero email.
+    const { subject, html, text } = renderBrandSaleDigestEmail({ brands: items });
     if (dryRun) { log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: true, skipped: "dryRun" }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
     log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: result.ok, status: result.status });

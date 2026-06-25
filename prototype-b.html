@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Tide — Direction B · Bold Signal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0A0B0D; --panel:#15171B; --panel-2:#1C1F25; --line:rgba(255,255,255,.09);
+    --txt:#F4F5F3; --txt-2:#9298A2;
+    --neon:#3BFB8B; --neon-deep:#0FE06F; --neon-glow:0 0 16px rgba(59,251,139,.45);
+    --amber:#FFC24B;
+  }
+  html{font-size:16px;-webkit-text-size-adjust:100%}
+  body{font-family:'Inter',sans-serif;background:#000;color:var(--txt);
+    -webkit-font-smoothing:antialiased;line-height:1.45;letter-spacing:-.01em}
+  .device{max-width:430px;margin:0 auto;min-height:100vh;background:var(--bg);
+    position:relative;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+  .grok{font-family:'Space Grotesk',sans-serif}
+
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;
+    position:sticky;top:0;z-index:20;background:rgba(10,11,13,.82);backdrop-filter:blur(14px)}
+  .bar .ico{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);
+    background:var(--panel);display:grid;place-items:center;color:var(--txt);font-size:16px}
+  .bar .where{font-size:12.5px;font-weight:600;letter-spacing:.02em;text-align:center;line-height:1.2}
+  .bar .where small{display:block;font-weight:500;color:var(--txt-2);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase}
+
+  /* hero */
+  .hero{padding:22px 20px 4px;position:relative}
+  .hero::before{content:"";position:absolute;top:-40px;left:-30%;width:160%;height:240px;
+    background:radial-gradient(60% 100% at 50% 0%,rgba(59,251,139,.16),transparent 70%);pointer-events:none}
+  .chip{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:600;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--neon);
+    background:rgba(59,251,139,.10);border:1px solid rgba(59,251,139,.28);
+    padding:7px 13px;border-radius:100px}
+  .pulse{width:7px;height:7px;border-radius:50%;background:var(--neon);box-shadow:var(--neon-glow)}
+  .verdict{position:relative;font-family:'Space Grotesk',sans-serif;font-weight:700;
+    font-size:62px;line-height:.96;letter-spacing:-.04em;margin:18px 0 0;color:var(--txt)}
+  .verdict .hl{color:var(--neon);text-shadow:var(--neon-glow)}
+  .lede{position:relative;font-size:16px;color:var(--txt-2);margin:14px 0 0;max-width:32ch}
+  .lede b{color:var(--txt);font-weight:600}
+
+  /* big score + gauge bar */
+  .score{display:flex;align-items:flex-end;gap:14px;margin:24px 20px 0}
+  .score .num{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:64px;line-height:.85;letter-spacing:-.04em}
+  .score .num span{font-size:24px;color:var(--txt-2)}
+  .score .meta{padding-bottom:6px}
+  .score .meta .t{font-size:13px;color:var(--txt-2)}
+  .score .meta .u{font-size:13px;color:var(--neon);font-weight:600;margin-top:2px}
+  .gauge{height:8px;border-radius:100px;background:var(--panel-2);margin:16px 20px 0;overflow:hidden}
+  .gauge i{display:block;height:100%;width:63%;border-radius:100px;
+    background:linear-gradient(90deg,var(--neon-deep),var(--neon));box-shadow:var(--neon-glow)}
+  .gscale{display:flex;justify-content:space-between;margin:7px 20px 0;font-size:10.5px;color:var(--txt-2);letter-spacing:.04em}
+
+  /* personal */
+  .yours{margin:22px 16px 0;background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:18px;padding:18px 18px}
+  .yours .top{display:flex;align-items:center;gap:13px}
+  .yours .big{font-family:'Space Grotesk',sans-serif;font-size:40px;font-weight:700;line-height:1;color:var(--neon);text-shadow:var(--neon-glow)}
+  .yours .top p{font-size:13.5px;color:var(--txt-2);line-height:1.35}
+  .yours .top p b{color:var(--txt);font-weight:600}
+  .ylist{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+  .tag{font-size:12px;font-weight:600;color:var(--txt);background:rgba(255,255,255,.06);
+    border:1px solid var(--line);padding:6px 11px;border-radius:100px}
+  .tag b{color:var(--neon);font-weight:600;margin-left:5px}
+
+  /* list */
+  .sec-h{display:flex;align-items:baseline;justify-content:space-between;padding:30px 22px 12px}
+  .sec-h h2{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:600;letter-spacing:-.01em}
+  .sec-h a{font-size:12.5px;color:var(--neon);font-weight:600;text-decoration:none}
+  .list{margin:0 14px}
+  .row{display:flex;align-items:center;gap:13px;padding:13px 14px;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;margin-bottom:8px}
+  .row.mine{border-color:rgba(59,251,139,.32);background:rgba(59,251,139,.05)}
+  .row .mn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;flex:none}
+  .row .nm{font-size:15px;font-weight:600;flex:1;letter-spacing:-.01em}
+  .row .nm small{display:block;font-weight:500;color:var(--txt-2);font-size:11.5px;margin-top:1px}
+  .row .of{font-size:14px;font-weight:700;color:var(--neon);text-align:right;font-family:'Space Grotesk',sans-serif}
+  .row .of small{display:block;color:var(--txt-2);font-weight:500;font-size:11px;margin-top:2px;font-family:'Inter',sans-serif}
+
+  .cta{position:sticky;bottom:0;padding:14px 18px calc(16px + env(safe-area-inset-bottom));
+    background:linear-gradient(transparent,var(--bg) 28%);margin-top:18px}
+  .cta button{width:100%;border:0;border-radius:15px;background:var(--neon);color:#04210F;
+    font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;padding:17px;letter-spacing:.01em;
+    box-shadow:var(--neon-glow);cursor:pointer}
+  .foot{text-align:center;font-size:11px;color:var(--txt-2);padding:10px 0 6px}
+  .switch{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:60;
+    background:rgba(255,255,255,.12);color:#fff;border:1px solid var(--line);border-radius:100px;
+    padding:9px 16px;font-size:12px;text-decoration:none;font-weight:600;backdrop-filter:blur(8px)}
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="bar">
+    <div class="ico">‹</div>
+    <div class="where">Westfield London<small>Shepherd's Bush</small></div>
+    <div class="ico">↗</div>
+  </div>
+
+  <section class="hero">
+    <span class="chip"><span class="pulse"></span>Verified yesterday</span>
+    <h1 class="verdict">Go <span class="hl">now.</span></h1>
+    <p class="lede"><b>25 of 40 shops</b> on sale and still rising — the best window in two weeks.</p>
+  </section>
+
+  <div class="score">
+    <div class="num">63<span>%</span></div>
+    <div class="meta"><div class="t">tide score</div><div class="u">▲ up from 23% · 2 wks ago</div></div>
+  </div>
+  <div class="gauge"><i></i></div>
+  <div class="gscale"><span>QUIET</span><span>RISING</span><span>PEAK</span></div>
+
+  <div class="yours">
+    <div class="top">
+      <div class="big">4</div>
+      <p><b>of your shops are on sale right now</b><br>across the brands you follow here</p>
+    </div>
+    <div class="ylist">
+      <span class="tag">Reiss <b>50%</b></span>
+      <span class="tag">Hugo Boss <b>40%</b></span>
+      <span class="tag">Levi's <b>60%</b></span>
+      <span class="tag">North Face <b>40%</b></span>
+    </div>
+  </div>
+
+  <div class="sec-h"><h2>On sale now</h2><a href="#">25 shops ›</a></div>
+  <div class="list">
+    <div class="row mine"><div class="mn" style="background:#1B1B1B">R</div><div class="nm">Reiss<small>You follow · Premium</small></div><div class="of">50%<small>2d</small></div></div>
+    <div class="row"><div class="mn" style="background:#111">P</div><div class="nm">Pandora<small>Accessories</small></div><div class="of">50%<small>2d</small></div></div>
+    <div class="row"><div class="mn" style="background:#000">CK</div><div class="nm">Calvin Klein<small>Premium</small></div><div class="of">40%<small>3d</small></div></div>
+    <div class="row mine"><div class="mn" style="background:#0A0A0A">HB</div><div class="nm">Hugo Boss<small>You follow · Premium</small></div><div class="of">40%<small>4d</small></div></div>
+    <div class="row"><div class="mn" style="background:#8E1B3A">AS</div><div class="nm">Ann Summers<small>Lingerie</small></div><div class="of">50%<small>4d</small></div></div>
+    <div class="row mine"><div class="mn" style="background:#C8102E">L</div><div class="nm">Levi's<small>You follow · Denim</small></div><div class="of">60%<small>6d</small></div></div>
+  </div>
+
+  <div class="cta">
+    <button>See all 25 sales</button>
+    <div class="foot">Updated daily · Live admin-verified data</div>
+  </div>
+</div>
+<a class="switch" href="/prototypes.html">↔ Switch direction</a>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Tide — Direction A · Editorial Punch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --paper:#F6F4EF; --card:#FFFFFF; --ink:#15130F; --ink-2:#5C564C;
+    --line:rgba(21,19,15,.10);
+    --go:#0BB463;        /* signal green — the only loud colour */
+    --go-deep:#08894B;
+    --go-wash:#E4F7EC;
+    --amber:#C8821F;
+  }
+  html{font-size:16px;-webkit-text-size-adjust:100%}
+  body{font-family:'Inter',sans-serif;background:#E8E5DE;color:var(--ink);
+    -webkit-font-smoothing:antialiased;line-height:1.45;letter-spacing:-.01em}
+  .device{max-width:430px;margin:0 auto;min-height:100vh;background:var(--paper);
+    position:relative;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.18)}
+
+  /* top bar */
+  .bar{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;position:sticky;top:0;z-index:20;
+    background:rgba(246,244,239,.86);backdrop-filter:blur(14px)}
+  .bar .ico{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);
+    background:var(--card);display:grid;place-items:center;color:var(--ink);font-size:16px}
+  .bar .where{font-size:12.5px;font-weight:600;letter-spacing:.02em;text-align:center;line-height:1.2}
+  .bar .where small{display:block;font-weight:500;color:var(--ink-2);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase}
+
+  /* hero */
+  .hero{padding:26px 22px 8px}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-2);display:flex;align-items:center;gap:8px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--go);box-shadow:0 0 0 4px var(--go-wash)}
+  .verdict{font-family:'Fraunces',serif;font-weight:600;font-size:80px;line-height:.92;
+    letter-spacing:-.035em;margin:16px 0 0;color:var(--ink)}
+  .verdict em{font-style:italic;color:var(--go-deep)}
+  .lede{font-size:17px;color:var(--ink-2);margin:14px 0 0;max-width:30ch;font-weight:450}
+  .lede b{color:var(--ink);font-weight:600}
+
+  /* personal pill */
+  .yours{margin:22px 22px 0;background:var(--ink);color:#fff;border-radius:18px;
+    padding:18px 20px;display:flex;align-items:center;gap:14px}
+  .yours .big{font-family:'Fraunces',serif;font-size:42px;font-weight:600;line-height:1;color:#fff}
+  .yours .big b{color:#7DF0AE}
+  .yours p{font-size:13.5px;line-height:1.35;color:rgba(255,255,255,.78)}
+  .yours p b{color:#fff;font-weight:600}
+
+  /* stat strip */
+  .stats{display:flex;margin:20px 22px 0;background:var(--card);border:1px solid var(--line);
+    border-radius:16px;overflow:hidden}
+  .stat{flex:1;padding:15px 16px;border-right:1px solid var(--line)}
+  .stat:last-child{border-right:0}
+  .stat .n{font-family:'Fraunces',serif;font-size:27px;font-weight:600;line-height:1}
+  .stat .n .pct{font-size:16px;color:var(--ink-2)}
+  .stat .l{font-size:11px;color:var(--ink-2);margin-top:5px;letter-spacing:.01em}
+  .trend{color:var(--go-deep);font-weight:600}
+
+  /* your shops carousel */
+  .sec-h{display:flex;align-items:baseline;justify-content:space-between;padding:30px 22px 12px}
+  .sec-h h2{font-family:'Fraunces',serif;font-size:21px;font-weight:600;letter-spacing:-.02em}
+  .sec-h a{font-size:12.5px;color:var(--go-deep);font-weight:600;text-decoration:none}
+  .rail{display:flex;gap:12px;overflow-x:auto;padding:0 22px 4px;scrollbar-width:none}
+  .rail::-webkit-scrollbar{display:none}
+  .yt{min-width:130px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px 15px 16px}
+  .mono{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+    font-weight:700;font-size:15px;color:#fff;letter-spacing:-.02em;margin-bottom:30px}
+  .yt .bn{font-size:14px;font-weight:600;letter-spacing:-.01em}
+  .yt .off{font-size:13px;color:var(--go-deep);font-weight:600;margin-top:3px}
+  .yt .age{font-size:11px;color:var(--ink-2);margin-top:9px}
+
+  /* full list */
+  .list{margin:14px 14px 0;background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+  .row{display:flex;align-items:center;gap:13px;padding:14px 16px;border-top:1px solid var(--line)}
+  .row:first-child{border-top:0}
+  .row .mn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;flex:none}
+  .row .nm{font-size:15px;font-weight:600;flex:1;letter-spacing:-.01em}
+  .row .nm small{display:block;font-weight:500;color:var(--ink-2);font-size:11.5px;margin-top:1px}
+  .row .of{font-size:13.5px;font-weight:600;color:var(--go-deep);text-align:right}
+  .row .of small{display:block;color:var(--ink-2);font-weight:500;font-size:11px;margin-top:1px}
+
+  /* sticky CTA */
+  .cta{position:sticky;bottom:0;padding:14px 18px calc(16px + env(safe-area-inset-bottom));
+    background:linear-gradient(transparent,var(--paper) 26%);margin-top:24px}
+  .cta button{width:100%;border:0;border-radius:16px;background:var(--go);color:#fff;
+    font-family:'Inter',sans-serif;font-size:16px;font-weight:600;padding:17px;letter-spacing:.01em;
+    box-shadow:0 10px 24px rgba(11,180,99,.32);cursor:pointer}
+  .foot{text-align:center;font-size:11px;color:var(--ink-2);padding:0 0 14px}
+  .switch{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:60;
+    background:rgba(21,19,15,.9);color:#fff;border-radius:100px;padding:9px 16px;font-size:12px;
+    text-decoration:none;font-weight:600;backdrop-filter:blur(8px)}
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="bar">
+    <div class="ico">‹</div>
+    <div class="where">Westfield London<small>Shepherd's Bush</small></div>
+    <div class="ico">↗</div>
+  </div>
+
+  <section class="hero">
+    <div class="eyebrow"><span class="dot"></span>Verified yesterday</div>
+    <h1 class="verdict">Go <em>now.</em></h1>
+    <p class="lede">Best window in two weeks — <b>25 of 40 shops</b> are running sales and it's still climbing.</p>
+  </section>
+
+  <div class="yours">
+    <div class="big"><b>4</b></div>
+    <p><b>of your shops are on sale</b><br>Reiss, Hugo Boss, Levi's &amp; The North Face</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="n">25<span class="pct">/40</span></div><div class="l">shops on sale</div></div>
+    <div class="stat"><div class="n trend">+16</div><div class="l">vs. two weeks ago</div></div>
+    <div class="stat"><div class="n">63<span class="pct">%</span></div><div class="l">tide score</div></div>
+  </div>
+
+  <div class="sec-h"><h2>Your shops</h2><a href="#">Edit ›</a></div>
+  <div class="rail">
+    <div class="yt"><div class="mono" style="background:#1B1B1B">R</div><div class="bn">Reiss</div><div class="off">Up to 50%</div><div class="age">Started 2 days ago</div></div>
+    <div class="yt"><div class="mono" style="background:#0A0A0A">HB</div><div class="bn">Hugo Boss</div><div class="off">Up to 40%</div><div class="age">Started 4 days ago</div></div>
+    <div class="yt"><div class="mono" style="background:#C8102E">L</div><div class="bn">Levi's</div><div class="off">Up to 60%</div><div class="age">Started 6 days ago</div></div>
+    <div class="yt"><div class="mono" style="background:#1A1A1A">NF</div><div class="bn">North Face</div><div class="off">Up to 40%</div><div class="age">Started 5 days ago</div></div>
+  </div>
+
+  <div class="sec-h"><h2>Everything on sale</h2><a href="#">25 shops</a></div>
+  <div class="list">
+    <div class="row"><div class="mn" style="background:#111">P</div><div class="nm">Pandora<small>Accessories</small></div><div class="of">Up to 50%<small>2 days</small></div></div>
+    <div class="row"><div class="mn" style="background:#1B1B1B">R</div><div class="nm">Reiss<small>Premium</small></div><div class="of">Up to 50%<small>2 days</small></div></div>
+    <div class="row"><div class="mn" style="background:#000">CK</div><div class="nm">Calvin Klein<small>Premium</small></div><div class="of">Up to 40%<small>3 days</small></div></div>
+    <div class="row"><div class="mn" style="background:#8E1B3A">AS</div><div class="nm">Ann Summers<small>Lingerie</small></div><div class="of">Up to 50%<small>4 days</small></div></div>
+    <div class="row"><div class="mn" style="background:#C8102E">L</div><div class="nm">Levi's<small>Denim</small></div><div class="of">Up to 60%<small>6 days</small></div></div>
+  </div>
+
+  <div class="cta">
+    <button>See all 25 sales</button>
+    <div class="foot" style="padding-top:10px">Updated daily · Live admin-verified data</div>
+  </div>
+</div>
+<a class="switch" href="/prototypes.html">↔ Switch direction</a>
+</body>
+</html>

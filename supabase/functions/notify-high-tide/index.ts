@@ -76,19 +76,16 @@ function daysOnSale(r: SaleEventRow, today: string): number {
   return Math.max(1, Math.floor((now - start) / 86400000) + 1);
 }
 
-// True only on the day a brand's sale begins. Admin-verified cycles carry an
-// explicit start_date that is fixed for the life of the cycle (admin.html's
-// confirm_start reuses an open cycle rather than reopening one, so re-
-// confirming a live sale never moves this date). Brands verified on without a
-// cycle fall back to date_first_detected — the IMMUTABLE first-seen date, NOT
-// last_verified_date. last_verified_date is bumped to today by every admin
-// re-verification (confirm_on, edits, …); keying off it re-armed this "started
-// today" signal each time a no-cycle sale was re-affirmed, re-sending the
-// brand-sale alert. Both keys are now stable for the cycle's lifetime, so this
-// stays true for exactly one day and doubles as send-once dedup.
-function startedToday(r: SaleEventRow, today: string): boolean {
-  if (r.active_cycle_id) return r.cycle?.start_date === today;
-  return isOnSale(r) && r.date_first_detected === today;
+// Stable per-(brand,sale) dedup key for the brand-sale pass. The brand-sale
+// alert is sent once per sale per user (tracked in brand_sale_notifications),
+// so this key must be fixed for the life of one sale. Admin-verified cycles use
+// active_cycle_id (a new cycle = a new sale = a new alert). No-cycle sales fall
+// back to date_first_detected — the IMMUTABLE first-seen date, NOT
+// last_verified_date (which every admin re-verification bumps to today and
+// would re-arm the alert). So a sale that ends and restarts later earns a fresh
+// key (and a fresh alert), which is intended.
+function saleKeyFor(r: SaleEventRow): string {
+  return r.active_cycle_id ?? `nocycle:${r.brand_id}:${r.date_first_detected ?? "na"}`;
 }
 
 function brandMatchesPrefs(b: BrandRow, p: PrefsRow): boolean {
@@ -241,14 +238,14 @@ export function renderBrandSaleEmail(opts: {
   discount?: string;
 }): { subject: string; html: string; text: string } {
   const { brandName, centre1, centre2, discount } = opts;
-  const subject = `${brandName} just started a sale`;
+  const subject = `${brandName} is on sale`;
   const locationPhrase = centre2 ? `${centre1} and ${centre2}` : centre1;
   const previewText = `On now at ${locationPhrase}.${discount ? ` Up to ${discount} off.` : ''}`;
 
-  const bodyParagraph = `${discount ? `Up to ${escapeHtml(discount)} off. ` : ''}On now at ${escapeHtml(centre1)}${centre2 ? ` and ${escapeHtml(centre2)}` : ''}. Worth knowing early in the cycle.`;
+  const bodyParagraph = `${discount ? `Up to ${escapeHtml(discount)} off. ` : ''}On now at ${escapeHtml(centre1)}${centre2 ? ` and ${escapeHtml(centre2)}` : ''}.`;
 
   const bodyHtml = `
-    <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${LEAF};margin:0 0 16px;line-height:1.25">${escapeHtml(brandName)} just went on sale.</div>
+    <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${LEAF};margin:0 0 16px;line-height:1.25">${escapeHtml(brandName)} is on sale.</div>
     <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">${bodyParagraph}</p>
     <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See the full picture &rarr;</a>`;
 
@@ -259,15 +256,15 @@ export function renderBrandSaleEmail(opts: {
     unsubLabel: 'Brand Sale Alerts',
   });
 
-  const text = `${brandName} just went on sale.\n\n${discount ? `Up to ${discount} off. ` : ''}On now at ${locationPhrase}. Worth knowing early in the cycle.\n\nSee the full picture: ${APP_URL}`;
+  const text = `${brandName} is on sale.\n\n${discount ? `Up to ${discount} off. ` : ''}On now at ${locationPhrase}.\n\nSee the full picture: ${APP_URL}`;
 
   return { subject, html, text };
 }
 
 // Multi-brand sibling of renderBrandSaleEmail. When more than one of a user's
-// followed brands starts a sale on the same day we send ONE summary email
-// listing them all, instead of N separate "X just started a sale" messages.
-// The single-brand path above still handles the one-brand case.
+// followed brands has an un-sent active sale on a given run we send ONE summary
+// email listing them all, instead of N separate "X is on sale" messages. The
+// single-brand path above still handles the one-brand case.
 export function renderBrandSaleDigestEmail(opts: {
   brands: { brandName: string; centre1: string; centre2?: string; discount?: string }[];
 }): { subject: string; html: string; text: string } {
@@ -277,7 +274,7 @@ export function renderBrandSaleDigestEmail(opts: {
   const nameList = names.length === 2
     ? `${names[0]} and ${names[1]}`
     : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-  const subject = `${n} of your shops just started a sale`;
+  const subject = `${n} of your shops are on sale`;
   const previewText = `${nameList} — on now.`;
 
   const rows = brands.map((b, i, arr) => {
@@ -291,8 +288,8 @@ export function renderBrandSaleDigestEmail(opts: {
   }).join('');
 
   const bodyHtml = `
-    <div style="font-family:Georgia,serif;font-size:26px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">${n} of your shops just went on sale.</div>
-    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 8px;max-width:420px">All starting their sale today — worth knowing early in the cycle.</p>
+    <div style="font-family:Georgia,serif;font-size:26px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">${n} of your shops are on sale.</div>
+    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 8px;max-width:420px">All on now — here's where to find them.</p>
     <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:20px 0 0">
     ${rows}
     <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See the full picture &rarr;</a>`;
@@ -305,7 +302,7 @@ export function renderBrandSaleDigestEmail(opts: {
   });
 
   const textLines = [
-    `${n} of your shops just went on sale.`,
+    `${n} of your shops are on sale.`,
     '',
     ...brands.map(b => `${b.brandName} — ${b.discount ? `up to ${b.discount} off, ` : ''}on now at ${b.centre2 ? `${b.centre1} and ${b.centre2}` : b.centre1}`),
     '',
@@ -467,7 +464,7 @@ Deno.serve(async (req: Request) => {
   const yesterday = new Date(new Date(today).getTime() - 86400000).toISOString().split("T")[0];
 
   // 1. Today's centre scores + centre names + brands.
-  const [scoresRes, centresRes, brandsRes, salesRes, centreBrandsRes, prefsRes] = await Promise.all([
+  const [scoresRes, centresRes, brandsRes, salesRes, centreBrandsRes, prefsRes, saleNotifsRes] = await Promise.all([
     sb.from("centre_seer_scores")
       .select("centre_id, tide_score, verdict, bluf, trajectory, brands_on_sale")
       .eq("score_date", today),
@@ -481,9 +478,14 @@ Deno.serve(async (req: Request) => {
     // Each pass filters saved_centres / brand_ids in-code.
     sb.from("user_preferences")
       .select("user_id, womenswear, menswear, childrenswear, style_clusters, saved_centres, brand_ids, excluded_brand_ids, email_alerts, brand_sale_alerts, daily_digest"),
+    // Send-once dedup for the brand-sale pass: which (user, sale) pairs have
+    // already been emailed. Skipped on the Friday digest-only run.
+    digestOnly
+      ? Promise.resolve({ data: [], error: null })
+      : sb.from("brand_sale_notifications").select("user_id, sale_key"),
   ]);
 
-  for (const [name, r] of [["scores", scoresRes], ["centres", centresRes], ["brands", brandsRes], ["sales", salesRes], ["centre_brands", centreBrandsRes], ["prefs", prefsRes]] as const) {
+  for (const [name, r] of [["scores", scoresRes], ["centres", centresRes], ["brands", brandsRes], ["sales", salesRes], ["centre_brands", centreBrandsRes], ["prefs", prefsRes], ["sale_notifs", saleNotifsRes]] as const) {
     if (r.error) return new Response(`Supabase ${name} read failed: ${r.error.message}`, { status: 500 });
   }
 
@@ -498,6 +500,11 @@ Deno.serve(async (req: Request) => {
     brandsAtCentre.set(cb.centre_id, list);
   }
   const allPrefs: PrefsRow[] = prefsRes.data || [];
+  // "${user_id}::${sale_key}" for every brand-sale already emailed to a user.
+  const sentSet = new Set<string>(
+    (saleNotifsRes.data as { user_id: string; sale_key: string }[] | null || [])
+      .map(n => `${n.user_id}::${n.sale_key}`),
+  );
 
   // Build email lookup for users with saved_centres. Need to call the auth
   // admin API because user_preferences only stores user_id.
@@ -516,9 +523,8 @@ Deno.serve(async (req: Request) => {
   //
   // Send-once gate: a centre can sit at Peak for several days, but the alert
   // must fire only on the day it FIRST reaches Peak — otherwise a multi-day
-  // peak emails saved-centre users every morning it lasts. Mirrors the
-  // brand-sale pass's `startedToday` one-shot logic. We treat "Peak today but
-  // not Peak yesterday" as the fresh-peak signal; a centre that dips out of
+  // peak emails saved-centre users every morning it lasts. We treat "Peak today
+  // but not Peak yesterday" as the fresh-peak signal; a centre that dips out of
   // Peak and climbs back later earns a new alert, which is intended.
   let peakYesterday = new Set<string>();
   if (!digestOnly) {
@@ -581,9 +587,13 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // 2b. BRAND-SALE ALERTS. (daily run only) "Started today" is true for
-  //     exactly one day, so each follower gets one email per brand per cycle
-  //     without any separate sent-state table.
+  // 2b. BRAND-SALE ALERTS. (daily run only) Sent-state model: each daily run
+  //     gathers every currently-on-sale followed brand a user has NOT yet been
+  //     emailed about (dedup via brand_sale_notifications, keyed by saleKeyFor),
+  //     combines them into ONE email, and records what was sent so the same sale
+  //     is never re-sent. This replaces the old "started today" one-shot: it
+  //     also catches sales the daily run missed (function stale that day) and
+  //     brands a user starts following after the sale began.
   const centresForBrand = new Map<string, string[]>();
   for (const [centreId, brandIds] of brandsAtCentre) {
     for (const bid of brandIds) {
@@ -592,21 +602,22 @@ Deno.serve(async (req: Request) => {
       centresForBrand.set(bid, list);
     }
   }
-  const startedBrands = digestOnly ? [] : Array.from(salesById.values())
-    .filter(s => startedToday(s, today))
+  const activeBrands = digestOnly ? [] : Array.from(salesById.values())
+    .filter(s => isOnSale(s))
     .map(s => ({ sale: s, brand: brandsById.get(s.brand_id) }))
     .filter((x): x is { sale: SaleEventRow; brand: BrandRow } => !!x.brand);
-  // Accumulate per user so that a user with several followed brands starting
-  // a sale today receives ONE summary email rather than one per brand. We walk
-  // started brands (outer) to reuse the per-brand recipient + centre-pick
-  // logic, then group the resulting items by user id (preserving brand order)
-  // and send once below.
+  // Accumulate per user so a user with several un-sent on-sale brands receives
+  // ONE summary email rather than one per brand. We walk active brands (outer)
+  // to reuse the per-brand recipient + centre-pick logic, drop any (user, sale)
+  // already emailed, then group the surviving items by user id (preserving
+  // brand order) and send once below.
   type BrandSaleItem = { brandName: string; centre1: string; centre2?: string; discount?: string };
-  const perUser = new Map<string, { p: PrefsRow; items: BrandSaleItem[] }>();
-  for (const { sale, brand } of startedBrands) {
+  const perUser = new Map<string, { p: PrefsRow; items: BrandSaleItem[]; keys: string[] }>();
+  for (const { sale, brand } of activeBrands) {
     const pct = (sale.active_cycle_id && sale.cycle?.max_discount_pct != null)
       ? sale.cycle!.max_discount_pct
       : (sale.max_discount_pct ?? null);
+    const saleKey = saleKeyFor(sale);
     const brandCentreIds = centresForBrand.get(brand.id) || [];
     const recipients = allPrefs.filter(p => {
       if (p.brand_sale_alerts === false) return false;
@@ -615,6 +626,8 @@ Deno.serve(async (req: Request) => {
       return followed.size > 0 ? followed.has(brand.id) : brandMatchesPrefs(brand, p);
     });
     for (const p of recipients) {
+      // Send-once: skip a sale this user has already been emailed about.
+      if (sentSet.has(`${p.user_id}::${saleKey}`)) continue;
       // Prefer the user's own saved centres that carry the brand; fall back
       // to any centre stocking it.
       const saved = new Set(p.saved_centres);
@@ -623,12 +636,16 @@ Deno.serve(async (req: Request) => {
         .map(cid => centres.get(cid))
         .filter((n): n is string => !!n);
       if (pick.length === 0) { log.push({ type: "brand", to: emailById.get(p.user_id), brand: brand.name, skipped: "no centre carries brand" }); continue; }
-      const entry = perUser.get(p.user_id) || { p, items: [] };
+      const entry = perUser.get(p.user_id) || { p, items: [], keys: [] };
       entry.items.push({ brandName: brand.name, centre1: pick[0], centre2: pick[1], discount: pct ? `${pct}%` : undefined });
+      entry.keys.push(saleKey);
       perUser.set(p.user_id, entry);
     }
   }
-  for (const { p, items } of perUser.values()) {
+  // Sales successfully emailed this run, recorded after the send loop so a sale
+  // is only marked sent once its email actually went out.
+  const sentRows: { user_id: string; sale_key: string }[] = [];
+  for (const { p, items, keys } of perUser.values()) {
     const to = emailById.get(p.user_id);
     if (!to) { log.push({ type: "brand", skipped: `no email for user ${p.user_id}`, brands: items.map(i => i.brandName) }); continue; }
     const { subject, html, text } = items.length === 1
@@ -637,7 +654,18 @@ Deno.serve(async (req: Request) => {
     if (dryRun) { log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: true, skipped: "dryRun" }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
     log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: result.ok, status: result.status });
-    if (result.ok) brandAlertsSent++;
+    if (result.ok) {
+      brandAlertsSent++;
+      for (const sale_key of keys) sentRows.push({ user_id: p.user_id, sale_key });
+    }
+  }
+  // Persist send-once state. ignoreDuplicates so a concurrent run can't error on
+  // the (user_id, sale_key) PK; a failed write just means a possible re-send
+  // next run, never a crash.
+  if (sentRows.length > 0) {
+    const { error: notifErr } = await sb.from("brand_sale_notifications")
+      .upsert(sentRows, { onConflict: "user_id,sale_key", ignoreDuplicates: true });
+    if (notifErr) log.push({ type: "brand", warn: `failed to record ${sentRows.length} sent notifications: ${notifErr.message}` });
   }
 
   // 3. WEEKEND DIGEST. Sent only on the Friday 19:00 UTC invocation
@@ -683,7 +711,7 @@ Deno.serve(async (req: Request) => {
     brandAlertsSent,
     digestsSent,
     highTideCentres: highTideCentres.length,
-    brandsStartedToday: startedBrands.length,
+    activeBrandsOnSale: activeBrands.length,
     eligibleUsers: allPrefs.length,
     log,
   }, null, 2), {

@@ -67,6 +67,7 @@ const argv = process.argv.slice(2);
 // the very patterns they defend against).
 const SELF = [
   'scripts/guard-no-data-reset.mjs',
+  'scripts/audit-data-provenance.mjs',          // read-only; documents the patterns
   'supabase/migrations/20260626_protect_data_from_reset.sql',
 ];
 const files = (argv.length ? argv : listTrackedFiles())

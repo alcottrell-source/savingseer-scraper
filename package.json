@@ -15,7 +15,8 @@
     "test": "node --test test/*.test.mjs",
     "test:e2e": "playwright test",
     "guard": "node scripts/guard-no-data-reset.mjs",
-    "readiness": "node scripts/tide-data-readiness.mjs"
+    "readiness": "node scripts/tide-data-readiness.mjs",
+    "audit:provenance": "node scripts/audit-data-provenance.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",

@@ -134,6 +134,9 @@
   .state-value.dim { color: var(--stone); font-style: italic; }
   .state-pct { color: var(--amber); font-weight: 500; }
   .state-type { display: inline-block; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--bark); background: var(--stone-lt); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; }
+  .change-trail { font-size: 12px; line-height: 1.5; padding: 0 0 10px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .change-item { color: var(--bark); }
+  .change-item .change-when { color: var(--stone); font-style: italic; margin-right: 6px; }
 
   .row-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .row-actions.with-end { grid-template-columns: 1fr 1fr 1fr; }
@@ -500,16 +503,27 @@ async function onSignedIn(session) {
 // ── Data load ──────────────────────────────────────────────────────────────
 async function loadAndRender() {
   showStatus('Loading…');
-  const [eventsRes, cyclesRes, reviewsRes, reportsRes] = await Promise.all([
+  const [eventsRes, cyclesRes, reviewsRes, reportsRes, changesRes] = await Promise.all([
     pg.read('brand_sale_events?select=brand_id,max_discount_pct,sale_type,last_verified_date,last_verified_status,active_cycle_id'),
     pg.read('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct,sale_type&end_date=is.null'),
     pg.read('admin_review_log?select=brand_id,action,created_at&reviewed_date=eq.' + TODAY),
     // Advisory user-report signal. Tolerant: if the view/migration isn't
     // live yet this stays empty and the panel works exactly as before.
     pg.read('user_reports_24h_summary?select=*'),
+    // Intra-cycle %/type change trail, newest first. Tolerant of the migration
+    // not being live yet — the trail just doesn't render then.
+    pg.read('brand_sale_cycle_changes?select=cycle_id,changed_date,old_max_discount_pct,new_max_discount_pct,old_sale_type,new_sale_type,created_at&order=created_at.desc'),
   ]);
   if (reportsRes.error) {
     console.warn('user_reports_24h_summary unavailable (panel still works):', reportsRes.error.message);
+  }
+  if (changesRes.error) {
+    console.warn('brand_sale_cycle_changes unavailable (change trail hidden):', changesRes.error.message);
+  }
+  // Group the change trail by cycle so each card can show its own history.
+  const changesByCycle = {};
+  for (const c of (changesRes.data || [])) {
+    (changesByCycle[c.cycle_id] = changesByCycle[c.cycle_id] || []).push(c);
   }
   // The view is keyed by (brand_id, centre_id); the card is per-brand, so
   // fold every centre's row for a brand into one advisory aggregate.
@@ -544,7 +558,8 @@ async function loadAndRender() {
     const cycle = ev.active_cycle_id ? cycleById.get(ev.active_cycle_id) : null;
     const review = reviewByBrand.get(ev.brand_id);
     const reports = reportsByBrand[ev.brand_id] || null;
-    const row = { ev, def, cycle, review, reports };
+    const changes = cycle ? (changesByCycle[cycle.id] || null) : null;
+    const row = { ev, def, cycle, review, reports, changes };
     if (review) {
       confirmed.push(row);
     } else {
@@ -781,8 +796,36 @@ function renderContextualButton(reports, ev, cycle) {
   return '';
 }
 
+// One change row → a short human phrase, e.g. "50% → 60%" or "% off → Flash".
+// A change touches the % side, the type side, or both; render whichever moved.
+function formatCycleChange(c) {
+  const parts = [];
+  if (c.new_max_discount_pct != null || c.old_max_discount_pct != null) {
+    const from = c.old_max_discount_pct != null ? c.old_max_discount_pct + '%' : '—';
+    const to   = c.new_max_discount_pct != null ? c.new_max_discount_pct + '%' : '—';
+    parts.push(from + ' → ' + to);
+  }
+  if (c.new_sale_type || c.old_sale_type) {
+    const from = SALE_TYPE_SHORT[c.old_sale_type] || c.old_sale_type || '—';
+    const to   = SALE_TYPE_SHORT[c.new_sale_type] || c.new_sale_type || '—';
+    parts.push(from + ' → ' + to);
+  }
+  return parts.join(' · ');
+}
+
+// Compact "Changes" cell — the intra-cycle %/type history, newest first.
+// Rendered only when the open cycle has logged at least one change.
+function renderChangeTrail(changes) {
+  if (!changes || !changes.length) return '';
+  const items = changes.map(c =>
+    '<div class="change-item"><span class="change-when">' + esc(relDate(c.changed_date)) + '</span> '
+    + esc(formatCycleChange(c)) + '</div>'
+  ).join('');
+  return '<div class="row-state-cell change-trail"><div class="state-label">Changes</div>' + items + '</div>';
+}
+
 // ── Row renderer ──────────────────────────────────────────────────────────
-function renderRow({ ev, def, cycle, review, reports, queue }, isConfirmed) {
+function renderRow({ ev, def, cycle, review, reports, queue, changes }, isConfirmed) {
   const tier = ANCHOR_BRAND_IDS.has(ev.brand_id) ? 'Anchor' : (def.cluster || '');
   const tierClass = ANCHOR_BRAND_IDS.has(ev.brand_id) ? ' anchor' : '';
 
@@ -832,6 +875,7 @@ function renderRow({ ev, def, cycle, review, reports, queue }, isConfirmed) {
         '<div class="row-state-cell"><div class="state-label">Verified</div>' + verifiedHtml + '</div>' +
         '<div class="row-state-cell"><div class="state-label">Users</div>' + usersHtml + '</div>' +
       '</div>' +
+      renderChangeTrail(changes) +
       distHtml +
       contextualHtml +
       actions +
@@ -1242,6 +1286,37 @@ async function triggerRescore() {
   });
 }
 
+// Record an intra-cycle change to the discount % and/or sale type. The same
+// sale cycle stays open — only its terms moved (e.g. 50% → 60%, or % off →
+// flash). Writes one row to brand_sale_cycle_changes, but ONLY when a value
+// actually changed: a no-op edit (identical %/type, or a start-date-only edit)
+// writes nothing, so the trail stays meaningful. Treats null/'' as "no change"
+// rather than a value transition so partially-filled forms don't log noise.
+async function recordCycleChange(brandId, cycleId, prev, next) {
+  if (!cycleId) return;
+  const oldPct = Number.isFinite(prev.pct) ? prev.pct : null;
+  const newPct = Number.isFinite(next.pct) ? next.pct : null;
+  const oldType = prev.sale_type || 'percent_off';
+  const newType = next.sale_type || 'percent_off';
+  const pctMoved  = oldPct !== newPct;
+  const typeMoved = oldType !== newType;
+  if (!pctMoved && !typeMoved) return;
+  const { error } = await pg.insert('brand_sale_cycle_changes', {
+    cycle_id: cycleId,
+    brand_id: brandId,
+    changed_date: TODAY,
+    // Only fill the side of the pair that actually moved — a pure % change
+    // leaves the type columns null, and vice-versa, so the trail reads cleanly.
+    old_max_discount_pct: pctMoved ? oldPct : null,
+    new_max_discount_pct: pctMoved ? newPct : null,
+    old_sale_type: typeMoved ? oldType : null,
+    new_sale_type: typeMoved ? newType : null,
+  });
+  // Non-fatal: the cycle itself is already updated. If the audit insert fails
+  // (e.g. migration not yet live) the edit still stands — just log it.
+  if (error) console.warn('Cycle change log insert failed (edit still saved):', error.message || error);
+}
+
 async function applyAction(brandId, action, opts) {
   if (action === 'confirm_start') {
     // Reuse an already-open cycle instead of inserting a duplicate. A brand
@@ -1255,7 +1330,7 @@ async function applyAction(brandId, action, opts) {
     // start_date (the sale didn't restart). A genuinely new sale only reaches
     // the insert path once the prior cycle has been end-dated (confirm_end).
     const { data: openCycles, error: lookupErr } = await pg.read(
-      'brand_sale_cycles?select=id,start_date&brand_id=eq.' + brandId + '&end_date=is.null&order=start_date.desc&limit=1'
+      'brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type&brand_id=eq.' + brandId + '&end_date=is.null&order=start_date.desc&limit=1'
     );
     if (lookupErr) throw lookupErr;
     const existing = (openCycles || [])[0];
@@ -1269,6 +1344,11 @@ async function applyAction(brandId, action, opts) {
       });
       if (cErr) throw cErr;
       cycleId = existing.id;
+      // Re-confirming an open cycle with a different %/type is the same sale
+      // deepening or shifting shape — log the transition for the change trail.
+      await recordCycleChange(brandId, cycleId,
+        { pct: existing.max_discount_pct, sale_type: existing.sale_type },
+        { pct: opts.max_discount_pct, sale_type: opts.sale_type });
     } else {
       const { data: cycleRows, error: cErr } = await pg.insert('brand_sale_cycles', {
         brand_id: brandId,
@@ -1345,12 +1425,23 @@ async function applyAction(brandId, action, opts) {
 
 async function applyEdit(brandId, cycleId, opts) {
   if (cycleId) {
+    // Read the pre-edit %/type so we can log an intra-cycle change. Reading
+    // from the DB (not the card's data-attrs) keeps the trail honest even if
+    // the panel is mid-refresh. start_date edits are deliberately NOT logged —
+    // the change trail tracks sale terms (%/type), not date corrections.
+    const { data: beforeRows } = await pg.read(
+      'brand_sale_cycles?select=max_discount_pct,sale_type&id=eq.' + cycleId + '&limit=1'
+    );
+    const before = (beforeRows || [])[0] || {};
     const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + cycleId, {
       start_date: opts.start_date,
       max_discount_pct: opts.max_discount_pct,
       sale_type: opts.sale_type || 'percent_off',
     });
     if (cErr) throw cErr;
+    await recordCycleChange(brandId, cycleId,
+      { pct: before.max_discount_pct, sale_type: before.sale_type },
+      { pct: opts.max_discount_pct, sale_type: opts.sale_type });
   }
   // Mirror max_discount_pct + sale_type on brand_sale_events as a denormalised
   // cache for admin queries (the main app reads them from the cycle, not here).

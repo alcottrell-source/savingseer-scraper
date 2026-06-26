@@ -25,7 +25,7 @@
 <meta name="twitter:image" content="https://tidego.co/og-default.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Pinned to an exact version (was floating @2): a no-build static site that
      loads its auth/data SDK from a CDN must not silently take a new major.
      SECURITY FAST-FOLLOW: add Subresource Integrity. Generate the hash from
@@ -45,13 +45,20 @@
     /* Shared elevation for neutral white content cards on the cream bg */
     --card-border: 1px solid rgba(44,24,16,0.14);
     --card-elev: 0 1px 2px rgba(44,24,16,0.06), 0 10px 30px rgba(44,24,16,0.10);
-    /* Trading-212-style bright green: pops on cream and on dark surfaces.
-       Pairs with --tide-neon (which is reserved for dark cards). */
-    --green-bright: #00A862; --green-bright-lt: #E0F4EA;
+    /* One green per surface (Jun 2026 brand convergence):
+       --leaf      = the action/brand green on LIGHT surfaces (buttons, links, value).
+       --tide-neon = the signal green on DARK surfaces (the tide line, "go").
+       The former --green-bright / -deep / -light are now ALIASES onto leaf so
+       the ~80 call sites keep working while the palette reads as a single green. */
+    --green-bright: var(--leaf); --green-bright-lt: var(--leaf-lt);
     /* Rebrand additions (additive, opt-in by component) */
     --ink: #14110E; --ink-mid: #2E2823; --ink-light: #5C5048;
     --gold: #B8935A; --gold-light: #D4AF78;
-    --green-deep: #3A6B4A; --green-light: #5A8C6A;
+    --green-deep: #2F5428; --green-light: var(--leaf);
+    /* Motion scale — transitions route through these so the app moves like one
+       thing. dur-1 = micro (taps/hovers), dur-2 = element, ease-out = shared curve. */
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --dur-1: 150ms; --dur-2: 240ms;
     --tide-cream: #F5F1EB; --tide-cream-dark: #EDE8E0;
     --tide-card-bg: rgba(253,250,247,0.9);
     --tide-border: rgba(26,22,18,0.08);
@@ -62,8 +69,12 @@
     --tide-neon-glow: 0 0 10px rgba(94,255,176,0.55), 0 0 22px rgba(94,255,176,0.22);
   }
   html { font-size: 16px; }
-  /* Mall line-art bg, home page only. Translucent cream wash on top fades it. */
-  body { background: linear-gradient(rgba(250,247,242,0.82), rgba(250,247,242,0.82)) center / cover fixed no-repeat, url('bg-mall.jpg') center / cover fixed no-repeat, var(--cream); color: var(--ink); font-family: 'Inter', sans-serif; font-weight: 400; font-size: 17px; line-height: 1.5; min-height: 100vh; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; letter-spacing: -0.005em; }
+  /* Unified calm cream canvas (Jun 2026): the generic mall line-art photo was
+     retired — it added scroll-jank (two fixed cover layers over a 188KB JPG),
+     a desktop "marooned column" look, and a second visual language. A single
+     warm cream with a whisper of top-light depth is now the ground for BOTH the
+     landing and the centre view; the dark tide vessel is the jewel against it. */
+  body { background: linear-gradient(180deg, #FCFBF7 0%, var(--cream) 32%) var(--cream); background-repeat: no-repeat; color: var(--ink); font-family: 'Inter', sans-serif; font-weight: 400; font-size: 17px; line-height: 1.5; min-height: 100vh; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; letter-spacing: -0.005em; }
   body.is-centre-view { background: var(--cream); }
   header, .picker-section, #main-content, footer, .home-info, .survey-card { position: relative; z-index: 1; }
   header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: rgba(250,247,242,0.92); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); z-index: 100; }
@@ -71,7 +82,7 @@
   .wordmark span { color: var(--leaf); }
   .header-right { display: flex; align-items: center; gap: 14px; }
   .tagline { font-size: 12px; color: var(--stone); letter-spacing: 0.06em; text-transform: uppercase; }
-  .auth-btn { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: var(--tide-cream); background: var(--ink); border: 1px solid var(--ink); border-radius: 100px; padding: 7px 16px; cursor: pointer; transition: background 0.2s, transform 0.15s; white-space: nowrap; }
+  .auth-btn { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: var(--tide-cream); background: var(--ink); border: 1px solid var(--ink); border-radius: 100px; padding: 7px 16px; cursor: pointer; transition: background var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); white-space: nowrap; }
   .auth-btn:hover { background: var(--ink-mid); }
   .auth-btn:active { transform: scale(0.97); }
   .picker-section { padding: 56px 24px 28px; max-width: 560px; margin: 0 auto; text-align: center; }
@@ -89,6 +100,15 @@
     .search-hero-headline { font-size: 30px; margin-bottom: 12px; }
     .search-hero-sub { font-size: 14px; margin-bottom: 20px; }
     .centre-search { font-size: 15px; padding: 14px 18px 14px 44px; background-position: 16px center; }
+  }
+  /* Desktop: give the landing intentional presence instead of a phone-width
+     column marooned in whitespace. Larger hero, more top-light breathing room,
+     a slightly wider reading measure for the search + content rail. */
+  @media (min-width: 768px) {
+    .picker-section { padding: 84px 24px 36px; max-width: 600px; }
+    .search-hero-headline { font-size: 52px; margin-bottom: 18px; }
+    .search-hero-sub { font-size: 18px; max-width: 500px; margin-bottom: 30px; }
+    .centre-search { padding: 18px 22px 18px 52px; font-size: 17px; }
   }
   .centre-suggestions { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: white; border: 1px solid var(--border); border-radius: 12px; margin: 0; padding: 6px 0; list-style: none; max-height: min(420px, 60vh); overflow-y: auto; box-shadow: 0 12px 32px rgba(28,26,20,0.18); z-index: 200; }
   .centre-suggestions[hidden] { display: none; }
@@ -248,7 +268,7 @@
   .auth-input { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 15px; color: var(--bark); background: white; margin-bottom: 10px; transition: border-color 0.2s; }
   .auth-input:focus { outline: none; border-color: var(--leaf); }
   .auth-error { background: var(--red-lt); color: var(--red); border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
-  .btn { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; border-radius: 8px; padding: 12px 20px; cursor: pointer; border: none; transition: background 0.2s, opacity 0.2s; width: 100%; margin-top: 8px; }
+  .btn { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; border-radius: 8px; padding: 12px 20px; cursor: pointer; border: none; transition: background var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out); width: 100%; margin-top: 8px; }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-primary { background: var(--leaf); color: white; }
   .btn-primary:hover:not(:disabled) { background: #2f5428; }
@@ -339,7 +359,7 @@
   .tide-vessel-verdict-word.tone-rise { color: #9FD8B0; }
   .tide-vessel-verdict-word.tone-fall { color: #F4B79F; }
   .tide-vessel-verdict-word.tone-wait { color: rgba(245,241,235,0.78); }
-  .tide-vessel-fact { font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 24px; line-height: 1.15; color: var(--tide-cream); letter-spacing: -0.01em; margin-bottom: 8px; }
+  .tide-vessel-fact { font-family: 'Inter', sans-serif; font-weight: 500; font-size: 21px; line-height: 1.2; color: var(--tide-cream); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; margin-bottom: 8px; }
   .tide-vessel-statement { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 400; line-height: 1.45; color: rgba(245,241,235,0.62); letter-spacing: 0; }
   .tide-vessel-statement.tone-go   { color: #FFD79A; }
   .tide-vessel-statement.tone-rise { color: rgba(159,216,176,0.85); }
@@ -386,8 +406,11 @@
   .tide-context-chip .cc-verdict.tone-rise { color: #9FD8B0; }
   .tide-context-chip .cc-verdict.tone-fall { color: #F4B79F; }
   .tide-context-chip .cc-verdict.tone-wait { color: rgba(245,241,235,0.70); }
-  /* Your-shops mode hero: subordinate "on sale" label beside the big personal %. */
-  .tide-vessel-headline-row .tide-vessel-pct-label { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 600; line-height: 1; color: rgba(245,241,235,0.72); }
+  /* Subordinate unit label beside the big %, so the number always carries its
+     meaning ("59%" alone reads as "59% off"; "59% of shops on sale" cannot).
+     Small uppercase caption, vertically centred; margin-right:auto pushes the
+     verdict word to the right edge of the row. */
+  .tide-vessel-headline-row .tide-vessel-pct-label { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; line-height: 1.25; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(245,241,235,0.6); align-self: center; margin-right: auto; }
   /* Flat black card + black chart panel — no verdict haze. The neon line is
      the hero; this kills the brown radial wash on the merged vessel. */
   .tide-vessel.tide-vessel--merged { background: #0B0B0D; box-shadow: 0 12px 44px rgba(0,0,0,0.5); }
@@ -398,43 +421,6 @@
   .tide-period-tab { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: rgba(245,241,235,0.5); background: transparent; border: none; padding: 7px 18px; border-radius: 9px; cursor: pointer; transition: background 0.15s, color 0.15s; }
   .tide-period-tab:hover { color: rgba(245,241,235,0.82); }
   .tide-period-tab.is-active { color: #5EFFB0; background: rgba(94,255,176,0.12); }
-
-  /* ── Landing hero showcase card (Jun 2026) ──────────────────────────
-     Static "this is what Tide tells you" proof card, shown above the fold
-     on the main page. Mirrors the dark centre-detail vessel aesthetic but
-     leads with a bold centre name, a "% on sale" headline, the gold verdict
-     word, the live shop count, and a 14-day growth pill. Showcase only —
-     not wired to live data; the real card is renderTideVessel(). */
-  .hero-card { position: relative; max-width: 560px; margin: 30px auto 10px; padding: 30px 32px 32px; background: #0B0B0D; border-radius: 26px; box-shadow: 0 18px 54px rgba(11,11,13,0.32); overflow: hidden; }
-  .hero-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 26px; }
-  .hero-card-name { font-family: 'Inter', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 0.01em; line-height: 1.15; color: var(--tide-cream); text-transform: uppercase; }
-  .hero-card-loc { font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; line-height: 1.2; color: rgba(245,241,235,0.36); text-transform: uppercase; margin-top: 5px; }
-  .hero-card-verified { display: inline-flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; color: #5FD6A6; white-space: nowrap; flex-shrink: 0; padding-top: 2px; }
-  .hero-card-dot { width: 9px; height: 9px; border-radius: 50%; background: #5FD6A6; box-shadow: 0 0 10px rgba(95,214,166,0.85); }
-  .hero-card-pct-row { display: flex; align-items: baseline; gap: 16px; margin-bottom: 4px; }
-  .hero-card-num { display: inline-flex; align-items: baseline; }
-  .hero-card-pct { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 88px; line-height: 0.9; letter-spacing: -0.03em; color: #F0EBE2; background: linear-gradient(180deg, #FFFFFF 30%, #C8C2B7); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .hero-card-pct-sign { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 42px; color: rgba(245,241,235,0.42); margin-left: 2px; }
-  .hero-card-onsale { font-family: 'Inter', sans-serif; font-size: 27px; font-weight: 400; color: rgba(245,241,235,0.58); }
-  .hero-card-verdict { font-family: 'Playfair Display', serif; font-style: italic; font-weight: 700; font-size: 70px; line-height: 1; letter-spacing: -0.01em; color: #E6B368; background: linear-gradient(180deg, #F1C681, #D99A44); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin: 12px 0 22px; }
-  .hero-card-count { font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 400; color: rgba(245,241,235,0.5); margin-bottom: 26px; }
-  .hero-card-count-sep { color: rgba(245,241,235,0.28); }
-  .hero-card-pill { display: inline-flex; align-items: center; gap: 9px; font-family: 'Inter', sans-serif; font-size: 21px; font-weight: 600; color: #5FD6A6; background: rgba(95,214,166,0.08); border: 1px solid rgba(95,214,166,0.22); border-radius: 100px; padding: 13px 26px; }
-  .hero-card-tri { font-size: 15px; line-height: 1; }
-  @media (max-width: 480px) {
-    .hero-card { margin: 22px auto 6px; padding: 24px 22px 26px; border-radius: 22px; }
-    .hero-card-top { margin-bottom: 22px; }
-    .hero-card-name { font-size: 17px; }
-    .hero-card-loc { font-size: 13px; }
-    .hero-card-verified { font-size: 13px; }
-    .hero-card-pct { font-size: 68px; }
-    .hero-card-pct-sign { font-size: 33px; }
-    .hero-card-onsale { font-size: 21px; }
-    .hero-card-verdict { font-size: 54px; margin: 8px 0 18px; }
-    .hero-card-count { font-size: 18px; margin-bottom: 22px; }
-    .hero-card-pill { font-size: 17px; padding: 11px 20px; gap: 8px; }
-    .hero-card-tri { font-size: 13px; }
-  }
 
   /* ── Auth modal: email-preview card on signup step ────────────── */
   .auth-email-preview { background: var(--leaf-lt); border: 1px solid rgba(61,107,53,0.18); border-radius: 12px; padding: 14px 16px; margin: 14px 0 18px; }
@@ -731,9 +717,9 @@
   .rank-list { list-style: none; margin: 0; padding: 0; }
   .rank-row { display: grid; grid-template-columns: 24px 1fr auto auto; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--border); }
   .rank-row:last-child { border-bottom: none; }
-  .rank-num { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--stone); font-variant-numeric: tabular-nums; }
+  .rank-num { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: var(--stone); font-variant-numeric: tabular-nums; }
   .rank-name { font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .rank-deal { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; color: var(--green-bright); white-space: nowrap; }
+  .rank-deal { font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 700; color: var(--leaf); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
   .rank-pill { font-size: 10px; letter-spacing: 0.08em; font-weight: 600; padding: 3px 8px; border-radius: 6px; border: 1px solid; text-transform: uppercase; }
   .rank-pill-new { color: var(--leaf); border-color: var(--leaf); background: var(--leaf-lt); }
   .rank-pill-old { color: var(--stone); border-color: var(--border); background: transparent; }
@@ -887,6 +873,29 @@
   .cookie-accept:hover { background: #2f5428; }
   .cookie-decline { background: transparent; color: rgba(250,247,242,0.8); border: 1px solid rgba(250,247,242,0.3); }
   .cookie-decline:hover { color: var(--cream); border-color: rgba(250,247,242,0.55); }
+
+  /* ── Graceful loading + failure states ──────────────────────────────
+     #main-content is JS-rendered; if the data layer is slow or the script
+     fails to boot, the page must never show a bare blank middle. A branded
+     skeleton holds the space on load, and a watchdog swaps in a friendly
+     retry state if nothing has rendered after a few seconds. */
+  .tide-skeleton { padding: 24px 24px 8px; max-width: 600px; margin: 0 auto; }
+  .sk-block { border-radius: 18px; background:
+      linear-gradient(100deg, #ECE7DF 30%, #F6F2EC 50%, #ECE7DF 70%);
+      background-size: 200% 100%; animation: skShimmer 1.4s ease-in-out infinite; }
+  .sk-hero { height: 184px; border-radius: 22px; background:
+      linear-gradient(100deg, #15151A 30%, #20202a 50%, #15151A 70%);
+      background-size: 200% 100%; animation: skShimmer 1.4s ease-in-out infinite; }
+  .sk-row { height: 56px; margin-top: 10px; }
+  .sk-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  @keyframes skShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .sk-block, .sk-hero { animation: none; } }
+  .tide-loaderror { padding: 56px 28px; max-width: 460px; margin: 0 auto; text-align: center; }
+  .tide-loaderror-icon { font-size: 40px; margin-bottom: 14px; }
+  .tide-loaderror-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; color: var(--bark); margin-bottom: 8px; }
+  .tide-loaderror-sub { font-size: 15px; color: var(--ink-mid); line-height: 1.6; margin-bottom: 20px; }
+  .tide-loaderror-btn { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; color: #fff; background: var(--leaf); border: none; border-radius: 999px; padding: 12px 26px; cursor: pointer; transition: background var(--dur-1) var(--ease-out); }
+  .tide-loaderror-btn:hover { background: var(--green-deep); }
 </style>
 <script>
   // Disable the browser's scroll-position restoration. Tide rebuilds the
@@ -912,7 +921,7 @@
     <rect x="12" y="3"  width="3" height="29" rx="1.5" fill="url(#hBrass)"               style="animation:tideMark 3.5s ease-in-out infinite 0.05s;transform-origin:bottom center"/>
     <rect x="18" y="12" width="3" height="20" rx="1.5" fill="url(#hBrass)" opacity="0.65" style="animation:tideMark 3.5s ease-in-out infinite 0.25s;transform-origin:bottom center"/>
     <rect x="24" y="19" width="3" height="13" rx="1.5" fill="url(#hBrass)" opacity="0.38" style="animation:tideMark 3.5s ease-in-out infinite 0.1s;transform-origin:bottom center"/>
-    <text x="36" y="31" font-family="'Cormorant Garamond', Georgia, serif" font-size="28" font-weight="400" letter-spacing="5" fill="#1C1A14">TIDE</text>
+    <text x="36" y="31" font-family="'Playfair Display', Georgia, serif" font-size="26" font-weight="600" letter-spacing="4" fill="#1C1A14">TIDE</text>
   </svg>
   <div class="header-right">
     <div class="tagline">Know when to go</div>
@@ -964,8 +973,37 @@
 </div>
 
 <div id="main-content">
-  <!-- Filled by renderLandingHero() on first load -->
+  <!-- Filled by renderLandingHero() on first load. Until then (or if boot
+       fails) this branded skeleton holds the space — never a blank middle. -->
+  <div class="tide-skeleton" id="tide-skeleton" data-skeleton>
+    <span class="sk-sr">Loading live shop data…</span>
+    <div class="sk-block sk-hero" aria-hidden="true"></div>
+    <div class="sk-block sk-row" aria-hidden="true"></div>
+    <div class="sk-block sk-row" aria-hidden="true"></div>
+    <div class="sk-block sk-row" aria-hidden="true"></div>
+  </div>
 </div>
+<script>
+  // Boot watchdog: if #main-content still shows only the skeleton a few seconds
+  // after load, the data layer (or the whole script) failed to render. Show a
+  // friendly retry instead of a stranded loading state. Cleared automatically
+  // once renderLandingHero()/renderCentre() replaces the innerHTML.
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      var mc = document.getElementById('main-content');
+      if (mc && mc.querySelector('[data-skeleton]')) {
+        mc.innerHTML =
+          '<div class="tide-loaderror" role="alert">'
+        + '<div class="tide-loaderror-icon" aria-hidden="true">🌊</div>'
+        + '<div class="tide-loaderror-title">The tide\'s not coming through</div>'
+        + '<div class="tide-loaderror-sub">We couldn\'t reach the live shop data just now. '
+        + 'It\'s usually a brief blip — give it another go.</div>'
+        + '<button class="tide-loaderror-btn" onclick="location.reload()">Try again</button>'
+        + '</div>';
+      }
+    }, 6000);
+  });
+</script>
 
 <section class="home-info" id="home-info-section" aria-label="Install Tide">
   <p class="install-instruction"><strong>Never waste a trip.</strong> Tap <strong>Share &rarr; Add to Home Screen</strong> in Safari, or <strong>Install App</strong> in Chrome — and check the score before you go, every time.</p>
@@ -4025,6 +4063,7 @@ function renderTideVessel(v) {
       + '</div>'
     : '<div class="tide-vessel-headline-row">'
       + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
+      + '<span class="tide-vessel-pct-label">of shops<br>on sale</span>'
       + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
       + '</div>';
 
@@ -5592,7 +5631,10 @@ window.__tide = {
 // while Supabase auth state and CSV/score data are still loading.
 try {
   const _mc = document.getElementById('main-content');
-  if (_mc && !_mc.innerHTML.trim()) _mc.innerHTML = renderLandingHero();
+  // Treat "only the boot skeleton is present" as empty, so the real landing
+  // hero replaces the placeholder on the normal path (the skeleton only
+  // survives if this script never runs — then the watchdog shows the retry).
+  if (_mc && (!_mc.innerHTML.trim() || _mc.querySelector('[data-skeleton]'))) _mc.innerHTML = renderLandingHero();
   const _hi = document.getElementById('home-info-section');
   if (_hi) _hi.style.display = 'none';
   // Autofocus the search on desktop only. Touch devices skip it so the

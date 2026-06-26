@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tide — hero line locked, surroundings refined</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --cream:#FAF7F2; --ink:#14110E; --ink-mid:#2E2823; --stone:#6B5F52; --border:rgba(44,24,16,0.10);
+    --vessel:#0B0B0D; --neon:#5EFFB0; --neon-soft:rgba(94,255,176,0.55);
+    --gold:#F1C681; --foam:#F5F1EB;
+  }
+  body{background:linear-gradient(180deg,#FCFBF7,var(--cream) 30%) var(--cream);
+    font-family:'Inter',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;
+    letter-spacing:-0.005em;padding:40px 20px 80px}
+  .wrap{max-width:980px;margin:0 auto}
+  .doc-h{font-family:'Playfair Display',serif;font-size:28px;font-weight:700;letter-spacing:-0.02em;margin-bottom:6px}
+  .doc-sub{font-size:15px;color:var(--ink-mid);max-width:680px;line-height:1.55;margin-bottom:30px}
+  .doc-sub b{color:var(--ink)}
+  .cols{display:flex;flex-wrap:wrap;gap:40px}
+  .col{flex:1;min-width:340px;max-width:430px}
+  .lab{font-size:11px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--stone);margin-bottom:12px}
+  .lab.before{color:#B0654E}.lab.after{color:var(--leaf,#3D6B35)}
+  .cap{font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--stone);margin:22px 0 11px}
+
+  /* ── Card shell — SAME height/layout/hero line as the chosen prototype ── */
+  .v{position:relative;background:var(--vessel);border-radius:24px;overflow:hidden;
+    box-shadow:0 18px 50px rgba(11,11,13,0.30)}
+  .v-pad{padding:24px 26px 22px}
+
+  /* LOCKED — the hero line. Verb + fact, untouched. */
+  .v-verb{font-family:'Playfair Display',serif;font-style:italic;font-weight:700;
+    font-size:62px;line-height:0.92;letter-spacing:-0.02em;margin-bottom:16px}
+  .v-verb.go{color:var(--gold);background:linear-gradient(176deg,#F6D49A,#D99A44);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .v-verb.ease{color:#F1B79C}
+  .v-fact{font-size:17px;font-weight:400;line-height:1.4;color:rgba(245,241,235,0.78);font-variant-numeric:tabular-nums}
+  .v-fact b{font-weight:700;color:var(--foam)}
+
+  /* ════════ BEFORE: the surroundings as they are (loud, competing) ════════ */
+  .b .v-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    font-size:11px;font-weight:600;letter-spacing:0.13em;text-transform:uppercase;color:rgba(245,241,235,0.40);margin-bottom:26px}
+  .b .v-verified{display:inline-flex;align-items:center;gap:7px;color:#5FD6A6}
+  .b .v-verified .dot{width:7px;height:7px;border-radius:50%;background:#5FD6A6;box-shadow:0 0 9px rgba(95,214,166,0.9)}
+  .b .spark{position:relative;margin:20px -2px 2px;height:92px}
+  .b .spark svg{width:100%;height:100%;display:block;overflow:visible}
+  .b .ln{fill:none;stroke:var(--neon);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 7px var(--neon-soft))}
+  .b .area{fill:url(#bgB);opacity:0.5}
+  .b .crest{fill:var(--gold);stroke:#0B0B0D;stroke-width:2}.b .now{fill:var(--neon)}
+  .b .pill{position:absolute;font-size:11px;font-weight:700;color:#06281C;background:var(--neon);border-radius:100px;padding:3px 9px;transform:translate(-50%,-140%)}
+  .b .tabs{display:flex;gap:6px;margin-top:14px}
+  .b .tab{font-size:11px;font-weight:600;letter-spacing:0.08em;color:rgba(245,241,235,0.45);background:transparent;border:none;padding:6px 12px;border-radius:8px}
+  .b .tab.on{color:var(--neon);background:rgba(94,255,176,0.12)}
+  .b .ctx{margin-top:16px;font-size:13px;color:rgba(245,241,235,0.5)}
+  .b .ctx b{color:rgba(245,241,235,0.8);font-weight:700}.b .ctx .go{color:var(--gold);font-weight:700}
+
+  /* ════════ AFTER: surroundings refined — quieter, structured, deferential ════════
+     Same height, same layout order. Changes are only to what's AROUND the line:
+     · meta row calmed (verified = plain timestamp, no glowing pill; place reads as a place)
+     · a hairline rule separates "the statement" from "the proof"
+     · the chart gets a true baseline + a soft high-tide band so the line reads as a tide,
+       not a stock sparkline; endpoint label is set, not floating
+     · 7D/30D/60D demoted to small right-aligned ticks
+     · the lens becomes one real tappable row with a chevron, not loose text */
+  .a .v-meta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:22px}
+  .a .place{font-size:12px;font-weight:600;letter-spacing:0.06em;color:rgba(245,241,235,0.55)}
+  .a .place .city{color:rgba(245,241,235,0.34);font-weight:500}
+  .a .verified{font-size:11px;font-weight:500;letter-spacing:0.02em;color:rgba(245,241,235,0.40);font-variant-numeric:tabular-nums}
+  .a .verified .vd{color:#5FD6A6}
+  .a .rule{height:1px;background:rgba(245,241,235,0.09);margin:18px 0 4px}
+  .a .proof-lab{font-size:10px;font-weight:600;letter-spacing:0.13em;text-transform:uppercase;color:rgba(245,241,235,0.32);margin:14px 0 2px}
+  .a .spark{position:relative;margin:2px -2px 0;height:84px}
+  .a .spark svg{width:100%;height:100%;display:block;overflow:visible}
+  .a .band{fill:rgba(94,255,176,0.06)}
+  .a .base{stroke:rgba(245,241,235,0.10);stroke-width:1}
+  .a .ln{fill:none;stroke:var(--neon);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 7px var(--neon-soft))}
+  .a .area{fill:url(#bgA);opacity:0.45}
+  .a .crest{fill:var(--gold);stroke:#0B0B0D;stroke-width:2}.a .now{fill:var(--neon)}
+  .a .endlab{position:absolute;right:6px;font-size:11px;font-weight:700;color:var(--neon);font-variant-numeric:tabular-nums;text-shadow:0 0 8px rgba(11,11,13,0.9)}
+  .a .axis{display:flex;align-items:center;justify-content:space-between;margin-top:9px}
+  .a .axis-from{font-size:10px;color:rgba(245,241,235,0.30);letter-spacing:0.04em}
+  .a .ticks{display:flex;gap:2px}
+  .a .tick{font-size:10px;font-weight:600;letter-spacing:0.06em;color:rgba(245,241,235,0.38);background:transparent;border:none;padding:4px 8px;border-radius:6px}
+  .a .tick.on{color:var(--neon);background:rgba(94,255,176,0.10)}
+  .a .lens{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid rgba(245,241,235,0.09);cursor:pointer}
+  .a .lens-l{font-size:13.5px;color:rgba(245,241,235,0.62)}
+  .a .lens-l b{color:var(--foam);font-weight:700}
+  .a .lens-l .go{color:var(--gold);font-weight:700}
+  .a .chev{color:rgba(245,241,235,0.4);font-size:15px}
+
+  .notes{margin-top:44px;border-top:1px solid var(--border);padding-top:24px;max-width:760px}
+  .notes h3{font-family:'Playfair Display',serif;font-size:18px;font-weight:600;margin-bottom:14px}
+  .notes li{list-style:none;display:flex;gap:14px;font-size:14px;color:var(--ink-mid);line-height:1.5;border-left:2px solid #3D6B35;padding:1px 0 1px 14px;margin-bottom:11px}
+  .notes li b{color:var(--ink);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="doc-h">Hero line locked — surroundings refined</div>
+  <p class="doc-sub">The verb + fact line is <b>untouched</b>. Same card height, same layout order. The only changes are to <b>everything around it</b>: the meta row is calmed so it stops glowing, a hairline separates the statement from the proof, the history reads as a tide (baseline + high-tide band) rather than a stock sparkline, and the lens becomes one real tappable row. Before / after, same data.</p>
+
+  <div class="cols">
+    <!-- BEFORE -->
+    <div class="col">
+      <div class="lab before">Before · surroundings as-is</div>
+      <div class="v b"><div class="v-pad">
+        <div class="v-meta"><span>Westquay · Southampton</span><span class="v-verified"><span class="dot"></span>Verified today</span></div>
+        <div class="v-verb go">Go&nbsp;now</div>
+        <div class="v-fact"><b>59%</b> of shops on sale — <b>12 of 20</b></div>
+        <div class="spark">
+          <div class="pill" style="left:97%;top:18%">59%</div>
+          <svg viewBox="0 0 360 92" preserveAspectRatio="none">
+            <defs><linearGradient id="bgB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5EFFB0" stop-opacity="0.28"/><stop offset="1" stop-color="#5EFFB0" stop-opacity="0"/></linearGradient></defs>
+            <path class="area" d="M0,74 L40,68 L80,70 L120,55 L160,57 L200,38 L240,28 L280,44 L320,22 L356,9 L356,92 L0,92 Z"/>
+            <path class="ln" d="M0,74 L40,68 L80,70 L120,55 L160,57 L200,38 L240,28 L280,44 L320,22 L356,9"/>
+            <circle class="crest" cx="240" cy="28" r="4.5"/><circle class="now" cx="356" cy="9" r="4"/>
+          </svg>
+        </div>
+        <div class="tabs"><button class="tab">7D</button><button class="tab on">30D</button><button class="tab">60D</button></div>
+        <div class="ctx">For <b>your shops</b>: <b>4 of 5</b> on sale · <span class="go">Go now</span></div>
+      </div></div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="col">
+      <div class="lab after">After · surroundings refined</div>
+      <div class="v a"><div class="v-pad">
+        <div class="v-meta"><span class="place">Westquay <span class="city">· Southampton</span></span><span class="verified"><span class="vd">●</span> Verified today</span></div>
+        <div class="v-verb go">Go&nbsp;now</div>
+        <div class="v-fact"><b>59%</b> of shops on sale — <b>12 of 20</b></div>
+        <div class="rule"></div>
+        <div class="proof-lab">Last 30 days</div>
+        <div class="spark">
+          <div class="endlab" style="top:2%">59%</div>
+          <svg viewBox="0 0 360 84" preserveAspectRatio="none">
+            <defs><linearGradient id="bgA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5EFFB0" stop-opacity="0.26"/><stop offset="1" stop-color="#5EFFB0" stop-opacity="0"/></linearGradient></defs>
+            <rect class="band" x="0" y="0" width="360" height="30"/>
+            <line class="base" x1="0" y1="80" x2="360" y2="80"/>
+            <path class="area" d="M0,66 L40,60 L80,62 L120,48 L160,50 L200,33 L240,24 L280,38 L320,18 L350,8 L350,84 L0,84 Z"/>
+            <path class="ln" d="M0,66 L40,60 L80,62 L120,48 L160,50 L200,33 L240,24 L280,38 L320,18 L350,8"/>
+            <circle class="crest" cx="240" cy="24" r="4.5"/><circle class="now" cx="350" cy="8" r="4"/>
+          </svg>
+        </div>
+        <div class="axis">
+          <span class="axis-from">28 May</span>
+          <span class="ticks"><button class="tick">7D</button><button class="tick on">30D</button><button class="tick">60D</button></span>
+        </div>
+        <div class="lens"><span class="lens-l">Following <b>5 shops</b> here · <b>4 on sale</b> · <span class="go">Go now</span></span><span class="chev">›</span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>What changed around the line</h3>
+    <li><b>Verified stopped shouting.</b> The glowing green pill became a small, plain timestamp — it's reassurance, not a headline, so it no longer pulls the eye off the verb.</li>
+    <li><b>A hairline splits statement from proof.</b> The card now reads in two clear beats — "here's the call" / "here's the evidence" — instead of one undifferentiated stack.</li>
+    <li><b>The history reads as a tide.</b> A real baseline and a faint high-tide band give the line meaning; the endpoint % is set in the corner, not floating on a pill that collides with the curve.</li>
+    <li><b>Period tabs demoted.</b> Small right-aligned ticks paired with the "from" date — present for the curious, invisible to everyone else.</li>
+    <li><b>The lens is one honest row.</b> "Following 5 shops · 4 on sale · Go now" with a chevron — a single tappable thing, not loose text floating under a chart.</li>
+  </div>
+</div>
+</body>
+</html>

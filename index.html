@@ -375,11 +375,9 @@
   .tide-saved-line.is-hit .tide-saved-text strong { color: #F0C079; }
   .tide-saved-arrow { color: rgba(245,241,235,0.6); font-size: 16px; flex-shrink: 0; }
   .tide-count-line { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 400; line-height: 1.4; color: rgba(245,241,235,0.78); margin-bottom: 20px; }
-  /* My-shops mode hero: subordinate label beside the big personal %, and the
-     centre's own number demoted to a small context chip. */
+  .tide-count-line strong { color: var(--tide-cream); font-weight: 700; }
+  /* Your-shops mode hero: subordinate "on sale" label beside the big personal %. */
   .tide-vessel-headline-row .tide-vessel-pct-label { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 600; line-height: 1; color: rgba(245,241,235,0.72); }
-  .tide-context-chip { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; line-height: 1.4; color: rgba(245,241,235,0.7); margin-bottom: 20px; }
-  .tide-context-chip strong { color: var(--tide-cream); font-weight: 700; }
   /* Flat black card + black chart panel — no verdict haze. The neon line is
      the hero; this kills the brown radial wash on the merged vessel. */
   .tide-vessel.tide-vessel--merged { background: #0B0B0D; box-shadow: 0 12px 44px rgba(0,0,0,0.5); }
@@ -665,9 +663,13 @@
 
   /* Inline view-mode disclosure inside the hero — a quiet text link, not a
      segmented control. Sits on the dark vessel under the context chip. */
-  .tide-mode-link { position: relative; z-index: 6; display: inline-flex; align-items: center; gap: 5px; margin: -6px 0 18px; background: none; border: none; padding: 0; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; color: rgba(245,241,235,0.6); cursor: pointer; }
-  .tide-mode-link u { text-decoration: none; border-bottom: 1px solid rgba(245,241,235,0.35); color: rgba(245,241,235,0.85); }
-  .tide-mode-link:hover u { border-bottom-color: rgba(245,241,235,0.7); }
+  /* Segmented view toggle [ Your shops | Whole centre ]. The active segment is
+     neon-green to tie it to the chart's hero line (the selected view IS green). */
+  .tide-mode-toggle { position: relative; z-index: 6; display: inline-flex; gap: 4px; margin: -2px 0 18px; padding: 4px; border-radius: 12px; background: rgba(245,241,235,0.05); border: 1px solid rgba(245,241,235,0.10); }
+  .tide-mode-seg { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; line-height: 1; color: rgba(245,241,235,0.6); background: transparent; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+  .tide-mode-seg:hover { color: rgba(245,241,235,0.85); }
+  .tide-mode-seg.is-active { color: #06281C; background: #5EFFB0; }
+  .tide-mode-seg.is-active:hover { color: #06281C; }
 
   footer .footer-links { margin-top: 8px; }
   footer .footer-links a { color: var(--stone); text-decoration: underline; margin: 0 6px; font-size: 11px; }
@@ -2377,10 +2379,12 @@ function setTideMode(mode) {
 // Back-compat alias — the brand-chip tabs call setBrandFilter('mine'|'all').
 function setBrandFilter(which) { setTideMode(which); }
 
-// The view mode is now a SILENT default (personal-first) with a quiet inline
-// disclosure inside the hero (see renderTideVessel) — no segmented control. The
-// prominent My/All toggle tested poorly ("not clear enough"); the personal view
-// leads by default and "see the whole centre" is a one-tap reveal, not a mode.
+// The view mode defaults to personal-first and is switched by the segmented
+// toggle in the hero (see renderTideVessel). An earlier cryptic "My/All" toggle
+// tested poorly ("not clear enough") and was briefly replaced by an inline text
+// link; the toggle is back with explicit "Your shops" / "Whole centre" labels
+// and a clear selected state, and it now drives the headline number and the
+// chart's neon hero line as well as the brand-chip grid.
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
 let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SALE_TYPE = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
@@ -3809,7 +3813,7 @@ function windowTideSeries(series, period) {
 // read as real time gaps — the slope is honest. The axis spans the windowed
 // data's own date range (earliest point → latest), so the line still fills the
 // full width and thin centres never render a mostly-empty panel.
-function buildTideChartSVG(series, period, tone, endpointPct, personal) {
+function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
   const NEON = '#5EFFB0';
   const W = 400, H = 356, PL = 8, PR = 8, PT = 20, PB = 14;
   const X0 = PL, X1 = PL + W;
@@ -3904,11 +3908,15 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal) {
       + '</g>';
   }
 
-  // "Your shops" second line — cyan, dashed, thinner, NO glow so it reads as a
-  // secondary overlay beneath the neon hero. Shares the x-axis (mapped by date)
-  // so it aligns point-for-point with the centre line. Only drawn when a personal
-  // series was supplied (signed-in user following ≥1 brand present at this centre).
+  // Secondary line — cyan, dashed, thinner, NO glow so it reads as context
+  // beneath the neon hero. Which dataset is hero vs secondary is decided by the
+  // caller (the view toggle) and passed in as `series`/`personal`; this function
+  // always paints `series` neon and `personal` dashed. Shares the x-axis (mapped
+  // by date) so it aligns point-for-point with the hero line. Legend labels come
+  // from opts so they track whichever line is which.
   const YOU = '#5FB8FF';
+  const pLabel = (opts && opts.primaryLabel) || 'Centre';
+  const sLabel = (opts && opts.secondaryLabel) || 'Your shops';
   let youLine = '', youEnd = '', legend = '';
   const winP = (Array.isArray(personal) && personal.length) ? windowTideSeries(personal, period) : [];
   if (winP.length >= 2) {
@@ -3917,12 +3925,14 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal) {
     const le = ptsP[ptsP.length - 1];
     youEnd = '<circle cx="' + le[0] + '" cy="' + le[1] + '" r="3.4" fill="' + YOU + '" stroke="#0B0B0D" stroke-width="1.4"/>';
     // Two-item legend in the top padding band (clears the plot area and the
-    // right-aligned "100" gridline label).
+    // right-aligned "100" gridline label). The 2nd swatch starts past the 1st
+    // label (≈6.4px/char at 11px bold) so variable-length labels don't collide.
+    const sx = X0 + 21 + Math.ceil(pLabel.length * 6.4) + 14;
     legend = '<g font-family="Inter,sans-serif" font-size="11" font-weight="700">'
       + '<line x1="' + X0 + '" y1="9" x2="' + (X0 + 16) + '" y2="9" stroke="' + NEON + '" stroke-width="3" stroke-linecap="round"/>'
-      + '<text x="' + (X0 + 21) + '" y="12.5" fill="rgba(255,255,255,0.85)">Centre</text>'
-      + '<line x1="' + (X0 + 80) + '" y1="9" x2="' + (X0 + 96) + '" y2="9" stroke="' + YOU + '" stroke-width="3" stroke-dasharray="5 4" stroke-linecap="round"/>'
-      + '<text x="' + (X0 + 101) + '" y="12.5" fill="rgba(255,255,255,0.85)">Your shops</text>'
+      + '<text x="' + (X0 + 21) + '" y="12.5" fill="rgba(255,255,255,0.85)">' + pLabel + '</text>'
+      + '<line x1="' + sx + '" y1="9" x2="' + (sx + 16) + '" y2="9" stroke="' + YOU + '" stroke-width="3" stroke-dasharray="5 4" stroke-linecap="round"/>'
+      + '<text x="' + (sx + 21) + '" y="12.5" fill="rgba(255,255,255,0.85)">' + sLabel + '</text>'
       + '</g>';
   }
 
@@ -3940,34 +3950,19 @@ function setTideChartPeriod(period) {
   const c = window._tideChart;
   if (c) {
     const host = document.querySelector('.tide-vessel-chart-svg-host');
-    if (host) host.innerHTML = buildTideChartSVG(c.series, period, c.tone, c.pct, c.personal);
+    if (host) host.innerHTML = buildTideChartSVG(c.series, period, c.tone, c.pct, c.personal, c.opts);
   }
   document.querySelectorAll('.tide-period-tab').forEach(t =>
     t.classList.toggle('is-active', t.getAttribute('data-period') === period));
 }
 
-// Saved-shops personal line (Change 3). Three states; mirrors the brand-sale
-// alert copy ("N of your shops"). The on-sale set is admin-verified and
-// resolved by the caller (followed ∩ present-at-centre ∩ SALE_STATUS) — never
-// scraper sale_status, no recompute here.
+// Follow nudge for users who don't yet follow any shops. The "N of your shops on
+// sale · names" hit row and the "none yet" row were folded into the hero's count
+// line (renderTideVessel) so "your shops" is stated once, not three times; this
+// helper now renders only the CTA to start following (signed-in → onboarding,
+// signed-out → auth). Returns '' once the user follows ≥1 brand.
 function renderSavedShopsLine(v) {
-  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const names = Array.isArray(v.followedOnSale) ? v.followedOnSale : [];
-  if (v.hasFollowed && names.length) {
-    const shown = names.slice(0, 3).map(esc).join(', ');
-    const extra = names.length > 3 ? ' +' + (names.length - 3) + ' more' : '';
-    return '<div class="tide-saved-line is-hit">'
-      + '<span class="tide-saved-star" aria-hidden="true">★</span>'
-      + '<span class="tide-saved-text"><strong>' + names.length + ' of your shops</strong> on sale &middot; ' + shown + extra + '</span>'
-      + '</div>';
-  }
-  if (v.hasFollowed) {
-    const others = Number.isFinite(+v.onSaleCount) ? Math.max(0, +v.onSaleCount) : 0;
-    const tail = others > 0 ? ' — ' + others + ' other' + (others === 1 ? ' is' : 's are') : '';
-    return '<div class="tide-saved-line">'
-      + '<span class="tide-saved-text">None of your shops on sale yet' + tail + '.</span>'
-      + '</div>';
-  }
+  if (v.hasFollowed) return '';
   const signedIn = (typeof currentUser !== 'undefined' && currentUser);
   return '<button type="button" class="tide-saved-line is-prompt" onclick="' + (signedIn ? 'openOnboarding()' : 'openAuthModal()') + '">'
     + '<span class="tide-saved-text">Follow your shops for an alert the day they drop</span>'
@@ -3992,13 +3987,17 @@ function renderTideVessel(v) {
   const hasCount = Number.isFinite(+v.onSaleCount) && Number.isFinite(+v.totalCount) && +v.totalCount > 0;
   const pct = Math.max(0, Math.min(100, Math.round(+v.pct || 0)));
 
-  // My-shops mode: lead the hero with YOUR % (followed shops on sale here); the
-  // centre's own % + verdict drop to a small context chip below. Falls back to
-  // the centre-led hero when you follow none of this centre's shops.
+  // The view toggle ([ Your shops | Whole centre ]) drives EVERYTHING: the
+  // headline number, the count line, and which chart line is the neon hero.
+  // When the user follows none of this centre's shops there's nothing to flip
+  // to, so we lock to the whole-centre view and hide the toggle.
   const myPresent = Array.isArray(v.followedPresent) ? v.followedPresent.length : 0;
-  const myOn = Array.isArray(v.followedOnSale) ? v.followedOnSale.length : 0;
-  const personalPct = myPresent > 0 ? Math.round((myOn / myPresent) * 100) : null;
-  const leadPersonal = v.mode === 'mine' && v.hasFollowed && myPresent > 0;
+  const myOnNames = Array.isArray(v.followedOnSale) ? v.followedOnSale : [];
+  const myOn = myOnNames.length;
+  const personalPct = myPresent > 0 ? Math.round((myOn / myPresent) * 100) : 0;
+  const canToggle = !!(v.hasFollowed && myPresent > 0);
+  const selected = canToggle ? (v.mode === 'all' ? 'all' : 'mine') : 'all';
+  const leadPersonal = selected === 'mine';
 
   // Eyebrow: centre name + location (left), "Verified {when}" badge (right).
   const safeCentre = esc(v.centreName);
@@ -4012,7 +4011,7 @@ function renderTideVessel(v) {
   const headlineRow = leadPersonal
     ? '<div class="tide-vessel-headline-row">'
       + '<span class="tide-vessel-pct">' + personalPct + '<span class="tide-vessel-pct-sign">%</span></span>'
-      + '<span class="tide-vessel-pct-label">of your shops</span>'
+      + '<span class="tide-vessel-pct-label">on sale</span>'
       + '</div>'
     : '<div class="tide-vessel-headline-row">'
       + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
@@ -4021,25 +4020,37 @@ function renderTideVessel(v) {
 
   const savedHTML = renderSavedShopsLine(v);
 
-  const countText = hasCount
-    ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale' + (v.directionClause || ''))
-    : (pct + '% of shops on sale');
-  // In My-shops mode the centre's own number is context, not the headline.
-  const countHTML = leadPersonal
-    ? '<div class="tide-context-chip">Whole centre <strong>' + pct + '%</strong> &middot; ' + esc(headlineWord) + '</div>'
-    : '<div class="tide-count-line">' + countText + '</div>';
-
-  // Quiet inline view-mode disclosure (replaces the segmented toggle). Only for
-  // a follower who has shops at THIS centre — otherwise there's nothing to flip
-  // to. My mode → reveal the whole centre; All mode → return to your shops.
-  let modeLinkHTML = '';
-  if (v.hasFollowed && myPresent > 0) {
-    modeLinkHTML = leadPersonal
-      ? '<button type="button" class="tide-mode-link" onclick="setTideMode(\'all\')">Showing your shops &middot; <u>see the whole centre</u></button>'
-      : (v.mode === 'all'
-          ? '<button type="button" class="tide-mode-link" onclick="setTideMode(\'mine\')"><u>See your shops here</u></button>'
-          : '');
+  // One count line, mode-aware. In Your-shops mode it names the shops on sale
+  // (folded in from the retired star row, so "your shops" is stated once, not
+  // three times); in Whole-centre mode it's the centre density + trajectory
+  // clause. The on-sale set is admin-verified (SALE_STATUS), resolved by the
+  // caller — never scraper sale_status, no recompute here.
+  let countHTML;
+  if (leadPersonal) {
+    const namesShown = myOnNames.slice(0, 3).map(esc).join(', ');
+    const namesExtra = myOnNames.length > 3 ? ' +' + (myOnNames.length - 3) + ' more' : '';
+    const body = myOn > 0
+      ? '<strong>' + myOn + ' of ' + myPresent + '</strong> shops you follow on sale &middot; ' + namesShown + namesExtra
+      : 'None of the ' + myPresent + ' shop' + (myPresent === 1 ? '' : 's') + ' you follow ' + (myPresent === 1 ? 'is' : 'are') + ' on sale yet';
+    countHTML = '<div class="tide-count-line">' + body + '</div>';
+  } else {
+    const countText = hasCount
+      ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale' + (v.directionClause || ''))
+      : (pct + '% of shops on sale');
+    countHTML = '<div class="tide-count-line">' + countText + '</div>';
   }
+
+  // Segmented view toggle (revived from the retired inline text link, which read
+  // as a one-off disclosure rather than a switch). Explicit "Your shops" /
+  // "Whole centre" labels — the old version tested poorly as a cryptic "My/All".
+  // The active segment is neon-green to tie it to the chart's hero line. Only
+  // shown when the user has shops here to flip between.
+  const toggleHTML = canToggle
+    ? '<div class="tide-mode-toggle" role="tablist" aria-label="Which shops to show">'
+      + '<button type="button" role="tab" aria-selected="' + leadPersonal + '" class="tide-mode-seg' + (leadPersonal ? ' is-active' : '') + '" onclick="setTideMode(\'mine\')">Your shops</button>'
+      + '<button type="button" role="tab" aria-selected="' + (!leadPersonal) + '" class="tide-mode-seg' + (!leadPersonal ? ' is-active' : '') + '" onclick="setTideMode(\'all\')">Whole centre</button>'
+      + '</div>'
+    : '';
 
   // Faithful real-history series + period-tab state. Stash for the tabs'
   // cheap re-render. Anchor today to the live headline value (pct).
@@ -4068,8 +4079,24 @@ function renderTideVessel(v) {
   const PERIODS = histSpanDays >= 80 ? ['7D', '30D', '60D', 'MAX'] : ['7D', '30D', '60D'];
   let period = (typeof window !== 'undefined' && window._tideChartPeriod) || '60D';
   if (!PERIODS.includes(period)) period = '60D';  // stored 'MAX' before it's unlocked → 60D
-  if (typeof window !== 'undefined') window._tideChart = { series, tone, pct, personal: personalSeries };
-  const chartSVG = buildTideChartSVG(series, period, tone, pct, personalSeries);
+  // Which series is the neon HERO line and which is the dashed secondary follows
+  // the toggle: the SELECTED view is the main event (point 4). Your-shops mode →
+  // your line goes neon, the centre drops to dashed; Whole-centre mode → the
+  // reverse. With no shops here there's only the centre line.
+  const hasPersonalLine = personalSeries.length >= 2;
+  let primarySeries, primaryPct, primaryLabel, secondarySeries, secondaryLabel;
+  if (leadPersonal && hasPersonalLine) {
+    primarySeries = personalSeries; primaryPct = personalPct; primaryLabel = 'Your shops';
+    secondarySeries = series;       secondaryLabel = 'Whole centre';
+  } else {
+    primarySeries = series;         primaryPct = pct;
+    primaryLabel = canToggle ? 'Whole centre' : 'Centre';
+    secondarySeries = (canToggle && hasPersonalLine) ? personalSeries : [];
+    secondaryLabel = 'Your shops';
+  }
+  const chartOpts = { primaryLabel, secondaryLabel };
+  if (typeof window !== 'undefined') window._tideChart = { series: primarySeries, tone, pct: primaryPct, personal: secondarySeries, opts: chartOpts };
+  const chartSVG = buildTideChartSVG(primarySeries, period, tone, primaryPct, secondarySeries, chartOpts);
   // The chart defaults to 60D. Windows are date-based (see windowTideSeries), so
   // tabs only differ where the centre has points spanning those ranges. MAX is
   // gated above so it never duplicates the 60D line on a thin centre.
@@ -4078,15 +4105,18 @@ function renderTideVessel(v) {
     + '" data-period="' + p + '" onclick="setTideChartPeriod(\'' + p + '\')">' + p + '</button>'
   ).join('');
 
-  const ariaLabel = (headlineWord + '. ' + countText)
+  const ariaCount = leadPersonal
+    ? (personalPct + '% of the shops you follow on sale')
+    : (hasCount ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale') : (pct + '% of shops on sale'));
+  const ariaLabel = (headlineWord + '. ' + ariaCount)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   return '<div class="tide-vessel has-verdict verdict-' + tone + ' tide-vessel--merged" data-verdict-word="' + verdict.word + '" role="img" aria-label="' + ariaLabel + '">'
     +   '<div class="tide-vessel-eyebrow-row">' + eyebrowName + verifiedHTML + '</div>'
     +   headlineRow
-    +   savedHTML
     +   countHTML
-    +   modeLinkHTML
+    +   toggleHTML
+    +   savedHTML
     +   '<div class="tide-vessel-chart">'
     +     '<div class="tide-vessel-chart-svg-host">' + chartSVG + '</div>'
     +     '<div class="tide-period-tabs">' + tabs + '</div>'

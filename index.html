@@ -376,6 +376,16 @@
   .tide-saved-arrow { color: rgba(245,241,235,0.6); font-size: 16px; flex-shrink: 0; }
   .tide-count-line { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 400; line-height: 1.4; color: rgba(245,241,235,0.78); margin-bottom: 20px; }
   .tide-count-line strong { color: var(--tide-cream); font-weight: 700; }
+  /* Your-shops mode: compact whole-centre context chip so the centre's verdict —
+     especially an actionable PEAK "Go now" (gold) — stays visible even when the
+     personal % leads the headline. */
+  .tide-context-chip { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; line-height: 1.4; color: rgba(245,241,235,0.6); margin: -6px 0 18px; }
+  .tide-context-chip strong { color: rgba(245,241,235,0.85); font-weight: 700; }
+  .tide-context-chip .cc-verdict { font-weight: 700; color: rgba(245,241,235,0.78); }
+  .tide-context-chip .cc-verdict.tone-go   { color: #FFD79A; }
+  .tide-context-chip .cc-verdict.tone-rise { color: #9FD8B0; }
+  .tide-context-chip .cc-verdict.tone-fall { color: #F4B79F; }
+  .tide-context-chip .cc-verdict.tone-wait { color: rgba(245,241,235,0.70); }
   /* Your-shops mode hero: subordinate "on sale" label beside the big personal %. */
   .tide-vessel-headline-row .tide-vessel-pct-label { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 600; line-height: 1; color: rgba(245,241,235,0.72); }
   /* Flat black card + black chart panel — no verdict haze. The neon line is
@@ -4020,6 +4030,17 @@ function renderTideVessel(v) {
 
   const savedHTML = renderSavedShopsLine(v);
 
+  // Your-shops mode loses the verdict word from the headline (it leads with the
+  // personal % + "on sale"), so surface the whole-centre verdict in a compact
+  // chip — this keeps the centre's actionable PEAK "Go now" signal visible
+  // without a big duplicate number. It's the ONLY verdict word in this mode and
+  // is explicitly attributed to the centre, so it doesn't conflict with the
+  // single-verdict-word rule (which guards against two labels for the SAME thing).
+  const contextChipHTML = leadPersonal
+    ? '<div class="tide-context-chip">Whole centre <strong>' + pct + '%</strong> &middot; '
+      + '<span class="cc-verdict tone-' + tone + '">' + esc(headlineWord) + '</span></div>'
+    : '';
+
   // One count line, mode-aware. In Your-shops mode it names the shops on sale
   // (folded in from the retired star row, so "your shops" is stated once, not
   // three times); in Whole-centre mode it's the centre density + trajectory
@@ -4115,6 +4136,7 @@ function renderTideVessel(v) {
     +   '<div class="tide-vessel-eyebrow-row">' + eyebrowName + verifiedHTML + '</div>'
     +   headlineRow
     +   countHTML
+    +   contextChipHTML
     +   toggleHTML
     +   savedHTML
     +   '<div class="tide-vessel-chart">'

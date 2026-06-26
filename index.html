@@ -380,8 +380,10 @@
      % + verdict headline, "Verified {when}" badge, saved-shops line,
      direction-in-shops count line, faithful 0–100 chart + period tabs. */
   .tide-vessel-centre-loc { color: rgba(245,241,235,0.36); }
-  .tide-vessel-verified { display: inline-flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: #5FD6A6; white-space: nowrap; }
-  .tide-vessel-verified-dot { width: 7px; height: 7px; border-radius: 50%; background: #5FD6A6; box-shadow: 0 0 8px rgba(95,214,166,0.7); }
+  /* Verified = quiet reassurance, not a headline. Muted text + a small steady
+     green dot (no glow) so it never pulls the eye off the verdict. */
+  .tide-vessel-verified { display: inline-flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.02em; color: rgba(245,241,235,0.45); white-space: nowrap; }
+  .tide-vessel-verified-dot { width: 6px; height: 6px; border-radius: 50%; background: #5FD6A6; }
   .tide-vessel-headline-row { position: relative; z-index: 6; display: flex; align-items: baseline; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
   .tide-vessel-pct { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 60px; line-height: 0.95; letter-spacing: -0.03em; color: var(--tide-cream); }
   .tide-vessel-pct-sign { font-size: 30px; font-weight: 500; color: rgba(245,241,235,0.42); margin-left: 1px; }
@@ -406,11 +408,11 @@
   .tide-context-chip .cc-verdict.tone-rise { color: #9FD8B0; }
   .tide-context-chip .cc-verdict.tone-fall { color: #F4B79F; }
   .tide-context-chip .cc-verdict.tone-wait { color: rgba(245,241,235,0.70); }
-  /* Subordinate unit label beside the big %, so the number always carries its
-     meaning ("59%" alone reads as "59% off"; "59% of shops on sale" cannot).
-     Small uppercase caption, vertically centred; margin-right:auto pushes the
-     verdict word to the right edge of the row. */
-  .tide-vessel-headline-row .tide-vessel-pct-label { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; line-height: 1.25; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(245,241,235,0.6); align-self: center; margin-right: auto; }
+  /* Scope label beside the big % in Your-shops mode ("40% of your shops"). The
+     number's meaning lives here; the count line below carries the unit. Calm
+     sentence case, vertically centred. (Whole-centre mode has no label — its
+     verdict word balances the row and the count line disambiguates the %.) */
+  .tide-vessel-headline-row .tide-vessel-pct-label { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; line-height: 1.2; color: rgba(245,241,235,0.6); align-self: center; }
   /* Flat black card + black chart panel — no verdict haze. The neon line is
      the hero; this kills the brown radial wash on the merged vessel. */
   .tide-vessel.tide-vessel--merged { background: #0B0B0D; box-shadow: 0 12px 44px rgba(0,0,0,0.5); }
@@ -4056,14 +4058,19 @@ function renderTideVessel(v) {
     ? '<span class="tide-vessel-verified"><span class="tide-vessel-verified-dot" aria-hidden="true"></span>' + esc(v.verifiedLabel) + '</span>'
     : '';
 
+  // Copy rule (every word, one job, one place): the headline carries the number
+  // + its SCOPE; the count line below carries the fraction + UNIT ("on sale") +
+  // trend. So "on sale" lives once, in the count line — never duplicated up here.
+  // Whole-centre mode needs no scope word (the verdict word balances the row and
+  // the count line directly below disambiguates the %); Your-shops mode has no
+  // verdict word, so it states its scope ("of your shops") instead.
   const headlineRow = leadPersonal
     ? '<div class="tide-vessel-headline-row">'
       + '<span class="tide-vessel-pct">' + personalPct + '<span class="tide-vessel-pct-sign">%</span></span>'
-      + '<span class="tide-vessel-pct-label">on sale</span>'
+      + '<span class="tide-vessel-pct-label">of your shops</span>'
       + '</div>'
     : '<div class="tide-vessel-headline-row">'
       + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
-      + '<span class="tide-vessel-pct-label">of shops<br>on sale</span>'
       + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
       + '</div>';
 
@@ -4089,14 +4096,19 @@ function renderTideVessel(v) {
   if (leadPersonal) {
     const namesShown = myOnNames.slice(0, 3).map(esc).join(', ');
     const namesExtra = myOnNames.length > 3 ? ' +' + (myOnNames.length - 3) + ' more' : '';
+    // Scope ("your shops") is in the headline; the count states only the fraction
+    // + unit + which ones, so no word repeats the line above.
     const body = myOn > 0
-      ? '<strong>' + myOn + ' of ' + myPresent + '</strong> shops you follow on sale &middot; ' + namesShown + namesExtra
-      : 'None of the ' + myPresent + ' shop' + (myPresent === 1 ? '' : 's') + ' you follow ' + (myPresent === 1 ? 'is' : 'are') + ' on sale yet';
+      ? '<strong>' + myOn + ' of ' + myPresent + '</strong> on sale &middot; ' + namesShown + namesExtra
+      : '<strong>0 of ' + myPresent + '</strong> on sale yet';
     countHTML = '<div class="tide-count-line">' + body + '</div>';
   } else {
+    // Whole-centre: this line is the sole home of "shops on sale". When the server
+    // hasn't returned a raw count yet, it carries only the unit (no % restate —
+    // the headline already shows the %).
     const countText = hasCount
       ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale' + (v.directionClause || ''))
-      : (pct + '% of shops on sale');
+      : 'of shops on sale';
     countHTML = '<div class="tide-count-line">' + countText + '</div>';
   }
 

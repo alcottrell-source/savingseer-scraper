@@ -13,7 +13,9 @@
     "seo:build": "node seo/generate.mjs",
     "seo:sample": "node seo/generate.mjs --fixtures seo/fixtures.westquay.json --out .seo-sample",
     "test": "node --test test/*.test.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "guard": "node scripts/guard-no-data-reset.mjs",
+    "readiness": "node scripts/tide-data-readiness.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",

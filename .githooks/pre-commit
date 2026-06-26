@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+# Data-reset tripwire. Blocks a commit that would wipe protected Tide data.
+# Enable once per clone:  git config core.hooksPath .githooks
+#
+# Scans only the files staged for this commit. To bypass for a genuine,
+# snapshotted, acknowledged reset, add a `-- DATA-RESET-ACK: <reason>` line to
+# the file (see scripts/guard-no-data-reset.mjs).
+
+staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.sql' '*.mjs' '*.js')
+[ -z "$staged" ] && exit 0
+
+# shellcheck disable=SC2086
+node scripts/guard-no-data-reset.mjs $staged || {
+  echo ""
+  echo "Commit blocked by the data-reset guard. Nothing was committed."
+  exit 1
+}

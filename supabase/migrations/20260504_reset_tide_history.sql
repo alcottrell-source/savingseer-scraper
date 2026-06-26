@@ -1,4 +1,7 @@
 -- 20260504_reset_tide_history.sql
+-- DATA-RESET-ACK: historical, already-applied reset (May 2026) — snapshotted to
+-- centre_seer_scores_archive_20260504 / centres_tide_history_archive_20260504.
+-- Retained for the audit trail; this migration is apply-once and never re-runs.
 -- Reset tide history to a clean baseline. The pre-existing rows in
 -- centre_seer_scores were computed against the noisy old detector logic
 -- (since fixed in scraper.js), so trajectory and chart shape have been

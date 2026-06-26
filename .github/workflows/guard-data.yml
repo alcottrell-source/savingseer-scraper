@@ -1,0 +1,34 @@
+name: Data-reset guard
+
+# Tripwire that fails CI if a change introduces a statement that would wipe
+# protected, human-verified Tide data (DELETE/TRUNCATE/DROP against the core
+# tables, or a tide_history wipe). The local pre-commit hook catches this first;
+# this is the backstop for commits made without the hook installed (e.g. an AI
+# agent, the GitHub web editor, or a fresh clone).
+#
+# A deliberate, snapshotted reset can pass by adding a `-- DATA-RESET-ACK:`
+# line to the file — the guard then warns instead of failing.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  guard:
+    name: Block data-reset changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      # Scans every tracked SQL/JS file (no args = full scan), so a destructive
+      # statement can't slip in via a file the diff filter might miss.
+      - name: Run data-reset guard
+        run: node scripts/guard-no-data-reset.mjs

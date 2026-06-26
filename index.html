@@ -5008,7 +5008,11 @@ function renderLandingHero() {
       +   '<p class="bridge-card-copy">Tide scores every UK centre for the shops <b>you</b> actually buy, and emails you the moment they go on sale.</p>'
       +   '<button class="bridge-card-cta" onclick="openAuthModal()">Get my personal Tide for free</button>'
       + '</section>';
-  return renderHeroShowcaseCard()
+  // Chart leads the landing — the all-centres average is the "state of the
+  // market" banner, shown right at the very top before the sample card,
+  // ranked list and steps.
+  return renderTide60Light()
+       + renderHeroShowcaseCard()
        + hotHTML
        + '<section class="how-it-works is-static" aria-label="What you get">'
        +   '<div class="how-it-works-title">What you get</div>'
@@ -5018,7 +5022,6 @@ function renderLandingHero() {
        +     '<div class="landing-step"><span class="landing-step-num">3</span><div class="landing-step-text"><strong>We tap you on the shoulder</strong><p>One email the morning your shops are worth the trip. Never spam, only when it earns it.</p></div></div>'
        +   '</div>'
        + '</section>'
-       + renderTide60Light()
        + bridgeHTML;
 }
 
@@ -5064,7 +5067,7 @@ async function renderCentre(centreId) {
       // then a small "search above" prompt.
       const savedHTML = renderSavedCentresLanding(savedIds);
       const hotHTML = renderLandingHotSections(savedIds);
-      content.innerHTML = personaliseHTML + savedHTML + hotHTML + renderTide60Light();
+      content.innerHTML = renderTide60Light() + personaliseHTML + savedHTML + hotHTML;
     } else {
       // No saved centres — show the proof hero (sample card + 3-step + CTA).
       content.innerHTML = personaliseHTML + renderLandingHero();

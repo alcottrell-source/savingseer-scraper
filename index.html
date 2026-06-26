@@ -398,6 +398,12 @@
   .tide-saved-arrow { color: rgba(245,241,235,0.6); font-size: 16px; flex-shrink: 0; }
   .tide-count-line { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 400; line-height: 1.4; color: rgba(245,241,235,0.78); margin-bottom: 20px; }
   .tide-count-line strong { color: var(--tide-cream); font-weight: 700; }
+  /* Your-shops detail — sits BELOW the chart and names which of the user's
+     followed shops are on sale (what the retired view-toggle was really for).
+     The neon dot ties this line to the green "Your shops" line in the chart above. */
+  .tide-yourshops { position: relative; z-index: 6; display: flex; align-items: baseline; gap: 9px; margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(245,241,235,0.09); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.45; color: rgba(245,241,235,0.7); }
+  .tide-yourshops-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--tide-neon); box-shadow: var(--tide-neon-glow); transform: translateY(-1px); }
+  .tide-yourshops-body strong { color: var(--tide-cream); font-weight: 700; }
   /* Your-shops mode: compact whole-centre context chip so the centre's verdict —
      especially an actionable PEAK "Go now" (gold) — stays visible even when the
      personal % leads the headline. */
@@ -4058,79 +4064,28 @@ function renderTideVessel(v) {
     ? '<span class="tide-vessel-verified"><span class="tide-vessel-verified-dot" aria-hidden="true"></span>' + esc(v.verifiedLabel) + '</span>'
     : '';
 
-  // Copy rule (every word, one job, one place): the headline carries the number
-  // + its SCOPE; the count line below carries the fraction + UNIT ("on sale") +
-  // trend. So "on sale" lives once, in the count line — never duplicated up here.
-  // Whole-centre mode needs no scope word (the verdict word balances the row and
-  // the count line directly below disambiguates the %); Your-shops mode has no
-  // verdict word, so it states its scope ("of your shops") instead.
-  const headlineRow = leadPersonal
-    ? '<div class="tide-vessel-headline-row">'
-      + '<span class="tide-vessel-pct">' + personalPct + '<span class="tide-vessel-pct-sign">%</span></span>'
-      + '<span class="tide-vessel-pct-label">of your shops</span>'
-      + '</div>'
-    : '<div class="tide-vessel-headline-row">'
-      + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
-      + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
-      + '</div>';
+  // Copy rule (every word, one job, one place): headline = the number + verdict;
+  // count line = the fraction + unit ("on sale") + trend; the your-shops detail
+  // (below the chart) names which of the user's shops are on. The headline is
+  // ALWAYS the whole-centre call — there is no view toggle swapping what the
+  // number means, and the chart's green line is ALWAYS "your shops" (see below).
+  const headlineRow = '<div class="tide-vessel-headline-row">'
+    + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
+    + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
+    + '</div>';
 
-  const savedHTML = renderSavedShopsLine(v);
+  // Whole-centre count — the sole home of "shops on sale" + the trend clause.
+  // When the server hasn't returned a raw count yet, carry only the unit (no %
+  // restate — the headline already shows the %). Admin-verified set, no recompute.
+  const countText = hasCount
+    ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale' + (v.directionClause || ''))
+    : 'of shops on sale';
+  const countHTML = '<div class="tide-count-line">' + countText + '</div>';
 
-  // Your-shops mode loses the verdict word from the headline (it leads with the
-  // personal % + "on sale"), so surface the whole-centre verdict in a compact
-  // chip — this keeps the centre's actionable PEAK "Go now" signal visible
-  // without a big duplicate number. It's the ONLY verdict word in this mode and
-  // is explicitly attributed to the centre, so it doesn't conflict with the
-  // single-verdict-word rule (which guards against two labels for the SAME thing).
-  const contextChipHTML = leadPersonal
-    ? '<div class="tide-context-chip">Whole centre <strong>' + pct + '%</strong> &middot; '
-      + '<span class="cc-verdict tone-' + tone + '">' + esc(headlineWord) + '</span></div>'
-    : '';
-
-  // One count line, mode-aware. In Your-shops mode it names the shops on sale
-  // (folded in from the retired star row, so "your shops" is stated once, not
-  // three times); in Whole-centre mode it's the centre density + trajectory
-  // clause. The on-sale set is admin-verified (SALE_STATUS), resolved by the
-  // caller — never scraper sale_status, no recompute here.
-  let countHTML;
-  if (leadPersonal) {
-    const namesShown = myOnNames.slice(0, 3).map(esc).join(', ');
-    const namesExtra = myOnNames.length > 3 ? ' +' + (myOnNames.length - 3) + ' more' : '';
-    // Scope ("your shops") is in the headline; the count states only the fraction
-    // + unit + which ones, so no word repeats the line above.
-    const body = myOn > 0
-      ? '<strong>' + myOn + ' of ' + myPresent + '</strong> on sale &middot; ' + namesShown + namesExtra
-      : '<strong>0 of ' + myPresent + '</strong> on sale yet';
-    countHTML = '<div class="tide-count-line">' + body + '</div>';
-  } else {
-    // Whole-centre: this line is the sole home of "shops on sale". When the server
-    // hasn't returned a raw count yet, it carries only the unit (no % restate —
-    // the headline already shows the %).
-    const countText = hasCount
-      ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale' + (v.directionClause || ''))
-      : 'of shops on sale';
-    countHTML = '<div class="tide-count-line">' + countText + '</div>';
-  }
-
-  // Segmented view toggle (revived from the retired inline text link, which read
-  // as a one-off disclosure rather than a switch). Explicit "Your shops" /
-  // "Whole centre" labels — the old version tested poorly as a cryptic "My/All".
-  // The active segment is neon-green to tie it to the chart's hero line. Only
-  // shown when the user has shops here to flip between.
-  const toggleHTML = canToggle
-    ? '<div class="tide-mode-toggle" role="tablist" aria-label="Which shops to show">'
-      + '<button type="button" role="tab" aria-selected="' + leadPersonal + '" class="tide-mode-seg' + (leadPersonal ? ' is-active' : '') + '" onclick="setTideMode(\'mine\')">Your shops</button>'
-      + '<button type="button" role="tab" aria-selected="' + (!leadPersonal) + '" class="tide-mode-seg' + (!leadPersonal ? ' is-active' : '') + '" onclick="setTideMode(\'all\')">Whole centre</button>'
-      + '</div>'
-    : '';
-
-  // Faithful real-history series + period-tab state. Stash for the tabs'
-  // cheap re-render. Anchor today to the live headline value (pct).
+  // Real-history series + an optional "your shops" overlay built over the same
+  // dates so both lines share the x-axis; the today endpoint is pinned to the
+  // live followed counts so it matches the your-shops detail below.
   const series = buildTideRealSeries(v.history, pct, v.onSaleCount, v.totalCount);
-  // "Your shops" overlay (cyan dashed second line) — only when the user follows
-  // ≥1 brand present at this centre. Built over the same dates as the centre
-  // series so the lines share the x-axis; the today endpoint is pinned to the
-  // live followed counts so it matches the "N of your shops on sale" line above.
   const followedPresent = Array.isArray(v.followedPresent) ? v.followedPresent : [];
   const personalSeries = (v.hasFollowed && followedPresent.length)
     ? buildPersonalSeries(series, followedPresent) : [];
@@ -4140,10 +4095,8 @@ function renderTideVessel(v) {
     last.score = Math.round((liveOn / followedPresent.length) * 100);
     last.onSale = liveOn;
   }
-  // MAX only earns its own tab once the centre has ≥80 days of history. Until
-  // then it would draw a line identical to 60D (nothing older than ~60 days to
-  // show), so it's withheld and auto-appears as data accrues. Span is measured
-  // across the real series' own date range (series is ascending by date).
+  // MAX only earns its own tab once the centre has ≥80 days of history (else it
+  // duplicates the 60D line). Span measured across the real series' date range.
   const _spanSeries = (series && series.length) ? series : [];
   const histSpanDays = _spanSeries.length >= 2
     ? _tideDaysBetween(_spanSeries[0].date, _spanSeries[_spanSeries.length - 1].date)
@@ -4151,35 +4104,47 @@ function renderTideVessel(v) {
   const PERIODS = histSpanDays >= 80 ? ['7D', '30D', '60D', 'MAX'] : ['7D', '30D', '60D'];
   let period = (typeof window !== 'undefined' && window._tideChartPeriod) || '60D';
   if (!PERIODS.includes(period)) period = '60D';  // stored 'MAX' before it's unlocked → 60D
-  // Which series is the neon HERO line and which is the dashed secondary follows
-  // the toggle: the SELECTED view is the main event (point 4). Your-shops mode →
-  // your line goes neon, the centre drops to dashed; Whole-centre mode → the
-  // reverse. With no shops here there's only the centre line.
+  // CONSISTENT line encoding (no toggle): the neon-green hero line is ALWAYS
+  // "your shops" and the blue dashed line is ALWAYS "whole centre" — the same
+  // colour never means two different things. buildTideChartSVG paints `series`
+  // neon and `personal` dashed-blue, so we pass your-shops as `series`. When the
+  // user follows nothing here there's no personal line, so the lone neon line is
+  // the centre (labelled as such in the legend).
   const hasPersonalLine = personalSeries.length >= 2;
   let primarySeries, primaryPct, primaryLabel, secondarySeries, secondaryLabel;
-  if (leadPersonal && hasPersonalLine) {
+  if (hasPersonalLine) {
     primarySeries = personalSeries; primaryPct = personalPct; primaryLabel = 'Your shops';
     secondarySeries = series;       secondaryLabel = 'Whole centre';
   } else {
     primarySeries = series;         primaryPct = pct;
-    primaryLabel = canToggle ? 'Whole centre' : 'Centre';
-    secondarySeries = (canToggle && hasPersonalLine) ? personalSeries : [];
-    secondaryLabel = 'Your shops';
+    primaryLabel = 'Whole centre';  secondarySeries = []; secondaryLabel = 'Your shops';
   }
   const chartOpts = { primaryLabel, secondaryLabel };
   if (typeof window !== 'undefined') window._tideChart = { series: primarySeries, tone, pct: primaryPct, personal: secondarySeries, opts: chartOpts };
   const chartSVG = buildTideChartSVG(primarySeries, period, tone, primaryPct, secondarySeries, chartOpts);
-  // The chart defaults to 60D. Windows are date-based (see windowTideSeries), so
-  // tabs only differ where the centre has points spanning those ranges. MAX is
-  // gated above so it never duplicates the 60D line on a thin centre.
   const tabs = PERIODS.map(p =>
     '<button type="button" class="tide-period-tab' + (p === period ? ' is-active' : '')
     + '" data-period="' + p + '" onclick="setTideChartPeriod(\'' + p + '\')">' + p + '</button>'
   ).join('');
 
-  const ariaCount = leadPersonal
-    ? (personalPct + '% of the shops you follow on sale')
-    : (hasCount ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale') : (pct + '% of shops on sale'));
+  // Your-shops detail — BELOW the chart. This is what the old toggle was really
+  // for: showing which of the user's followed shops are on sale. Always visible
+  // when the user follows ≥1 shop here; otherwise the follow CTA takes its place.
+  // The neon dot ties it to the green "Your shops" line directly above.
+  let detailHTML;
+  if (v.hasFollowed && myPresent > 0) {
+    const namesShown = myOnNames.slice(0, 3).map(esc).join(', ');
+    const namesExtra = myOnNames.length > 3 ? ' +' + (myOnNames.length - 3) + ' more' : '';
+    const body = myOn > 0
+      ? '<strong>' + myOn + ' of your ' + myPresent + '</strong> on sale &middot; ' + namesShown + namesExtra
+      : '<strong>0 of your ' + myPresent + '</strong> on sale yet';
+    detailHTML = '<div class="tide-yourshops"><span class="tide-yourshops-dot" aria-hidden="true"></span>'
+      + '<span class="tide-yourshops-body">' + body + '</span></div>';
+  } else {
+    detailHTML = renderSavedShopsLine(v);
+  }
+
+  const ariaCount = hasCount ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale') : (pct + '% of shops on sale');
   const ariaLabel = (headlineWord + '. ' + ariaCount)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -4187,13 +4152,11 @@ function renderTideVessel(v) {
     +   '<div class="tide-vessel-eyebrow-row">' + eyebrowName + verifiedHTML + '</div>'
     +   headlineRow
     +   countHTML
-    +   contextChipHTML
-    +   toggleHTML
-    +   savedHTML
     +   '<div class="tide-vessel-chart">'
     +     '<div class="tide-vessel-chart-svg-host">' + chartSVG + '</div>'
     +     '<div class="tide-period-tabs">' + tabs + '</div>'
     +   '</div>'
+    +   detailHTML
     + '</div>';
 }
 

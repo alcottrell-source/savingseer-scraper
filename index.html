@@ -442,6 +442,7 @@
   .hot-centres-eyebrow { font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--stone); font-weight: 500; display: inline-flex; align-items: center; gap: 8px; }
   .hot-centres-eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--leaf); animation: pulse 2s ease-in-out infinite; }
   .hot-centres-note { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--stone); margin: 2px 0 12px; line-height: 1.4; }
+  .hot-centre-cta { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: var(--leaf); margin-top: 8px; }
   .hot-centres-timestamp { font-size: 11px; letter-spacing: 0.04em; color: var(--stone); }
   .hot-centres-list { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--border); }
   /* Row is now a stacked card: head (rank · name/loc · %/badge), count line, brand strip. */
@@ -551,6 +552,10 @@
   .ob-eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--leaf); font-weight: 500; margin-bottom: 8px; }
   .ob-title { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 26px; line-height: 1.15; margin: 0 0 10px; color: var(--bark); }
   .ob-sub { font-size: 16px; line-height: 1.55; color: var(--ink-mid); margin: 0 0 22px; }
+  .ob-preview { font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.45; padding: 12px 14px; border-radius: 12px; background: var(--stone-lt); color: var(--bark); margin: 0 0 18px; transition: background 0.15s; }
+  .ob-preview.is-hit { background: #EEF4EC; color: #2C4A22; font-weight: 500; }
+  .ob-preview.is-empty { color: var(--stone); }
+  .ob-preview-star { color: #E6A94B; }
   .aud-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
   .aud-card { display: flex; align-items: center; gap: 14px; padding: 18px 16px; background: white; border: 1.5px solid var(--border); border-radius: 14px; cursor: pointer; transition: all 0.15s; text-align: left; font-family: inherit; }
   .aud-card:hover { border-color: rgba(61,107,53,0.4); }
@@ -658,11 +663,11 @@
   .brand-filter-tab { background: none; border: none; padding: 7px 16px; font-size: 12px; font-weight: 500; color: var(--stone); border-radius: 999px; cursor: pointer; font-family: inherit; transition: all 0.15s; letter-spacing: 0.02em; }
   .brand-filter-tab.active { background: white; color: var(--bark); box-shadow: 0 1px 2px rgba(44,24,16,0.08); }
 
-  /* My/All view-mode segmented control — the personalisation spine. Larger and
-     more prominent than the brand-chip tabs, centred above the page content. */
-  .tide-mode-toggle { display: flex; gap: 0; margin: 0 auto 16px; background: var(--stone-lt); border-radius: 999px; padding: 4px; width: fit-content; }
-  .tide-mode-btn { background: none; border: none; padding: 9px 22px; font-size: 14px; font-weight: 600; color: var(--stone); border-radius: 999px; cursor: pointer; font-family: inherit; transition: all 0.15s; letter-spacing: 0.01em; }
-  .tide-mode-btn.is-active { background: var(--bark); color: #fff; box-shadow: 0 1px 3px rgba(44,24,16,0.18); }
+  /* Inline view-mode disclosure inside the hero — a quiet text link, not a
+     segmented control. Sits on the dark vessel under the context chip. */
+  .tide-mode-link { position: relative; z-index: 6; display: inline-flex; align-items: center; gap: 5px; margin: -6px 0 18px; background: none; border: none; padding: 0; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; color: rgba(245,241,235,0.6); cursor: pointer; }
+  .tide-mode-link u { text-decoration: none; border-bottom: 1px solid rgba(245,241,235,0.35); color: rgba(245,241,235,0.85); }
+  .tide-mode-link:hover u { border-bottom-color: rgba(245,241,235,0.7); }
 
   footer .footer-links { margin-top: 8px; }
   footer .footer-links a { color: var(--stone); text-decoration: underline; margin: 0 6px; font-size: 11px; }
@@ -2095,16 +2100,44 @@ function obRenderStep3() {
          + '<button class="ob-cluster-toggle" onclick="obToggleCluster(\''+cluster.replace(/'/g,"\\'")+'\','+(!allOn)+')">'+(allOn?'Deselect all':'Select all')+'</button>'
          + '</div><div class="ob-brand-grid">'+grid+'</div></div>';
   }).join('');
+  // Live "your shops today" preview — re-renders on every toggle (obToggleBrand
+  // → obRender) so the user sees the instant payoff of following: how many of
+  // their picks are on sale right now, across how many centres. Drives KR1.
+  const picked = BRANDS.filter(b => onb.brandIds.has(b.id));
+  const pickedOnSale = picked.filter(b => typeof SALE_STATUS !== 'undefined' && SALE_STATUS[b.name] === true);
+  const previewCentres = new Set();
+  pickedOnSale.forEach(b => {
+    const pres = (typeof PRESENCE !== 'undefined' && PRESENCE[b.id]) || [];
+    for (let i = 0; i < pres.length; i++) if (pres[i] === 1) previewCentres.add(i);
+  });
+  let previewHTML;
+  if (picked.length === 0) {
+    previewHTML = '<div class="ob-preview is-empty">Pick the shops you actually buy — we\'ll show you the moment they\'re on sale.</div>';
+  } else if (pickedOnSale.length > 0) {
+    previewHTML = '<div class="ob-preview is-hit"><span class="ob-preview-star">★</span> <b>'
+      + pickedOnSale.length + ' of your shops</b> on sale right now'
+      + (previewCentres.size ? ' across ' + previewCentres.size + ' centre' + (previewCentres.size === 1 ? '' : 's') : '') + '</div>';
+  } else {
+    previewHTML = '<div class="ob-preview">None of your shops are on sale today — we\'ll alert you the moment they are.</div>';
+  }
+
   document.getElementById('ob-body').innerHTML =
     '<div class="ob-eyebrow">Step 3 of 5</div>'
     + '<h1 class="ob-title">Your brands</h1>'
-    + '<p class="ob-sub">Everything\'s on by default. Switch off any you\'d never visit.</p>'
+    + '<p class="ob-sub">Follow the shops you actually buy — the more you pick, the sharper your Tide.</p>'
+    + previewHTML
     + '<div class="brand-summary"><b>'+onb.brandIds.size+'</b> of '+matching.length+' brands tracked</div>'
     + clusterHTML;
   const next = document.getElementById('ob-next');
   next.textContent = 'Next';
   next.disabled = onb.brandIds.size === 0;
-  document.getElementById('ob-help').textContent = onb.brandIds.size === 0 ? 'Pick at least one brand' : '';
+  // Encourage ≥3 follows so the personal Tide has enough signal (KR1), without
+  // hard-blocking at 1.
+  const need = 3 - onb.brandIds.size;
+  document.getElementById('ob-help').textContent =
+    onb.brandIds.size === 0 ? 'Pick at least one brand'
+    : need > 0 ? 'Follow ' + need + ' more to unlock your personal Tide'
+    : '';
 }
 
 function obRenderStep4Centres() {
@@ -2344,17 +2377,10 @@ function setTideMode(mode) {
 // Back-compat alias — the brand-chip tabs call setBrandFilter('mine'|'all').
 function setBrandFilter(which) { setTideMode(which); }
 
-// Prominent My/All segmented control — the visible expression of the view mode.
-// Shown app-wide (landing + centre) only for users who follow ≥1 brand; everyone
-// else just sees the single "all" experience with no control.
-function renderModeToggle() {
-  if (!tideHasFollowed()) return '';
-  const m = getTideMode();
-  const btn = (val, label) => '<button type="button" class="tide-mode-btn' + (m === val ? ' is-active' : '')
-    + '" aria-pressed="' + (m === val) + '" onclick="setTideMode(\'' + val + '\')">' + label + '</button>';
-  return '<div class="tide-mode-toggle" role="tablist" aria-label="Shops view">'
-    + btn('mine', 'My shops') + btn('all', 'All shops') + '</div>';
-}
+// The view mode is now a SILENT default (personal-first) with a quiet inline
+// disclosure inside the hero (see renderTideVessel) — no segmented control. The
+// prominent My/All toggle tested poorly ("not clear enough"); the personal view
+// leads by default and "see the whole centre" is a one-tap reveal, not a mode.
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
 let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SALE_TYPE = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
@@ -4003,6 +4029,18 @@ function renderTideVessel(v) {
     ? '<div class="tide-context-chip">Whole centre <strong>' + pct + '%</strong> &middot; ' + esc(headlineWord) + '</div>'
     : '<div class="tide-count-line">' + countText + '</div>';
 
+  // Quiet inline view-mode disclosure (replaces the segmented toggle). Only for
+  // a follower who has shops at THIS centre — otherwise there's nothing to flip
+  // to. My mode → reveal the whole centre; All mode → return to your shops.
+  let modeLinkHTML = '';
+  if (v.hasFollowed && myPresent > 0) {
+    modeLinkHTML = leadPersonal
+      ? '<button type="button" class="tide-mode-link" onclick="setTideMode(\'all\')">Showing your shops &middot; <u>see the whole centre</u></button>'
+      : (v.mode === 'all'
+          ? '<button type="button" class="tide-mode-link" onclick="setTideMode(\'mine\')"><u>See your shops here</u></button>'
+          : '');
+  }
+
   // Faithful real-history series + period-tab state. Stash for the tabs'
   // cheap re-render. Anchor today to the live headline value (pct).
   const series = buildTideRealSeries(v.history, pct, v.onSaleCount, v.totalCount);
@@ -4048,6 +4086,7 @@ function renderTideVessel(v) {
     +   headlineRow
     +   savedHTML
     +   countHTML
+    +   modeLinkHTML
     +   '<div class="tide-vessel-chart">'
     +     '<div class="tide-vessel-chart-svg-host">' + chartSVG + '</div>'
     +     '<div class="tide-period-tabs">' + tabs + '</div>'
@@ -4681,14 +4720,20 @@ function getHotCentres(n, excludeIds, personal) {
     if (totalBrands <= 0 || brandsOnSale === null) continue;
 
     if (usePersonal) {
-      // Your followed shops present at / on sale at this centre.
-      let myPresent = 0, myOnSale = 0;
+      // Your followed shops present at / on sale at this centre, plus the
+      // deepest live discount among them (for the "up to X% off" watchlist pill).
+      let myPresent = 0, myOnSale = 0, myMaxPct = 0;
       for (let bi = 0; bi < BRANDS.length; bi++) {
         const b = BRANDS[bi];
         if (!followed.has(b.id)) continue;
         if ((PRESENCE[b.id] || [])[idx] !== 1) continue;
         myPresent++;
-        if (SALE_STATUS[b.name] === true) myOnSale++;
+        if (SALE_STATUS[b.name] === true) {
+          myOnSale++;
+          const eps = (typeof BRAND_CYCLES !== 'undefined' && BRAND_CYCLES[b.name]) || [];
+          const live = eps.find(e => e.live) || eps[0];
+          if (live && Number.isFinite(+live.pct)) myMaxPct = Math.max(myMaxPct, +live.pct);
+        }
       }
       if (myOnSale <= 0) continue;   // only surface centres where YOUR shops are dropping
       const personalPct = Math.round((myOnSale / myPresent) * 100);
@@ -4699,7 +4744,7 @@ function getHotCentres(n, excludeIds, personal) {
         location: (CENTRE_LOCATIONS && CENTRE_LOCATIONS[idx]) || '',
         tideScore: personalPct, brandsOnSale: myOnSale, totalBrands: myPresent,
         trajectory: 'FLAT', verdict: pVerdict, severity: HOT_VERDICT_SEVERITY[pVerdict.word] || 0,
-        personal: true,
+        personal: true, maxPct: myMaxPct > 0 ? Math.round(myMaxPct) : null,
       });
       continue;
     }
@@ -4729,9 +4774,10 @@ function getHotCentres(n, excludeIds, personal) {
     });
   }
   if (usePersonal) {
-    // Most of your shops on sale first, then by personal density, then name.
+    // Most of your shops on sale first, then deepest discount, then density, then name.
     ranked.sort((a, b) =>
       (b.brandsOnSale - a.brandsOnSale) ||
+      ((b.maxPct || 0) - (a.maxPct || 0)) ||
       (b.tideScore - a.tideScore) ||
       a.name.localeCompare(b.name));
   } else {
@@ -4843,7 +4889,8 @@ function renderHotCentres(opts) {
     // (brands_on_sale / total_brands) — no client recompute, so it always
     // matches the centre card's "X of Y" line.
     const countText = isPersonal
-      ? (h.brandsOnSale + ' of your ' + h.totalBrands + ' shops on sale')
+      ? (h.brandsOnSale + ' of your ' + h.totalBrands + ' shops on sale'
+         + (h.maxPct ? ' · up to ' + h.maxPct + '% off' : ''))
       : (h.brandsOnSale + ' of ' + h.totalBrands + ' shops on sale');
     const strip = getCentreSaleStrip(h.idx, h.brandsOnSale, isPersonal ? followedIds : undefined);
     let stripHTML, countSuffix;
@@ -4887,6 +4934,7 @@ function renderHotCentres(opts) {
          +   '</div>'
          +   '<div class="hot-centre-count">'+countText+countSuffix+'</div>'
          +   stripHTML
+         +   (isPersonal ? '<div class="hot-centre-cta">See your shops &rarr;</div>' : '')
          + '</button>';
   }).join('');
   const eyebrow = isPersonal ? 'Your shops today' : 'Today\'s tide';
@@ -4901,6 +4949,25 @@ function renderHotCentres(opts) {
        +   noteHTML
        +   '<div class="hot-centres-list">'+rows+'</div>'
        + '</section>';
+}
+
+// Landing "what's hot" sections. For a follower in My-shops mode: lead with the
+// personal "Your shops" watchlist, then the global "Today's tide" below for
+// discovery (deduped so a centre never appears in both). Everyone else: just the
+// global list, exactly as before (guardrail — discovery is never removed).
+function renderLandingHotSections(excludeIds) {
+  excludeIds = Array.isArray(excludeIds) ? excludeIds : [];
+  const personalMode = getTideMode() === 'mine' && tideHasFollowed();
+  if (!personalMode) return renderHotCentres({ limit: 3, excludeIds, personal: false });
+  const yourCids = getHotCentres(3, excludeIds, true).map(h => h.cid);
+  const yourHTML = renderHotCentres({ limit: 3, excludeIds, personal: true });
+  // Only append a separate global list when the personal list actually
+  // populated; otherwise renderHotCentres already rendered the global-with-note
+  // fallback, and a second global block would duplicate it.
+  const globalHTML = yourCids.length
+    ? renderHotCentres({ limit: 3, excludeIds: excludeIds.concat(yourCids), personal: false })
+    : '';
+  return yourHTML + globalHTML;
 }
 
 // Landing body for brand-new visitors and signed-in users without saved
@@ -4933,7 +5000,7 @@ function renderHeroShowcaseCard() {
 }
 
 function renderLandingHero() {
-  const hotHTML = renderHotCentres({ limit: 3, personal: getTideMode() === 'mine' });
+  const hotHTML = renderLandingHotSections([]);
   // Bridge card: logged-out only. renderLandingHero also serves signed-in
   // users with no saved centres, so gate on the session, not the funnel stage.
   const bridgeHTML = currentUser ? '' :
@@ -4996,11 +5063,11 @@ async function renderCentre(centreId) {
       // discovery row (excluding their own saved centres so it's net-new),
       // then a small "search above" prompt.
       const savedHTML = renderSavedCentresLanding(savedIds);
-      const hotHTML = renderHotCentres({ limit: 3, excludeIds: savedIds, personal: getTideMode() === 'mine' });
-      content.innerHTML = renderModeToggle() + personaliseHTML + savedHTML + hotHTML + renderTide60Light();
+      const hotHTML = renderLandingHotSections(savedIds);
+      content.innerHTML = personaliseHTML + savedHTML + hotHTML + renderTide60Light();
     } else {
       // No saved centres — show the proof hero (sample card + 3-step + CTA).
-      content.innerHTML = renderModeToggle() + personaliseHTML + renderLandingHero();
+      content.innerHTML = personaliseHTML + renderLandingHero();
       // Reset edit mode whenever we drop back into the no-saved state.
       _savedCentresEditMode = false;
     }
@@ -5428,7 +5495,7 @@ async function renderCentre(centreId) {
     ? '<a class="seo-hub-link" href="/centre/'+supabaseCentreId+'">Full sale history &amp; FAQ for '+safeCentreName+' &rarr;</a>'
     : '';
 
-  content.innerHTML = renderModeToggle() + heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
+  content.innerHTML = heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
     + '<div class="brands-section" id="brands-section"><div class="section-heading">'+brandsHeading+' <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+contribIntro+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>'
     + seoHubLinkHTML;
 

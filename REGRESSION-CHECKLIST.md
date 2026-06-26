@@ -17,6 +17,7 @@ Run after every visual change. Anything that was working before must still work.
 - [ ] **A10** "Sign in" button in nav opens auth modal at email step
 - [ ] **A12** Centre chart period tabs are **date-based** (`windowTideSeries`): 7D/30D/60D show the last 7/30/60 calendar days, MAX shows all stored history; the chart opens on **60D**. A centre with points spanning >60 days renders four visibly distinct lines; a thin centre (≤30 days) draws the same line on 30D/60D/MAX (expected — `scripts/diag-tide-history.mjs` confirms coverage) but still draws a line on 7D via the <2-point fallback. `score.js` retains 180 days of `tide_history` so MAX can exceed 60D. Landing chart tabs unchanged.
 - [ ] **A11** Merged tide card consistency: the centre-detail hero shows a single verdict word (beside the %); the trend-pill and chart-eyebrow tail word were retired (direction now lives in the count line, sourced from the engine `trajectory`). The big "%" (from `tide_score`), the "N of M shops" count (from `brands_on_sale`/`total_brands`), and the chart's endpoint pill all read the same value — they cannot contradict because the % is computed from the count. "Go now" copy appears only on PEAK.
+- [ ] **A13** Anonymous users (and any signed-in user who follows **no** brands) see **no** My shops / All shops toggle and get the **All shops** experience everywhere — the centre-led hero (A8), the global "Today's tide" ranking, the all-centres landing chart. The My/All personalisation spine is gated on followed brands, so all anonymous flows above are byte-for-byte unchanged.
 
 ## B. Authenticated flows (require test user)
 
@@ -30,6 +31,15 @@ Run after every visual change. Anything that was working before must still work.
 - [ ] **B8** quickSavePref(key, value) saves toggles inline without form submission
 - [ ] **B9** Sign out clears session, returns to anonymous view, "Sign in" button reappears
 - [ ] **B10** Personal score view appears for signed-in user with prefs (computed against matching brands only)
+
+### B-spine. My shops / All shops view mode (Jun 2026 — personalisation spine)
+
+> One global, persisted view mode (`tide_view_mode` in localStorage; `getTideMode`/`setTideMode`) replaces the old session-only per-section "My brands / All brands" chip tabs. Gated on the user following ≥1 brand (`tideHasFollowed`). "All shops" mode is byte-for-byte the pre-spine behaviour.
+
+- [ ] **B11** A prominent `My shops · All shops` segmented control (`renderModeToggle`) appears at the **top of both the landing and a centre page** for users who follow ≥1 brand. It **defaults to "My shops"** and **persists across reload** (toggle to All, reload → still All). The old per-section chip tabs are gone — this is the single control.
+- [ ] **B12** Centre hero in **My shops** mode leads with **your** number: big "N% of your shops", and the centre's own %/verdict demote to a "Whole centre X% · {verdict}" context chip. On a centre where you follow **none** of its shops it falls back to the centre-led hero (A8). In **All shops** mode the hero is exactly A8/A11.
+- [ ] **B13** "Today's tide" in **My shops** mode becomes **"Your shops today"**: only centres where ≥1 of your shops is on sale, ranked by how many, each row "X of your N shops on sale" with a brand strip of **just your shops**. If none of your shops are on sale anywhere, it shows the "None of your shops are on sale right now — here's what's hot across all centres" note above the **global** list.
+- [ ] **B14** The brand grid honours the mode: heading reads **"Your shops here"** (your followed brands only) in My mode vs **"Brands at this centre"** in All mode; switching the global toggle re-filters the grid. The two-line history chart's cyan "Your shops" line is unaffected by the mode (always shown when you follow ≥1 brand present here).
 
 ## C. Data layer integrity (the north star)
 

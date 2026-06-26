@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tide — centre hero, redesign prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --cream:#FAF7F2; --ink:#14110E; --ink-mid:#2E2823; --stone:#6B5F52;
+    --leaf:#3D6B35; --border:rgba(44,24,16,0.10);
+    --vessel:#0B0B0D; --vessel-2:#101015;
+    --neon:#5EFFB0; --neon-soft:rgba(94,255,176,0.55);
+    --gold:#F1C681; --gold-deep:#D99A44; --foam:#F5F1EB;
+  }
+  body{background:linear-gradient(180deg,#FCFBF7,var(--cream) 30%) var(--cream);
+    font-family:'Inter',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;
+    letter-spacing:-0.005em;padding:40px 20px 80px}
+  .wrap{max-width:1180px;margin:0 auto}
+  .doc-h{font-family:'Playfair Display',serif;font-size:30px;font-weight:700;letter-spacing:-0.02em;margin-bottom:6px}
+  .doc-sub{font-size:15px;color:var(--ink-mid);max-width:680px;line-height:1.55;margin-bottom:8px}
+  .doc-note{font-size:13px;color:var(--stone);max-width:680px;line-height:1.5;margin-bottom:36px}
+  .grid{display:flex;flex-wrap:wrap;gap:48px}
+  .col{flex:1;min-width:330px;max-width:430px}
+  .col-label{font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--stone);margin-bottom:4px}
+  .col-name{font-family:'Playfair Display',serif;font-size:21px;font-weight:600;margin-bottom:4px}
+  .col-desc{font-size:13px;color:var(--ink-mid);line-height:1.5;margin-bottom:22px}
+  .state-cap{font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--stone);margin:26px 0 12px}
+  .state-cap:first-of-type{margin-top:0}
+
+  /* ─────────────────────────────────────────────────────────────
+     SHARED VESSEL — the dark jewel. Editorial, asymmetric, one accent.
+     No emoji, no generic gradient: a real waterline that rises with score.
+     ───────────────────────────────────────────────────────────── */
+  .v{position:relative;background:var(--vessel);border-radius:24px;overflow:hidden;
+    box-shadow:0 18px 50px rgba(11,11,13,0.30);isolation:isolate}
+  .v-pad{position:relative;z-index:3;padding:26px 26px 24px}
+
+  /* Top meta line — everything demoted lives here, as ONE hairline row. */
+  .v-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    font-size:11px;font-weight:600;letter-spacing:0.13em;text-transform:uppercase;
+    color:rgba(245,241,235,0.40);margin-bottom:30px}
+  .v-meta .loc{color:rgba(245,241,235,0.40)}
+  .v-verified{display:inline-flex;align-items:center;gap:7px;color:#5FD6A6;white-space:nowrap}
+  .v-verified .dot{width:6px;height:6px;border-radius:50%;background:#5FD6A6;box-shadow:0 0 8px rgba(95,214,166,0.8)}
+
+  /* The verb leads. Playfair italic — distinctive, editorial, the brand's voice. */
+  .v-verb{font-family:'Playfair Display',serif;font-style:italic;font-weight:700;
+    font-size:64px;line-height:0.92;letter-spacing:-0.02em;margin-bottom:18px}
+  .v-verb.go{color:var(--gold);background:linear-gradient(176deg,#F6D49A,#D99A44);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .v-verb.rise{color:#A8E6C0}
+  .v-verb.ease{color:#F1B79C}
+  .v-verb.quiet{color:rgba(245,241,235,0.62)}
+
+  /* The number is the SUPPORTING fact, not a competing headline. One line,
+     precise, carries its unit so it can never read as "59% off". */
+  .v-fact{font-size:17px;font-weight:400;line-height:1.4;color:rgba(245,241,235,0.78);
+    font-variant-numeric:tabular-nums}
+  .v-fact b{font-weight:700;color:var(--foam)}
+  .v-trend{margin-top:3px;font-size:13px;color:rgba(245,241,235,0.45);font-variant-numeric:tabular-nums}
+  .v-trend .up{color:#7FD8A4}.v-trend .dn{color:#E8A488}
+
+  /* DIRECTION A — the vessel literally fills with the tide. The water level
+     IS the score. Subtle so text stays readable; the neon waterline + a
+     hand-built wave crest carry the metaphor no stock hero would have. */
+  .v-water{position:absolute;left:0;right:0;bottom:0;z-index:1;
+    background:linear-gradient(180deg,rgba(94,255,176,0.13),rgba(94,255,176,0.02) 60%,transparent);
+    border-top:0}
+  .v-wave{position:absolute;left:0;right:0;z-index:2;height:18px;display:block}
+  .v-wave path{fill:none;stroke:var(--neon);stroke-width:2;filter:drop-shadow(0 0 6px var(--neon-soft))}
+  .v-water-fillline{position:absolute;left:0;right:0;height:1px;background:rgba(94,255,176,0.18);z-index:1}
+  .v-scale{position:absolute;right:16px;top:22px;bottom:18px;width:34px;z-index:2;
+    display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;
+    font-size:9px;font-weight:600;letter-spacing:0.06em;color:rgba(245,241,235,0.22);font-variant-numeric:tabular-nums}
+  .a-body{min-height:188px;display:flex;flex-direction:column;justify-content:flex-start}
+  .a-spacer{flex:1;min-height:18px}
+
+  /* The follow / lens control — demoted to a quiet pill row at the very
+     bottom, out of the headline's way. Tap to switch; not a 50/50 toggle. */
+  .v-foot{position:relative;z-index:3;display:flex;align-items:center;justify-content:space-between;
+    gap:10px;padding:13px 26px;border-top:1px solid rgba(245,241,235,0.08);
+    background:rgba(0,0,0,0.25)}
+  .v-foot-lens{display:inline-flex;gap:2px;background:rgba(245,241,235,0.06);border-radius:9px;padding:3px}
+  .v-foot-seg{font-size:12px;font-weight:600;color:rgba(245,241,235,0.55);
+    padding:6px 12px;border-radius:7px;border:none;background:transparent;cursor:pointer}
+  .v-foot-seg.on{background:var(--neon);color:#06281C}
+  .v-foot-link{font-size:12.5px;font-weight:600;color:rgba(245,241,235,0.6);display:inline-flex;align-items:center;gap:6px}
+  .v-foot-link .arr{color:rgba(245,241,235,0.4)}
+
+  /* DIRECTION B — editorial. No water; the history line is the proof, but
+     radically simplified to a single confident sparkline + one meta row.
+     Pure typographic restraint. */
+  .b-spark{position:relative;z-index:3;margin:22px -2px 2px;height:96px}
+  .b-spark svg{width:100%;height:100%;display:block;overflow:visible}
+  .b-spark .ln{fill:none;stroke:var(--neon);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;
+    filter:drop-shadow(0 0 7px var(--neon-soft))}
+  .b-spark .area{fill:url(#bg);opacity:0.5}
+  .b-spark .crest{fill:var(--gold);stroke:#0B0B0D;stroke-width:2}
+  .b-spark .now{fill:var(--neon)}
+  .b-now-pill{position:absolute;z-index:4;font-size:11px;font-weight:700;color:#06281C;
+    background:var(--neon);border-radius:100px;padding:3px 9px;font-variant-numeric:tabular-nums;
+    transform:translate(-50%,-140%);white-space:nowrap}
+  .b-tabs{position:relative;z-index:3;display:flex;gap:6px;margin-top:14px}
+  .b-tab{font-size:11px;font-weight:600;letter-spacing:0.08em;color:rgba(245,241,235,0.45);
+    background:transparent;border:none;padding:6px 12px;border-radius:8px;cursor:pointer}
+  .b-tab.on{color:var(--neon);background:rgba(94,255,176,0.12)}
+
+  /* context chip — the OTHER lens, one quiet line (Direction B) */
+  .v-context{position:relative;z-index:3;margin-top:16px;font-size:13px;
+    color:rgba(245,241,235,0.5);font-variant-numeric:tabular-nums}
+  .v-context b{color:rgba(245,241,235,0.8);font-weight:700}
+  .v-context .go{color:var(--gold);font-weight:700}
+
+  .callouts{margin-top:46px;border-top:1px solid var(--border);padding-top:26px}
+  .callouts h3{font-family:'Playfair Display',serif;font-size:18px;font-weight:600;margin-bottom:14px}
+  .callouts ul{list-style:none;display:flex;flex-direction:column;gap:11px;max-width:760px}
+  .callouts li{display:flex;gap:14px;font-size:14px;color:var(--ink-mid);line-height:1.5;
+    padding-left:2px;border-left:2px solid var(--leaf);padding:1px 0 1px 14px}
+  .callouts li b{color:var(--ink);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="doc-h">Centre hero — the diet</div>
+  <p class="doc-sub">The live card stacks eight things that compete for attention. This cuts it to <b>one confident statement — a verb and a number</b> — and demotes everything else. Two directions, same content, same data (Westquay · 59% · Peak / Easing). Built in Tide's own brand, not a template.</p>
+  <p class="doc-note">Mocked numbers. Pick a direction (or a hybrid) and I'll wire it into <code>renderTideVessel()</code> against live data.</p>
+
+  <div class="grid">
+    <!-- ───────────── DIRECTION A ───────────── -->
+    <div class="col">
+      <div class="col-label">Direction A</div>
+      <div class="col-name">The Vessel fills</div>
+      <p class="col-desc">The dark card <em>is</em> a vessel — the water rises to the score, so the Tide Score is something you read at a glance before a single word. The verb leads; the number supports; the lens control sinks to a footer. The metaphor does the explaining.</p>
+
+      <div class="state-cap">Peak · go now</div>
+      <div class="v">
+        <div class="v-water" style="height:59%"></div>
+        <svg class="v-wave" style="bottom:calc(59% - 9px)" viewBox="0 0 380 18" preserveAspectRatio="none"><path d="M0,12 Q47,2 95,9 T190,9 T285,9 T380,9"/></svg>
+        <div class="v-pad a-body">
+          <div class="v-meta"><span class="loc">Westquay · Southampton</span><span class="v-verified"><span class="dot"></span>Verified today</span></div>
+          <div class="v-verb go">Go&nbsp;now</div>
+          <div class="v-fact"><b>59%</b> of shops on sale — <b>12 of 20</b></div>
+          <div class="v-trend"><span class="up">▲</span> up from 41% two weeks ago</div>
+          <div class="a-spacer"></div>
+        </div>
+        <div class="v-foot">
+          <div class="v-foot-lens"><button class="v-foot-seg on">Whole centre</button><button class="v-foot-seg">Your shops</button></div>
+          <span class="v-foot-link">5 of yours are on <span class="arr">→</span></span>
+        </div>
+      </div>
+
+      <div class="state-cap">Easing · same card, lower tide</div>
+      <div class="v">
+        <div class="v-water" style="height:22%;background:linear-gradient(180deg,rgba(244,183,159,0.13),rgba(244,183,159,0.02) 60%,transparent)"></div>
+        <svg class="v-wave" style="bottom:calc(22% - 9px)" viewBox="0 0 380 18" preserveAspectRatio="none"><path d="M0,12 Q47,2 95,9 T190,9 T285,9 T380,9" style="stroke:#F1B79C;filter:drop-shadow(0 0 5px rgba(241,183,156,0.5))"/></svg>
+        <div class="v-pad a-body">
+          <div class="v-meta"><span class="loc">Westquay · Southampton</span><span class="v-verified"><span class="dot"></span>Verified today</span></div>
+          <div class="v-verb ease">Easing</div>
+          <div class="v-fact"><b>22%</b> of shops on sale — <b>4 of 20</b></div>
+          <div class="v-trend"><span class="dn">▼</span> down from 59% at the peak</div>
+          <div class="a-spacer"></div>
+        </div>
+        <div class="v-foot">
+          <div class="v-foot-lens"><button class="v-foot-seg on">Whole centre</button><button class="v-foot-seg">Your shops</button></div>
+          <span class="v-foot-link">1 of yours is on <span class="arr">→</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────────── DIRECTION B ───────────── -->
+    <div class="col">
+      <div class="col-label">Direction B</div>
+      <div class="col-name">Editorial restraint</div>
+      <p class="col-desc">No device — just discipline. Verb, then a single supporting fact, then the history line as quiet proof (one accent, one crest marker). The other lens is a single line of text, not a control. Closest to a Things/Linear sensibility.</p>
+
+      <div class="state-cap">Peak · go now</div>
+      <div class="v"><div class="v-pad">
+        <div class="v-meta"><span class="loc">Westquay · Southampton</span><span class="v-verified"><span class="dot"></span>Verified today</span></div>
+        <div class="v-verb go">Go&nbsp;now</div>
+        <div class="v-fact"><b>59%</b> of shops on sale — <b>12 of 20</b></div>
+        <div class="b-spark">
+          <div class="b-now-pill" style="left:97%;top:18%">59%</div>
+          <svg viewBox="0 0 360 96" preserveAspectRatio="none">
+            <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5EFFB0" stop-opacity="0.28"/><stop offset="1" stop-color="#5EFFB0" stop-opacity="0"/></linearGradient></defs>
+            <path class="area" d="M0,78 L40,72 L80,74 L120,58 L160,60 L200,40 L240,30 L280,46 L320,24 L356,10 L356,96 L0,96 Z"/>
+            <path class="ln" d="M0,78 L40,72 L80,74 L120,58 L160,60 L200,40 L240,30 L280,46 L320,24 L356,10"/>
+            <circle class="crest" cx="240" cy="30" r="4.5"/>
+            <circle class="now" cx="356" cy="10" r="4"/>
+          </svg>
+        </div>
+        <div class="b-tabs"><button class="b-tab">7D</button><button class="b-tab on">30D</button><button class="b-tab">60D</button></div>
+        <div class="v-context">For <b>your shops</b>: <b>4 of 5</b> on sale · <span class="go">Go now</span></div>
+      </div></div>
+
+      <div class="state-cap">Rising · not yet</div>
+      <div class="v"><div class="v-pad">
+        <div class="v-meta"><span class="loc">Westquay · Southampton</span><span class="v-verified"><span class="dot"></span>Verified today</span></div>
+        <div class="v-verb rise">Rising</div>
+        <div class="v-fact"><b>28%</b> of shops on sale — <b>6 of 20</b></div>
+        <div class="b-spark">
+          <div class="b-now-pill" style="left:97%;top:44%">28%</div>
+          <svg viewBox="0 0 360 96" preserveAspectRatio="none">
+            <path class="area" d="M0,84 L40,80 L80,82 L120,74 L160,72 L200,66 L240,60 L280,58 L320,52 L356,46 L356,96 L0,96 Z"/>
+            <path class="ln" d="M0,84 L40,80 L80,82 L120,74 L160,72 L200,66 L240,60 L280,58 L320,52 L356,46"/>
+            <circle class="now" cx="356" cy="46" r="4"/>
+          </svg>
+        </div>
+        <div class="b-tabs"><button class="b-tab">7D</button><button class="b-tab on">30D</button><button class="b-tab">60D</button></div>
+        <div class="v-context">For <b>your shops</b>: <b>1 of 5</b> on sale · still building</div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="callouts">
+    <h3>What the diet actually does</h3>
+    <ul>
+      <li><div><b>Verb leads, number supports.</b> "Go now / Easing / Rising" is the decision; the % is the evidence under it. One thing to read, not eight.</div></li>
+      <li><div><b>The unit is welded on.</b> "59% of shops on sale" — never a bare "59%" that reads as a discount.</div></li>
+      <li><div><b>Direction lives in one place.</b> The trend ("up from 41%") sits under the fact in A, or in the line itself in B — no duplicate arrows, pills and chips fighting.</div></li>
+      <li><div><b>The lens is demoted, not deleted.</b> Your-shops vs whole-centre becomes a footer control (A) or a single line (B) — present, never competing with the headline.</div></li>
+      <li><div><b>It's unmistakably Tide.</b> Playfair italic verb, neon waterline, gold "go", crest marker — a point of view, not a template hero.</div></li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

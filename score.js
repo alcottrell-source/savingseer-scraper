@@ -19,6 +19,27 @@ function getSupabase() {
   return _supabase;
 }
 
+// PostgREST silently caps a single response at the project's db-max-rows
+// (~1000 rows) — no error, just a short result. Any select that can exceed
+// that must page through with .range() or it returns only the first slice.
+// This is exactly what silently froze every centre's tide_history at
+// ~2026-06-01: the rebuild read centre_seer_scores ordered oldest-first and
+// only the first ~1000 rows (≈ up to June 1, across ~37 centres) survived.
+//
+// buildQuery() must return a FRESH query builder each call (Supabase builders
+// are single-use) carrying a DETERMINISTIC total order, otherwise rows can
+// shuffle across page boundaries and produce dupes/gaps.
+async function selectAllRows(buildQuery, pageSize = 1000) {
+  const out = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+    if (error) return { data: null, error };
+    if (data && data.length) out.push(...data);
+    if (!data || data.length < pageSize) break;
+  }
+  return { data: out, error: null };
+}
+
 function dateStr(offsetDays = 0) {
   return new Date(Date.now() + offsetDays * 86400000).toISOString().split('T')[0];
 }
@@ -254,8 +275,15 @@ async function calculateAllCentreScores(opts = {}) {
 
   const [centresRes, centreBrandsRes, brandSaleRes, recentScoresRes, yesterdayRowsRes, sixtyDayScoresRes] = await Promise.all([
     supabase.from('centres').select('*').eq('active', true),
-    supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
-    supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(max_discount_pct)'),
+    // centre_brands grows with the catalogue (centres × brands) and can exceed
+    // the PostgREST row cap — paginate so totalBrands (and thus every tide_score)
+    // can't be silently truncated. Deterministic order for safe paging.
+    selectAllRows(() => supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true)
+      .order('centre_id', { ascending: true }).order('brand_id', { ascending: true })),
+    // One row per brand — paginate defensively as the brand list grows.
+    selectAllRows(() => supabase.from('brand_sale_events')
+      .select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(max_discount_pct)')
+      .order('brand_id', { ascending: true })),
     supabase.from('centre_seer_scores')
       .select('centre_id, score_date, tide_score, verdict, trajectory')
       .gte('score_date', THREE_DAYS_AGO)
@@ -269,12 +297,14 @@ async function calculateAllCentreScores(opts = {}) {
     // Prior 60-day scores per centre — used to gate the "Highest it's been in
     // 60 days" Peak subtitle so the superlative is only ever shown when it's
     // literally true. Excludes TODAY so a fresh score is compared against its
-    // own history, not itself.
-    supabase.from('centre_seer_scores')
+    // own history, not itself. ~37×60 rows can exceed the cap — paginate, with
+    // a deterministic (centre_id, score_date) order so no day is dropped.
+    selectAllRows(() => supabase.from('centre_seer_scores')
       .select('centre_id, tide_score')
       .gte('score_date', SIXTY_DAYS_AGO)
       .lt('score_date', TODAY)
-      .not('tide_score', 'is', null),
+      .not('tide_score', 'is', null)
+      .order('centre_id', { ascending: true }).order('score_date', { ascending: true })),
   ]);
 
   if (centresRes.error || centreBrandsRes.error || brandSaleRes.error) {
@@ -484,12 +514,18 @@ async function calculateAllCentreScores(opts = {}) {
   // "↓ N brands since yesterday" delta — the displayed metric — instead
   // of falling back to the underlying tide_score % change (which moves
   // on freshness decay even when the admin hasn't touched anything).
-  const { data: historyData, error: historyError } = await supabase
+  // Paginate: this reads up to HISTORY_RETENTION_DAYS × every centre, which far
+  // exceeds the PostgREST row cap. Ordered oldest-first without paging, the cap
+  // kept only the earliest ~1000 rows and froze every centre's tide_history at
+  // ~2026-06-01. The secondary (centre_id) sort gives a deterministic total
+  // order so no day is dropped or duplicated across page boundaries.
+  const { data: historyData, error: historyError } = await selectAllRows(() => supabase
     .from('centre_seer_scores')
     .select('centre_id, score_date, tide_score, brands_on_sale, total_brands')
     .gte('score_date', HISTORY_START)
     .not('tide_score', 'is', null)
-    .order('score_date', { ascending: true });
+    .order('score_date', { ascending: true })
+    .order('centre_id', { ascending: true }));
 
   let historyFetchFailed = false;
   let historyWriteFailures = 0;
@@ -555,11 +591,18 @@ async function calculatePersonalScores(opts = {}) {
   const TODAY = opts.today || dateStr(0);
   console.log('\nCalculating personal scores...');
 
+  // Paginate the catalogue/user-scaled reads — same row-cap truncation that
+  // froze tide_history would silently corrupt matching-brand counts (and thus
+  // every personal score) and drop users past the cap.
   const [centresRes, centreBrandsRes, brandSaleRes, prefsRes] = await Promise.all([
     supabase.from('centres').select('id, name').eq('active', true),
-    supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true),
-    supabase.from('brand_sale_events').select('brand_id, last_verified_status, last_verified_date, active_cycle_id'),
-    supabase.from('user_preferences').select('*'),
+    selectAllRows(() => supabase.from('centre_brands').select('centre_id, brand_id').eq('present', true)
+      .order('centre_id', { ascending: true }).order('brand_id', { ascending: true })),
+    selectAllRows(() => supabase.from('brand_sale_events')
+      .select('brand_id, last_verified_status, last_verified_date, active_cycle_id')
+      .order('brand_id', { ascending: true })),
+    selectAllRows(() => supabase.from('user_preferences').select('*')
+      .order('user_id', { ascending: true })),
   ]);
 
   if (centresRes.error || centreBrandsRes.error || brandSaleRes.error) {

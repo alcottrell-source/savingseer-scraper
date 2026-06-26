@@ -4975,30 +4975,9 @@ function renderLandingHotSections(excludeIds) {
 // above; this fills in the live "Hot right now" ticker and an optional
 // expandable "How does Tide work?" panel. No CTA on the landing — the
 // search itself is the engagement; sign-up surfaces after a centre view.
-// Static landing showcase card — a fixed Westfield London example that shows
-// a newcomer exactly what a Tide card delivers (verified-today freshness,
-// % on sale, the verdict word, the shop count, and a 14-day growth signal)
-// before they search. Hardcoded by design: it's a hero, not live data. The
-// live equivalent is renderTideVessel().
-function renderHeroShowcaseCard() {
-  return '<section class="hero-card" role="img" aria-label="Example Tide card: Westfield London, 58% on sale, go now. 23 of 40 shops on sale, up 14 shops in 14 days.">'
-    +   '<div class="hero-card-top">'
-    +     '<div class="hero-card-id">'
-    +       '<div class="hero-card-name">Westfield London</div>'
-    +       '<div class="hero-card-loc">Shepherd’s Bush, London</div>'
-    +     '</div>'
-    +     '<div class="hero-card-verified"><span class="hero-card-dot" aria-hidden="true"></span>Verified today</div>'
-    +   '</div>'
-    +   '<div class="hero-card-pct-row">'
-    +     '<span class="hero-card-num"><span class="hero-card-pct">58</span><span class="hero-card-pct-sign">%</span></span>'
-    +     '<span class="hero-card-onsale">on sale</span>'
-    +   '</div>'
-    +   '<div class="hero-card-verdict">Go now</div>'
-    +   '<div class="hero-card-count">23 of 40 shops <span class="hero-card-count-sep">&middot;</span></div>'
-    +   '<div class="hero-card-pill"><span class="hero-card-tri" aria-hidden="true">▲</span> +14 shops in 14 days</div>'
-    +   '</section>';
-}
-
+// The landing leads with the all-centres tide chart, then the "Today's tide"
+// ranked list and the "What you get" steps. (The hardcoded "Go now" Westfield
+// sample card was removed Jun 2026 — it read as live data but wasn't.)
 function renderLandingHero() {
   const hotHTML = renderLandingHotSections([]);
   // Bridge card: logged-out only. renderLandingHero also serves signed-in
@@ -5009,10 +4988,9 @@ function renderLandingHero() {
       +   '<button class="bridge-card-cta" onclick="openAuthModal()">Get my personal Tide for free</button>'
       + '</section>';
   // Chart leads the landing — the all-centres average is the "state of the
-  // market" banner, shown right at the very top before the sample card,
-  // ranked list and steps.
+  // market" banner, shown right at the very top before the ranked list and
+  // steps. (The hardcoded "Go now" sample card was removed Jun 2026.)
   return renderTide60Light()
-       + renderHeroShowcaseCard()
        + hotHTML
        + '<section class="how-it-works is-static" aria-label="What you get">'
        +   '<div class="how-it-works-title">What you get</div>'

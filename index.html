@@ -3970,14 +3970,20 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
   // always paints `series` neon and `personal` dashed. Shares the x-axis (mapped
   // by date) so it aligns point-for-point with the hero line. Legend labels come
   // from opts so they track whichever line is which.
-  const YOU = '#5FB8FF';
+  // The "whole centre" comparison line stays in the brand's green family — both
+  // lines measure the SAME metric (% of shops on sale), so one hue is honest;
+  // brightness carries "yours vs centre". Bright neon solid = your shops; this
+  // muted, glow-less, dashed sage = the centre baseline. (The old blue was the
+  // only blue anywhere in the app — off-brand — and a neutral grey collided with
+  // the white gridlines; the muted green avoids both.)
+  const YOU = '#5E9E7E';
   const pLabel = (opts && opts.primaryLabel) || 'Centre';
   const sLabel = (opts && opts.secondaryLabel) || 'Your shops';
   let youLine = '', youEnd = '', legend = '';
   const winP = (Array.isArray(personal) && personal.length) ? windowTideSeries(personal, period) : [];
   if (winP.length >= 2) {
     const ptsP = winP.map(p => [xForDate(p.date), yFor(p.score)]);
-    youLine = '<path d="' + smoothCurvePath(ptsP) + '" fill="none" stroke="' + YOU + '" stroke-width="2.2" stroke-dasharray="6 5" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>';
+    youLine = '<path d="' + smoothCurvePath(ptsP) + '" fill="none" stroke="' + YOU + '" stroke-width="2" stroke-dasharray="6 5" stroke-linejoin="round" stroke-linecap="round" opacity="0.7"/>';
     const le = ptsP[ptsP.length - 1];
     youEnd = '<circle cx="' + le[0] + '" cy="' + le[1] + '" r="3.4" fill="' + YOU + '" stroke="#0B0B0D" stroke-width="1.4"/>';
     // Two-item legend in the top padding band (clears the plot area and the

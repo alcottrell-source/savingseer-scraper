@@ -2366,7 +2366,7 @@ async function loadTideData() {
     // hasn't picked up the active_cycle_id FK, which leaves the dashboard
     // falling back to the stale Google Sheet — so admin confirmations never
     // surface. Two flat queries + a JS join is what admin.html does.
-    const [centresRes, salesRes, cyclesRes, scoresRes, floorsRes, allCyclesRes] = await Promise.all([
+    const [centresRes, salesRes, cyclesRes, scoresRes, floorsRes, allCyclesRes, cycleChangesRes] = await Promise.all([
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,last_verified_status,last_verified_date,active_cycle_id'),
       pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type&end_date=is.null'),
@@ -2374,9 +2374,13 @@ async function loadTideData() {
       pgRead('centre_brand_floors?select=centre_id,brand_id,floor_label,floor_order'),
       // Full sale-episode history (every cycle, open or closed) for the shop
       // detail sheet. Each closed cycle is one past sale; the open cycle (if
-      // any) is the live episode. Ordered newest-first so the sheet's
-      // "Every sale on record" list and rhythm chart render without re-sorting.
-      pgRead('brand_sale_cycles?select=brand_id,start_date,end_date,max_discount_pct,sale_type&order=start_date.desc'),
+      // any) is the live episode. id is needed to join the change trail below.
+      // Ordered newest-first so the sheet's "Every sale on record" list and
+      // rhythm chart render without re-sorting.
+      pgRead('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct,sale_type&order=start_date.desc'),
+      // Intra-cycle %/type changes (e.g. a sale that deepened 50%→60% mid-run).
+      // Newest-first; joined onto each episode by cycle id for the detail sheet.
+      pgRead('brand_sale_cycle_changes?select=cycle_id,changed_date,old_max_discount_pct,new_max_discount_pct,old_sale_type,new_sale_type&order=created_at.desc'),
     ]);
     if (centresRes.error || salesRes.error || cyclesRes.error || scoresRes.error) {
       console.error('Tide data load failed:', { centres: centresRes.error, sales: salesRes.error, cycles: cyclesRes.error, scores: scoresRes.error });
@@ -2495,6 +2499,23 @@ async function loadTideData() {
     if (allCyclesRes.error) {
       console.warn('brand_sale_cycles history load failed (detail sheet will show no history):', allCyclesRes.error);
     } else {
+      // Group the intra-cycle change trail by cycle id so each episode can
+      // carry its own %/type progression. Tolerant of the table not being
+      // live yet — an error here just leaves episodes with no `changes`.
+      const changesByCycle = {};
+      if (cycleChangesRes && cycleChangesRes.error) {
+        console.warn('brand_sale_cycle_changes load failed (detail sheet will show no change trail):', cycleChangesRes.error);
+      } else {
+        for (const c of ((cycleChangesRes && cycleChangesRes.data) || [])) {
+          (changesByCycle[c.cycle_id] = changesByCycle[c.cycle_id] || []).push({
+            date: c.changed_date,
+            oldPct: Number.isFinite(c.old_max_discount_pct) ? c.old_max_discount_pct : null,
+            newPct: Number.isFinite(c.new_max_discount_pct) ? c.new_max_discount_pct : null,
+            oldType: c.old_sale_type || null,
+            newType: c.new_sale_type || null,
+          });
+        }
+      }
       for (const row of (allCyclesRes.data || [])) {
         const name = DASHBOARD_NAME_BY_SCRAPER_ID[row.brand_id];
         if (!name) continue;
@@ -2510,6 +2531,7 @@ async function loadTideData() {
           saleType: row.sale_type || 'percent_off',
           live,
           lengthDays,
+          changes: changesByCycle[row.id] || null,
         });
       }
       // Already ordered newest-first by the query, but a brand can in
@@ -5459,6 +5481,10 @@ document.addEventListener('visibilitychange', () => {
   .ts-sale.live .ts-bar span{background:#BC8A2E;}
   .ts-len{font-size:12px;color:#5A6175;margin-top:8px;display:flex;justify-content:space-between;gap:10px;}
   .ts-len em{font-style:normal;color:#9A9CA3;}
+  .ts-changes{margin-top:10px;padding-left:11px;border-left:2px solid #ECE4D6;}
+  .ts-changes-h{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#9A9CA3;margin-bottom:3px;}
+  .ts-change{font-size:12px;color:#5A6175;line-height:1.5;}
+  .ts-change span{color:#9A9CA3;margin-right:6px;}
 
   .ts-cta{display:block;width:100%;margin-top:24px;background:#1C2A45;color:#fff;border:0;text-align:center;text-decoration:none;
     font-family:'Inter',sans-serif;font-size:15px;font-weight:600;letter-spacing:.2px;padding:16px;border-radius:14px;cursor:pointer;transition:background .18s;}
@@ -5519,6 +5545,31 @@ document.addEventListener('visibilitychange', () => {
   function dayLen(ep){
     const d = ep.lengthDays, u = d===1 ? 'day' : 'days';
     return ep.live ? (d+' '+u+' so far') : (d+' '+u);
+  }
+  // One intra-cycle change → a short phrase, e.g. "deepened 50% → 60%" or
+  // "% off → Flash sale". Only the side that actually moved is shown.
+  function fmtChange(c){
+    const out = [];
+    if(c.oldPct!=null || c.newPct!=null){
+      const from = c.oldPct!=null ? c.oldPct+'%' : '—';
+      const to   = c.newPct!=null ? c.newPct+'%' : '—';
+      const verb = (c.oldPct!=null && c.newPct!=null) ? (c.newPct>c.oldPct ? 'deepened ' : 'eased ') : '';
+      out.push(verb+from+' → '+to);
+    }
+    if(c.oldType || c.newType){
+      const lbl = t => (typeof SALE_TYPE_LABEL!=='undefined' && SALE_TYPE_LABEL[t]) || t || '—';
+      out.push(lbl(c.oldType)+' → '+lbl(c.newType));
+    }
+    return out.join(' · ');
+  }
+  // The change trail for one episode — a small list under the receipt, oldest
+  // first so it reads as a progression. Empty string when nothing changed.
+  function changeTrail(ep){
+    if(!ep.changes || !ep.changes.length) return '';
+    const rows = ep.changes.slice().reverse().map(c =>
+      '<div class="ts-change"><span>'+esc(fmtDay(c.date))+'</span> '+esc(fmtChange(c))+'</div>'
+    ).join('');
+    return '<div class="ts-changes"><div class="ts-changes-h">Changed during this sale</div>'+rows+'</div>';
   }
 
   // ── "Alert me" stub. Registers intent in localStorage only; delivery
@@ -5787,7 +5838,8 @@ document.addEventListener('visibilitychange', () => {
             (ep.live?'<span class="ts-livetag">LIVE</span>':'')+'</div>'+
             '<div class="ts-pct">'+pctDisp+'</div></div>'+
           '<div class="ts-bar"><span style="width:'+barW+'%"></span></div>'+
-          '<div class="ts-len"><span>'+dayLen(ep)+'</span><em>'+footRight+'</em></div></div>';
+          '<div class="ts-len"><span>'+dayLen(ep)+'</span><em>'+footRight+'</em></div>'+
+          changeTrail(ep)+'</div>';
       }).join('');
     }
     html += '</div>';

@@ -3750,17 +3750,27 @@ function buildTideChartSVG(series, period, tone, endpointPct) {
       + '<text x="' + (X1 - 2) + '" y="' + (v === 0 ? gy - 6 : gy + 13).toFixed(1) + '" text-anchor="end" font-family="Inter,sans-serif" font-size="11" font-weight="700" fill="rgba(255,255,255,0.8)">' + v + '</text>';
   }).join('');
 
-  // Peak-hit dots: mark each point where the centre ENTERS peak (score crosses
-  // up through TIDE_PEAK_LINE) — one amber dot per peak episode. Replaces the
-  // old "PEAK" threshold line; no text, just a marker. Drawn before the live
-  // endpoint so today's neon dot/pill stays on top.
+  // Crest dots: mark where each peak episode TOPPED OUT — its highest point,
+  // the optimal "go" day (peak density, freshest picks) — not the 40% entry on
+  // the way up (which sits mid-climb and mis-signals the best moment). Walk each
+  // contiguous run of points ≥ TIDE_PEAK_LINE and mark that run's max; skip it
+  // when the max is the FINAL point (the centre is still rising — today's neon
+  // endpoint pill already carries "now", so no premature dot). One amber dot per
+  // crested ≥40 episode. Drawn before the live endpoint so today's dot/pill
+  // stays on top.
   const PEAK_DOT = '#E6A94B';
   let peakDots = '';
-  for (let i = 0; i < win.length; i++) {
-    const sc = +win[i].score;
-    const prev = i > 0 ? +win[i - 1].score : -1;
-    if (Number.isFinite(sc) && sc >= TIDE_PEAK_LINE && !(prev >= TIDE_PEAK_LINE)) {
-      peakDots += '<circle cx="' + pts[i][0] + '" cy="' + pts[i][1] + '" r="4" fill="' + PEAK_DOT + '" stroke="#0B0B0D" stroke-width="1.4"><title>Peak</title></circle>';
+  let runStart = -1;
+  for (let i = 0; i <= win.length; i++) {
+    const above = i < win.length && Number.isFinite(+win[i].score) && +win[i].score >= TIDE_PEAK_LINE;
+    if (above && runStart < 0) runStart = i;            // peak episode opens
+    if (!above && runStart >= 0) {                       // …closes at i-1 (or series end)
+      let maxIdx = runStart;
+      for (let j = runStart + 1; j < i; j++) if (+win[j].score > +win[maxIdx].score) maxIdx = j;
+      if (maxIdx < win.length - 1) {                     // crested & fell after; skip if it's today
+        peakDots += '<circle cx="' + pts[maxIdx][0] + '" cy="' + pts[maxIdx][1] + '" r="4" fill="' + PEAK_DOT + '" stroke="#0B0B0D" stroke-width="1.4"><title>Peaked</title></circle>';
+      }
+      runStart = -1;
     }
   }
 

@@ -404,21 +404,6 @@
   .tide-yourshops { position: relative; z-index: 6; display: flex; align-items: baseline; gap: 9px; margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(245,241,235,0.09); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.45; color: rgba(245,241,235,0.7); }
   .tide-yourshops-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--tide-neon); box-shadow: var(--tide-neon-glow); transform: translateY(-1px); }
   .tide-yourshops-body strong { color: var(--tide-cream); font-weight: 700; }
-  /* Your-shops mode: compact whole-centre context chip so the centre's verdict —
-     especially an actionable PEAK "Go now" (gold) — stays visible even when the
-     personal % leads the headline. */
-  .tide-context-chip { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; line-height: 1.4; color: rgba(245,241,235,0.6); margin: -6px 0 18px; }
-  .tide-context-chip strong { color: rgba(245,241,235,0.85); font-weight: 700; }
-  .tide-context-chip .cc-verdict { font-weight: 700; color: rgba(245,241,235,0.78); }
-  .tide-context-chip .cc-verdict.tone-go   { color: #FFD79A; }
-  .tide-context-chip .cc-verdict.tone-rise { color: #9FD8B0; }
-  .tide-context-chip .cc-verdict.tone-fall { color: #F4B79F; }
-  .tide-context-chip .cc-verdict.tone-wait { color: rgba(245,241,235,0.70); }
-  /* Scope label beside the big % in Your-shops mode ("40% of your shops"). The
-     number's meaning lives here; the count line below carries the unit. Calm
-     sentence case, vertically centred. (Whole-centre mode has no label — its
-     verdict word balances the row and the count line disambiguates the %.) */
-  .tide-vessel-headline-row .tide-vessel-pct-label { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; line-height: 1.2; color: rgba(245,241,235,0.6); align-self: center; }
   /* Flat black card + black chart panel — no verdict haze. The neon line is
      the hero; this kills the brown radial wash on the merged vessel. */
   .tide-vessel.tide-vessel--merged { background: #0B0B0D; box-shadow: 0 12px 44px rgba(0,0,0,0.5); }
@@ -664,16 +649,6 @@
   .brand-filter-tabs { display: flex; gap: 0; margin-bottom: 12px; background: var(--stone-lt); border-radius: 999px; padding: 3px; width: fit-content; }
   .brand-filter-tab { background: none; border: none; padding: 7px 16px; font-size: 12px; font-weight: 500; color: var(--stone); border-radius: 999px; cursor: pointer; font-family: inherit; transition: all 0.15s; letter-spacing: 0.02em; }
   .brand-filter-tab.active { background: white; color: var(--bark); box-shadow: 0 1px 2px rgba(44,24,16,0.08); }
-
-  /* Inline view-mode disclosure inside the hero — a quiet text link, not a
-     segmented control. Sits on the dark vessel under the context chip. */
-  /* Segmented view toggle [ Your shops | Whole centre ]. The active segment is
-     neon-green to tie it to the chart's hero line (the selected view IS green). */
-  .tide-mode-toggle { position: relative; z-index: 6; display: inline-flex; gap: 4px; margin: -2px 0 18px; padding: 4px; border-radius: 12px; background: rgba(245,241,235,0.05); border: 1px solid rgba(245,241,235,0.10); }
-  .tide-mode-seg { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; line-height: 1; color: rgba(245,241,235,0.6); background: transparent; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: background 0.15s, color 0.15s; }
-  .tide-mode-seg:hover { color: rgba(245,241,235,0.85); }
-  .tide-mode-seg.is-active { color: #06281C; background: #5EFFB0; }
-  .tide-mode-seg.is-active:hover { color: #06281C; }
 
   footer .footer-links { margin-top: 8px; }
   footer .footer-links a { color: var(--stone); text-decoration: underline; margin: 0 6px; font-size: 11px; }
@@ -2413,8 +2388,6 @@ function closePrefsModal() { closeOnboarding(); }
 // tide" ranking + the centre hero + the brand-chip grid), PERSISTED across
 // reloads in localStorage. 'mine' is the default for users who follow brands;
 // users with no followed brands always resolve to 'all' (nothing to personalise).
-// window._tideBrandFilter is kept in sync so the existing brand-chip grid reads
-// off the same source of truth.
 function tideHasFollowed() {
   return !!(typeof userPrefs !== 'undefined' && userPrefs
     && Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length);
@@ -2425,22 +2398,11 @@ function getTideMode() {
   try { m = localStorage.getItem('tide_view_mode'); } catch (e) {}
   return m === 'all' ? 'all' : 'mine';   // default to My shops
 }
-function setTideMode(mode) {
-  const m = mode === 'all' ? 'all' : 'mine';
-  try { localStorage.setItem('tide_view_mode', m); } catch (e) {}
-  window._tideBrandFilter = m;            // keep the brand-chip grid in sync
-  const sel = document.getElementById('centre-select');
-  renderCentre(sel ? sel.value : '');     // re-render landing or the open centre
-}
-// Back-compat alias — the brand-chip tabs call setBrandFilter('mine'|'all').
-function setBrandFilter(which) { setTideMode(which); }
-
-// The view mode defaults to personal-first and is switched by the segmented
-// toggle in the hero (see renderTideVessel). An earlier cryptic "My/All" toggle
-// tested poorly ("not clear enough") and was briefly replaced by an inline text
-// link; the toggle is back with explicit "Your shops" / "Whole centre" labels
-// and a clear selected state, and it now drives the headline number and the
-// chart's neon hero line as well as the brand-chip grid.
+// (The runtime mode setter + the in-hero view toggle were removed Jun 2026: the
+// hero now always shows the whole-centre call, and the chart's green line is
+// always "your shops" / the muted line always the centre — the lens no longer
+// flips at runtime. getTideMode() above stays read-only: it resolves the default
+// lens for the landing personalisation and the brand-chip grid.)
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
 let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SALE_TYPE = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];

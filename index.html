@@ -3707,8 +3707,11 @@ function windowTideSeries(series, period) {
 // is always shown. We no longer draw "PEAK"/"QUIET" threshold lines — instead
 // the axis carries faint gridlines at 0/25/50/75/100 with numeric labels, and
 // every point where the centre ENTERS peak (score crosses up through
-// TIDE_PEAK_LINE) is marked with a small amber dot on the curve. Even
-// x-spacing across the window so the line always spans the full width.
+// TIDE_PEAK_LINE) is marked with a small amber dot on the curve. The x-axis is
+// proportional to CALENDAR DATE (not point index), so gaps in stored history
+// read as real time gaps — the slope is honest. The axis spans the windowed
+// data's own date range (earliest point → latest), so the line still fills the
+// full width and thin centres never render a mostly-empty panel.
 function buildTideChartSVG(series, period, tone, endpointPct) {
   const NEON = '#5EFFB0';
   const W = 400, H = 356, PL = 8, PR = 8, PT = 20, PB = 14;
@@ -3722,7 +3725,17 @@ function buildTideChartSVG(series, period, tone, endpointPct) {
   const ceiling = 100;
   const yFor = s => +(PT + (1 - Math.max(0, Math.min(ceiling, s)) / ceiling) * H).toFixed(2);
 
-  const xFor = i => +(X0 + (n > 1 ? (i / (n - 1)) * W : W)).toFixed(2);
+  // X position by CALENDAR DATE, not index: each point sits at its true time
+  // offset across the window, so gaps in stored history read as gaps (honest
+  // slope) instead of every point being equally spaced. The axis is anchored to
+  // the windowed data's own range — earliest point at the left edge, latest
+  // (normally today) at the right — preserving the "always span full width /
+  // always draw a line" intent for thin centres. win is sorted ascending with
+  // distinct dates, so span is ≥1 day whenever n > 1.
+  const firstDate = win[0] ? win[0].date : null;
+  const lastDate  = win[n - 1] ? win[n - 1].date : null;
+  const span = (firstDate && lastDate) ? Math.max(1, _tideDaysBetween(firstDate, lastDate)) : 1;
+  const xFor = i => +(X0 + (n > 1 ? (_tideDaysBetween(firstDate, win[i].date) / span) * W : W)).toFixed(2);
   const pts = win.map((p, i) => [xFor(i), yFor(p.score)]);
 
   // Faint horizontal gridlines at round %% values (0 → ceiling), each with a

@@ -3886,14 +3886,23 @@ function renderTideVessel(v) {
   // Faithful real-history series + period-tab state. Stash for the tabs'
   // cheap re-render. Anchor today to the live headline value (pct).
   const series = buildTideRealSeries(v.history, pct, v.onSaleCount, v.totalCount);
-  const period = (typeof window !== 'undefined' && window._tideChartPeriod) || '60D';
+  // MAX only earns its own tab once the centre has ≥80 days of history. Until
+  // then it would draw a line identical to 60D (nothing older than ~60 days to
+  // show), so it's withheld and auto-appears as data accrues. Span is measured
+  // across the real series' own date range (series is ascending by date).
+  const _spanSeries = (series && series.length) ? series : [];
+  const histSpanDays = _spanSeries.length >= 2
+    ? _tideDaysBetween(_spanSeries[0].date, _spanSeries[_spanSeries.length - 1].date)
+    : 0;
+  const PERIODS = histSpanDays >= 80 ? ['7D', '30D', '60D', 'MAX'] : ['7D', '30D', '60D'];
+  let period = (typeof window !== 'undefined' && window._tideChartPeriod) || '60D';
+  if (!PERIODS.includes(period)) period = '60D';  // stored 'MAX' before it's unlocked → 60D
   if (typeof window !== 'undefined') window._tideChart = { series, tone, pct };
   const chartSVG = buildTideChartSVG(series, period, tone, pct);
-  // Always show the full 7D / 30D / 60D / MAX control set; the chart defaults
-  // to 60D. Windows are date-based (see windowTideSeries), so the tabs are only
-  // visibly different where the centre has points spanning those date ranges —
-  // a thin centre draws the same line on 30D/60D/MAX until more days accrue.
-  const tabs = ['7D', '30D', '60D', 'MAX'].map(p =>
+  // The chart defaults to 60D. Windows are date-based (see windowTideSeries), so
+  // tabs only differ where the centre has points spanning those ranges. MAX is
+  // gated above so it never duplicates the 60D line on a thin centre.
+  const tabs = PERIODS.map(p =>
     '<button type="button" class="tide-period-tab' + (p === period ? ' is-active' : '')
     + '" data-period="' + p + '" onclick="setTideChartPeriod(\'' + p + '\')">' + p + '</button>'
   ).join('');

@@ -238,19 +238,25 @@ export function renderBrandSaleEmail(opts: {
   brandName: string;
   centre1: string;
   centre2?: string;
+  centreId?: string;
   discount?: string;
 }): { subject: string; html: string; text: string } {
-  const { brandName, centre1, centre2, discount } = opts;
+  const { brandName, centre1, centre2, centreId, discount } = opts;
   const subject = `${brandName} just started a sale`;
   const locationPhrase = centre2 ? `${centre1} and ${centre2}` : centre1;
   const previewText = `On now at ${locationPhrase}.${discount ? ` Up to ${discount} off.` : ''}`;
 
   const bodyParagraph = `${discount ? `Up to ${escapeHtml(discount)} off. ` : ''}On now at ${escapeHtml(centre1)}${centre2 ? ` and ${escapeHtml(centre2)}` : ''}. Worth knowing early in the cycle.`;
 
+  // Deep-link straight to the centre's view (personal-by-default for followers),
+  // so the tap lands exactly where the shopper expects — not the generic home.
+  const ctaHref = centreId ? `${APP_URL}?centre=${encodeURIComponent(centreId)}` : APP_URL;
+  const ctaLabel = `See it at ${escapeHtml(centre1)} &rarr;`;
+
   const bodyHtml = `
     <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${LEAF};margin:0 0 16px;line-height:1.25">${escapeHtml(brandName)} just went on sale.</div>
     <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">${bodyParagraph}</p>
-    <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See the full picture &rarr;</a>`;
+    <a href="${ctaHref}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">${ctaLabel}</a>`;
 
   const html = baseEmailWrap({
     previewText,
@@ -259,7 +265,7 @@ export function renderBrandSaleEmail(opts: {
     unsubLabel: 'Brand Sale Alerts',
   });
 
-  const text = `${brandName} just went on sale.\n\n${discount ? `Up to ${discount} off. ` : ''}On now at ${locationPhrase}. Worth knowing early in the cycle.\n\nSee the full picture: ${APP_URL}`;
+  const text = `${brandName} just went on sale.\n\n${discount ? `Up to ${discount} off. ` : ''}On now at ${locationPhrase}. Worth knowing early in the cycle.\n\nSee it at ${centre1}: ${ctaHref}`;
 
   return { subject, html, text };
 }
@@ -269,7 +275,7 @@ export function renderBrandSaleEmail(opts: {
 // listing them all, instead of N separate "X just started a sale" messages.
 // The single-brand path above still handles the one-brand case.
 export function renderBrandSaleDigestEmail(opts: {
-  brands: { brandName: string; centre1: string; centre2?: string; discount?: string }[];
+  brands: { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string }[];
 }): { subject: string; html: string; text: string } {
   const { brands } = opts;
   const n = brands.length;
@@ -295,7 +301,7 @@ export function renderBrandSaleDigestEmail(opts: {
     <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 8px;max-width:420px">All starting their sale today — worth knowing early in the cycle.</p>
     <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:20px 0 0">
     ${rows}
-    <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See the full picture &rarr;</a>`;
+    <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See your shops &rarr;</a>`;
 
   const html = baseEmailWrap({
     previewText,
@@ -309,7 +315,7 @@ export function renderBrandSaleDigestEmail(opts: {
     '',
     ...brands.map(b => `${b.brandName} — ${b.discount ? `up to ${b.discount} off, ` : ''}on now at ${b.centre2 ? `${b.centre1} and ${b.centre2}` : b.centre1}`),
     '',
-    `See the full picture: ${APP_URL}`,
+    `See your shops: ${APP_URL}`,
   ];
 
   return { subject, html, text: textLines.join('\n') };
@@ -601,7 +607,7 @@ Deno.serve(async (req: Request) => {
   // started brands (outer) to reuse the per-brand recipient + centre-pick
   // logic, then group the resulting items by user id (preserving brand order)
   // and send once below.
-  type BrandSaleItem = { brandName: string; centre1: string; centre2?: string; discount?: string };
+  type BrandSaleItem = { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string };
   const perUser = new Map<string, { p: PrefsRow; items: BrandSaleItem[] }>();
   for (const { sale, brand } of startedBrands) {
     const pct = (sale.active_cycle_id && sale.cycle?.max_discount_pct != null)
@@ -616,15 +622,14 @@ Deno.serve(async (req: Request) => {
     });
     for (const p of recipients) {
       // Prefer the user's own saved centres that carry the brand; fall back
-      // to any centre stocking it.
+      // to any centre stocking it. Keep the centre IDs so the email can
+      // deep-link straight into that centre's (now personal-by-default) view.
       const saved = new Set(p.saved_centres);
       const relevant = brandCentreIds.filter(cid => saved.has(cid));
-      const pick = (relevant.length > 0 ? relevant : brandCentreIds)
-        .map(cid => centres.get(cid))
-        .filter((n): n is string => !!n);
-      if (pick.length === 0) { log.push({ type: "brand", to: emailById.get(p.user_id), brand: brand.name, skipped: "no centre carries brand" }); continue; }
+      const pickCids = (relevant.length > 0 ? relevant : brandCentreIds).filter(cid => !!centres.get(cid));
+      if (pickCids.length === 0) { log.push({ type: "brand", to: emailById.get(p.user_id), brand: brand.name, skipped: "no centre carries brand" }); continue; }
       const entry = perUser.get(p.user_id) || { p, items: [] };
-      entry.items.push({ brandName: brand.name, centre1: pick[0], centre2: pick[1], discount: pct ? `${pct}%` : undefined });
+      entry.items.push({ brandName: brand.name, centre1: centres.get(pickCids[0])!, centre2: pickCids[1] ? centres.get(pickCids[1])! : undefined, centreId: pickCids[0], discount: pct ? `${pct}%` : undefined });
       perUser.set(p.user_id, entry);
     }
   }

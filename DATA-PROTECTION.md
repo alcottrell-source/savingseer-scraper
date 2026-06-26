@@ -63,6 +63,32 @@ from ever landing.
   still caught.
 - **Manual:** `npm run guard`.
 
+## Simulated vs real data
+
+There is **no source tag** distinguishing simulated from real sale data — the
+admin console stamps every cycle `source='admin'`. The agreed rule is instead:
+
+> **anything before the last data delete (2026-05-04) is simulated.**
+
+`brand_sale_cycles` was created on 2026-05-04 and human verification began that
+day, so any cycle with `start_date < 2026-05-04` depicts a pre-verification sale
+— i.e. backfilled/demo padding.
+
+Migration `20260626b_tag_simulated_sale_cycles.sql` adds a
+`brand_sale_cycles.is_simulated` boolean and tags those rows. It **only tags,
+deletes nothing.** Run it once in the SQL editor. `npm run readiness` then grades
+the dataset on **real cycles only**, so you can watch the real count grow.
+
+### Binning the simulated rows (later, when real data is deep enough)
+
+The tagged rows are demo content keeping the product looking populated — keep
+them until real data is sufficient. When ready, the bin statement lives at the
+bottom of `20260626b_tag_simulated_sale_cycles.sql`: snapshot to
+`brand_sale_cycles_simbin_<date>`, then `SET LOCAL app.allow_data_reset` and
+`DELETE FROM brand_sale_cycles WHERE is_simulated = TRUE`. (`active_cycle_id` is
+`ON DELETE SET NULL`, so any event pointing at a binned cycle is cleared
+gracefully.) Review open simulated cycles first if you want to spare any.
+
 ## Measuring readiness
 
 `npm run readiness` (needs `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`, read-only)

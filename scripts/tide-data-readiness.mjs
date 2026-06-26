@@ -64,7 +64,10 @@ function grade(score) {
   const [centres, centreBrands, cycles, scores, reports, signals] = await Promise.all([
     selectAll('centres', 'id, name, active'),
     selectAll('centre_brands', 'centre_id, brand_id', (q) => q.eq('present', true)),
-    selectAll('brand_sale_cycles', 'id, brand_id, start_date, end_date, max_discount_pct, sale_type, source'),
+    // Try with the is_simulated tag (added by 20260626b); fall back without it
+    // so the report still runs before that migration is applied.
+    selectAll('brand_sale_cycles', 'id, brand_id, start_date, end_date, max_discount_pct, sale_type, source, is_simulated')
+      .catch(() => selectAll('brand_sale_cycles', 'id, brand_id, start_date, end_date, max_discount_pct, sale_type, source')),
     selectAll('centre_seer_scores', 'centre_id, score_date, tide_score, brands_on_sale, verdict',
       (q) => q.gte('score_date', dateStr(-365)).not('tide_score', 'is', null)),
     selectAll('user_reports', 'id, created_at').catch(() => []),
@@ -114,25 +117,32 @@ function grade(score) {
   const signalScore = frozenPct <= 40 ? 3 : frozenPct <= 65 ? 2 : 1;
 
   // ── Axis 4: EPISODES — brand_sale_cycles, the forecastable table ─────────────
-  const closed = cycles.filter((c) => c.end_date);
-  const open = cycles.filter((c) => !c.end_date);
-  const withDiscount = cycles.filter((c) => c.max_discount_pct != null).length;
+  // Grade on REAL cycles only. Simulated/backfilled demo rows (is_simulated,
+  // tagged by migration 20260626b — start_date before the last data delete) are
+  // padding, not forecastable signal, so they must not inflate readiness. Pre-
+  // migration the column is absent, so we fall back to the source!='admin' hint.
+  const isSim = (c) => ('is_simulated' in c ? c.is_simulated === true : (c.source && c.source !== 'admin'));
+  const simulatedCount = cycles.filter(isSim).length;
+  const real = cycles.filter((c) => !isSim(c));
+
+  const closed = real.filter((c) => c.end_date);
+  const open = real.filter((c) => !c.end_date);
+  const withDiscount = real.filter((c) => c.max_discount_pct != null).length;
   const lengths = closed
     .map((c) => daysBetween(c.start_date, c.end_date))
     .filter((d) => d >= 0);
   const avgLen = lengths.length ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length) : null;
-  const brandsWithCycle = new Set(cycles.map((c) => c.brand_id));
+  const brandsWithCycle = new Set(real.map((c) => c.brand_id));
   const brandsWith2Plus = [...brandsWithCycle].filter(
-    (bid) => cycles.filter((c) => c.brand_id === bid).length >= 2).length;
-  const simulated = cycles.filter((c) => c.source && c.source !== 'admin').length;
+    (bid) => real.filter((c) => c.brand_id === bid).length >= 2).length;
   const episodes = {
-    total: cycles.length, closed: closed.length, open: open.length,
+    totalCycles: cycles.length, realCycles: real.length, simulatedTagged: simulatedCount,
+    closed: closed.length, open: open.length,
     withDiscountPct: withDiscount, avgClosedLengthDays: avgLen,
-    brandsWithAnyCycle: brandsWithCycle.size,
-    brandsWith2PlusCycles: brandsWith2Plus,
-    nonAdminSourceRows: simulated,
+    brandsWithAnyRealCycle: brandsWithCycle.size,
+    brandsWith2PlusRealCycles: brandsWith2Plus,
   };
-  // Forecasting cadence needs ≥2 episodes per brand for a meaningful share of brands.
+  // Forecasting cadence needs ≥2 REAL episodes per brand for a meaningful share.
   const episodeScore = brandsWith2Plus >= 30 ? 4 : brandsWith2Plus >= 10 ? 3 : brandsWith2Plus >= 3 ? 2 : 1;
 
   // ── Axis 5: CROWD — densification signal ─────────────────────────────────────
@@ -168,11 +178,12 @@ function grade(score) {
   console.log('    note: high % ≈ carry-forward / stable sales; lower = richer signal');
 
   console.log(`\n4. EPISODES (brand_sale_cycles — the asset) [${report.grades.episodes}]`);
-  line('episodes (closed / open)', `${episodes.closed} / ${episodes.open}`);
-  line('with a discount %', `${episodes.withDiscountPct} / ${episodes.total}`);
+  line('real / simulated cycles', `${episodes.realCycles} real, ${episodes.simulatedTagged} simulated  (of ${episodes.totalCycles})`);
+  line('real episodes (closed/open)', `${episodes.closed} / ${episodes.open}`);
+  line('with a discount %', `${episodes.withDiscountPct} / ${episodes.realCycles}`);
   line('avg closed length (days)', episodes.avgClosedLengthDays ?? '—');
-  line('brands with ≥2 episodes', `${episodes.brandsWith2PlusCycles}  (forecastable cadence)`);
-  line('non-admin source rows', `${episodes.nonAdminSourceRows}  (likely simulated/seed)`);
+  line('brands with ≥2 real episodes', `${episodes.brandsWith2PlusRealCycles}  (forecastable cadence)`);
+  console.log('    note: graded on REAL cycles only; simulated rows are excluded');
 
   console.log(`\n5. CROWD (densification path)              [${report.grades.crowd}]`);
   line('user reports (30d / all)', `${crowd.userReportsLast30d} / ${crowd.userReportsTotal}`);

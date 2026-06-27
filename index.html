@@ -3899,7 +3899,8 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
     +   '<stop offset="0%" stop-color="' + NEON + '" stop-opacity="0.34"/>'
     +   '<stop offset="100%" stop-color="' + NEON + '" stop-opacity="0"/>'
     + '</linearGradient>'
-    + '<filter id="tideGlow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+    + '<filter id="tideGlow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '<filter id="tideSageGlow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
 
   let area = '', line = '';
   if (pts.length >= 2) {
@@ -3941,13 +3942,37 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
   const YOU = '#5E9E7E';
   const pLabel = (opts && opts.primaryLabel) || 'Centre';
   const sLabel = (opts && opts.secondaryLabel) || 'Your shops';
+  const sPct = (opts && Number.isFinite(+opts.secondaryPct)) ? +opts.secondaryPct : null;
   let youLine = '', youEnd = '', legend = '';
   const winP = (Array.isArray(personal) && personal.length) ? windowTideSeries(personal, period) : [];
   if (winP.length >= 2) {
     const ptsP = winP.map(p => [xForDate(p.date), yFor(p.score)]);
-    youLine = '<path d="' + smoothCurvePath(ptsP) + '" fill="none" stroke="' + YOU + '" stroke-width="2" stroke-dasharray="6 5" stroke-linejoin="round" stroke-linecap="round" opacity="0.7"/>';
+    // Stronger secondary line: heavier stroke + near-full opacity + its own soft
+    // glow so the "whole centre" baseline reads as a real second dataset, not a
+    // faint hint. Still dashed (and the muted sage hue, never neon) so it stays
+    // clearly the comparison line, not the "your shops" hero.
+    youLine = '<path d="' + smoothCurvePath(ptsP) + '" fill="none" stroke="' + YOU + '" stroke-width="3" stroke-dasharray="8 4" stroke-linejoin="round" stroke-linecap="round" opacity="0.95" filter="url(#tideSageGlow)"/>';
     const le = ptsP[ptsP.length - 1];
-    youEnd = '<circle cx="' + le[0] + '" cy="' + le[1] + '" r="3.4" fill="' + YOU + '" stroke="#0B0B0D" stroke-width="1.4"/>';
+    youEnd = '<circle cx="' + le[0] + '" cy="' + le[1] + '" r="11" fill="' + YOU + '" opacity="0.18"/>'
+      + '<circle cx="' + le[0] + '" cy="' + le[1] + '" r="4" fill="' + YOU + '" stroke="#0B0B0D" stroke-width="1.5"/>';
+    // Second value pill — the whole-centre % — so the chart carries BOTH sets of
+    // data (your shops % on the neon endpoint, whole-centre % here). Sage fill to
+    // tie it to its line. If it would collide vertically with the neon pill,
+    // flip it to the opposite side of its dot.
+    if (sPct != null) {
+      const slabel = Math.round(sPct) + '%';
+      const spw = 22 + slabel.length * 10;
+      const spx = Math.min(le[0] + 8, X1 - spw);
+      const neonEy = pts.length ? pts[pts.length - 1][1] : null;
+      let spy = le[1] < PT + H * 0.25 ? le[1] + 12 : le[1] - 33;
+      if (neonEy != null && Math.abs(spy - (neonEy < PT + H * 0.25 ? neonEy + 12 : neonEy - 33)) < 28) {
+        spy = le[1] < neonEy ? le[1] - 33 : le[1] + 12;   // push to far side of the neon pill
+      }
+      youEnd += '<g transform="translate(' + spx.toFixed(1) + ',' + spy.toFixed(1) + ')">'
+        +   '<rect width="' + spw + '" height="26" rx="13" fill="' + YOU + '"/>'
+        +   '<text x="' + (spw / 2) + '" y="17.5" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="800" fill="#06281C">' + slabel + '</text>'
+        + '</g>';
+    }
     // Two-item legend in the top padding band (clears the plot area and the
     // right-aligned "100" gridline label). The 2nd swatch starts past the 1st
     // label (≈6.4px/char at 11px bold) so variable-length labels don't collide.
@@ -4079,15 +4104,17 @@ function renderTideVessel(v) {
   // user follows nothing here there's no personal line, so the lone neon line is
   // the centre (labelled as such in the legend).
   const hasPersonalLine = personalSeries.length >= 2;
-  let primarySeries, primaryPct, primaryLabel, secondarySeries, secondaryLabel;
+  let primarySeries, primaryPct, primaryLabel, secondarySeries, secondaryLabel, secondaryPct;
   if (hasPersonalLine) {
     primarySeries = personalSeries; primaryPct = personalPct; primaryLabel = 'Your shops';
-    secondarySeries = series;       secondaryLabel = 'Whole centre';
+    secondarySeries = series;       secondaryLabel = 'Whole centre'; secondaryPct = pct;
   } else {
     primarySeries = series;         primaryPct = pct;
-    primaryLabel = 'Whole centre';  secondarySeries = []; secondaryLabel = 'Your shops';
+    primaryLabel = 'Whole centre';  secondarySeries = []; secondaryLabel = 'Your shops'; secondaryPct = null;
   }
-  const chartOpts = { primaryLabel, secondaryLabel };
+  // Pass BOTH endpoint %s so the chart shows your-shops % (neon pill) and the
+  // whole-centre % (sage pill) — both sets of data on one chart.
+  const chartOpts = { primaryLabel, secondaryLabel, secondaryPct };
   if (typeof window !== 'undefined') window._tideChart = { series: primarySeries, tone, pct: primaryPct, personal: secondarySeries, opts: chartOpts };
   const chartSVG = buildTideChartSVG(primarySeries, period, tone, primaryPct, secondarySeries, chartOpts);
   const tabs = PERIODS.map(p =>

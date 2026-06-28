@@ -707,9 +707,14 @@
   .narrative-headline-num { color: var(--green-bright); font-weight: 600; }
   .narrative-headline-num.muted { color: var(--stone); }
   .rank-list { list-style: none; margin: 0; padding: 0; }
-  .rank-row { display: grid; grid-template-columns: 24px 1fr auto auto; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--border); }
+  .rank-row { display: grid; grid-template-columns: 24px 26px 1fr auto auto; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--border); }
   .rank-row:last-child { border-bottom: none; }
   .rank-num { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: var(--stone); font-variant-numeric: tabular-nums; }
+  .rank-logo { width: 26px; height: 26px; border-radius: 6px; background: #fff; border: 1px solid var(--border); flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .rank-logo-img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
+  .rank-logo.is-mono { background: var(--stone-lt); border-color: var(--stone-lt); }
+  .rank-logo.is-mono .rank-logo-img { display: none; }
+  .rank-logo.is-mono::after { content: attr(data-mono); font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; color: var(--stone); text-transform: uppercase; }
   .rank-name { font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .rank-deal { font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 700; color: var(--leaf); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
   .rank-pill { font-size: 10px; letter-spacing: 0.08em; font-weight: 600; padding: 3px 8px; border-radius: 6px; border: 1px solid; text-transform: uppercase; }
@@ -3322,8 +3327,17 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
         }
         const pillClass = (b.days <= 1) ? 'rank-pill rank-pill-new' : 'rank-pill rank-pill-old';
         const pillTxt = (b.days <= 1) ? 'NEW' : (b.days + (b.days === 1 ? ' day' : ' days'));
+        // Small brand icon — Google-favicon src (same source as the brand
+        // chips/strip), monogram fallback when we have no URL or the favicon
+        // fails to load (onerror flips the tile to its lettered .is-mono state).
+        const logoSrc = hotTileLogoSrc(b.name);
+        const mono = hotTileLabel(b.name);
+        const logoHTML = '<span class="rank-logo' + (logoSrc ? '' : ' is-mono') + '" data-mono="' + escapeHtml(mono) + '">'
+             + (logoSrc ? '<img class="rank-logo-img" alt="" loading="lazy" src="' + logoSrc + '" onerror="this.closest(\'.rank-logo\').classList.add(\'is-mono\')">' : '')
+             + '</span>';
         return '<li class="rank-row">'
              +   '<span class="rank-num">' + (i + 1) + '</span>'
+             +   logoHTML
              +   '<span class="rank-name">' + escapeHtml(b.name) + '</span>'
              +   '<span class="rank-deal">' + escapeHtml(dealTxt) + '</span>'
              +   '<span class="' + pillClass + '">' + pillTxt + '</span>'
@@ -4257,7 +4271,7 @@ function renderTideVessel(v) {
       + '<div class="tide-vessel-pct-stack">'
       +   '<div class="tide-vessel-pct-primary">'
       +     '<span class="tide-vessel-pct">' + personalPct + '<span class="tide-vessel-pct-sign">%</span></span>'
-      +     '<span class="tide-vessel-pct-scope">your shops</span>'
+      +     '<span class="tide-vessel-pct-scope">of your shops are on sale</span>'
       +   '</div>'
       +   '<div class="tide-vessel-pct-secondary">'
       +     '<span class="tide-vessel-pct-sub">' + pct + '<span class="tide-vessel-pct-sub-sign">%</span></span>'

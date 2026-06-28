@@ -407,7 +407,13 @@ export function renderCentreHub(d) {
   const rows = brands.map(b => {
     const onRecord = (b.cyclesRaw || []).length;
     const recCell = onRecord ? `${onRecord} sale${onRecord === 1 ? '' : 's'}` : '<span class="muted">—</span>';
-    return `<tr><td><a href="${origin}/centre/${centre.slug}/${b.slug}">${escapeHtml(b.name)}</a></td><td>${b.onSale ? '<span class="tag">On sale</span>' : '<span class="tag off">—</span>'}</td><td>${recCell}</td></tr>`;
+    // Brands with no page (off-sale, no history) stay in the roster for an honest
+    // "X of Y tracked" count, but as plain text — never a link to a 404.
+    const hasPage = b.hasPage != null ? b.hasPage : (b.onSale || onRecord > 0);
+    const nameCell = hasPage
+      ? `<a href="${origin}/centre/${centre.slug}/${b.slug}">${escapeHtml(b.name)}</a>`
+      : escapeHtml(b.name);
+    return `<tr><td>${nameCell}</td><td>${b.onSale ? '<span class="tag">On sale</span>' : '<span class="tag off">—</span>'}</td><td>${recCell}</td></tr>`;
   }).join('');
 
   return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `

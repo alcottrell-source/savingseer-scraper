@@ -32,6 +32,12 @@ segmented (centre + brand) audience member.
   only — never the scraper's raw `sale_status`. (Mirrors `score.js` + `index.html`.)
 - **Browser writes use raw PostgREST**, not supabase-js (which hangs in the browser).
 - **No data, no page.** A centre with no current Tide Score is skipped entirely.
+- **No thin brand pages.** A brand gets its own `/centre/<c>/<brand>` page only if it
+  has a live sale OR at least one tracked sale cycle (`hasPage` in `generate.mjs`). A
+  brand that's off-sale with zero history would render a near-duplicate template (only
+  the brand + centre name differ) — exactly what Google buckets as "Crawled – currently
+  not indexed". Skipped brands stay on the centre hub roster (as plain text, keeping the
+  "X of Y tracked" count honest) but get no URL and no sitemap entry.
 - **No pages, no deploy.** If the data load fails or 0 pages are produced, the build
   **fails** (non-zero exit) so Vercel keeps the last good deploy live — shipping an
   empty `sitemap.xml` would 404 every already-indexed `/centre/` page at once. Set

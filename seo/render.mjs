@@ -116,7 +116,7 @@ export function verdictCopy(verdict, trajectory) {
   }
 }
 
-const HEAD = (title, desc, canonical) => `<!doctype html>
+const HEAD = (title, desc, canonical, ogImage) => `<!doctype html>
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
@@ -127,6 +127,13 @@ const HEAD = (title, desc, canonical) => `<!doctype html>
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(desc)}">
 <meta property="og:type" content="website">
+<meta property="og:url" content="${escapeHtml(canonical)}">
+<meta property="og:site_name" content="Tide">
+${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">` : ''}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${escapeHtml(title)}">
+<meta name="twitter:description" content="${escapeHtml(desc)}">
+${ogImage ? `<meta name="twitter:image" content="${escapeHtml(ogImage)}">` : ''}
 <style>
 :root{--bg:#0b1410;--card:#11201a;--ink:#f5f1eb;--muted:#9fb3a8;--neon:#5EFFB0;--line:rgba(245,241,235,.12)}
 *{box-sizing:border-box}body{margin:0;font:16px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}
@@ -149,6 +156,22 @@ th{color:var(--muted);font-weight:600}.tag{display:inline-block;font-size:.78rem
 ul.links{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px}ul.links li a{display:inline-block;padding:7px 12px;border:1px solid var(--line);border-radius:999px;text-decoration:none}
 footer{margin-top:40px;color:var(--muted);font-size:.82rem;border-top:1px solid var(--line);padding-top:16px}
 details{border-bottom:1px solid var(--line);padding:10px 0}summary{cursor:pointer;font-weight:600}
+.post-list{list-style:none;padding:0;margin:8px 0}
+.post-card{border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:12px 0;background:var(--card)}
+.post-card a{font-size:1.15rem;font-weight:600;text-decoration:none;color:var(--ink)}.post-card a:hover{color:var(--neon)}
+.post-card .post-date{display:block;color:var(--muted);font-size:.8rem;margin-bottom:4px}
+.post-card .desc{color:var(--muted);margin-top:6px;font-size:.95rem}
+.post-meta{color:var(--muted);font-size:.85rem;margin:.2em 0 1.4em;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.post-hero{width:100%;border-radius:14px;margin:6px 0 20px;border:1px solid var(--line)}
+.post-body{font-size:1.05rem}
+.post-body p{margin:1em 0}.post-body h2{font-size:1.3rem;margin:1.6em 0 .5em}.post-body h3{font-size:1.1rem;margin:1.4em 0 .4em}
+.post-body ul,.post-body ol{padding-left:1.3em;margin:1em 0}.post-body li{margin:.3em 0}
+.post-body a{color:var(--neon)}
+.post-body blockquote{border-left:3px solid var(--line);margin:1.2em 0;padding:2px 0 2px 16px;color:var(--muted)}
+.post-body code{background:rgba(245,241,235,.08);padding:1px 5px;border-radius:6px;font-size:.92em}
+.post-body pre{background:#0b1410;border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto}.post-body pre code{background:none;padding:0}
+.post-body table{margin:1.2em 0}
+.post-body hr{border:none;border-top:1px solid var(--line);margin:1.8em 0}
 .cookie-banner{position:fixed;left:16px;right:16px;bottom:16px;margin:0 auto;max-width:460px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:none;flex-direction:column;gap:12px;z-index:950;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 .cookie-banner.is-open{display:flex}
 .cookie-banner-text{font-size:13px;line-height:1.5;color:var(--muted)}
@@ -224,13 +247,13 @@ function analyticsAndConsent() {
 
 const FOOT = (origin) => `
 <footer>
-Sale timing is shown for guidance, based on Tide's tracked, admin-verified sale data and the UK retail sale calendar — always check in store.
-<a href="${origin}/">Tide home</a> · <a href="${origin}/privacy">Privacy</a> · <a href="#" onclick="event.preventDefault();tideCookieSettings()">Cookie settings</a>
+Sale timing is shown for guidance, based on Tide's tracked, admin-verified sale data and the UK retail sale calendar. Always check in store.
+<a href="${origin}/">Tide home</a> · <a href="${origin}/blog">Blog</a> · <a href="${origin}/privacy">Privacy</a> · <a href="#" onclick="event.preventDefault();tideCookieSettings()">Cookie settings</a>
 </footer>
 </div>
 ${analyticsAndConsent()}
 <script>
-// Browser write — raw PostgREST fetch (the pgUpsert pattern). NOT supabase-js.
+// Browser write: raw PostgREST fetch (the pgUpsert pattern). NOT supabase-js.
 window.__tideOptIn = async function(form, ctx){
   const email = form.email.value.trim(); if(!email) return false;
   const status = form.querySelector('.ok'); status.textContent = 'Saving…';
@@ -241,7 +264,7 @@ window.__tideOptIn = async function(form, ctx){
                'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
       body: JSON.stringify({ email, centre_slug: ctx.centre, brand_slug: ctx.brand || null, source_url: location.pathname })
     });
-    status.textContent = r.ok ? "Done — we'll email you when "+ctx.label+" peaks." : 'Something went wrong, please try again.';
+    status.textContent = r.ok ? "Done. We'll email you when "+ctx.label+" peaks." : 'Something went wrong, please try again.';
   }catch(e){ status.textContent = 'Something went wrong, please try again.'; }
   return false;
 };
@@ -341,7 +364,7 @@ export function renderBrandPage(d) {
 ${moreNote}
 <p class="muted">Based on Tide's tracked, admin-verified sale episodes — descriptive history only, not a forecast of future sales.</p>` : '';
 
-  return HEAD(title, desc, canonical) + configScript(supabase) + `
+  return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `
 <div class="crumbs"><a href="${origin}/">Tide</a> › <a href="${origin}/centre/${centre.slug}">${escapeHtml(centre.name)}</a> › ${escapeHtml(brand.name)}</div>
 <h1>When does ${escapeHtml(brand.name)} go on sale at ${escapeHtml(centre.name)}?</h1>
 <div class="answer">
@@ -384,10 +407,16 @@ export function renderCentreHub(d) {
   const rows = brands.map(b => {
     const onRecord = (b.cyclesRaw || []).length;
     const recCell = onRecord ? `${onRecord} sale${onRecord === 1 ? '' : 's'}` : '<span class="muted">—</span>';
-    return `<tr><td><a href="${origin}/centre/${centre.slug}/${b.slug}">${escapeHtml(b.name)}</a></td><td>${b.onSale ? '<span class="tag">On sale</span>' : '<span class="tag off">—</span>'}</td><td>${recCell}</td></tr>`;
+    // Brands with no page (off-sale, no history) stay in the roster for an honest
+    // "X of Y tracked" count, but as plain text — never a link to a 404.
+    const hasPage = b.hasPage != null ? b.hasPage : (b.onSale || onRecord > 0);
+    const nameCell = hasPage
+      ? `<a href="${origin}/centre/${centre.slug}/${b.slug}">${escapeHtml(b.name)}</a>`
+      : escapeHtml(b.name);
+    return `<tr><td>${nameCell}</td><td>${b.onSale ? '<span class="tag">On sale</span>' : '<span class="tag off">—</span>'}</td><td>${recCell}</td></tr>`;
   }).join('');
 
-  return HEAD(title, desc, canonical) + configScript(supabase) + `
+  return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `
 <div class="crumbs"><a href="${origin}/">Tide</a> › ${escapeHtml(centre.name)}</div>
 <h1>${escapeHtml(centre.name)} sales today</h1>
 <div class="answer">
@@ -402,5 +431,104 @@ ${optInBlock(centre.name, { centre: centre.slug, brand: null, label: centre.name
 <h2>Shops tracked at ${escapeHtml(centre.name)}</h2>
 <table><thead><tr><th>Shop</th><th>Today</th><th>Sales on record</th></tr></thead><tbody>${rows}</tbody></table>
 ${hours ? `<p class="muted">Opening hours: ${escapeHtml(hours)}.</p>` : ''}
+` + FOOT(origin);
+}
+
+// ── Blog ────────────────────────────────────────────────────────────────────
+// Hand-written Markdown posts (seo/blog/*.md), loaded by blog.mjs and rendered
+// here so the blog shares the SEO pages' HEAD/FOOT/styles/analytics. Descriptive,
+// owned content that feeds organic search and internally links to /centre pages.
+
+function postCard(p, origin) {
+  return `<li class="post-card">
+${p.date ? `<span class="post-date">${escapeHtml(fmtDate(p.date))}</span>` : ''}
+<a href="${origin}/blog/${p.slug}">${escapeHtml(p.title)}</a>
+${p.description ? `<div class="desc">${escapeHtml(p.description)}</div>` : ''}
+</li>`;
+}
+
+export function renderBlogIndex(posts, { origin, supabase }) {
+  const title = 'The Tide blog: UK shopping centre sales, explained';
+  const desc = 'Guides to when UK shopping centres go on sale, how the Tide Score works, and how to time your trip, from the team tracking sales across the UK.';
+  const canonical = `${origin}/blog`;
+  const list = posts.length
+    ? `<ul class="post-list">${posts.map(p => postCard(p, origin)).join('')}</ul>`
+    : `<div class="answer"><div class="verdict">No posts yet.</div><div class="muted">We're just getting started. Check back soon for guides on UK sale timing.</div></div>`;
+
+  const breadcrumbLd = {
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Tide', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: 'Blog', item: canonical },
+    ],
+  };
+
+  return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `
+<div class="crumbs"><a href="${origin}/">Tide</a> › Blog</div>
+<h1>The Tide blog</h1>
+<p class="muted">When UK shopping centres go on sale, what the Tide Score means, and how to catch the peak, not the start.</p>
+${list}
+
+${optInBlock('the Tide blog', { centre: null, brand: null, label: 'the Tide blog' })}
+
+<h2>Track a centre live</h2>
+<p class="muted">Every guide here is backed by Tide's live, admin-verified sale tracker. <a href="${origin}/">See today's scores →</a></p>
+<script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
+` + FOOT(origin);
+}
+
+export function renderBlogPost(post, { origin, supabase, siblings = [] }) {
+  const canonical = `${origin}/blog/${post.slug}`;
+  const ogImage = post.hero ? `${origin}${post.hero}` : `${origin}/og-default.png`;
+  const title = `${post.title} | Tide`;
+  const desc = (post.description || post.title).slice(0, 320);
+
+  const tagsHtml = (post.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join(' ');
+  const metaBits = [];
+  if (post.date) metaBits.push(escapeHtml(fmtDate(post.date)));
+  const metaLine = `<div class="post-meta">${metaBits.join(' · ')}${tagsHtml ? ' ' + tagsHtml : ''}</div>`;
+
+  const relatedBlock = post.relatedCentres.length ? `
+<h2>From the Tide tracker</h2>
+<p class="muted">See live sale data for the centre${post.relatedCentres.length === 1 ? '' : 's'} mentioned here:</p>
+<ul class="links">${post.relatedCentres.map(c => `<li><a href="${origin}/centre/${c.slug}">${escapeHtml(c.name)} →</a></li>`).join('')}</ul>` : '';
+
+  const moreBlock = siblings.length ? `
+<h2>More from the blog</h2>
+<ul class="post-list">${siblings.slice(0, 5).map(p => postCard(p, origin)).join('')}</ul>` : '';
+
+  const blogPostingLd = {
+    '@context': 'https://schema.org', '@type': 'BlogPosting',
+    headline: post.title,
+    description: post.description || '',
+    ...(post.date ? { datePublished: post.date, dateModified: post.date } : {}),
+    image: ogImage,
+    author: { '@type': 'Organization', name: 'Tide' },
+    publisher: { '@type': 'Organization', name: 'Tide', logo: { '@type': 'ImageObject', url: `${origin}/favicon.png` } },
+    mainEntityOfPage: canonical,
+  };
+  const breadcrumbLd = {
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Tide', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: 'Blog', item: `${origin}/blog` },
+      { '@type': 'ListItem', position: 3, name: post.title, item: canonical },
+    ],
+  };
+
+  return HEAD(title, desc, canonical, ogImage) + configScript(supabase) + `
+<div class="crumbs"><a href="${origin}/">Tide</a> › <a href="${origin}/blog">Blog</a> › ${escapeHtml(post.title)}</div>
+<article>
+<h1>${escapeHtml(post.title)}</h1>
+${metaLine}
+${post.hero ? `<img class="post-hero" src="${escapeHtml(post.hero)}" alt="${escapeHtml(post.title)}">` : ''}
+<div class="post-body">${post.html}</div>
+</article>
+${relatedBlock}
+
+${optInBlock('the Tide blog', { centre: null, brand: null, label: 'the Tide blog' })}
+${moreBlock}
+<script type="application/ld+json">${JSON.stringify(blogPostingLd)}</script>
+<script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
 ` + FOOT(origin);
 }

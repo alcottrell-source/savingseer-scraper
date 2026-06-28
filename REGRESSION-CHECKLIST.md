@@ -12,10 +12,13 @@ Run after every visual change. Anything that was working before must still work.
 - [ ] **A5** Footer renders: "Tide · Updated daily at HH:MM Live sale data · DD MMM YYYY" + Privacy / Contact links
 - [ ] **A6** Selecting a centre from dropdown navigates to its detail view
 - [ ] **A7** Typing in the search input filters the dropdown by centre name + city
-- [ ] **A8** Centre detail view: shows centre name + city, **merged tide card** (verdict word, "X of Y brands on sale" fact, statement subtitle, 60-day curve), narrative, brand grid, "Back to Centres" link. There is no longer a separate "Tide over 60 days" card below the vessel — the curve is inside the same card as the verdict.
+- [ ] **A8** Centre detail view: shows centre name + city, **merged tide card** (large Tide Score **%** + verdict word, "Verified {when}" badge, saved-shops line, "N of M shops on sale, {direction} K two weeks ago" count line, faithful 0–100 history chart with 7D/30D/60D/MAX tabs, **date-based**, defaulting to 60D), narrative, brand grid, "Back to Centres" link. There is no longer a separate "Tide over 60 days" card below the vessel — the chart is inside the same card as the verdict.
 - [ ] **A9** Stage badges & copy are correct per server `verdict`: Go now (PEAK only) / Easing / Rising / Quiet / Over. Recommendation language ("Go now") appears only on PEAK.
 - [ ] **A10** "Sign in" button in nav opens auth modal at email step
-- [ ] **A11** Merged tide card cross-surface alignment: the verdict word (top), the trend-pill word (top-right) and the chart-eyebrow tail word (above the curve) are all the same word for the centre. The trend-pill arrow never contradicts the curve's last segment — no ↑ above a descending line, no ↓ above an ascending line. PEAK's ★ is allowed on either direction.
+- [ ] **A10b** Centre-detail "Share" button generates a **branded tide card image** (`buildTideShareImage` → 1080×1350 PNG: TIDE wordmark, centre name + location, big accent **%** + verdict word, GO NOW pill on PEAK, "N of M shops on sale", "Verified {when}", tidego.co CTA). On mobile (file-share support) the native sheet shares the **image + caption + link**; on desktop it downloads the PNG and copies the caption+link; oldest fallback is the text/link share. The card's %, verdict and count match the hero exactly (same `_tideShareCtx` source). PEAK→amber, Rising→`#9FD8B0`, Easing→`#F4B79F`, else neon `#5EFFB0`.
+- [ ] **A12** Centre chart period tabs are **date-based** (`windowTideSeries`): 7D/30D/60D show the last 7/30/60 calendar days, MAX shows all stored history; the chart opens on **60D**. A centre with points spanning >60 days renders four visibly distinct lines; a thin centre (≤30 days) draws the same line on 30D/60D/MAX (expected — `scripts/diag-tide-history.mjs` confirms coverage) but still draws a line on 7D via the <2-point fallback. `score.js` retains 180 days of `tide_history` so MAX can exceed 60D. Landing chart tabs unchanged.
+- [ ] **A11** Merged tide card consistency: the centre-detail hero shows a single verdict word (beside the %); the trend-pill and chart-eyebrow tail word were retired (direction now lives in the count line, sourced from the engine `trajectory`). The big "%" (from `tide_score`), the "N of M shops" count (from `brands_on_sale`/`total_brands`), and the chart's endpoint pill all read the same value — they cannot contradict because the % is computed from the count. "Go now" copy appears only on PEAK.
+- [ ] **A13** Anonymous users (and any signed-in user who follows **no** brands) see **no** My shops / All shops toggle and get the **All shops** experience everywhere — the centre-led hero (A8), the global "Today's tide" ranking, the all-centres landing chart. The My/All personalisation spine is gated on followed brands, so all anonymous flows above are byte-for-byte unchanged.
 
 ## B. Authenticated flows (require test user)
 
@@ -30,7 +33,20 @@ Run after every visual change. Anything that was working before must still work.
 - [ ] **B9** Sign out clears session, returns to anonymous view, "Sign in" button reappears
 - [ ] **B10** Personal score view appears for signed-in user with prefs (computed against matching brands only)
 
+### B-spine. "Your shops" personalisation (Jun 2026 — toggle-free spine)
+
+> One global, persisted view mode (`tide_view_mode` in localStorage; `getTideMode`/`setTideMode`), **My shops by default**, gated on following ≥1 brand (`tideHasFollowed`). The prominent segmented toggle was **removed** (tested poorly) in favour of a silent personal default + a quiet inline disclosure. "All shops" mode is byte-for-byte the pre-spine behaviour.
+
+- [ ] **B11** **No segmented toggle anywhere.** The mode is a silent default (My shops). The only control is a **quiet inline disclosure inside the centre hero**: in My mode "Showing your shops · _see the whole centre_" → All; in All mode (for a follower with shops here) "_See your shops here_" → My. The choice **persists across reload**. It only appears on a centre where you actually follow ≥1 shop present.
+- [ ] **B12** Centre hero in **My shops** mode leads with **your** number: big "N% of your shops", the centre's own %/verdict demote to a "Whole centre X% · {verdict}" context chip. On a centre where you follow **none** of its shops it falls back to the centre-led hero (A8). **All shops** mode = exactly A8/A11.
+- [ ] **B13** Landing for a follower leads with a money-framed **"Your shops today"** watchlist: only centres where ≥1 of your shops is on sale, ranked by how many then deepest discount; each row "X of your N shops on sale · **up to Y% off**" + a strip of **just your shops** + a "**See your shops →**" CTA. The global **"Today's tide"** list still renders **below** it (deduped) for discovery; if none of your shops are on sale anywhere, the personal list shows the "here's what's hot across all centres" note + global list instead.
+- [ ] **B14** Brand grid honours the mode: heading "**Your shops here**" (My) vs "**Brands at this centre**" (All). The two-line chart's cyan "Your shops" line is unaffected by mode (shown whenever you follow ≥1 brand present here).
+- [ ] **B15** Onboarding step 3 (brands) shows a **live "your shops today" preview** that updates on every brand toggle ("★ N of your shops on sale right now across M centres"), and a **"Follow N more to unlock your personal Tide"** nudge until ≥3 followed (Continue still enabled at ≥1).
+- [ ] **B16** Brand-sale alert email: single-brand CTA reads "**See it at {centre} →**" and **deep-links** to `?centre=<id>` (lands on that centre's personal-by-default view); multi-brand digest CTA reads "**See your shops →**". Anon home (`APP_URL`) lands on the personalised landing for followers.
+
 ## C. Data layer integrity (the north star)
+
+> The automated scraper was **removed (Jun 2026)** — sale state is admin-verified only. The `brand_sale_events.sale_status` / `date_first_detected` / `scraper_error` columns are frozen and unread; the "NEVER use scraper X" rules below remain as belt-and-braces guardrails. The admin console surfaces review work via **user reports** (not a scraper signal).
 
 - [ ] **C1** Brand cards / on-sale counts use **admin-verified** state only — `active_cycle_id` OR `last_verified_status` (when `last_verified_date` set). NEVER `brand_sale_events.sale_status`.
 - [ ] **C2** "Days running" uses `brand_sale_cycles.start_date` (or `last_verified_date` fallback). NEVER `date_first_detected`.
@@ -53,7 +69,7 @@ Run after every visual change. Anything that was working before must still work.
 - [ ] **D6** No console errors / warnings during normal use
 - [ ] **D7** Mobile viewport (375px) renders without horizontal scroll
 - [ ] **D8** Feedback widget doesn't cover content above the fold
-- [ ] **D9** Centre with sparse history (< 5 real days): merged card's 60-day curve still renders via UK retail-calendar backfill; today dot sits on the rightmost point with no gap, no NaN coordinate, and no console error.
+- [ ] **D9** Centre with sparse history (< 5 real days): merged card's history chart renders **faithfully** (real `tide_history` points only — no synthetic UK-retail-calendar backfill, no amplitude rescaling); today's point is anchored to the live headline value and sits at the right edge; the "up from … two weeks ago" clause is omitted when history doesn't reach back two weeks; no NaN coordinate and no console error. (The synthetic seasonal backfill remains only on the out-of-scope all-centres landing chart.)
 
 ## E. Admin parity (the north star, restated)
 

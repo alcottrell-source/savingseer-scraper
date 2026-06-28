@@ -14,7 +14,7 @@ segmented (centre + brand) audience member.
 - `seo/generate.mjs` runs at **build time** (Vercel `buildCommand`, set in `vercel.json`).
   Server-side, so it reads Supabase with `@supabase/supabase-js` directly.
 - It writes `centre/<slug>/index.html`, `centre/<slug>/<brand>/index.html`, and
-  `sitemap-seo.xml` into the repo root, which Vercel serves statically.
+  `sitemap.xml` into the repo root, which Vercel serves statically.
 - Generated files are **git-ignored** — they're rebuilt fresh on every deploy.
 - "Daily refresh" (ISR equivalent) = trigger a Vercel **Deploy Hook** once a day from the
   existing scoring cron, so the Tide Score on each page stays current.
@@ -32,6 +32,12 @@ segmented (centre + brand) audience member.
   only — never the scraper's raw `sale_status`. (Mirrors `score.js` + `index.html`.)
 - **Browser writes use raw PostgREST**, not supabase-js (which hangs in the browser).
 - **No data, no page.** A centre with no current Tide Score is skipped entirely.
+- **No thin brand pages.** A brand gets its own `/centre/<c>/<brand>` page only if it
+  has a live sale OR at least one tracked sale cycle (`hasPage` in `generate.mjs`). A
+  brand that's off-sale with zero history would render a near-duplicate template (only
+  the brand + centre name differ) — exactly what Google buckets as "Crawled – currently
+  not indexed". Skipped brands stay on the centre hub roster (as plain text, keeping the
+  "X of Y tracked" count honest) but get no URL and no sitemap entry.
 - **No pages, no deploy.** If the data load fails or 0 pages are produced, the build
   **fails** (non-zero exit) so Vercel keeps the last good deploy live — shipping an
   empty `sitemap.xml` would 404 every already-indexed `/centre/` page at once. Set
@@ -50,5 +56,5 @@ Open `.seo-sample/centre/westquay-southampton/index.html` in a browser.
    in-page opt-in). Optionally `SEO_ORIGIN` (defaults to `https://tidego.co`).
 3. Deploy. Verify `https://tidego.co/centre/westquay-southampton` renders with real data.
 4. Add a daily **Deploy Hook** call to the scoring cron so scores stay fresh.
-5. Submit `https://tidego.co/sitemap-seo.xml` once in Google Search Console.
+5. Submit `https://tidego.co/sitemap.xml` once in Google Search Console.
 6. Wait 4–8 weeks; watch which pages rank before scaling to more centres (v2).

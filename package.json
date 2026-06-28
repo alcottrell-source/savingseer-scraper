@@ -1,16 +1,15 @@
 {
   "name": "tide-scraper",
   "version": "2.0.0",
-  "description": "Tide — daily brand scraper and Tide scorer",
+  "description": "Tide — daily Tide scorer and summariser",
   "type": "module",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "scrape": "node scraper.js",
     "score": "node score.js",
     "summarise": "node summarise.js",
-    "run-all": "node scraper.js && node score.js && node summarise.js",
+    "run-all": "node score.js && node summarise.js",
     "seo:build": "node seo/generate.mjs",
     "seo:sample": "node seo/generate.mjs --fixtures seo/fixtures.westquay.json --out .seo-sample",
     "test": "node --test test/*.test.mjs",
@@ -19,7 +18,7 @@
   "dependencies": {
     "@google/genai": "^1.52.0",
     "@supabase/supabase-js": "^2.39.0",
-    "crawlee": "^3.9.0",
+    "marked": "^12.0.2",
     "playwright": "^1.42.0"
   }
 }

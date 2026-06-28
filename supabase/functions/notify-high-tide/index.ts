@@ -54,20 +54,21 @@ interface CentreRow      { id: string; name: string }
 interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null }
 interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; brand_ids: string[] | null; excluded_brand_ids: string[] | null; email_alerts: boolean; brand_sale_alerts: boolean; daily_digest: boolean }
 interface BrandRow       { id: string; name: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; cluster: string | null }
-interface SaleEventRow   { brand_id: string; sale_status: boolean | null; date_first_detected: string | null; max_discount_pct: number | null; scraper_error: boolean | null; last_verified_status: boolean | null; last_verified_date: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null } | null }
+interface SaleEventRow   { brand_id: string; max_discount_pct: number | null; last_verified_status: boolean | null; last_verified_date: string | null; date_first_detected: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null } | null }
 interface CentreBrandRow { centre_id: string; brand_id: string }
 
 // ──────────────────────────────────────────────────────────────────────────
 // Utility — derive whether a brand_sale_events row is "on sale" today.
-// Mirrors the precedence logic in index.html (admin verdict > scraper).
+// Admin-verified only (the scraper was removed): an open cycle, else the
+// admin's last verified decision.
 function isOnSale(r: SaleEventRow): boolean {
   if (r.active_cycle_id) return true;
   if (r.last_verified_date) return !!r.last_verified_status;
-  return !!r.sale_status && !r.scraper_error;
+  return false;
 }
 
 function daysOnSale(r: SaleEventRow, today: string): number {
-  const startStr = r.cycle?.start_date || r.date_first_detected;
+  const startStr = r.cycle?.start_date || r.last_verified_date;
   if (!startStr) return 0;
   const start = new Date(startStr).getTime();
   const now = new Date(today).getTime();
@@ -76,8 +77,15 @@ function daysOnSale(r: SaleEventRow, today: string): number {
 }
 
 // True only on the day a brand's sale begins. Admin-verified cycles carry an
-// explicit start_date; scraper-only rows fall back to date_first_detected.
-// Because this is true for exactly one day, it doubles as send-once dedup.
+// explicit start_date that is fixed for the life of the cycle (admin.html's
+// confirm_start reuses an open cycle rather than reopening one, so re-
+// confirming a live sale never moves this date). Brands verified on without a
+// cycle fall back to date_first_detected — the IMMUTABLE first-seen date, NOT
+// last_verified_date. last_verified_date is bumped to today by every admin
+// re-verification (confirm_on, edits, …); keying off it re-armed this "started
+// today" signal each time a no-cycle sale was re-affirmed, re-sending the
+// brand-sale alert. Both keys are now stable for the cycle's lifetime, so this
+// stays true for exactly one day and doubles as send-once dedup.
 function startedToday(r: SaleEventRow, today: string): boolean {
   if (r.active_cycle_id) return r.cycle?.start_date === today;
   return isOnSale(r) && r.date_first_detected === today;
@@ -230,19 +238,25 @@ export function renderBrandSaleEmail(opts: {
   brandName: string;
   centre1: string;
   centre2?: string;
+  centreId?: string;
   discount?: string;
 }): { subject: string; html: string; text: string } {
-  const { brandName, centre1, centre2, discount } = opts;
+  const { brandName, centre1, centre2, centreId, discount } = opts;
   const subject = `${brandName} just started a sale`;
   const locationPhrase = centre2 ? `${centre1} and ${centre2}` : centre1;
   const previewText = `On now at ${locationPhrase}.${discount ? ` Up to ${discount} off.` : ''}`;
 
   const bodyParagraph = `${discount ? `Up to ${escapeHtml(discount)} off. ` : ''}On now at ${escapeHtml(centre1)}${centre2 ? ` and ${escapeHtml(centre2)}` : ''}. Worth knowing early in the cycle.`;
 
+  // Deep-link straight to the centre's view (personal-by-default for followers),
+  // so the tap lands exactly where the shopper expects — not the generic home.
+  const ctaHref = centreId ? `${APP_URL}?centre=${encodeURIComponent(centreId)}` : APP_URL;
+  const ctaLabel = `See it at ${escapeHtml(centre1)} &rarr;`;
+
   const bodyHtml = `
     <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${LEAF};margin:0 0 16px;line-height:1.25">${escapeHtml(brandName)} just went on sale.</div>
     <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">${bodyParagraph}</p>
-    <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See the full picture &rarr;</a>`;
+    <a href="${ctaHref}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">${ctaLabel}</a>`;
 
   const html = baseEmailWrap({
     previewText,
@@ -251,7 +265,7 @@ export function renderBrandSaleEmail(opts: {
     unsubLabel: 'Brand Sale Alerts',
   });
 
-  const text = `${brandName} just went on sale.\n\n${discount ? `Up to ${discount} off. ` : ''}On now at ${locationPhrase}. Worth knowing early in the cycle.\n\nSee the full picture: ${APP_URL}`;
+  const text = `${brandName} just went on sale.\n\n${discount ? `Up to ${discount} off. ` : ''}On now at ${locationPhrase}. Worth knowing early in the cycle.\n\nSee it at ${centre1}: ${ctaHref}`;
 
   return { subject, html, text };
 }
@@ -261,7 +275,7 @@ export function renderBrandSaleEmail(opts: {
 // listing them all, instead of N separate "X just started a sale" messages.
 // The single-brand path above still handles the one-brand case.
 export function renderBrandSaleDigestEmail(opts: {
-  brands: { brandName: string; centre1: string; centre2?: string; discount?: string }[];
+  brands: { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string }[];
 }): { subject: string; html: string; text: string } {
   const { brands } = opts;
   const n = brands.length;
@@ -287,7 +301,7 @@ export function renderBrandSaleDigestEmail(opts: {
     <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 8px;max-width:420px">All starting their sale today — worth knowing early in the cycle.</p>
     <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:20px 0 0">
     ${rows}
-    <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See the full picture &rarr;</a>`;
+    <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See your shops &rarr;</a>`;
 
   const html = baseEmailWrap({
     previewText,
@@ -301,7 +315,7 @@ export function renderBrandSaleDigestEmail(opts: {
     '',
     ...brands.map(b => `${b.brandName} — ${b.discount ? `up to ${b.discount} off, ` : ''}on now at ${b.centre2 ? `${b.centre1} and ${b.centre2}` : b.centre1}`),
     '',
-    `See the full picture: ${APP_URL}`,
+    `See your shops: ${APP_URL}`,
   ];
 
   return { subject, html, text: textLines.join('\n') };
@@ -466,7 +480,7 @@ Deno.serve(async (req: Request) => {
     sb.from("centres").select("id, name").eq("active", true),
     sb.from("brands").select("id, name, womenswear, menswear, childrenswear, cluster"),
     sb.from("brand_sale_events")
-      .select("brand_id, sale_status, date_first_detected, max_discount_pct, scraper_error, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)"),
+      .select("brand_id, max_discount_pct, last_verified_status, last_verified_date, date_first_detected, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)"),
     sb.from("centre_brands").select("centre_id, brand_id"),
     // No saved_centres filter: brand-sale alerts target followed brands, so
     // users who follow brands without saving a centre must be included too.
@@ -593,7 +607,7 @@ Deno.serve(async (req: Request) => {
   // started brands (outer) to reuse the per-brand recipient + centre-pick
   // logic, then group the resulting items by user id (preserving brand order)
   // and send once below.
-  type BrandSaleItem = { brandName: string; centre1: string; centre2?: string; discount?: string };
+  type BrandSaleItem = { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string };
   const perUser = new Map<string, { p: PrefsRow; items: BrandSaleItem[] }>();
   for (const { sale, brand } of startedBrands) {
     const pct = (sale.active_cycle_id && sale.cycle?.max_discount_pct != null)
@@ -608,15 +622,14 @@ Deno.serve(async (req: Request) => {
     });
     for (const p of recipients) {
       // Prefer the user's own saved centres that carry the brand; fall back
-      // to any centre stocking it.
+      // to any centre stocking it. Keep the centre IDs so the email can
+      // deep-link straight into that centre's (now personal-by-default) view.
       const saved = new Set(p.saved_centres);
       const relevant = brandCentreIds.filter(cid => saved.has(cid));
-      const pick = (relevant.length > 0 ? relevant : brandCentreIds)
-        .map(cid => centres.get(cid))
-        .filter((n): n is string => !!n);
-      if (pick.length === 0) { log.push({ type: "brand", to: emailById.get(p.user_id), brand: brand.name, skipped: "no centre carries brand" }); continue; }
+      const pickCids = (relevant.length > 0 ? relevant : brandCentreIds).filter(cid => !!centres.get(cid));
+      if (pickCids.length === 0) { log.push({ type: "brand", to: emailById.get(p.user_id), brand: brand.name, skipped: "no centre carries brand" }); continue; }
       const entry = perUser.get(p.user_id) || { p, items: [] };
-      entry.items.push({ brandName: brand.name, centre1: pick[0], centre2: pick[1], discount: pct ? `${pct}%` : undefined });
+      entry.items.push({ brandName: brand.name, centre1: centres.get(pickCids[0])!, centre2: pickCids[1] ? centres.get(pickCids[1])! : undefined, centreId: pickCids[0], discount: pct ? `${pct}%` : undefined });
       perUser.set(p.user_id, entry);
     }
   }

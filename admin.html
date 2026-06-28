@@ -84,6 +84,16 @@
     background: var(--stone-lt); color: var(--stone);
   }
   .count-pill.urgent { background: var(--amber-lt); color: var(--amber); }
+  .wl-copy-btn {
+    font: inherit; font-size: 11px; font-weight: 500; letter-spacing: 0.02em;
+    border: 1px solid var(--border); background: white; color: var(--stone);
+    border-radius: 8px; padding: 4px 10px; cursor: pointer;
+  }
+  .wl-copy-btn:hover { color: var(--leaf); border-color: var(--leaf); }
+  .wl-summary {
+    padding: 0 20px 4px; font-size: 12px; color: var(--stone); line-height: 1.5;
+  }
+  .wl-summary:empty { display: none; }
 
   /* ── Brand row card ─────────────────────────────────────────────── */
   .brand-list { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
@@ -185,9 +195,9 @@
   }
 
   /* ── User-reports (advisory signal) ───────────────────────────────── */
-  /* Third state column. Grid widened to 3 in .row-state-grid above is
-     applied via this override so Scraper / Verified / Users line up. */
-  .row-state-grid { grid-template-columns: 1fr 1fr 1fr; }
+  /* Two state columns: Verified / Users (the Scraper column was removed when
+     the scraper was binned — user reports are now the review nudge). */
+  .row-state-grid { grid-template-columns: 1fr 1fr; }
   .state-value.users-ended { color: var(--red);   font-weight: 500; }
   .state-value.users-diff  { color: var(--amber); font-weight: 500; }
   .state-value.users-match { color: var(--leaf);  font-weight: 500; }
@@ -297,6 +307,17 @@
   </div>
   <div class="brand-list" id="confirmed-list"></div>
   <div id="confirmed-empty" class="empty-section" style="display:none">No actions yet today.</div>
+
+  <div class="section-bar">
+    <div class="section-title">Waitlist</div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button id="waitlist-copy" class="wl-copy-btn" type="button" style="display:none">Copy emails</button>
+      <div class="count-pill" id="waitlist-count">0</div>
+    </div>
+  </div>
+  <div id="waitlist-summary" class="wl-summary"></div>
+  <div class="brand-list" id="waitlist-list"></div>
+  <div id="waitlist-empty" class="empty-section" style="display:none">No expansion signups yet.</div>
 </main>
 
 <div id="toast" class="toast"></div>
@@ -314,6 +335,28 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // combinations. Use raw fetch for table reads/writes; keep supabase-js for
 // auth + realtime where it's reliable.
 let CURRENT_TOKEN = null;
+
+// Keep CURRENT_TOKEN in lock-step with the live session. Supabase access
+// tokens expire after ~1h; supabase-js refreshes them in the background and
+// fires TOKEN_REFRESHED. Without this listener CURRENT_TOKEN stayed pinned to
+// the value captured at sign-in (onSignedIn), so after an hour every raw
+// PostgREST call AND the /api/rescore POST sent a dead JWT — the rescore came
+// back 401 and the admin saw the "session may have expired" banner even though
+// the session was actually still alive (just not the cached token).
+sb.auth.onAuthStateChange((_event, session) => {
+  CURRENT_TOKEN = session?.access_token || null;
+});
+
+// Return a guaranteed-fresh access token. getSession() transparently refreshes
+// an expired token before returning, which covers the gap where the tab was
+// backgrounded/asleep and the background auto-refresh timer hasn't fired yet.
+async function getFreshToken() {
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session?.access_token) { CURRENT_TOKEN = session.access_token; return session.access_token; }
+  } catch { /* fall through to whatever we have cached */ }
+  return CURRENT_TOKEN;
+}
 async function pgFetch(method, path, body, prefer) {
   const headers = {
     apikey: SUPABASE_ANON_KEY,
@@ -443,6 +486,7 @@ async function onSignedIn(session) {
       console.error('loadAndRender failed:', err);
       showStatus('Could not load brand data: ' + (err.message || err), true);
     }),
+    loadWaitlist().catch(err => console.error('loadWaitlist failed:', err)),
   ]);
   if (probeRes.error) {
     showStatus(
@@ -457,7 +501,7 @@ async function onSignedIn(session) {
 async function loadAndRender() {
   showStatus('Loading…');
   const [eventsRes, cyclesRes, reviewsRes, reportsRes] = await Promise.all([
-    pg.read('brand_sale_events?select=brand_id,sale_status,date_first_detected,max_discount_pct,sale_type,scraper_error,last_verified_date,last_verified_status,active_cycle_id'),
+    pg.read('brand_sale_events?select=brand_id,max_discount_pct,sale_type,last_verified_date,last_verified_status,active_cycle_id'),
     pg.read('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct,sale_type&end_date=is.null'),
     pg.read('admin_review_log?select=brand_id,action,created_at&reviewed_date=eq.' + TODAY),
     // Advisory user-report signal. Tolerant: if the view/migration isn't
@@ -510,12 +554,12 @@ async function loadAndRender() {
   }
 
   // Queue priority (spec §3.C.4): urgent → easy → routine. Within each band
-  // keep the legacy tiebreak: scraper-disagrees, then anchors, then alpha.
+  // float never-reviewed brands up, then anchors, then alpha.
   const QUEUE_RANK = { urgent: 0, easy: 1, routine: 2 };
   needs.sort((a, b) => {
     if (QUEUE_RANK[a.queue] !== QUEUE_RANK[b.queue]) return QUEUE_RANK[a.queue] - QUEUE_RANK[b.queue];
-    const aDis = scraperDisagrees(a.ev) ? 1 : 0;
-    const bDis = scraperDisagrees(b.ev) ? 1 : 0;
+    const aDis = needsAttention(a.ev, a.queue) ? 1 : 0;
+    const bDis = needsAttention(b.ev, b.queue) ? 1 : 0;
     if (aDis !== bDis) return bDis - aDis;
     const aAnc = ANCHOR_BRAND_IDS.has(a.ev.brand_id) ? 1 : 0;
     const bAnc = ANCHOR_BRAND_IDS.has(b.ev.brand_id) ? 1 : 0;
@@ -562,13 +606,13 @@ async function loadAndRender() {
   wireRowActions();
 }
 
-function scraperDisagrees(ev) {
-  if (ev.scraper_error) return false;  // can't disagree with a broken scraper
-  if (ev.last_verified_status === null || ev.last_verified_status === undefined) {
-    // Never verified — treat as disagreement so it surfaces for first review
-    return true;
-  }
-  return ev.sale_status !== ev.last_verified_status;
+// Which cards deserve a visual nudge / float to the top of a queue band: the
+// crowd contradicts the admin-verified state (queue === 'urgent'), or the brand
+// has never been reviewed. (Replaces the old scraper-vs-verified disagreement
+// signal now that the scraper is gone — user reports are the nudge.)
+function needsAttention(ev, queue) {
+  if (queue === 'urgent') return true;
+  return ev.last_verified_status === null || ev.last_verified_status === undefined;
 }
 
 // ── User-reports advisory signal ──────────────────────────────────────────
@@ -623,21 +667,21 @@ function dominantSignal(rep) {
 }
 
 // Queue band (spec §3.C.4). routine = no user signal (status quo);
-// urgent = users contradict the scraper, or scraper errored with any signal;
-// easy = users agree with the scraper.
+// urgent = users contradict the admin-VERIFIED state; easy = users agree.
+// (Was scraper-vs-users; the scraper is gone, so user reports are weighed
+// against what you've verified — an open cycle or last_verified_status.)
 function classifyQueue({ ev, cycle, reports }) {
   const dom = dominantSignal(reports);
   if (!dom) return 'routine';
-  if (ev.scraper_error) return 'urgent';
-  const scraperOn = !!ev.sale_status;
+  const verifiedOn = cycle ? true : (ev.last_verified_status === true);
   const curPct = cycle ? cycle.max_discount_pct : ev.max_discount_pct;
   let disagree;
   switch (dom.kind) {
-    case 'ended':             disagree = scraperOn; break;
-    case 'no_sale_confirmed': disagree = scraperOn; break;
-    case 'started':           disagree = !scraperOn; break;
-    case 'confirmed':         disagree = !scraperOn; break;
-    case 'discount':          disagree = !scraperOn || (dom.pct != null && Number(curPct) !== Number(dom.pct)); break;
+    case 'ended':             disagree = verifiedOn; break;
+    case 'no_sale_confirmed': disagree = verifiedOn; break;
+    case 'started':           disagree = !verifiedOn; break;
+    case 'confirmed':         disagree = !verifiedOn; break;
+    case 'discount':          disagree = !verifiedOn || (dom.pct != null && Number(curPct) !== Number(dom.pct)); break;
     default:                  disagree = false;
   }
   return disagree ? 'urgent' : 'easy';
@@ -726,7 +770,7 @@ function renderContextualButton(reports, ev, cycle) {
   }
   // Users affirm the current state — one-tap re-confirm via the existing
   // generic confirm_on / confirm_off verbs (no new handler needed).
-  if (dom.kind === 'confirmed' && (cycle || ev.sale_status || ev.last_verified_status === true)) {
+  if (dom.kind === 'confirmed' && (cycle || ev.last_verified_status === true)) {
     return '<button class="contextual-action confirm" data-action="confirm_on">Confirm still on</button>'
          + '<div class="contextual-cap">' + dom.count + ' users confirm the sale</div>';
   }
@@ -741,16 +785,6 @@ function renderContextualButton(reports, ev, cycle) {
 function renderRow({ ev, def, cycle, review, reports, queue }, isConfirmed) {
   const tier = ANCHOR_BRAND_IDS.has(ev.brand_id) ? 'Anchor' : (def.cluster || '');
   const tierClass = ANCHOR_BRAND_IDS.has(ev.brand_id) ? ' anchor' : '';
-
-  let scraperHtml;
-  if (ev.scraper_error) {
-    scraperHtml = '<span class="state-value err">Error</span>';
-  } else if (ev.sale_status) {
-    const pct = ev.max_discount_pct ? ' <span class="state-pct">' + ev.max_discount_pct + '%</span>' : '';
-    scraperHtml = '<span class="state-value on">On sale</span>' + pct;
-  } else {
-    scraperHtml = '<span class="state-value off">No sale</span>';
-  }
 
   let verifiedHtml;
   if (cycle) {
@@ -774,7 +808,7 @@ function renderRow({ ev, def, cycle, review, reports, queue }, isConfirmed) {
 
   const cardClass = 'brand-card'
     + (isConfirmed ? ' confirmed' : '')
-    + (!isConfirmed && scraperDisagrees(ev) ? ' disagrees' : '');
+    + (!isConfirmed && needsAttention(ev, queue) ? ' disagrees' : '');
 
   const usersHtml = renderUsersCell(reports, ev, cycle);
   const distHtml = isConfirmed ? '' : renderDistribution(reports);
@@ -795,7 +829,6 @@ function renderRow({ ev, def, cycle, review, reports, queue }, isConfirmed) {
         (def.url ? '<a class="row-link" href="' + esc(def.url) + '" target="_blank" rel="noopener">open shop</a>' : '') +
       '</div>' +
       '<div class="row-state-grid">' +
-        '<div class="row-state-cell"><div class="state-label">Scraper</div>' + scraperHtml + '</div>' +
         '<div class="row-state-cell"><div class="state-label">Verified</div>' + verifiedHtml + '</div>' +
         '<div class="row-state-cell"><div class="state-label">Users</div>' + usersHtml + '</div>' +
       '</div>' +
@@ -803,6 +836,67 @@ function renderRow({ ev, def, cycle, review, reports, queue }, isConfirmed) {
       contextualHtml +
       actions +
       '<div class="inline-form-mount"></div>' +
+    '</div>';
+}
+
+// ── Expansion waitlist (read-only audience view) ───────────────────────────
+// Decoupled from loadAndRender so it survives that function's early-returns
+// (it bails when brand_sale_events is empty). Tolerant of the table/migration
+// not being live yet — mirrors the user_reports_24h_summary read.
+async function loadWaitlist() {
+  const res = await pg.read('waitlist?select=email,country,source_url,created_at&order=created_at.desc');
+  if (res.error) {
+    console.warn('waitlist unavailable (admin panel still works):', res.error.message);
+    $('waitlist-count').textContent = '0';
+    $('waitlist-summary').textContent = '';
+    $('waitlist-list').innerHTML = '';
+    $('waitlist-empty').style.display = 'block';
+    $('waitlist-copy').style.display = 'none';
+    return;
+  }
+  const rows = res.data || [];
+  $('waitlist-count').textContent = rows.length;
+  $('waitlist-list').innerHTML = rows.map(renderWaitlistRow).join('');
+  $('waitlist-empty').style.display = rows.length ? 'none' : 'block';
+
+  // Demand-by-country summary — the expansion signal, busiest first.
+  const byCountry = {};
+  for (const r of rows) {
+    const c = (r.country || '??').toUpperCase();
+    byCountry[c] = (byCountry[c] || 0) + 1;
+  }
+  $('waitlist-summary').textContent = Object.entries(byCountry)
+    .sort((a, b) => b[1] - a[1])
+    .map(([c, n]) => c + ' · ' + n)
+    .join('   ·   ');
+
+  // Copy-all-emails — lets the operator actually contact the list.
+  const copyBtn = $('waitlist-copy');
+  copyBtn.style.display = rows.length ? 'inline-block' : 'none';
+  copyBtn.onclick = async () => {
+    const emails = rows.map(r => r.email).filter(Boolean);
+    try {
+      await navigator.clipboard.writeText(emails.join('\n'));
+      toast('Copied ' + emails.length + ' email' + (emails.length === 1 ? '' : 's'));
+    } catch (e) {
+      toast('Copy failed — ' + (e.message || e));
+    }
+  };
+}
+
+function renderWaitlistRow(row) {
+  const country = (row.country || '').toUpperCase() || 'Unknown';
+  return '' +
+    '<div class="brand-card">' +
+      '<div class="row-top">' +
+        '<div class="row-name">' + esc(row.email) + '</div>' +
+      '</div>' +
+      '<div class="row-state-grid">' +
+        '<div class="row-state-cell"><div class="state-label">Country</div>' +
+          '<span class="state-value">' + esc(country) + '</span></div>' +
+        '<div class="row-state-cell"><div class="state-label">Joined</div>' +
+          '<span class="state-value">' + esc(relTime(row.created_at)) + '</span></div>' +
+      '</div>' +
     '</div>';
 }
 
@@ -1110,25 +1204,30 @@ function showRescoreWarn(msg) {
   rescoreWarnActive = true;
   showStatus(msg, true);
 }
-function triggerRescore() {
-  fetch('/api/rescore', {
+async function triggerRescore() {
+  // Refresh the token first so an hour-old admin tab doesn't post a dead JWT
+  // and trip the false "session may have expired" banner.
+  const token = await getFreshToken();
+  return fetch('/api/rescore', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(CURRENT_TOKEN ? { Authorization: 'Bearer ' + CURRENT_TOKEN } : {}),
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
     },
     body: '{}',
   }).then(async r => {
     if (r.ok) { clearRescoreWarn(); return; }
-    let detail = '';
-    try { const j = await r.json(); detail = (j && j.error) ? j.error : ''; }
+    let detail = '', reason = '';
+    try { const j = await r.json(); detail = (j && j.error) ? j.error : ''; reason = (j && j.reason) ? j.reason : ''; }
     catch { try { detail = await r.text(); } catch { /* ignore */ } }
-    console.warn('Rescore returned HTTP', r.status, detail);
+    console.warn('Rescore returned HTTP', r.status, reason, detail);
     // Tailor the message to the failure so the admin knows whether it's a
-    // session problem they can fix now, a partial (chart-only) staleness, or a
-    // full lag until the daily cron self-heals it.
+    // server config fault, a session problem they can fix now, a partial
+    // (chart-only) staleness, or a full lag until the daily cron self-heals it.
     let msg;
-    if (r.status === 401 || r.status === 403) {
+    if (r.status === 503 || reason === 'misconfig') {
+      msg = '⚠ Edit saved, but the public-site rescore is misconfigured on the server — SUPABASE_URL / SUPABASE_SERVICE_KEY are missing on Vercel. The public scores will stay stale on every edit until those env vars are set (Vercel → Project Settings → Environment Variables). This is not a sign-in problem.';
+    } else if (r.status === 401 || r.status === 403) {
       msg = '⚠ Edit saved, but the public-site rescore was rejected — your admin session may have expired. The public scores will stay stale until the 10:00 UTC daily run. Sign out and back in, then re-save to push now.';
     } else if (r.status === 502) {
       msg = '⚠ Edit saved and scores updated, but the 60-day chart history did not refresh — the chart may be stale until the 10:00 UTC daily run.';
@@ -1145,24 +1244,52 @@ function triggerRescore() {
 
 async function applyAction(brandId, action, opts) {
   if (action === 'confirm_start') {
-    const { data: cycleRows, error: cErr } = await pg.insert('brand_sale_cycles', {
-      brand_id: brandId,
-      start_date: opts.start_date,
-      max_discount_pct: opts.max_discount_pct,
-      sale_type: opts.sale_type || 'percent_off',
-      source: 'admin',
-    }, true);
-    if (cErr) throw cErr;
-    const cycle = (cycleRows || [])[0];
-    if (!cycle) throw new Error('Insert returned no row');
+    // Reuse an already-open cycle instead of inserting a duplicate. A brand
+    // with an open cycle is already "on sale"; re-confirming it (e.g. via the
+    // crowd-report "Confirm on sale" nudge, which routes here with
+    // start_date=TODAY) must NOT mint a second cycle. Doing so reset the
+    // cycle's start_date to today, which re-armed the one-shot brand-sale
+    // alert — sending "X just went on sale" every morning — and orphaned the
+    // previous open cycle (left open, never end-dated). When a cycle is
+    // already open we update its %/type in place and preserve its original
+    // start_date (the sale didn't restart). A genuinely new sale only reaches
+    // the insert path once the prior cycle has been end-dated (confirm_end).
+    const { data: openCycles, error: lookupErr } = await pg.read(
+      'brand_sale_cycles?select=id,start_date&brand_id=eq.' + brandId + '&end_date=is.null&order=start_date.desc&limit=1'
+    );
+    if (lookupErr) throw lookupErr;
+    const existing = (openCycles || [])[0];
+    let cycleId;
+    if (existing) {
+      const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + existing.id, {
+        max_discount_pct: opts.max_discount_pct,
+        sale_type: opts.sale_type || 'percent_off',
+        // start_date intentionally preserved — re-confirming an open sale is
+        // not a fresh start. Use Edit to deliberately change the start date.
+      });
+      if (cErr) throw cErr;
+      cycleId = existing.id;
+    } else {
+      const { data: cycleRows, error: cErr } = await pg.insert('brand_sale_cycles', {
+        brand_id: brandId,
+        start_date: opts.start_date,
+        max_discount_pct: opts.max_discount_pct,
+        sale_type: opts.sale_type || 'percent_off',
+        source: 'admin',
+      }, true);
+      if (cErr) throw cErr;
+      const cycle = (cycleRows || [])[0];
+      if (!cycle) throw new Error('Insert returned no row');
+      cycleId = cycle.id;
+    }
     const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
-      active_cycle_id: cycle.id,
+      active_cycle_id: cycleId,
       last_verified_status: true,
       last_verified_date: TODAY,
       sale_type: opts.sale_type || 'percent_off',
     });
     if (uErr) throw uErr;
-    await logReview(brandId, 'confirmed_start', cycle.id);
+    await logReview(brandId, 'confirmed_start', cycleId);
     return;
   }
 

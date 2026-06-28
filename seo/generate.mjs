@@ -17,7 +17,8 @@
 
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { renderBrandPage, renderCentreHub, slugify, isOnSale } from './render.mjs';
+import { renderBrandPage, renderCentreHub, renderBlogIndex, renderBlogPost, slugify, isOnSale } from './render.mjs';
+import { loadPosts } from './blog.mjs';
 import { nextSaleWindow } from './next-sale-window.mjs';
 
 const ORIGIN = process.env.SEO_ORIGIN || 'https://tidego.co';
@@ -122,11 +123,18 @@ function shape(raw, today) {
     const sale = saleByBrand[b.id] || null;
     const cyclesRaw = cyclesByBrand[b.id] || [];
     const open = cyclesRaw.find(c => !c.end_date) || null;
+    const onSale = isOnSale(sale);
     return {
       id: b.id, name: b.name, slug, cluster: b.cluster, saleUrl: b.sale_url,
       sale, cycle: open ? { startDate: open.start_date, maxDiscountPct: open.max_discount_pct, saleType: open.sale_type } : null,
       cyclesRaw,
-      onSale: isOnSale(sale),
+      onSale,
+      // A brand earns its own page only if it has something unique to say:
+      // a live sale, or at least one tracked past sale episode. A brand that's
+      // off-sale with zero history would render a near-duplicate template (only
+      // the brand + centre name differ), which Google flags "Crawled – currently
+      // not indexed". Such brands stay on the centre hub roster but get no URL.
+      hasPage: onSale || cyclesRaw.length > 0,
     };
   }).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -134,7 +142,7 @@ function shape(raw, today) {
   const centre = {
     slug: raw.centre.slug, name: raw.centre.name,
     tideScore: s.tide_score ?? 0, verdict: s.verdict || 'Quiet', trajectory: s.trajectory || 'FLAT',
-    bluf: s.bluf || '',
+    bluf: s.bluf || '', scoreDate: s.score_date || null,
   };
   return { centre, brands, hasScore: !!raw.score };
 }
@@ -168,14 +176,23 @@ async function main() {
   }
 
   const supabase = { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY };
+  const buildDay = today.toISOString().slice(0, 10);
   const urls = [];
-  let centreCount = 0, skipped = 0;
+  const centresBySlug = {}; // slug -> { name }, for resolving blog relatedCentres
+  let centreCount = 0, skipped = 0, brandPagesSkipped = 0;
 
-  async function emit(relPath, html) {
+  // Latest sane YYYY-MM-DD from the candidates, falling back to the build day so
+  // every <url> still gets a <lastmod> even when a centre/brand has no date.
+  function lastmodFrom(...candidates) {
+    const days = candidates.filter(d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)).map(d => d.slice(0, 10));
+    return days.length ? days.sort().at(-1) : buildDay;
+  }
+
+  async function emit(relPath, html, lastmod) {
     const full = join(outDir, relPath, 'index.html');
     await mkdir(dirname(full), { recursive: true });
     await writeFile(full, html, 'utf8');
-    urls.push(`${ORIGIN}/${relPath}`);
+    urls.push({ loc: `${ORIGIN}/${relPath}`, lastmod: lastmod || buildDay });
   }
 
   for (const raw of rawList) {
@@ -191,17 +208,29 @@ async function main() {
 
     const hours = CENTRE_HOURS[centre.slug] || null;
 
-    // Centre hub
-    await emit(`centre/${centre.slug}`, renderCentreHub({ centre, brands, hours, supabase, origin: ORIGIN, today }));
+    // Only brands with a live sale or tracked history get their own URL (see
+    // `hasPage` in shape()). The hub still lists every tracked brand — skipped
+    // ones render as plain text there, never as links to a page that 404s.
+    const pageBrands = brands.filter(b => b.hasPage);
+    const thinSkipped = brands.length - pageBrands.length;
 
-    // Brand × centre pages (the workhorse)
-    for (const b of brands) {
-      const siblings = brands.filter(x => x.slug !== b.slug).map(x => ({ slug: x.slug, name: x.name, onSale: x.onSale }));
+    // Centre hub — freshness = the centre's score date.
+    await emit(`centre/${centre.slug}`, renderCentreHub({ centre, brands, hours, supabase, origin: ORIGIN, today }),
+      lastmodFrom(centre.scoreDate));
+
+    // Brand × centre pages (the workhorse) — freshness = newest of the brand's
+    // last verified date and the centre score date. Siblings link only to other
+    // brands that also have a page, so "Other shops" never points at a 404.
+    for (const b of pageBrands) {
+      const siblings = pageBrands.filter(x => x.slug !== b.slug).map(x => ({ slug: x.slug, name: x.name, onSale: x.onSale }));
       await emit(`centre/${centre.slug}/${b.slug}`,
-        renderBrandPage({ centre, brand: b, sale: b.sale, cycle: b.cycle, hours, siblings, supabase, origin: ORIGIN, today }));
+        renderBrandPage({ centre, brand: b, sale: b.sale, cycle: b.cycle, hours, siblings, supabase, origin: ORIGIN, today }),
+        lastmodFrom(centre.scoreDate, b.sale && b.sale.last_verified_date));
     }
+    centresBySlug[centre.slug] = { name: centre.name };
     centreCount++;
-    console.log(`[seo] ${centre.slug}: ${1 + brands.length} pages (Tide Score ${centre.tideScore}, ${centre.verdict}).`);
+    brandPagesSkipped += thinSkipped;
+    console.log(`[seo] ${centre.slug}: ${1 + pageBrands.length} pages (Tide Score ${centre.tideScore}, ${centre.verdict})${thinSkipped ? `, ${thinSkipped} thin brand page${thinSkipped === 1 ? '' : 's'} skipped` : ''}.`);
   }
 
   // Guard: 0 pages means the data load succeeded but every centre was skipped
@@ -216,15 +245,33 @@ async function main() {
     process.exit(1);
   }
 
+  // Blog (hand-written Markdown posts). Emitted AFTER the 0-pages guard above so
+  // that guard stays keyed on CENTRE output — the blog index always emits (even
+  // empty), which would otherwise mask a Supabase outage and de-index every
+  // /centre/ page. Routed through emit() so /blog and /blog/<slug> land in the
+  // sitemap automatically. relatedCentres resolve only against centres actually
+  // generated this run (centresBySlug).
+  const posts = await loadPosts(join('seo', 'blog'), { centresBySlug });
+  await emit('blog', renderBlogIndex(posts, { origin: ORIGIN, supabase }));
+  for (const post of posts) {
+    const siblings = posts.filter(p => p.slug !== post.slug);
+    await emit(`blog/${post.slug}`, renderBlogPost(post, { origin: ORIGIN, supabase, siblings }));
+  }
+  console.log(`[seo] blog: ${posts.length} post(s) + index.`);
+
   // Sitemap (every generated page, across all centres). Ensure outDir exists
   // even if every centre was skipped, so the sitemap write never ENOENTs.
   await mkdir(outDir, { recursive: true });
+  // Homepage first — the dynamic app at / carries its own canonical/description
+  // and is the entry point, so it belongs in the sitemap alongside the /centre/
+  // pages (which are the only URLs collected in `urls` during page emit).
+  urls.unshift({ loc: `${ORIGIN}/`, lastmod: buildDay });
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    urls.map(u => `  <url><loc>${u}</loc></url>`).join('\n') + `\n</urlset>\n`;
+    urls.map(u => `  <url><loc>${u.loc}</loc><lastmod>${u.lastmod}</lastmod></url>`).join('\n') + `\n</urlset>\n`;
   await writeFile(join(outDir, 'sitemap.xml'), sitemap, 'utf8');
 
   const w = nextSaleWindow(today);
-  console.log(`[seo] Generated ${urls.length} pages across ${centreCount} centre(s) (${skipped} skipped).`);
+  console.log(`[seo] Generated ${urls.length} pages across ${centreCount} centre(s) (${skipped} centre(s) skipped, ${brandPagesSkipped} thin brand page(s) skipped).`);
   console.log(`[seo] Next sale window: ${w ? w.label + ' ' + w.approx : 'n/a'}`);
   console.log(`[seo] Sitemap: ${join(outDir, 'sitemap.xml')} (${urls.length} urls)`);
 }

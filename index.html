@@ -658,6 +658,8 @@
   .brand-filter-tabs { display: flex; gap: 0; margin-bottom: 12px; background: var(--stone-lt); border-radius: 999px; padding: 3px; width: fit-content; }
   .brand-filter-tab { background: none; border: none; padding: 7px 16px; font-size: 12px; font-weight: 500; color: var(--stone); border-radius: 999px; cursor: pointer; font-family: inherit; transition: all 0.15s; letter-spacing: 0.02em; }
   .brand-filter-tab.active { background: white; color: var(--bark); box-shadow: 0 1px 2px rgba(44,24,16,0.08); }
+  .brand-filter-count { font-variant-numeric: tabular-nums; opacity: 0.55; font-weight: 600; margin-left: 1px; }
+  .brand-filter-tab.active .brand-filter-count { opacity: 0.75; }
 
   footer .footer-links { margin-top: 8px; }
   footer .footer-links a { color: var(--stone); text-decoration: underline; margin: 0 6px; font-size: 11px; }
@@ -2412,11 +2414,23 @@ function getTideMode() {
   try { m = localStorage.getItem('tide_view_mode'); } catch (e) {}
   return m === 'all' ? 'all' : 'mine';   // default to My shops
 }
-// (The runtime mode setter + the in-hero view toggle were removed Jun 2026: the
-// hero now always shows the whole-centre call, and the chart's green line is
-// always "your shops" / the muted line always the centre — the lens no longer
-// flips at runtime. getTideMode() above stays read-only: it resolves the default
-// lens for the landing personalisation and the brand-chip grid.)
+// The in-hero view toggle (which swapped the chart's neon line) stays gone: the
+// hero always shows the whole-centre call and the chart lines are fixed (neon =
+// your shops, sage = centre). But the brand grid below the chart still needs a
+// My/All lens — without it, a follower is locked into "my brands" with no way
+// to see every shop at the centre. setBrandFilter() restores that: it persists
+// the lens and re-renders the open centre so ONLY the grid changes. It never
+// flips the hero or the chart, which is what made the old toggle confusing.
+function setBrandFilter(which) {
+  const m = which === 'all' ? 'all' : 'mine';
+  try { localStorage.setItem('tide_view_mode', m); } catch (e) {}
+  // Preserve scroll — the radio sits far down the page, so re-rendering must
+  // not yank the user back to the top.
+  const y = window.scrollY;
+  const sel = document.getElementById('centre-select');
+  renderCentre(sel ? sel.value : '');
+  requestAnimationFrame(() => window.scrollTo(0, y));
+}
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
 let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SALE_TYPE = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
@@ -5739,12 +5753,20 @@ async function renderCentre(centreId) {
   if (stage === 'Rising' || stage === 'High Tide') showNotifyBanner();
   else hideNotifyBanner();
 
-  // The old per-section My/All chip tabs are retired — the prominent global
-  // My shops / All shops toggle at the top of the page is now the single control,
-  // and the brand grid already pre-filters off the shared mode (see
-  // visibleBrandsAtCentre / brandFilter above). Kept as '' so the template slot
-  // below is a no-op.
-  const filterTabs = '';
+  // My brands / All brands radio. Shown only for users who follow ≥1 brand;
+  // it filters the grid below between their followed shops and every shop at the
+  // centre. Counts surface the split at a glance. Restored Jun 2026 — followers
+  // were otherwise stranded in "my brands" with no way back to the full list.
+  const filterTabs = showBrandFilterTabs
+    ? '<div class="brand-filter-tabs" role="tablist" aria-label="Filter shops">'
+      + '<button type="button" class="brand-filter-tab' + (brandFilter === 'mine' ? ' active' : '') + '"'
+      + ' role="tab" aria-selected="' + (brandFilter === 'mine') + '" onclick="setBrandFilter(\'mine\')">My brands'
+      + ' <span class="brand-filter-count">' + myAtCentre + '</span></button>'
+      + '<button type="button" class="brand-filter-tab' + (brandFilter === 'all' ? ' active' : '') + '"'
+      + ' role="tab" aria-selected="' + (brandFilter === 'all') + '" onclick="setBrandFilter(\'all\')">All brands'
+      + ' <span class="brand-filter-count">' + totalAtCentre + '</span></button>'
+      + '</div>'
+    : '';
   // Mode-aware section heading — in My-shops mode the grid is your followed
   // brands only, so "Brands at this centre" would mislabel it.
   const brandsHeading = brandFilter === 'mine' ? 'Your shops here' : 'Brands at this centre';

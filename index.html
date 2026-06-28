@@ -388,6 +388,15 @@
   .tide-vessel-pct { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 60px; line-height: 0.95; letter-spacing: -0.03em; color: var(--tide-cream); }
   .tide-vessel-pct-sign { font-size: 30px; font-weight: 500; color: rgba(245,241,235,0.42); margin-left: 1px; }
   .tide-vessel-headline-row .tide-vessel-verdict-word { font-size: 34px; margin-bottom: 0; }
+  /* Dual-percentage headline (user follows ≥1 shop here): big "your shops" %
+     stacked over a smaller "whole centre" %; verdict aligns to the big number. */
+  .tide-vessel-headline-row--dual { align-items: baseline; gap: 16px; }
+  .tide-vessel-pct-stack { display: flex; flex-direction: column; gap: 4px; }
+  .tide-vessel-pct-primary { display: flex; align-items: baseline; gap: 8px; }
+  .tide-vessel-pct-secondary { display: flex; align-items: baseline; gap: 7px; }
+  .tide-vessel-pct-sub { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 30px; line-height: 0.95; letter-spacing: -0.02em; color: rgba(245,241,235,0.72); }
+  .tide-vessel-pct-sub-sign { font-size: 17px; font-weight: 500; color: rgba(245,241,235,0.36); margin-left: 1px; }
+  .tide-vessel-pct-scope { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(245,241,235,0.42); }
   .tide-saved-line { position: relative; z-index: 6; display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; margin-bottom: 14px; padding: 13px 16px; border-radius: 14px; border: 1px solid rgba(245,241,235,0.10); background: rgba(245,241,235,0.03); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.4; color: rgba(245,241,235,0.82); }
   .tide-saved-line.is-hit { border-color: rgba(230,169,75,0.40); background: rgba(230,169,75,0.08); }
   .tide-saved-line.is-prompt { cursor: pointer; justify-content: space-between; color: rgba(245,241,235,0.74); transition: background 0.15s, border-color 0.15s; }
@@ -4233,15 +4242,35 @@ function renderTideVessel(v) {
     ? '<span class="tide-vessel-verified"><span class="tide-vessel-verified-dot" aria-hidden="true"></span>' + esc(v.verifiedLabel) + '</span>'
     : '';
 
-  // Copy rule (every word, one job, one place): headline = the number + verdict;
-  // count line = the fraction + unit ("on sale") + trend; the your-shops detail
-  // (below the chart) names which of the user's shops are on. The headline is
-  // ALWAYS the whole-centre call — there is no view toggle swapping what the
-  // number means, and the chart's green line is ALWAYS "your shops" (see below).
-  const headlineRow = '<div class="tide-vessel-headline-row">'
-    + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
-    + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
-    + '</div>';
+  // Copy rule (every word, one job, one place): headline = the number(s) +
+  // verdict; count line = the fraction + unit ("on sale") + trend; the
+  // your-shops detail (below the chart) names which of the user's shops are on.
+  // When the user follows ≥1 shop present here, the headline leads with TWO
+  // percentages — the BIG one is "your shops" (the personal %, matching the neon
+  // line) and a SMALLER one beneath is "whole centre" (matching the sage line +
+  // count line). With no followed shops there's only the whole-centre %.
+  const hasPersonalHeadline = !!(v.hasFollowed && myPresent > 0);
+  let headlineRow;
+  if (hasPersonalHeadline) {
+    headlineRow = '<div class="tide-vessel-headline-row tide-vessel-headline-row--dual">'
+      + '<div class="tide-vessel-pct-stack">'
+      +   '<div class="tide-vessel-pct-primary">'
+      +     '<span class="tide-vessel-pct">' + personalPct + '<span class="tide-vessel-pct-sign">%</span></span>'
+      +     '<span class="tide-vessel-pct-scope">your shops</span>'
+      +   '</div>'
+      +   '<div class="tide-vessel-pct-secondary">'
+      +     '<span class="tide-vessel-pct-sub">' + pct + '<span class="tide-vessel-pct-sub-sign">%</span></span>'
+      +     '<span class="tide-vessel-pct-scope">whole centre</span>'
+      +   '</div>'
+      + '</div>'
+      + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
+      + '</div>';
+  } else {
+    headlineRow = '<div class="tide-vessel-headline-row">'
+      + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
+      + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
+      + '</div>';
+  }
 
   // Whole-centre count — the sole home of "shops on sale" + the trend clause.
   // When the server hasn't returned a raw count yet, carry only the unit (no %

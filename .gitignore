@@ -10,3 +10,6 @@ node_modules/
 .seo-sample/
 /centre/
 /sitemap-seo.xml
+
+# Generated Instagram cards (scripts/social.mjs) — regenerate on demand
+social-out/

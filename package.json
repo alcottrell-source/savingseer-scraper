@@ -10,8 +10,6 @@
     "score": "node score.js",
     "summarise": "node summarise.js",
     "run-all": "node score.js && node summarise.js",
-    "social": "node scripts/social.mjs",
-    "social:demo": "node scripts/social.mjs --demo",
     "seo:build": "node seo/generate.mjs",
     "seo:sample": "node seo/generate.mjs --fixtures seo/fixtures.westquay.json --out .seo-sample",
     "test": "node --test test/*.test.mjs",

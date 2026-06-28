@@ -28,29 +28,6 @@ npx serve .            # static site at http://localhost:3000  (and /admin)
 SUPABASE_URL=… SUPABASE_SERVICE_KEY=… npm run score
 ```
 
-## Social cards (Instagram) — `scripts/social.mjs`
-
-On-demand generator for branded 1080×1350 PNGs to post when sales move. Reads the
-same live columns as the public site, so the images can't contradict the dashboard.
-Three card types:
-
-- **centres** — "Where the sales are": top centres ranked by verdict severity then
-  Tide Score (PEAK → GO NOW chip, then Rising/Easing/Quiet).
-- **peak** — "Peak right now": only the centres currently at PEAK. Skipped (not a
-  blank post) when nothing is peaking.
-- **brands** — "Biggest sales now": brands on sale ranked by max discount, with how
-  many centres each is on sale at.
-
-```bash
-SUPABASE_URL=… SUPABASE_SERVICE_KEY=… npm run social          # all three → social-out/
-npm run social -- --type=peak --limit=5                        # one type, custom count
-npm run social:demo                                            # sample data, no DB/network
-```
-
-Renders via Playwright/Chromium (already a dependency; reuses Playfair + Inter).
-Output lands in `social-out/` (gitignored) — regenerate any time. READ-ONLY against
-Supabase (only `select` queries).
-
 ## Notes
 
 - `brands.js` is shared brand config used by `score.js`, `summarise.js`, `seed.js`,

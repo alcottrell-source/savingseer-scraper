@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!--
+  Tide — Instagram Reel / Story cover prototype  (visual source of truth)
+  ────────────────────────────────────────────────────────────────────────
+  9:16 vertical frame (1080×1920) for a no-face, static-content account:
+  a hook headline over a hero image, then a dark brand panel carrying the
+  live sale data. Designed to (a) stop the scroll in 3 seconds and (b) make
+  someone want to tap through to tidego.co.
+
+  Two layers you swap per post:
+    • --centre-photo : a real photo of the shopping centre (atrium / shopfronts).
+        Leave it blank and a tasteful brand gradient stands in — the design
+        works with OR without a photo, so you can post today.
+    • the TIDE_POST object below : the centre name, score, verdict, sales.
+
+  Render to PNG with Playwright at 1080×1920, or screenshot in a phone-width
+  browser. This is a static mock — wire it to live data later if useful.
+-->
+<title>Tide · Reel prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --ink:#0B0B0D; --cream:#F5F1EB; --mute:#9A9389;
+    --neon:#5EFFB0; --amber:#FFD79A;
+    /* Drop a real centre photo URL here to use it; blank = brand gradient. */
+    --centre-photo: none;
+  }
+  body { background:#222; display:flex; justify-content:center; padding:24px; font-family:'Inter',system-ui,sans-serif; }
+
+  .reel {
+    width:1080px; height:1920px; position:relative; overflow:hidden;
+    background:var(--ink); color:var(--cream);
+    transform-origin:top center;
+  }
+
+  /* ── Hero image region (top ~56%) ─────────────────────────────────── */
+  .hero { position:absolute; inset:0 0 auto 0; height:1080px; overflow:hidden; }
+  /* The photo. When --centre-photo is none, the layered gradient below shows
+     through and reads as an intentional, moody architectural backdrop. */
+  .hero-photo {
+    position:absolute; inset:0;
+    background-image: var(--centre-photo);
+    background-size:cover; background-position:center;
+  }
+  .hero-fallback {
+    position:absolute; inset:0;
+    background:
+      radial-gradient(130% 70% at 72% 4%, rgba(94,255,176,0.28), transparent 52%),
+      radial-gradient(95% 65% at 12% 26%, rgba(255,215,154,0.16), transparent 58%),
+      radial-gradient(140% 90% at 50% 120%, rgba(0,0,0,0.5), transparent 55%),
+      linear-gradient(160deg, #1b4538 0%, #123026 38%, #0c1b16 70%, #0B0B0D 100%);
+  }
+  /* perspective "atrium" lines on the fallback, faint — reads as architecture */
+  .hero-fallback::after {
+    content:''; position:absolute; inset:0;
+    background:
+      repeating-linear-gradient(118deg, rgba(255,255,255,0.05) 0 2px, transparent 2px 86px),
+      repeating-linear-gradient(62deg, rgba(255,255,255,0.03) 0 2px, transparent 2px 120px);
+    -webkit-mask-image:linear-gradient(180deg, rgba(0,0,0,0.85), transparent 72%);
+    mask-image:linear-gradient(180deg, rgba(0,0,0,0.85), transparent 72%);
+  }
+  /* bottom fade so text + panel blend seamlessly into the dark */
+  .hero-scrim {
+    position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(11,11,13,0.45) 0%, rgba(11,11,13,0) 26%, rgba(11,11,13,0) 52%, rgba(11,11,13,0.85) 86%, var(--ink) 100%);
+  }
+
+  /* ── Top bar ──────────────────────────────────────────────────────── */
+  .topbar { position:absolute; top:64px; left:72px; right:72px; z-index:5;
+    display:flex; justify-content:space-between; align-items:baseline; }
+  .wordmark { font-family:'Playfair Display',serif; font-weight:700; font-size:52px; letter-spacing:.01em; }
+  .domain { font-size:30px; font-weight:500; color:rgba(245,241,235,0.85); }
+
+  /* ── Hook headline (over hero, lower third of the image) ──────────── */
+  .hook { position:absolute; left:72px; right:120px; top:740px; z-index:5; }
+  .hook-eyebrow { font-size:28px; font-weight:600; letter-spacing:.26em; text-transform:uppercase;
+    color:var(--amber); margin-bottom:18px; }
+  .hook-title { font-family:'Playfair Display',serif; font-weight:700; font-size:104px; line-height:0.98;
+    letter-spacing:-0.02em; text-shadow:0 4px 40px rgba(0,0,0,0.5); }
+
+  /* ── Data panel (bottom ~44%) ─────────────────────────────────────── */
+  .panel { position:absolute; left:0; right:0; bottom:0; height:840px; z-index:6;
+    padding:0 72px 76px; display:flex; flex-direction:column; }
+  .panel-head { display:flex; align-items:center; gap:24px; margin-top:6px; }
+  .badge { font-size:34px; font-weight:700; letter-spacing:.06em; color:var(--ink);
+    background:var(--amber); padding:12px 26px; border-radius:999px; }
+  .verified { font-size:30px; color:var(--mute); font-weight:500; }
+
+  .score-row { display:flex; align-items:flex-end; gap:28px; margin-top:34px; }
+  .score { font-family:'Playfair Display',serif; font-weight:600; font-size:200px; line-height:0.85;
+    color:var(--neon); letter-spacing:-0.03em; }
+  .score small { font-size:80px; }
+  .score-sub { font-size:40px; font-weight:500; color:var(--cream); padding-bottom:20px; }
+
+  .divider { height:1px; background:rgba(255,255,255,0.12); margin:42px 0 30px; }
+
+  .list-h { font-size:28px; font-weight:600; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--mute); margin-bottom:22px; }
+  .sale { display:flex; justify-content:space-between; align-items:baseline; padding:14px 0;
+    border-bottom:1px solid rgba(255,255,255,0.07); }
+  .sale:last-of-type { border-bottom:none; }
+  .sale-name { font-size:46px; font-weight:500; }
+  .sale-pct { font-size:46px; font-weight:600; color:var(--amber); font-variant-numeric:tabular-nums; }
+
+  .cta { margin-top:auto; display:flex; align-items:center; justify-content:space-between;
+    background:var(--neon); color:var(--ink); border-radius:22px; padding:30px 38px; }
+  .cta-text { font-size:42px; font-weight:700; }
+  .cta-arrow { font-size:48px; font-weight:700; }
+</style>
+</head>
+<body>
+  <div class="reel" id="reel">
+    <div class="hero">
+      <div class="hero-fallback"></div>
+      <div class="hero-photo"></div>
+      <div class="hero-scrim"></div>
+    </div>
+
+    <div class="topbar">
+      <div class="wordmark">TIDE</div>
+      <div class="domain">tidego.co</div>
+    </div>
+
+    <div class="hook">
+      <div class="hook-eyebrow" id="hook-eyebrow">Go now</div>
+      <div class="hook-title" id="hook-title">Westquay just hit peak.</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="badge" id="badge">PEAK</div>
+        <div class="verified" id="verified">Verified today</div>
+      </div>
+      <div class="score-row">
+        <div class="score" id="score">58<small>%</small></div>
+        <div class="score-sub" id="score-sub">of shops on sale<br>23 of 40 right now</div>
+      </div>
+      <div class="divider"></div>
+      <div class="list-h">Biggest discounts today</div>
+      <div id="sales"></div>
+      <div class="cta">
+        <div class="cta-text">Full list → tidego.co</div>
+        <div class="cta-arrow">↗</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ── The only thing you change per post ─────────────────────────────
+  const TIDE_POST = {
+    centre: 'Westquay',
+    hook:   'Westquay just hit peak.',   // the 3-second scroll-stopper
+    eyebrow:'Go now',                    // small kicker above the hook
+    verdict:'PEAK',
+    score:  58,
+    onSale: 23,
+    total:  40,
+    verified:'Verified today',
+    sales: [                             // top 3–4 biggest discounts
+      { name:'River Island', pct:'60% off' },
+      { name:'New Look',     pct:'50% off' },
+      { name:'Next',         pct:'40% off' },
+    ],
+    // photo: 'https://…/westquay.jpg',  // optional — uncomment + set to use a real photo
+  };
+
+  (function render(){
+    const d = TIDE_POST;
+    document.getElementById('hook-eyebrow').textContent = d.eyebrow;
+    document.getElementById('hook-title').textContent = d.hook;
+    document.getElementById('badge').textContent = d.verdict;
+    document.getElementById('verified').textContent = d.verified;
+    document.getElementById('score').innerHTML = d.score + '<small>%</small>';
+    document.getElementById('score-sub').innerHTML = 'of shops on sale<br>' + d.onSale + ' of ' + d.total + ' right now';
+    document.getElementById('sales').innerHTML = d.sales.map(s =>
+      '<div class="sale"><div class="sale-name">'+s.name+'</div><div class="sale-pct">'+s.pct+'</div></div>'
+    ).join('');
+    if (d.photo) document.documentElement.style.setProperty('--centre-photo', "url('"+d.photo+"')");
+    // Fit-to-screen preview when opened directly in a browser (render scripts ignore this).
+    const fit = Math.min(1, (window.innerHeight - 48) / 1920);
+    if (fit < 1) document.getElementById('reel').style.transform = 'scale('+fit+')';
+  })();
+</script>
+</body>
+</html>

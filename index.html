@@ -5846,12 +5846,27 @@ maybeShowWaitlistBanner();
 // Subscribe to real-time Supabase changes so admin confirmations appear
 // instantly without a page refresh. 60-second poll is a belt-and-braces
 // fallback for environments where Realtime isn't enabled.
+//
+// We listen on EVERY table an admin edit ultimately touches, because the
+// confirmation lands in two waves: the admin write hits brand_sale_events +
+// brand_sale_cycles immediately, but the headline %, verdict word and history
+// chart come from centre_seer_scores + centres.tide_history, which the
+// fire-and-forget /api/rescore only rewrites a second or two LATER. Subscribing
+// to just brand_sale_events flipped the brand chips instantly but left the hero
+// number stale until the 60s poll (loadTideData re-read centre_seer_scores
+// before the rescore had finished). The debounce coalesces the first wave into
+// one reload; the score/tide_history events fire a second reload once the
+// rescore lands, so the whole card — chips, %, verdict, chart — catches up.
 let _reloadTimer;
-sb.channel('tide-brand-sale-updates')
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'brand_sale_events' }, () => {
-    clearTimeout(_reloadTimer);
-    _reloadTimer = setTimeout(() => loadTideData(), 400);
-  })
+const _scheduleTideReload = () => {
+  clearTimeout(_reloadTimer);
+  _reloadTimer = setTimeout(() => loadTideData(), 400);
+};
+sb.channel('tide-admin-updates')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'brand_sale_events' }, _scheduleTideReload)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'brand_sale_cycles' }, _scheduleTideReload)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'centre_seer_scores' }, _scheduleTideReload)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'centres' }, _scheduleTideReload)
   .subscribe();
 // Belt-and-braces fallback only — the realtime channel above delivers
 // admin confirmations instantly. Poll at 60s (matching the comment's

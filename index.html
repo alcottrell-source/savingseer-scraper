@@ -3463,15 +3463,170 @@ function goToCentre(centreId) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// Share the open centre — native share sheet (mobile) with a clipboard
-// fallback. Reads window._tideShareCtx, pre-resolved in renderCentre so this
-// handler is synchronous (iOS needs navigator.share inside the user gesture).
+// Verdict → accent colour for the share image. PEAK pops amber (the "GO NOW"
+// signal), Rising/Easing take the warm/cool trend hues, everything else is the
+// brand neon. Mirrors the dark-vessel tone-* classes so the image reads like
+// the hero card it's sharing.
+function tideShareAccent(verdictWord) {
+  const w = String(verdictWord || '').toUpperCase();
+  if (w === 'PEAK') return '#FFD79A';
+  if (w === 'RISING') return '#9FD8B0';
+  if (w === 'EASING') return '#F4B79F';
+  return '#5EFFB0'; // QUIET / OVER / fallback — brand neon
+}
+
+// Render a branded, FOMO-loaded share card to a PNG data URL. Synchronous
+// (canvas.toDataURL, no toBlob/await) so the caller can hand the result to
+// navigator.share inside the same user gesture — iOS rejects share() if any
+// await intervenes. Portrait 1080×1350 = native fit for IG/stories/feed +
+// WhatsApp/Messages previews; the dark vessel is the jewel that travels.
+function buildTideShareImage(ctx) {
+  const W = 1080, H = 1350, PAD = 96;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const c = canvas.getContext('2d');
+  if (!c) return null;
+  const accent = tideShareAccent(ctx.verdict);
+  const CREAM = '#F5F1EB', MUTE = '#8A847C';
+
+  // Base + faint top glow in the accent — the "tide vessel" lit from above.
+  c.fillStyle = '#0B0B0D'; c.fillRect(0, 0, W, H);
+  const glow = c.createRadialGradient(W / 2, -120, 80, W / 2, -120, 980);
+  glow.addColorStop(0, accent + '2E'); // ~18% alpha
+  glow.addColorStop(1, 'rgba(11,11,13,0)');
+  c.fillStyle = glow; c.fillRect(0, 0, W, H);
+
+  c.textBaseline = 'alphabetic';
+
+  // Header row — TIDE wordmark (left) + domain (right).
+  c.textAlign = 'left';
+  c.fillStyle = CREAM;
+  c.font = '700 46px "Playfair Display", Georgia, serif';
+  c.fillText('TIDE', PAD, 138);
+  c.textAlign = 'right';
+  c.fillStyle = MUTE;
+  c.font = "500 28px 'Inter', system-ui, sans-serif";
+  c.fillText('tidego.co', W - PAD, 134);
+
+  // Eyebrow.
+  c.textAlign = 'left';
+  c.fillStyle = MUTE;
+  c.font = "600 26px 'Inter', system-ui, sans-serif";
+  c.fillText('S H O P P I N G   C E N T R E', PAD, 250);
+
+  // Centre name — Playfair, wrapped to at most two lines.
+  c.fillStyle = CREAM;
+  let nameSize = 84;
+  c.font = '600 ' + nameSize + 'px "Playfair Display", Georgia, serif';
+  const words = String(ctx.name || '').split(/\s+/);
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const test = line ? line + ' ' + word : word;
+    if (c.measureText(test).width > W - PAD * 2 && line) { lines.push(line); line = word; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  const drawn = lines.slice(0, 2);
+  if (lines.length > 2) drawn[1] = drawn[1].replace(/\s+\S*$/, '') + '…';
+  let y = 326;
+  for (const ln of drawn) { c.fillText(ln, PAD, y); y += nameSize + 10; }
+
+  // Location (optional).
+  if (ctx.location) {
+    c.fillStyle = MUTE;
+    c.font = "500 32px 'Inter', system-ui, sans-serif";
+    c.fillText(ctx.location, PAD, y + 6);
+  }
+
+  // The hero number — huge accent %.
+  const pct = (ctx.pct != null) ? ctx.pct : 0;
+  c.fillStyle = accent;
+  c.font = '600 300px "Playfair Display", Georgia, serif';
+  const pctY = 800;
+  c.fillText(String(pct), PAD, pctY);
+  const pctW = c.measureText(String(pct)).width;
+  c.font = '600 96px "Playfair Display", Georgia, serif';
+  c.fillText('%', PAD + pctW + 8, pctY);
+
+  // Verdict word + (for PEAK) a GO NOW pill.
+  const verdict = String(ctx.verdict || '').toUpperCase();
+  c.fillStyle = accent;
+  c.font = '600 76px "Playfair Display", Georgia, serif';
+  const vY = pctY + 110;
+  c.fillText(verdict, PAD, vY);
+  if (verdict === 'PEAK') {
+    const vW = c.measureText(verdict).width;
+    const pillX = PAD + vW + 28, pillY = vY - 56, pillH = 64;
+    c.font = "700 30px 'Inter', system-ui, sans-serif";
+    const txt = 'GO NOW', txtW = c.measureText(txt).width, pillW = txtW + 52;
+    c.fillStyle = accent;
+    if (c.roundRect) { c.beginPath(); c.roundRect(pillX, pillY, pillW, pillH, 32); c.fill(); }
+    else c.fillRect(pillX, pillY, pillW, pillH);
+    c.fillStyle = '#0B0B0D';
+    c.fillText(txt, pillX + 26, pillY + 43);
+  }
+
+  // Count line — the brand-density fact.
+  c.fillStyle = CREAM;
+  c.font = "500 42px 'Inter', system-ui, sans-serif";
+  const count = (ctx.total > 0)
+    ? ctx.onSale + ' of ' + ctx.total + ' shops on sale'
+    : 'Tracking sales now';
+  c.fillText(count, PAD, vY + 86);
+
+  // Verified stamp.
+  if (ctx.verifiedLabel) {
+    c.fillStyle = MUTE;
+    c.font = "500 30px 'Inter', system-ui, sans-serif";
+    c.fillText(ctx.verifiedLabel, PAD, vY + 142);
+  }
+
+  // Footer CTA.
+  c.strokeStyle = 'rgba(255,255,255,0.10)'; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(PAD, H - 150); c.lineTo(W - PAD, H - 150); c.stroke();
+  c.textAlign = 'left';
+  c.fillStyle = CREAM;
+  c.font = "500 34px 'Inter', system-ui, sans-serif";
+  c.fillText('See when it’s worth the trip', PAD, H - 92);
+  c.textAlign = 'right';
+  c.fillStyle = accent;
+  c.font = "600 34px 'Inter', system-ui, sans-serif";
+  c.fillText('tidego.co', W - PAD, H - 92);
+
+  try { return canvas.toDataURL('image/png'); } catch (e) { return null; }
+}
+
+// data URL → File, synchronously (no fetch/await) so it stays inside the share
+// gesture. Returns null if anything is off so the caller can fall back to text.
+function tideDataUrlToFile(dataUrl, filename) {
+  try {
+    const comma = dataUrl.indexOf(',');
+    const meta = dataUrl.slice(0, comma);
+    const mime = (meta.match(/data:([^;]+)/) || [])[1] || 'image/png';
+    const bin = atob(dataUrl.slice(comma + 1));
+    const len = bin.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+    return new File([bytes], filename, { type: mime });
+  } catch (e) { return null; }
+}
+
+// Share the open centre — generates a branded tide card image and shares it via
+// the native sheet (image rides into the feed/chat as the hook), falling back
+// to image download + copied text, then to a plain link copy. Reads
+// window._tideShareCtx, pre-resolved in renderCentre so the whole path is
+// synchronous (iOS needs navigator.share inside the user gesture).
 function shareCentre() {
   const ctx = window._tideShareCtx;
   if (!ctx) return;
   const density = (ctx.total > 0) ? ctx.onSale + ' of ' + ctx.total + ' shops on sale right now. ' : '';
   const text = ctx.name + ' — ' + ctx.verdict + '. ' + density + "See when it's worth the trip:";
   const title = ctx.name + ' on Tide';
+  const btn = document.querySelector('.share-centre-btn');
+  const label = btn ? btn.querySelector('span') : null;
+  const restore = label ? label.textContent : '';
+  function flash(msg) { if (label) { label.textContent = msg; setTimeout(function () { label.textContent = restore; }, 1800); } }
   // Consent-gated GA — only if the user accepted cookies AND gtag is loaded.
   // Never call loadGA() here (that would load analytics without consent).
   function track(method) {
@@ -3481,23 +3636,44 @@ function shareCentre() {
       }
     } catch (e) {}
   }
+
+  // 1) Best path — share the branded image as a file (the screenshot loop).
+  const dataUrl = buildTideShareImage(ctx);
+  if (dataUrl) {
+    const safe = (ctx.name || 'centre').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'tide';
+    const file = tideDataUrlToFile(dataUrl, 'tide-' + safe + '.png');
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: title, text: text + ' ' + ctx.url })
+        .then(function () { track('web_share_image'); })
+        .catch(function () { /* user cancelled — no-op */ });
+      return;
+    }
+    // 2) No file-share support (most desktops) — download the image so the user
+    // can post it, and copy the caption + link to the clipboard.
+    try {
+      const a = document.createElement('a');
+      a.href = dataUrl; a.download = 'tide-' + safe + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text + ' ' + ctx.url).catch(function () {});
+      }
+      flash('Image saved'); track('image_download');
+      return;
+    } catch (e) { /* fall through to text share */ }
+  }
+
+  // 3) Text share — native sheet then clipboard, the original behaviour.
   if (navigator.share) {
     navigator.share({ title: title, text: text, url: ctx.url })
       .then(function () { track('web_share'); })
       .catch(function () { /* user cancelled or share failed — no-op */ });
     return;
   }
-  // Clipboard fallback — copy text + link, briefly confirm on the button.
-  const btn = document.querySelector('.share-centre-btn');
-  const label = btn ? btn.querySelector('span') : null;
-  const restore = label ? label.textContent : '';
-  function flash(msg) { if (label) { label.textContent = msg; setTimeout(function () { label.textContent = restore; }, 1800); } }
   const payload = text + ' ' + ctx.url;
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(payload).then(function () { flash('Link copied'); track('clipboard'); })
       .catch(function () { flash('Copy failed'); });
   } else {
-    // Last-resort: prompt so the user can copy manually.
     try { window.prompt('Copy this link', payload); track('prompt'); } catch (e) {}
   }
 }
@@ -5383,11 +5559,24 @@ async function renderCentre(centreId) {
     trajectory,
     stage,
   }).word;
+  // Share card needs the SAME numbers the hero shows so the image can never
+  // contradict the page: tide_score %, server brand counts (fall back to the
+  // local proportion only when the server hasn't scored this centre yet).
+  const shareSrvOnSale = serverScore && Number.isFinite(+serverScore.brands_on_sale) ? +serverScore.brands_on_sale : null;
+  const shareSrvTotal  = serverScore && Number.isFinite(+serverScore.total_brands) && +serverScore.total_brands > 0 ? +serverScore.total_brands : null;
+  const shareOnSaleN = (shareSrvOnSale != null) ? shareSrvOnSale : onSale.length;
+  const shareTotalN  = (shareSrvTotal  != null) ? shareSrvTotal  : total;
+  const sharePct = (serverScore && Number.isFinite(+serverScore.tide_score))
+    ? Math.round(+serverScore.tide_score)
+    : (shareTotalN > 0 ? Math.round((shareOnSaleN / shareTotalN) * 100) : 0);
   window._tideShareCtx = {
     name: centreName,
     verdict: verdictLabel,
-    onSale: onSale.length,
-    total: total,
+    pct: sharePct,
+    onSale: shareOnSaleN,
+    total: shareTotalN,
+    location: location || '',
+    verifiedLabel: verifiedLabelForCentre(centreIdx),
     url: supabaseCentreId ? 'https://tidego.co/?centre=' + encodeURIComponent(supabaseCentreId) : 'https://tidego.co/',
     slug: supabaseCentreId || null,
   };

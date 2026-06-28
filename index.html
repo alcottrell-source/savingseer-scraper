@@ -4072,11 +4072,10 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
 
   const defs =
       '<linearGradient id="tideArea" x1="0" y1="0" x2="0" y2="1">'
-    +   '<stop offset="0%" stop-color="' + NEON + '" stop-opacity="0.34"/>'
+    +   '<stop offset="0%" stop-color="' + NEON + '" stop-opacity="0.16"/>'
     +   '<stop offset="100%" stop-color="' + NEON + '" stop-opacity="0"/>'
     + '</linearGradient>'
-    + '<filter id="tideGlow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
-    + '<filter id="tideSageGlow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+    + '<filter id="tideGlow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="1.8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
 
   let area = '', line = '';
   if (pts.length >= 2) {
@@ -4103,7 +4102,7 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
       + '</g>';
   }
 
-  // Secondary line — cyan, dashed, thinner, NO glow so it reads as context
+  // Secondary line — muted sage, dashed, thin, NO glow so it reads as context
   // beneath the neon hero. Which dataset is hero vs secondary is decided by the
   // caller (the view toggle) and passed in as `series`/`personal`; this function
   // always paints `series` neon and `personal` dashed. Shares the x-axis (mapped
@@ -4123,14 +4122,16 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
   const winP = (Array.isArray(personal) && personal.length) ? windowTideSeries(personal, period) : [];
   if (winP.length >= 2) {
     const ptsP = winP.map(p => [xForDate(p.date), yFor(p.score)]);
-    // Stronger secondary line: heavier stroke + near-full opacity + its own soft
-    // glow so the "whole centre" baseline reads as a real second dataset, not a
-    // faint hint. Still dashed (and the muted sage hue, never neon) so it stays
-    // clearly the comparison line, not the "your shops" hero.
-    youLine = '<path d="' + smoothCurvePath(ptsP) + '" fill="none" stroke="' + YOU + '" stroke-width="3" stroke-dasharray="8 4" stroke-linejoin="round" stroke-linecap="round" opacity="0.95" filter="url(#tideSageGlow)"/>';
+    // Quiet secondary line: thin, glow-less, lower opacity so the "whole centre"
+    // baseline reads as a reference BEHIND the neon hero, not a second line
+    // competing with it. The earlier heavier-stroke + glow treatment made the two
+    // green lines blend into one untidy band — contrast (bright/crisp vs
+    // muted/faint), not weight, is what separates "your shops" from "the centre".
+    // Still dashed and the muted sage hue (never neon) so it stays the comparison.
+    youLine = '<path d="' + smoothCurvePath(ptsP) + '" fill="none" stroke="' + YOU + '" stroke-width="1.6" stroke-dasharray="7 5" stroke-linejoin="round" stroke-linecap="round" opacity="0.5"/>';
     const le = ptsP[ptsP.length - 1];
-    youEnd = '<circle cx="' + le[0] + '" cy="' + le[1] + '" r="11" fill="' + YOU + '" opacity="0.18"/>'
-      + '<circle cx="' + le[0] + '" cy="' + le[1] + '" r="4" fill="' + YOU + '" stroke="#0B0B0D" stroke-width="1.5"/>';
+    youEnd = '<circle cx="' + le[0] + '" cy="' + le[1] + '" r="9" fill="' + YOU + '" opacity="0.12"/>'
+      + '<circle cx="' + le[0] + '" cy="' + le[1] + '" r="3.4" fill="' + YOU + '" stroke="#0B0B0D" stroke-width="1.4"/>';
     // Second value pill — the whole-centre % — so the chart carries BOTH sets of
     // data (your shops % on the neon endpoint, whole-centre % here). Sage fill to
     // tie it to its line. If it would collide vertically with the neon pill,
@@ -4156,7 +4157,7 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
     legend = '<g font-family="Inter,sans-serif" font-size="11" font-weight="700">'
       + '<line x1="' + X0 + '" y1="9" x2="' + (X0 + 16) + '" y2="9" stroke="' + NEON + '" stroke-width="3" stroke-linecap="round"/>'
       + '<text x="' + (X0 + 21) + '" y="12.5" fill="rgba(255,255,255,0.85)">' + pLabel + '</text>'
-      + '<line x1="' + sx + '" y1="9" x2="' + (sx + 16) + '" y2="9" stroke="' + YOU + '" stroke-width="3" stroke-dasharray="5 4" stroke-linecap="round"/>'
+      + '<line x1="' + sx + '" y1="9" x2="' + (sx + 16) + '" y2="9" stroke="' + YOU + '" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" opacity="0.7"/>'
       + '<text x="' + (sx + 21) + '" y="12.5" fill="rgba(255,255,255,0.85)">' + sLabel + '</text>'
       + '</g>';
   }

@@ -77,6 +77,7 @@ Run after every visual change. Anything that was working before must still work.
 - [ ] **E2** Verdict displayed on consumer matches server `verdict` field that admin reads
 - [ ] **E3** Brand list on consumer = brands marked verified-on-sale in admin (no scraper-only entries leaking through)
 - [ ] **E4** Discount % shown on consumer matches the cycle's `max_discount_pct` shown in admin
+- [ ] **E5** Admin "Sales overview" section (top of `/admin`): lists every centre with active sales, ranked Peak-first then by on-sale count, each card showing "N / M on sale", a **Newest sales** column (shop + recency + %) and a **Biggest discounts** column (shop + %). On-sale derivation matches admin truth (`active_cycle_id` OR `last_verified_status`); it refreshes after every confirm/edit (rides `loadAndRender`) and fails soft (a read error shows an inline notice, never blanks the review queue).
 
 ## F. Performance (light)
 

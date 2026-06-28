@@ -248,8 +248,27 @@
   .filter-chip .chip-n { opacity: 0.7; margin-left: 4px; }
   .brand-card.is-hidden { display: none; }
 
+  /* ── Sales overview ─────────────────────────────────────────────── */
+  .centre-list { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
+  .centre-card { background: white; border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; }
+  .centre-card.peak { border-color: var(--amber); }
+  .centre-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .centre-rank { font-family: 'Playfair Display', serif; font-size: 14px; color: var(--stone); margin-right: 9px; }
+  .centre-name { font-size: 15px; font-weight: 500; color: var(--bark); }
+  .centre-peak-tag { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); background: var(--amber-lt); padding: 2px 7px; border-radius: 8px; margin-left: 8px; font-weight: 500; }
+  .centre-count { font-size: 12px; color: var(--stone); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .centre-count strong { color: var(--leaf); font-weight: 500; }
+  .centre-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .cc-h { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone); margin-bottom: 5px; }
+  .cc-item { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12.5px; line-height: 1.55; }
+  .cc-item .cc-brand { color: var(--bark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cc-item .cc-meta { color: var(--stone); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .cc-item .cc-meta.pct { color: var(--amber); font-weight: 500; }
+  .cc-empty { font-size: 12px; color: var(--stone); opacity: 0.6; }
+
   @media (min-width: 720px) {
     .brand-list { max-width: 720px; margin: 0 auto; }
+    .centre-list { max-width: 720px; margin: 0 auto; }
     .section-bar { max-width: 720px; margin: 0 auto; padding-left: 0; padding-right: 0; }
     .filter-bar { max-width: 720px; margin: 0 auto; padding-left: 0; padding-right: 0; }
     header { padding-left: max(20px, calc((100vw - 720px) / 2)); padding-right: max(20px, calc((100vw - 720px) / 2)); }
@@ -290,6 +309,14 @@
 <!-- Main app -->
 <main id="app" style="display:none">
   <div class="section-bar">
+    <div class="section-title">Sales overview</div>
+    <div class="count-pill" id="overview-count">0</div>
+  </div>
+  <div id="overview-summary" class="wl-summary"></div>
+  <div class="centre-list" id="overview-list"></div>
+  <div id="overview-empty" class="empty-section" style="display:none">No active sales right now.</div>
+
+  <div class="section-bar confirmed">
     <div class="section-title urgent">Needs review</div>
     <div class="count-pill urgent" id="needs-count">0</div>
   </div>
@@ -604,6 +631,11 @@ async function loadAndRender() {
   applyQueueFilter(initialFilter);
 
   wireRowActions();
+
+  // Refresh the at-a-glance sales overview alongside the queue (and after every
+  // admin action, since those re-run loadAndRender). Tolerant: a failure here
+  // must never blank the review queue.
+  loadSalesOverview().catch(err => console.warn('loadSalesOverview failed:', err));
 }
 
 // Which cards deserve a visual nudge / float to the top of a queue band: the
@@ -613,6 +645,153 @@ async function loadAndRender() {
 function needsAttention(ev, queue) {
   if (queue === 'urgent') return true;
   return ev.last_verified_status === null || ev.last_verified_status === undefined;
+}
+
+// ── Sales overview ─────────────────────────────────────────────────────────
+// At-a-glance dashboard above the review queue: every centre with active sales,
+// ranked by how many of its shops are on sale (Peak centres float to the top),
+// and for each centre the newest sales + the deepest-discount shops.
+//
+// Reads admin truth directly: a brand is on sale if it has an open cycle
+// (active_cycle_id) or a last_verified_status === true — the same rule score.js
+// and the public site use. Per-brand sale facts (start date, max %) come from
+// the open cycle, falling back to the brand_sale_events row. Centre membership
+// is the centre_brands presence matrix, fetched only for the on-sale brands so
+// the read stays small.
+const VERDICT_PEAK = new Set(['Peak', 'Go now']);
+
+function daysAgoLabel(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const days = Math.floor((new Date(TODAY) - d) / 86400000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return days + 'd ago';
+  return Math.floor(days / 7) + 'w ago';
+}
+
+// Sale depth label: a % when we have one, else the sale-type short name, else
+// a neutral "on sale" (e.g. a confirmed sale with no discount captured).
+function saleDepthLabel(info) {
+  if (info.discount != null) return info.discount + '%';
+  if (info.saleType && SALE_TYPE_SHORT[info.saleType]) return SALE_TYPE_SHORT[info.saleType];
+  return 'on sale';
+}
+
+async function loadSalesOverview() {
+  // Most recent scored day gives us each centre's total tracked brands (the
+  // denominator) + verdict (Peak tag). The sale lists themselves are derived
+  // live below, so a missing/stale score row only costs the "/ M" context.
+  const latestRes = await pg.read('centre_seer_scores?select=score_date&order=score_date.desc&limit=1');
+  const latestDate = (latestRes.data && latestRes.data[0] && latestRes.data[0].score_date) || TODAY;
+
+  const [centresRes, scoresRes, eventsRes, cyclesRes] = await Promise.all([
+    pg.read('centres?select=id,name&active=eq.true'),
+    pg.read('centre_seer_scores?select=centre_id,total_brands,verdict&score_date=eq.' + latestDate),
+    pg.read('brand_sale_events?select=brand_id,max_discount_pct,sale_type,last_verified_date,last_verified_status,active_cycle_id'),
+    pg.read('brand_sale_cycles?select=id,brand_id,start_date,max_discount_pct,sale_type&end_date=is.null'),
+  ]);
+  if (centresRes.error || eventsRes.error) {
+    const e = centresRes.error || eventsRes.error;
+    console.warn('sales overview unavailable:', e.message);
+    $('overview-empty').textContent = 'Sales overview unavailable (' + (e.message || 'read failed') + ').';
+    $('overview-empty').style.display = 'block';
+    return;
+  }
+
+  const cycleById = new Map((cyclesRes.data || []).map(c => [c.id, c]));
+
+  // Brand → live sale facts, for the brands actually on sale.
+  const onSale = new Map();
+  for (const ev of eventsRes.data || []) {
+    const live = ev.active_cycle_id ? true : (ev.last_verified_date ? ev.last_verified_status : false);
+    if (!live) continue;
+    const cyc = ev.active_cycle_id ? cycleById.get(ev.active_cycle_id) : null;
+    onSale.set(ev.brand_id, {
+      discount: (cyc && cyc.max_discount_pct != null) ? cyc.max_discount_pct
+              : (ev.max_discount_pct != null ? ev.max_discount_pct : null),
+      startDate: (cyc && cyc.start_date) || ev.last_verified_date || null,
+      saleType: (cyc && cyc.sale_type) || ev.sale_type || null,
+    });
+  }
+  const onSaleIds = [...onSale.keys()];
+
+  const nameById = new Map((centresRes.data || []).map(c => [c.id, c.name]));
+  const scoreByCentre = new Map((scoresRes.data || []).map(s => [s.centre_id, s]));
+
+  // Presence rows for on-sale brands only (keeps this well under any row cap).
+  let cbRows = [];
+  if (onSaleIds.length) {
+    const cbRes = await pg.read('centre_brands?select=centre_id,brand_id&present=eq.true&brand_id=in.(' + onSaleIds.join(',') + ')&limit=20000');
+    if (cbRes.error) console.warn('centre_brands read failed:', cbRes.error.message);
+    cbRows = cbRes.data || [];
+  }
+
+  const byCentre = new Map();
+  for (const { centre_id, brand_id } of cbRows) {
+    const info = onSale.get(brand_id);
+    if (!info) continue;
+    if (!byCentre.has(centre_id)) byCentre.set(centre_id, []);
+    byCentre.get(centre_id).push({ name: (BRAND_BY_ID[brand_id] && BRAND_BY_ID[brand_id].name) || brand_id, ...info });
+  }
+
+  const rows = [];
+  for (const [centreId, brandsList] of byCentre) {
+    const score = scoreByCentre.get(centreId);
+    rows.push({
+      name: nameById.get(centreId) || centreId,
+      n: brandsList.length,
+      m: (score && Number.isFinite(+score.total_brands)) ? +score.total_brands : null,
+      peak: !!(score && VERDICT_PEAK.has(score.verdict)),
+      brands: brandsList,
+    });
+  }
+  // Peak first, then most sales, then alpha.
+  rows.sort((a, b) => (b.peak - a.peak) || (b.n - a.n) || a.name.localeCompare(b.name));
+
+  const totalSales = rows.reduce((s, r) => s + r.n, 0);
+  $('overview-count').textContent = rows.length;
+  $('overview-summary').textContent = rows.length
+    ? rows.length + ' centre' + (rows.length === 1 ? '' : 's') + ' with active sales · '
+      + totalSales + ' shop sale' + (totalSales === 1 ? '' : 's') + ' on now'
+    : '';
+  $('overview-list').innerHTML = rows.map(renderCentreOverview).join('');
+  $('overview-empty').textContent = 'No active sales right now.';
+  $('overview-empty').style.display = rows.length ? 'none' : 'block';
+}
+
+function renderCentreOverview(r, i) {
+  const newest = r.brands.slice()
+    .sort((a, b) => String(b.startDate || '').localeCompare(String(a.startDate || ''))).slice(0, 3);
+  const biggest = r.brands.slice()
+    .sort((a, b) => ((b.discount ?? -1) - (a.discount ?? -1))).slice(0, 3);
+
+  const newestHtml = newest.length ? newest.map(b =>
+    '<div class="cc-item"><span class="cc-brand">' + esc(b.name) + '</span>'
+    + '<span class="cc-meta">' + esc(daysAgoLabel(b.startDate) || '—')
+    + (b.discount != null ? ' · ' + b.discount + '%' : '') + '</span></div>'
+  ).join('') : '<div class="cc-empty">—</div>';
+
+  const biggestHtml = biggest.length ? biggest.map(b =>
+    '<div class="cc-item"><span class="cc-brand">' + esc(b.name) + '</span>'
+    + '<span class="cc-meta pct">' + esc(saleDepthLabel(b)) + '</span></div>'
+  ).join('') : '<div class="cc-empty">—</div>';
+
+  const countTxt = r.m ? '<strong>' + r.n + '</strong> / ' + r.m + ' on sale'
+                       : '<strong>' + r.n + '</strong> on sale';
+
+  return '<div class="centre-card' + (r.peak ? ' peak' : '') + '">'
+    + '<div class="centre-card-top">'
+    +   '<div><span class="centre-rank">' + (i + 1) + '</span>'
+    +   '<span class="centre-name">' + esc(r.name) + '</span>'
+    +   (r.peak ? '<span class="centre-peak-tag">Peak</span>' : '') + '</div>'
+    +   '<div class="centre-count">' + countTxt + '</div>'
+    + '</div>'
+    + '<div class="centre-cols">'
+    +   '<div><div class="cc-h">Newest sales</div>' + newestHtml + '</div>'
+    +   '<div><div class="cc-h">Biggest discounts</div>' + biggestHtml + '</div>'
+    + '</div>'
+    + '</div>';
 }
 
 // ── User-reports advisory signal ──────────────────────────────────────────

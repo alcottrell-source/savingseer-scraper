@@ -397,6 +397,17 @@
   .tide-vessel-pct-sub { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 30px; line-height: 0.95; letter-spacing: -0.02em; color: rgba(245,241,235,0.72); }
   .tide-vessel-pct-sub-sign { font-size: 17px; font-weight: 500; color: rgba(245,241,235,0.36); margin-left: 1px; }
   .tide-vessel-pct-scope { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(245,241,235,0.42); }
+  /* Movement chip — the familiar trading-app up/down indicator, reworked in
+     Tide's palette: percentage-POINT change of the hero metric over the
+     selected period. Direction colours the arrow + value (neon up / coral
+     down / muted flat); the period stays quiet so the number leads. */
+  .tide-delta { position: relative; z-index: 6; display: inline-flex; align-items: baseline; gap: 7px; margin: -6px 0 16px; padding: 5px 11px 5px 9px; border-radius: 999px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.01em; border: 1px solid transparent; }
+  .tide-delta-arrow { font-size: 10px; line-height: 1; transform: translateY(-1px); }
+  .tide-delta-val { font-variant-numeric: tabular-nums; }
+  .tide-delta-period { font-weight: 500; color: rgba(245,241,235,0.45); }
+  .tide-delta--up { color: var(--tide-neon); background: rgba(94,255,176,0.08); border-color: rgba(94,255,176,0.22); }
+  .tide-delta--down { color: #FF9B7A; background: rgba(255,155,122,0.09); border-color: rgba(255,155,122,0.24); }
+  .tide-delta--flat { color: rgba(245,241,235,0.6); background: rgba(245,241,235,0.05); border-color: rgba(245,241,235,0.12); }
   .tide-saved-line { position: relative; z-index: 6; display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; margin-bottom: 14px; padding: 13px 16px; border-radius: 14px; border: 1px solid rgba(245,241,235,0.10); background: rgba(245,241,235,0.03); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.4; color: rgba(245,241,235,0.82); }
   .tide-saved-line.is-hit { border-color: rgba(230,169,75,0.40); background: rgba(230,169,75,0.08); }
   .tide-saved-line.is-prompt { cursor: pointer; justify-content: space-between; color: rgba(245,241,235,0.74); transition: background 0.15s, border-color 0.15s; }
@@ -4018,6 +4029,40 @@ function windowTideSeries(series, period) {
   return win.length >= 2 ? win : series.slice(-2);
 }
 
+// Movement chip under the headline — the familiar up/down indicator from
+// trading apps (arrow + signed change + period), but tuned to Tide so it reads
+// as ours, not a clone: the change is in percentage POINTS of the same hero
+// metric the big % and the neon line track (start of the SELECTED period → now),
+// never a percent-of-a-percent, and it wears Tide's own neon (up) / coral
+// (down) on the dark panel. The period is spelled out ("past 60 days") rather
+// than the chart-tab shorthand. It tracks whichever line the chart leads with
+// (your-shops when you follow shops here, else the whole centre), so the chip,
+// the big number and the neon endpoint pill can never disagree. Data-gated like
+// the count line: it needs ≥2 real points in the window, else it renders ''.
+function buildTideDeltaChip(series, period, nowPct) {
+  if (!Array.isArray(series) || series.length < 2) return '';
+  const win = windowTideSeries(series, period);
+  if (win.length < 2) return '';
+  const first = win[0];
+  if (!first || !Number.isFinite(+first.score)) return '';
+  const end = Number.isFinite(+nowPct) ? Math.round(+nowPct) : Math.round(+win[win.length - 1].score);
+  const delta = end - Math.round(+first.score);
+  const PERIOD_WORD = { '7D': 'past 7 days', '30D': 'past 30 days', '60D': 'past 60 days', MAX: 'all time' };
+  const periodWord = PERIOD_WORD[period] || ('past ' + period);
+  let dir, glyph;
+  if (delta > 0)      { dir = 'up';   glyph = '▲'; }   // ▲
+  else if (delta < 0) { dir = 'down'; glyph = '▼'; }   // ▼
+  else                { dir = 'flat'; glyph = '→'; }   // →
+  const mag = Math.abs(delta);
+  const valTxt = dir === 'flat' ? 'flat' : ((dir === 'up' ? '+' : '−') + mag + ' pts');
+  const aria = (dir === 'flat' ? 'Unchanged' : (dir === 'up' ? 'Up ' : 'Down ') + mag + ' points') + ' ' + periodWord;
+  return '<div class="tide-delta tide-delta--' + dir + '" aria-label="' + aria + '">'
+    +   '<span class="tide-delta-arrow" aria-hidden="true">' + glyph + '</span>'
+    +   '<span class="tide-delta-val">' + valTxt + '</span>'
+    +   '<span class="tide-delta-period">' + periodWord + '</span>'
+    + '</div>';
+}
+
 // Centre-detail history chart — the line is the hero. Pure-black panel, a bold
 // neon-green curve with glow + gradient fill (the old TIDE neon, restored),
 // and a neon endpoint value pill. The y-axis is a FIXED 0–100% scale, so every
@@ -4200,6 +4245,8 @@ function setTideChartPeriod(period) {
   if (c) {
     const host = document.querySelector('.tide-vessel-chart-svg-host');
     if (host) host.innerHTML = buildTideChartSVG(c.series, period, c.tone, c.pct, c.personal, c.opts);
+    const dHost = document.querySelector('.tide-delta-host');
+    if (dHost) dHost.innerHTML = buildTideDeltaChip(c.series, period, c.pct);
   }
   document.querySelectorAll('.tide-period-tab').forEach(t =>
     t.classList.toggle('is-active', t.getAttribute('data-period') === period));
@@ -4336,6 +4383,10 @@ function renderTideVessel(v) {
   // whole-centre % (sage pill) — both sets of data on one chart.
   const chartOpts = { primaryLabel, secondaryLabel, secondaryPct };
   if (typeof window !== 'undefined') window._tideChart = { series: primarySeries, tone, pct: primaryPct, personal: secondarySeries, opts: chartOpts };
+  // Movement chip (under the headline) over the same hero series + live %, for
+  // the current period. Wrapped in a host so the period tabs can refresh it
+  // alongside the chart without re-rendering the whole vessel.
+  const deltaHTML = '<div class="tide-delta-host">' + buildTideDeltaChip(primarySeries, period, primaryPct) + '</div>';
   const chartSVG = buildTideChartSVG(primarySeries, period, tone, primaryPct, secondarySeries, chartOpts);
   const tabs = PERIODS.map(p =>
     '<button type="button" class="tide-period-tab' + (p === period ? ' is-active' : '')
@@ -4366,6 +4417,7 @@ function renderTideVessel(v) {
   return '<div class="tide-vessel has-verdict verdict-' + tone + ' tide-vessel--merged" data-verdict-word="' + verdict.word + '" role="img" aria-label="' + ariaLabel + '">'
     +   '<div class="tide-vessel-eyebrow-row">' + eyebrowName + verifiedHTML + '</div>'
     +   headlineRow
+    +   deltaHTML
     +   countHTML
     +   '<div class="tide-vessel-chart">'
     +     '<div class="tide-vessel-chart-svg-host">' + chartSVG + '</div>'

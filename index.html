@@ -4024,11 +4024,15 @@ function windowTideSeries(series, period) {
 // pill above the chart was retired — the up/down signal now lives ON THE KEY
 // itself, one badge per line, so "your shops" and "whole centre" each carry
 // their own arrow instead of a single chip that only described the hero line.
-// Same delta math as before: measured over the SELECTED period (start of window
-// → now) in percentage POINTS of the hero metric (the % of shops on sale), so
-// it can never disagree with the big number or the neon endpoint pill. Returns
-// null (no badge) when the window lacks ≥2 real points, or when the line is flat
-// over the period. neon ▲ up / coral ▼ down.
+// Like a stock chip it pairs a concrete absolute move with a relative one: the
+// shop-count change leads and the percentage-POINT change of the hero metric (%
+// of shops on sale) follows in parens — "▲ 11 (32%)". Both measured over the
+// SELECTED period (start of window → now), so they can never disagree with the
+// big number or the neon endpoint pill. Returns null (no badge) when the window
+// lacks ≥2 real points or the line is flat. The shop figure is dropped (pct
+// alone) when the window's start count is missing or its sign disagrees with the
+// score move (total_brands can shift — never show a contradiction). neon ▲ up /
+// coral ▼ down.
 function tideLegendDelta(series, period, nowPct) {
   if (!Array.isArray(series) || series.length < 2) return null;
   const win = windowTideSeries(series, period);
@@ -4038,9 +4042,20 @@ function tideLegendDelta(series, period, nowPct) {
   const end = Number.isFinite(+nowPct) ? Math.round(+nowPct) : Math.round(+last.score);
   const delta = end - Math.round(+first.score);
   if (delta === 0) return null;
+  // Concrete shop-count change (the lead figure). null means "unknown", and
+  // +null === 0, so null-check BEFORE coercing — a missing start count must drop
+  // the shops figure, not read as zero.
+  const fin = x => x != null && Number.isFinite(+x);
+  const firstOn = fin(first.onSale) ? Math.round(+first.onSale) : null;
+  const lastOn  = fin(last.onSale)  ? Math.round(+last.onSale)  : null;
+  let shops = null;
+  if (firstOn != null && lastOn != null) {
+    const sd = lastOn - firstOn;
+    if (sd !== 0 && (sd > 0) === (delta > 0)) shops = Math.abs(sd);   // sign must agree
+  }
   return delta > 0
-    ? { dir: 'up',   glyph: '▲', value: Math.abs(delta) }
-    : { dir: 'down', glyph: '▼', value: Math.abs(delta) };
+    ? { dir: 'up',   glyph: '▲', value: Math.abs(delta), shops }
+    : { dir: 'down', glyph: '▼', value: Math.abs(delta), shops };
 }
 
 // Centre-detail history chart — the line is the hero. Pure-black panel, a bold
@@ -4224,7 +4239,11 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
     lx += Math.ceil(it.label.length * 6.4) + 7;
     if (it.delta) {
       const dc = it.delta.dir === 'up' ? NEON : DOWN;
-      const dtxt = it.delta.value + '%';
+      // Lead with shops, percentage-points in parens — "11 (32%)". Pct alone
+      // when the shop count is unknown / sign-conflicting.
+      const dtxt = it.delta.shops != null
+        ? it.delta.shops + ' (' + it.delta.value + '%)'
+        : it.delta.value + '%';
       legendInner += '<text x="' + lx + '" y="12.5" font-size="9" fill="' + dc + '">' + it.delta.glyph + '</text>';
       lx += 11;
       legendInner += '<text x="' + lx + '" y="12.5" fill="' + dc + '" font-variant-numeric="tabular-nums">' + dtxt + '</text>';

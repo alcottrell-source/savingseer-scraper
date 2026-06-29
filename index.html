@@ -397,8 +397,22 @@
   .tide-vessel-pct-sub { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 30px; line-height: 0.95; letter-spacing: -0.02em; color: rgba(245,241,235,0.72); }
   .tide-vessel-pct-sub-sign { font-size: 17px; font-weight: 500; color: rgba(245,241,235,0.36); margin-left: 1px; }
   .tide-vessel-pct-scope { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(245,241,235,0.42); }
-  /* The movement up/down signal moved onto the chart legend itself (one badge
-     per line, drawn in SVG inside buildTideChartSVG) — no standalone pill. */
+  /* Chart key + movement — a bold HTML row above the history chart (the old
+     in-SVG legend was unreadably small). Each line owns a LARGE colour-coded
+     change figure, trading-app style: neon ▲ up / coral ▼ down, the figure is
+     the thing the eye lands on. */
+  .tide-legend { position: relative; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 9px 24px; margin: 2px 0 12px; }
+  .tide-legend-item { display: inline-flex; align-items: center; gap: 9px; }
+  .tide-legend-swatch { width: 22px; height: 0; flex: none; border-radius: 2px; }
+  .tide-legend-swatch--you { border-top: 3px solid var(--tide-neon); }
+  .tide-legend-swatch--centre { border-top: 2.5px dashed #5E9E7E; opacity: 0.8; }
+  .tide-legend-label { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(245,241,235,0.5); }
+  .tide-legend-delta { display: inline-flex; align-items: baseline; gap: 5px; padding: 3px 10px; border-radius: 9px; font-family: 'Inter', sans-serif; font-size: 19px; font-weight: 800; line-height: 1; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+  .tide-legend-arrow { font-size: 13px; font-weight: 700; }
+  .tide-legend-delta-pct { font-size: 14px; font-weight: 700; opacity: 0.78; }
+  .tide-legend-delta.is-up { color: var(--tide-neon); background: rgba(94,255,176,0.11); }
+  .tide-legend-delta.is-down { color: #FF9B7A; background: rgba(255,155,122,0.12); }
+  .tide-legend-delta.is-flat { color: rgba(245,241,235,0.5); background: rgba(245,241,235,0.05); font-size: 15px; padding: 4px 11px; }
   .tide-saved-line { position: relative; z-index: 6; display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; margin-bottom: 14px; padding: 13px 16px; border-radius: 14px; border: 1px solid rgba(245,241,235,0.10); background: rgba(245,241,235,0.03); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.4; color: rgba(245,241,235,0.82); }
   .tide-saved-line.is-hit { border-color: rgba(230,169,75,0.40); background: rgba(230,169,75,0.08); }
   .tide-saved-line.is-prompt { cursor: pointer; justify-content: space-between; color: rgba(245,241,235,0.74); transition: background 0.15s, border-color 0.15s; }
@@ -4178,10 +4192,8 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
   // only blue anywhere in the app — off-brand — and a neutral grey collided with
   // the white gridlines; the muted green avoids both.)
   const YOU = '#5E9E7E';
-  const pLabel = (opts && opts.primaryLabel) || 'Centre';
-  const sLabel = (opts && opts.secondaryLabel) || 'Your shops';
   const sPct = (opts && Number.isFinite(+opts.secondaryPct)) ? +opts.secondaryPct : null;
-  let youLine = '', youEnd = '', legend = '';
+  let youLine = '', youEnd = '';
   const winP = (Array.isArray(personal) && personal.length) ? windowTideSeries(personal, period) : [];
   if (winP.length >= 2) {
     const ptsP = winP.map(p => [xForDate(p.date), yFor(p.score)]);
@@ -4215,48 +4227,59 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
     }
   }
 
-  // Legend in the top padding band — now the SOLE home of the up/down signal
-  // (the standalone movement pill above the chart was retired). Each line on the
-  // key carries its own direction badge: a neon ▲ + points when it rose over the
-  // window, a coral ▼ + points when it fell, nothing when flat — so "your shops"
-  // and "whole centre" each declare their own trajectory beside their swatch.
-  // Built left-to-right with a running x cursor (text width ≈6.4px/char at 11px
-  // bold) so variable-length labels + badges never collide. Always renders the
-  // primary line; adds the secondary only when there's a real second line.
-  const DOWN = '#FF9B7A';
-  const legendItems = [
-    { label: pLabel, color: NEON, weight: 3, dash: false, delta: tideLegendDelta(series, period, endpointPct) },
-  ];
-  if (winP.length >= 2) {
-    legendItems.push({ label: sLabel, color: YOU, weight: 2, dash: true, delta: tideLegendDelta(personal, period, sPct) });
-  }
-  let lx = X0, legendInner = '';
-  legendItems.forEach(it => {
-    const dashAttr = it.dash ? ' stroke-dasharray="5 4" opacity="0.7"' : '';
-    legendInner += '<line x1="' + lx + '" y1="9" x2="' + (lx + 16) + '" y2="9" stroke="' + it.color + '" stroke-width="' + it.weight + '" stroke-linecap="round"' + dashAttr + '/>';
-    lx += 21;
-    legendInner += '<text x="' + lx + '" y="12.5" fill="rgba(255,255,255,0.85)">' + it.label + '</text>';
-    lx += Math.ceil(it.label.length * 6.4) + 7;
-    if (it.delta) {
-      const dc = it.delta.dir === 'up' ? NEON : DOWN;
-      // Lead with shops, percentage-points in parens — "11 (32%)". Pct alone
-      // when the shop count is unknown / sign-conflicting.
-      const dtxt = it.delta.shops != null
-        ? it.delta.shops + ' (' + it.delta.value + '%)'
-        : it.delta.value + '%';
-      legendInner += '<text x="' + lx + '" y="12.5" font-size="9" fill="' + dc + '">' + it.delta.glyph + '</text>';
-      lx += 11;
-      legendInner += '<text x="' + lx + '" y="12.5" fill="' + dc + '" font-variant-numeric="tabular-nums">' + dtxt + '</text>';
-      lx += Math.ceil(dtxt.length * 6.4);
-    }
-    lx += 16;
-  });
-  legend = '<g font-family="Inter,sans-serif" font-size="11" font-weight="700">' + legendInner + '</g>';
-
+  // The key + the up/down signal now live OUTSIDE the SVG, in a bold HTML row
+  // above the chart (buildTideLegendHTML) — the tiny in-SVG legend was too small
+  // to read. The chart itself stays pure line/area/markers.
   return '<svg viewBox="0 0 ' + (W + PL + PR) + ' ' + (H + PT + PB) + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tide history, ' + period + '">'
     + '<defs>' + defs + '</defs>'
-    + refs + area + youLine + line + peakDots + endpoint + youEnd + legend
+    + refs + area + youLine + line + peakDots + endpoint + youEnd
     + '</svg>';
+}
+
+// The chart key + per-line movement, as a BOLD HTML row above the chart (the old
+// in-SVG legend was unreadably small). Trading-app style: each line on the key
+// owns a large, colour-coded change figure — neon ▲ when it rose over the window,
+// coral ▼ when it fell — leading with the concrete shop count and the
+// percentage-points in parens ("▲ 17 (32%)"). "Your shops" (neon solid swatch)
+// and "Whole centre" (sage dashed swatch) each declare their own trajectory.
+// Driven by the same stash the chart uses (window._tideChart) so the period tabs
+// refresh it alongside the SVG. Secondary line is shown only when it's actually
+// drawn (≥2 points in the window), matching buildTideChartSVG.
+function buildTideLegendHTML(c, period) {
+  if (!c) return '';
+  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const items = [{
+    label: (c.opts && c.opts.primaryLabel) || 'Whole centre',
+    kind: 'you',
+    delta: tideLegendDelta(c.series, period, c.pct),
+  }];
+  const secWin = (Array.isArray(c.personal) && c.personal.length) ? windowTideSeries(c.personal, period) : [];
+  if (secWin.length >= 2) {
+    items.push({
+      label: (c.opts && c.opts.secondaryLabel) || 'Whole centre',
+      kind: 'centre',
+      delta: tideLegendDelta(c.personal, period, c.opts ? c.opts.secondaryPct : null),
+    });
+  }
+  const row = items.map(it => {
+    let deltaHTML;
+    if (it.delta) {
+      const cls = it.delta.dir === 'up' ? 'is-up' : 'is-down';
+      const lead = it.delta.shops != null ? it.delta.shops : it.delta.value + '%';
+      const sub = it.delta.shops != null ? ' <span class="tide-legend-delta-pct">(' + it.delta.value + '%)</span>' : '';
+      deltaHTML = '<span class="tide-legend-delta ' + cls + '">'
+        + '<span class="tide-legend-arrow" aria-hidden="true">' + it.delta.glyph + '</span> '
+        + lead + sub + '</span>';
+    } else {
+      deltaHTML = '<span class="tide-legend-delta is-flat">—</span>';
+    }
+    return '<span class="tide-legend-item">'
+      + '<span class="tide-legend-swatch tide-legend-swatch--' + it.kind + '" aria-hidden="true"></span>'
+      + '<span class="tide-legend-label">' + esc(it.label) + '</span>'
+      + deltaHTML
+      + '</span>';
+  }).join('');
+  return '<div class="tide-legend">' + row + '</div>';
 }
 
 // Period-tab handler. Rebuilds only the chart SVG (cheap) from the stash set
@@ -4268,6 +4291,8 @@ function setTideChartPeriod(period) {
   if (c) {
     const host = document.querySelector('.tide-vessel-chart-svg-host');
     if (host) host.innerHTML = buildTideChartSVG(c.series, period, c.tone, c.pct, c.personal, c.opts);
+    const lHost = document.querySelector('.tide-legend-host');
+    if (lHost) lHost.innerHTML = buildTideLegendHTML(c, period);
   }
   document.querySelectorAll('.tide-period-tab').forEach(t =>
     t.classList.toggle('is-active', t.getAttribute('data-period') === period));
@@ -4406,9 +4431,10 @@ function renderTideVessel(v) {
   // whole-centre % (sage pill) — both sets of data on one chart.
   const chartOpts = { primaryLabel, secondaryLabel, secondaryPct };
   if (typeof window !== 'undefined') window._tideChart = { series: primarySeries, tone, pct: primaryPct, onSale: primaryOnSale, personal: secondarySeries, opts: chartOpts };
-  // The up/down movement signal now lives ON the chart legend (one badge per
-  // line, inside buildTideChartSVG), not in a standalone pill above the chart.
+  // The up/down movement signal lives in a bold HTML key row ABOVE the chart
+  // (one big colour-coded figure per line), refreshed with the chart on tab change.
   const chartSVG = buildTideChartSVG(primarySeries, period, tone, primaryPct, secondarySeries, chartOpts);
+  const legendHTML = buildTideLegendHTML(window._tideChart, period);
   const tabs = PERIODS.map(p =>
     '<button type="button" class="tide-period-tab' + (p === period ? ' is-active' : '')
     + '" data-period="' + p + '" onclick="setTideChartPeriod(\'' + p + '\')">' + p + '</button>'
@@ -4440,6 +4466,7 @@ function renderTideVessel(v) {
     +   headlineRow
     +   countHTML
     +   '<div class="tide-vessel-chart">'
+    +     '<div class="tide-legend-host">' + legendHTML + '</div>'
     +     '<div class="tide-vessel-chart-svg-host">' + chartSVG + '</div>'
     +     '<div class="tide-period-tabs">' + tabs + '</div>'
     +   '</div>'

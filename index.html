@@ -391,12 +391,24 @@
   /* Dual-percentage headline (user follows ≥1 shop here): big "your shops" %
      stacked over a smaller "whole centre" %; verdict aligns to the big number. */
   .tide-vessel-headline-row--dual { align-items: baseline; gap: 16px; }
-  .tide-vessel-pct-stack { display: flex; flex-direction: column; gap: 4px; }
+  .tide-vessel-pct-stack { display: flex; flex-direction: column; gap: 12px; }
+  .tide-vessel-pct-group { display: flex; flex-direction: column; gap: 3px; }
   .tide-vessel-pct-primary { display: flex; align-items: baseline; gap: 8px; }
   .tide-vessel-pct-secondary { display: flex; align-items: baseline; gap: 7px; }
   .tide-vessel-pct-sub { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 30px; line-height: 0.95; letter-spacing: -0.02em; color: rgba(245,241,235,0.72); }
   .tide-vessel-pct-sub-sign { font-size: 17px; font-weight: 500; color: rgba(245,241,235,0.36); margin-left: 1px; }
   .tide-vessel-pct-scope { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(245,241,235,0.42); }
+  /* Per-line weekly movement, directly under each headline %: chevron + shop-
+     count change + (percentage-point change) — "▲ 12 (8%)" — neon up / coral
+     down / muted level. The "vs last week" tail stays muted so the figure leads. */
+  .tide-vessel-pct-move { display: flex; align-items: baseline; gap: 6px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; line-height: 1; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+  .tide-vessel-pct-move--standalone { margin: 10px 0 6px; }
+  .tide-vessel-pct-move-arrow { font-size: 10px; }
+  .tide-vessel-pct-move-pct { font-weight: 600; opacity: 0.82; }
+  .tide-vessel-pct-move-when { font-weight: 500; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(245,241,235,0.4); }
+  .tide-vessel-pct-move.is-up { color: var(--tide-neon); }
+  .tide-vessel-pct-move.is-down { color: #FF9B7A; }
+  .tide-vessel-pct-move.is-flat { color: rgba(245,241,235,0.5); font-weight: 500; }
   /* Chart key — a quiet row naming which line is which (only drawn when both
      the neon "your shops" and sage "whole centre" lines are present). Movement
      no longer lives here; it's a single clause on the count line. */
@@ -416,9 +428,6 @@
   .tide-saved-arrow { color: rgba(245,241,235,0.6); font-size: 16px; flex-shrink: 0; }
   .tide-count-line { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 400; line-height: 1.4; color: rgba(245,241,235,0.78); margin-bottom: 20px; }
   .tide-count-line strong { color: var(--tide-cream); font-weight: 700; }
-  .tide-count-delta { font-weight: 600; }
-  .tide-count-delta.is-up { color: var(--tide-neon); }
-  .tide-count-delta.is-down { color: #FF9B7A; }
   /* Your-shops detail — sits BELOW the chart and names which of the user's
      followed shops are on sale (what the retired view-toggle was really for).
      The neon dot ties this line to the green "Your shops" line in the chart above. */
@@ -3998,38 +4007,54 @@ function windowTideSeries(series, period) {
   return win.length >= 2 ? win : series.slice(-2);
 }
 
-// The card's SINGLE movement signal, as a day-over-day clause on the count line
-// (the old loud per-line legend badges were retired — one card, one clock). A
-// "when to go today" app, not a trading app: we state how many more/fewer shops
-// are on sale than the previous stored day (normally yesterday — score.js writes
-// one tide_history point per day; today's point is pinned to the live count). It
-// is the count line's ONLY trend clause now — the former "up from N two weeks
-// ago" was a second, contradicting clock and is gone; the chart carries the long
-// view. Returns '' on a no-change day so the line stays clean (no inert "no
-// change" element), and on a rare history gap words it from the real gap
-// ("vs 3 days ago"). Whole-centre scope, matching the "N of M shops on sale" it
-// appends to. null means "unknown" and +null === 0, so prior count is null-
-// checked BEFORE coercion.
-function tideDayDeltaClause(centreSeries, nowOnSale) {
-  if (!Array.isArray(centreSeries) || centreSeries.length < 2) return '';
-  const today = centreSeries[centreSeries.length - 1];
-  const prev  = centreSeries[centreSeries.length - 2];
-  if (!today || !prev) return '';
-  const fin = x => x != null && Number.isFinite(+x);
-  const nowOn  = fin(nowOnSale) ? Math.round(+nowOnSale) : (fin(today.onSale) ? Math.round(+today.onSale) : null);
-  const prevOn = fin(prev.onSale) ? Math.round(+prev.onSale) : null;
-  if (nowOn == null || prevOn == null) return '';
-  const d = nowOn - prevOn;
-  if (d === 0) return '';
-  let when = 'vs yesterday';
-  if (today.date && prev.date) {
-    const gap = _tideDaysBetween(prev.date, today.date);
-    if (gap > 1) when = 'vs ' + gap + ' days ago';
+// Per-line WEEKLY movement, rendered directly under each headline % (one for
+// "your shops", one for the whole centre). Compares today's live value to the
+// stored point nearest ~7 days ago. Leads with the shop-count change and carries
+// the percentage-point change of the share in brackets — "▲ 12 (8%)" — matching
+// the figure it sits under; chevron is neon ▲ up / coral ▼ down, muted "Level"
+// when unchanged. Returns '' when there isn't enough history (<~3 days back) to
+// honestly call it "last week". The shops figure is dropped (the % stands alone)
+// when its prior count is missing or its sign disagrees with the score move.
+// null means "unknown" and +null === 0, so every source is null-checked BEFORE
+// coercion. `standalone` adds a class for the not-followed single-% layout.
+function tideWeekMoveHTML(series, nowScore, nowOnSale, standalone) {
+  if (!Array.isArray(series) || series.length < 2) return '';
+  const today = series[series.length - 1];
+  if (!today || !today.date) return '';
+  const target = new Date(new Date(today.date + 'T00:00:00Z').getTime() - 7 * 86400000).toISOString().slice(0, 10);
+  let pick = null, best = Infinity;
+  for (const p of series) {
+    if (!p || !p.date) continue;
+    const gap = Math.abs(_tideDaysBetween(p.date, target));
+    if (gap < best) { best = gap; pick = p; }
   }
-  // Quiet colour cue on the direction word only (neon up / coral down) — a
-  // glanceable signal without the old loud pill; the rest stays count-line grey.
-  const word = d > 0 ? ('up ' + d) : ('down ' + Math.abs(d));
-  return ', <span class="tide-count-delta ' + (d > 0 ? 'is-up' : 'is-down') + '">' + word + '</span> ' + when;
+  if (!pick || _tideDaysBetween(pick.date, today.date) < 3) return '';   // too little history to call it "last week"
+  const fin = x => x != null && Number.isFinite(+x);
+  const nowSc  = fin(nowScore) ? Math.round(+nowScore) : (fin(today.score) ? Math.round(+today.score) : null);
+  const pastSc = fin(pick.score) ? Math.round(+pick.score) : null;
+  if (nowSc == null || pastSc == null) return '';
+  const pts = nowSc - pastSc;
+  const nowOn  = fin(nowOnSale) ? Math.round(+nowOnSale) : (fin(today.onSale) ? Math.round(+today.onSale) : null);
+  const pastOn = fin(pick.onSale) ? Math.round(+pick.onSale) : null;
+  let shops = null;
+  if (nowOn != null && pastOn != null) {
+    const sd = nowOn - pastOn;
+    if (sd !== 0 && (sd > 0) === (pts > 0)) shops = Math.abs(sd);   // sign must agree, else drop
+  }
+  const cls = standalone ? ' tide-vessel-pct-move--standalone' : '';
+  let dir, body;
+  if (pts === 0 && (shops == null || shops === 0)) {
+    dir = 'flat';
+    body = 'Level <span class="tide-vessel-pct-move-when">vs last week</span>';
+  } else {
+    dir = pts > 0 ? 'up' : 'down';
+    const glyph = pts > 0 ? '▲' : '▼';
+    const lead = shops != null ? String(shops) : (Math.abs(pts) + '%');
+    const brk  = shops != null ? (' <span class="tide-vessel-pct-move-pct">(' + Math.abs(pts) + '%)</span>') : '';
+    body = '<span class="tide-vessel-pct-move-arrow" aria-hidden="true">' + glyph + '</span> '
+      + lead + brk + ' <span class="tide-vessel-pct-move-when">vs last week</span>';
+  }
+  return '<div class="tide-vessel-pct-move is-' + dir + cls + '">' + body + '</div>';
 }
 
 // Centre-detail history chart — the line is the hero. Pure-black panel, a bold
@@ -4197,9 +4222,9 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
 }
 
 // Chart KEY only — a quiet row that names which line is which. Movement used to
-// live here as a loud per-line badge; it now lives once, on the count line
-// (tideDayDeltaClause), so this is back to a plain legend. Rendered ONLY when
-// there are two lines to tell apart (the user follows ≥1 shop here, so the
+// live here as a loud per-line badge; it now lives under each headline % as a
+// weekly figure (tideWeekMoveHTML), so this is back to a plain legend. Rendered
+// ONLY when there are two lines to tell apart (the user follows ≥1 shop here, so the
 // neon "your shops" line sits over the sage dashed "whole centre" line). With a
 // single line the chart is self-explanatory and no key is drawn. Secondary line
 // visibility matches buildTideChartSVG (≥2 points in the window).
@@ -4288,39 +4313,10 @@ function renderTideVessel(v) {
     ? '<span class="tide-vessel-verified"><span class="tide-vessel-verified-dot" aria-hidden="true"></span>' + esc(v.verifiedLabel) + '</span>'
     : '';
 
-  // Copy rule (every word, one job, one place): headline = the number(s) +
-  // verdict; count line = the fraction + unit ("on sale") + trend; the
-  // your-shops detail (below the chart) names which of the user's shops are on.
-  // When the user follows ≥1 shop present here, the headline leads with TWO
-  // percentages — the BIG one is "your shops" (the personal %, matching the neon
-  // line) and a SMALLER one beneath is "whole centre" (matching the sage line +
-  // count line). With no followed shops there's only the whole-centre %.
-  const hasPersonalHeadline = !!(v.hasFollowed && myPresent > 0);
-  let headlineRow;
-  if (hasPersonalHeadline) {
-    headlineRow = '<div class="tide-vessel-headline-row tide-vessel-headline-row--dual">'
-      + '<div class="tide-vessel-pct-stack">'
-      +   '<div class="tide-vessel-pct-primary">'
-      +     '<span class="tide-vessel-pct">' + personalPct + '<span class="tide-vessel-pct-sign">%</span></span>'
-      +     '<span class="tide-vessel-pct-scope">of your shops are on sale</span>'
-      +   '</div>'
-      +   '<div class="tide-vessel-pct-secondary">'
-      +     '<span class="tide-vessel-pct-sub">' + pct + '<span class="tide-vessel-pct-sub-sign">%</span></span>'
-      +     '<span class="tide-vessel-pct-scope">whole centre</span>'
-      +   '</div>'
-      + '</div>'
-      + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
-      + '</div>';
-  } else {
-    headlineRow = '<div class="tide-vessel-headline-row">'
-      + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
-      + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
-      + '</div>';
-  }
-
   // Real-history series + an optional "your shops" overlay built over the same
   // dates so both lines share the x-axis; the today endpoint is pinned to the
-  // live followed counts so it matches the your-shops detail below.
+  // live followed counts so it matches the your-shops detail below. Built BEFORE
+  // the headline so each line's weekly-movement figure can sit under its %.
   const series = buildTideRealSeries(v.history, pct, v.onSaleCount, v.totalCount);
   const followedPresent = Array.isArray(v.followedPresent) ? v.followedPresent : [];
   const personalSeries = (v.hasFollowed && followedPresent.length)
@@ -4332,13 +4328,52 @@ function renderTideVessel(v) {
     last.onSale = liveOn;
   }
 
-  // Whole-centre count — the sole home of "shops on sale" + the card's one
-  // movement clause (day-over-day, from the centre series). The old "up from N
-  // two weeks ago" clause was a second, contradicting clock and is gone; the
-  // chart carries the long view. When the server hasn't returned a raw count yet,
-  // carry only the unit (the headline already shows the %).
+  // Copy rule (every word, one job, one place): headline = the number(s) +
+  // verdict, each with its own weekly movement directly beneath; count line =
+  // the fraction + unit ("on sale"); the your-shops detail (below the chart)
+  // names which of the user's shops are on. When the user follows ≥1 shop here,
+  // the headline leads with TWO percentages — the BIG one is "your shops" (the
+  // personal %, matching the neon line) and a SMALLER one beneath is "whole
+  // centre". Movement is WEEKLY (vs last week), one figure per line; the chart
+  // below carries the long (60-day) view.
+  const hasPersonalHeadline = !!(v.hasFollowed && myPresent > 0);
+  const centreMoveHTML = tideWeekMoveHTML(series, pct, v.onSaleCount, !hasPersonalHeadline);
+  const yourMoveHTML = (personalSeries.length >= 2)
+    ? tideWeekMoveHTML(personalSeries, personalPct, myOn, false) : '';
+  let headlineRow;
+  if (hasPersonalHeadline) {
+    headlineRow = '<div class="tide-vessel-headline-row tide-vessel-headline-row--dual">'
+      + '<div class="tide-vessel-pct-stack">'
+      +   '<div class="tide-vessel-pct-group">'
+      +     '<div class="tide-vessel-pct-primary">'
+      +       '<span class="tide-vessel-pct">' + personalPct + '<span class="tide-vessel-pct-sign">%</span></span>'
+      +       '<span class="tide-vessel-pct-scope">of your shops are on sale</span>'
+      +     '</div>'
+      +     yourMoveHTML
+      +   '</div>'
+      +   '<div class="tide-vessel-pct-group">'
+      +     '<div class="tide-vessel-pct-secondary">'
+      +       '<span class="tide-vessel-pct-sub">' + pct + '<span class="tide-vessel-pct-sub-sign">%</span></span>'
+      +       '<span class="tide-vessel-pct-scope">whole centre</span>'
+      +     '</div>'
+      +     centreMoveHTML
+      +   '</div>'
+      + '</div>'
+      + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
+      + '</div>';
+  } else {
+    headlineRow = '<div class="tide-vessel-headline-row">'
+      + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
+      + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
+      + '</div>'
+      + centreMoveHTML;
+  }
+
+  // Whole-centre count — state only ("N of M shops on sale"). Movement no longer
+  // lives here; it's the per-line weekly figure under each headline %. When the
+  // server hasn't returned a raw count yet, carry only the unit.
   const countText = hasCount
-    ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale' + tideDayDeltaClause(series, v.onSaleCount))
+    ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale')
     : 'of shops on sale';
   const countHTML = '<div class="tide-count-line">' + countText + '</div>';
   // MAX only earns its own tab once the centre has ≥80 days of history (else it

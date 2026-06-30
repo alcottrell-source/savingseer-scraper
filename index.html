@@ -397,22 +397,15 @@
   .tide-vessel-pct-sub { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 30px; line-height: 0.95; letter-spacing: -0.02em; color: rgba(245,241,235,0.72); }
   .tide-vessel-pct-sub-sign { font-size: 17px; font-weight: 500; color: rgba(245,241,235,0.36); margin-left: 1px; }
   .tide-vessel-pct-scope { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(245,241,235,0.42); }
-  /* Chart key + movement — a bold HTML row above the history chart (the old
-     in-SVG legend was unreadably small). Each line owns a LARGE colour-coded
-     change figure, trading-app style: neon ▲ up / coral ▼ down, the figure is
-     the thing the eye lands on. */
-  .tide-legend { position: relative; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 9px 24px; margin: 2px 0 12px; }
+  /* Chart key — a quiet row naming which line is which (only drawn when both
+     the neon "your shops" and sage "whole centre" lines are present). Movement
+     no longer lives here; it's a single clause on the count line. */
+  .tide-legend { position: relative; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 7px 22px; margin: 2px 0 10px; }
   .tide-legend-item { display: inline-flex; align-items: center; gap: 9px; }
   .tide-legend-swatch { width: 22px; height: 0; flex: none; border-radius: 2px; }
   .tide-legend-swatch--you { border-top: 3px solid var(--tide-neon); }
   .tide-legend-swatch--centre { border-top: 2.5px dashed #5E9E7E; opacity: 0.8; }
   .tide-legend-label { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(245,241,235,0.5); }
-  .tide-legend-delta { display: inline-flex; align-items: baseline; gap: 5px; padding: 3px 10px; border-radius: 9px; font-family: 'Inter', sans-serif; font-size: 19px; font-weight: 800; line-height: 1; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
-  .tide-legend-arrow { font-size: 13px; font-weight: 700; }
-  .tide-legend-delta-pct { font-size: 14px; font-weight: 700; opacity: 0.78; }
-  .tide-legend-delta.is-up { color: var(--tide-neon); background: rgba(94,255,176,0.11); }
-  .tide-legend-delta.is-down { color: #FF9B7A; background: rgba(255,155,122,0.12); }
-  .tide-legend-delta.is-flat { color: rgba(245,241,235,0.5); background: rgba(245,241,235,0.05); font-size: 15px; padding: 4px 11px; }
   .tide-saved-line { position: relative; z-index: 6; display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; margin-bottom: 14px; padding: 13px 16px; border-radius: 14px; border: 1px solid rgba(245,241,235,0.10); background: rgba(245,241,235,0.03); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.4; color: rgba(245,241,235,0.82); }
   .tide-saved-line.is-hit { border-color: rgba(230,169,75,0.40); background: rgba(230,169,75,0.08); }
   .tide-saved-line.is-prompt { cursor: pointer; justify-content: space-between; color: rgba(245,241,235,0.74); transition: background 0.15s, border-color 0.15s; }
@@ -423,6 +416,9 @@
   .tide-saved-arrow { color: rgba(245,241,235,0.6); font-size: 16px; flex-shrink: 0; }
   .tide-count-line { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 400; line-height: 1.4; color: rgba(245,241,235,0.78); margin-bottom: 20px; }
   .tide-count-line strong { color: var(--tide-cream); font-weight: 700; }
+  .tide-count-delta { font-weight: 600; }
+  .tide-count-delta.is-up { color: var(--tide-neon); }
+  .tide-count-delta.is-down { color: #FF9B7A; }
   /* Your-shops detail — sits BELOW the chart and names which of the user's
      followed shops are on sale (what the retired view-toggle was really for).
      The neon dot ties this line to the green "Your shops" line in the chart above. */
@@ -3915,38 +3911,6 @@ function verifiedLabelForCentre(centreIdx) {
   return 'Verified ' + dt.getUTCDate() + ' ' + MON[dt.getUTCMonth()];
 }
 
-// Direction clause for the count line (Change 2). The WORD comes from the
-// engine trajectory, never a client count comparison; the comparison NUMBER
-// is the real brands_on_sale stored in tide_history two weeks ago — no
-// approximation. Data-gated: returns '' when history doesn't reach back ~two
-// weeks, or the stored count for that day is missing. If trajectory and the
-// raw count delta disagree, trajectory wins the word and the conflict is
-// logged (per the brief — the card must never contradict the engine).
-function tideDirectionClause(trajectory, history, nowCount, sparseHistory) {
-  if (sparseHistory || !Array.isArray(history) || !history.length) return '';
-  if (!Number.isFinite(+nowCount)) return '';
-  const sorted = history.filter(h => h && h.date).slice().sort((a, b) => a.date < b.date ? -1 : 1);
-  if (!sorted.length) return '';
-  const t = new Date();
-  const target = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()) - 14 * 86400000)
-    .toISOString().slice(0, 10);
-  // Data-gate: if our earliest day is newer than two weeks ago, there is no
-  // real comparison point — omit the clause rather than invent one.
-  if (sorted[0].date > target) return '';
-  let pick = null;
-  for (const h of sorted) { if (h.date <= target) pick = h; else break; }
-  if (!pick || !Number.isFinite(+pick.brands_on_sale)) return '';  // no real count → no approximation
-  const past = +pick.brands_on_sale, now = +nowCount;
-  let word;
-  if (trajectory === 'RISING')      word = 'up from';
-  else if (trajectory === 'FALLING') word = 'down from';
-  else                               word = (past === now) ? 'holding at' : 'around';
-  if ((trajectory === 'RISING' && now < past) || (trajectory === 'FALLING' && now > past)) {
-    try { console.warn('[tide] trajectory/count conflict — trajectory=' + trajectory
-      + ' now=' + now + ' twoWeeksAgo=' + past + '; using trajectory for the word'); } catch (e) {}
-  }
-  return ', ' + word + ' ' + past + ' two weeks ago';
-}
 
 // Faithful real-history series for the centre-detail chart. Unlike
 // buildTide60Series (the landing chart) this does NOT backfill synthetic
@@ -4034,42 +3998,38 @@ function windowTideSeries(series, period) {
   return win.length >= 2 ? win : series.slice(-2);
 }
 
-// Per-line direction badge for the chart legend. The old standalone movement
-// pill above the chart was retired — the up/down signal now lives ON THE KEY
-// itself, one badge per line, so "your shops" and "whole centre" each carry
-// their own arrow instead of a single chip that only described the hero line.
-// Like a stock chip it pairs a concrete absolute move with a relative one: the
-// shop-count change leads and the percentage-POINT change of the hero metric (%
-// of shops on sale) follows in parens — "▲ 11 (32%)". Both measured over the
-// SELECTED period (start of window → now), so they can never disagree with the
-// big number or the neon endpoint pill. Returns null (no badge) when the window
-// lacks ≥2 real points or the line is flat. The shop figure is dropped (pct
-// alone) when the window's start count is missing or its sign disagrees with the
-// score move (total_brands can shift — never show a contradiction). neon ▲ up /
-// coral ▼ down.
-function tideLegendDelta(series, period, nowPct) {
-  if (!Array.isArray(series) || series.length < 2) return null;
-  const win = windowTideSeries(series, period);
-  if (win.length < 2) return null;
-  const first = win[0], last = win[win.length - 1];
-  if (!first || !Number.isFinite(+first.score)) return null;
-  const end = Number.isFinite(+nowPct) ? Math.round(+nowPct) : Math.round(+last.score);
-  const delta = end - Math.round(+first.score);
-  if (delta === 0) return null;
-  // Concrete shop-count change (the lead figure). null means "unknown", and
-  // +null === 0, so null-check BEFORE coercing — a missing start count must drop
-  // the shops figure, not read as zero.
+// The card's SINGLE movement signal, as a day-over-day clause on the count line
+// (the old loud per-line legend badges were retired — one card, one clock). A
+// "when to go today" app, not a trading app: we state how many more/fewer shops
+// are on sale than the previous stored day (normally yesterday — score.js writes
+// one tide_history point per day; today's point is pinned to the live count). It
+// is the count line's ONLY trend clause now — the former "up from N two weeks
+// ago" was a second, contradicting clock and is gone; the chart carries the long
+// view. Returns '' on a no-change day so the line stays clean (no inert "no
+// change" element), and on a rare history gap words it from the real gap
+// ("vs 3 days ago"). Whole-centre scope, matching the "N of M shops on sale" it
+// appends to. null means "unknown" and +null === 0, so prior count is null-
+// checked BEFORE coercion.
+function tideDayDeltaClause(centreSeries, nowOnSale) {
+  if (!Array.isArray(centreSeries) || centreSeries.length < 2) return '';
+  const today = centreSeries[centreSeries.length - 1];
+  const prev  = centreSeries[centreSeries.length - 2];
+  if (!today || !prev) return '';
   const fin = x => x != null && Number.isFinite(+x);
-  const firstOn = fin(first.onSale) ? Math.round(+first.onSale) : null;
-  const lastOn  = fin(last.onSale)  ? Math.round(+last.onSale)  : null;
-  let shops = null;
-  if (firstOn != null && lastOn != null) {
-    const sd = lastOn - firstOn;
-    if (sd !== 0 && (sd > 0) === (delta > 0)) shops = Math.abs(sd);   // sign must agree
+  const nowOn  = fin(nowOnSale) ? Math.round(+nowOnSale) : (fin(today.onSale) ? Math.round(+today.onSale) : null);
+  const prevOn = fin(prev.onSale) ? Math.round(+prev.onSale) : null;
+  if (nowOn == null || prevOn == null) return '';
+  const d = nowOn - prevOn;
+  if (d === 0) return '';
+  let when = 'vs yesterday';
+  if (today.date && prev.date) {
+    const gap = _tideDaysBetween(prev.date, today.date);
+    if (gap > 1) when = 'vs ' + gap + ' days ago';
   }
-  return delta > 0
-    ? { dir: 'up',   glyph: '▲', value: Math.abs(delta), shops }
-    : { dir: 'down', glyph: '▼', value: Math.abs(delta), shops };
+  // Quiet colour cue on the direction word only (neon up / coral down) — a
+  // glanceable signal without the old loud pill; the rest stays count-line grey.
+  const word = d > 0 ? ('up ' + d) : ('down ' + Math.abs(d));
+  return ', <span class="tide-count-delta ' + (d > 0 ? 'is-up' : 'is-down') + '">' + word + '</span> ' + when;
 }
 
 // Centre-detail history chart — the line is the hero. Pure-black panel, a bold
@@ -4086,7 +4046,7 @@ function tideLegendDelta(series, period, nowPct) {
 // full width and thin centres never render a mostly-empty panel.
 function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
   const NEON = '#5EFFB0';
-  const W = 400, H = 356, PL = 8, PR = 8, PT = 20, PB = 14;
+  const W = 400, H = 356, PL = 8, PR = 34, PT = 20, PB = 14;   // PR holds a gutter for the y-axis labels, clear of the plot + endpoint pills
   const X0 = PL, X1 = PL + W;
 
   const win = windowTideSeries(Array.isArray(series) ? series : [], period);
@@ -4120,7 +4080,7 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
   const refs = gridVals.map(v => {
     const gy = yFor(v);
     return '<line x1="' + X0 + '" y1="' + gy + '" x2="' + X1 + '" y2="' + gy + '" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" stroke-dasharray="6 6"/>'
-      + '<text x="' + (X1 - 2) + '" y="' + (v === 0 ? gy - 6 : gy + 13).toFixed(1) + '" text-anchor="end" font-family="Inter,sans-serif" font-size="11" font-weight="700" fill="rgba(255,255,255,0.8)">' + v + '</text>';
+      + '<text x="' + (X1 + 7) + '" y="' + (v === 0 ? gy - 3 : gy + 4).toFixed(1) + '" text-anchor="start" font-family="Inter,sans-serif" font-size="11" font-weight="700" fill="rgba(255,255,255,0.7)">' + v + '</text>';
   }).join('');
 
   // Crest dots: mark where each peak episode TOPPED OUT — its highest point,
@@ -4236,49 +4196,27 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
     + '</svg>';
 }
 
-// The chart key + per-line movement, as a BOLD HTML row above the chart (the old
-// in-SVG legend was unreadably small). Trading-app style: each line on the key
-// owns a large, colour-coded change figure — neon ▲ when it rose over the window,
-// coral ▼ when it fell — leading with the concrete shop count and the
-// percentage-points in parens ("▲ 17 (32%)"). "Your shops" (neon solid swatch)
-// and "Whole centre" (sage dashed swatch) each declare their own trajectory.
-// Driven by the same stash the chart uses (window._tideChart) so the period tabs
-// refresh it alongside the SVG. Secondary line is shown only when it's actually
-// drawn (≥2 points in the window), matching buildTideChartSVG.
+// Chart KEY only — a quiet row that names which line is which. Movement used to
+// live here as a loud per-line badge; it now lives once, on the count line
+// (tideDayDeltaClause), so this is back to a plain legend. Rendered ONLY when
+// there are two lines to tell apart (the user follows ≥1 shop here, so the
+// neon "your shops" line sits over the sage dashed "whole centre" line). With a
+// single line the chart is self-explanatory and no key is drawn. Secondary line
+// visibility matches buildTideChartSVG (≥2 points in the window).
 function buildTideLegendHTML(c, period) {
   if (!c) return '';
   const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const items = [{
-    label: (c.opts && c.opts.primaryLabel) || 'Whole centre',
-    kind: 'you',
-    delta: tideLegendDelta(c.series, period, c.pct),
-  }];
   const secWin = (Array.isArray(c.personal) && c.personal.length) ? windowTideSeries(c.personal, period) : [];
-  if (secWin.length >= 2) {
-    items.push({
-      label: (c.opts && c.opts.secondaryLabel) || 'Whole centre',
-      kind: 'centre',
-      delta: tideLegendDelta(c.personal, period, c.opts ? c.opts.secondaryPct : null),
-    });
-  }
-  const row = items.map(it => {
-    let deltaHTML;
-    if (it.delta) {
-      const cls = it.delta.dir === 'up' ? 'is-up' : 'is-down';
-      const lead = it.delta.shops != null ? it.delta.shops : it.delta.value + '%';
-      const sub = it.delta.shops != null ? ' <span class="tide-legend-delta-pct">(' + it.delta.value + '%)</span>' : '';
-      deltaHTML = '<span class="tide-legend-delta ' + cls + '">'
-        + '<span class="tide-legend-arrow" aria-hidden="true">' + it.delta.glyph + '</span> '
-        + lead + sub + '</span>';
-    } else {
-      deltaHTML = '<span class="tide-legend-delta is-flat">—</span>';
-    }
-    return '<span class="tide-legend-item">'
-      + '<span class="tide-legend-swatch tide-legend-swatch--' + it.kind + '" aria-hidden="true"></span>'
-      + '<span class="tide-legend-label">' + esc(it.label) + '</span>'
-      + deltaHTML
-      + '</span>';
-  }).join('');
+  if (secWin.length < 2) return '';   // one line → no key needed
+  const items = [
+    { label: (c.opts && c.opts.primaryLabel)   || 'Your shops',   kind: 'you' },
+    { label: (c.opts && c.opts.secondaryLabel) || 'Whole centre', kind: 'centre' },
+  ];
+  const row = items.map(it =>
+    '<span class="tide-legend-item">'
+    + '<span class="tide-legend-swatch tide-legend-swatch--' + it.kind + '" aria-hidden="true"></span>'
+    + '<span class="tide-legend-label">' + esc(it.label) + '</span>'
+    + '</span>').join('');
   return '<div class="tide-legend">' + row + '</div>';
 }
 
@@ -4380,14 +4318,6 @@ function renderTideVessel(v) {
       + '</div>';
   }
 
-  // Whole-centre count — the sole home of "shops on sale" + the trend clause.
-  // When the server hasn't returned a raw count yet, carry only the unit (no %
-  // restate — the headline already shows the %). Admin-verified set, no recompute.
-  const countText = hasCount
-    ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale' + (v.directionClause || ''))
-    : 'of shops on sale';
-  const countHTML = '<div class="tide-count-line">' + countText + '</div>';
-
   // Real-history series + an optional "your shops" overlay built over the same
   // dates so both lines share the x-axis; the today endpoint is pinned to the
   // live followed counts so it matches the your-shops detail below.
@@ -4401,6 +4331,16 @@ function renderTideVessel(v) {
     last.score = Math.round((liveOn / followedPresent.length) * 100);
     last.onSale = liveOn;
   }
+
+  // Whole-centre count — the sole home of "shops on sale" + the card's one
+  // movement clause (day-over-day, from the centre series). The old "up from N
+  // two weeks ago" clause was a second, contradicting clock and is gone; the
+  // chart carries the long view. When the server hasn't returned a raw count yet,
+  // carry only the unit (the headline already shows the %).
+  const countText = hasCount
+    ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale' + tideDayDeltaClause(series, v.onSaleCount))
+    : 'of shops on sale';
+  const countHTML = '<div class="tide-count-line">' + countText + '</div>';
   // MAX only earns its own tab once the centre has ≥80 days of history (else it
   // duplicates the 60D line). Span measured across the real series' date range.
   const _spanSeries = (series && series.length) ? series : [];
@@ -5825,7 +5765,6 @@ async function renderCentre(centreId) {
             followedOnSale,
             followedPresent,
             mode: getTideMode(),
-            directionClause: tideDirectionClause(trajectory, history, onSaleN, sparseHistory),
           });
         })()
     + '</div></div>';

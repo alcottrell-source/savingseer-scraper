@@ -4038,39 +4038,38 @@ function windowTideSeries(series, period) {
   return win.length >= 2 ? win : series.slice(-2);
 }
 
-// Per-line direction badge for the chart legend. The old standalone movement
-// pill above the chart was retired — the up/down signal now lives ON THE KEY
-// itself, one badge per line, so "your shops" and "whole centre" each carry
-// their own arrow instead of a single chip that only described the hero line.
-// Like a stock chip it pairs a concrete absolute move with a relative one: the
-// shop-count change leads and the percentage-POINT change of the hero metric (%
-// of shops on sale) follows in parens — "▲ 11 (32%)". Both measured over the
-// SELECTED period (start of window → now), so they can never disagree with the
-// big number or the neon endpoint pill. Returns null (no badge) when the window
-// lacks ≥2 real points or the line is flat. The shop figure is dropped (pct
-// alone) when the window's start count is missing or its sign disagrees with the
-// score move (total_brands can shift — never show a contradiction). neon ▲ up /
-// coral ▼ down.
-function tideLegendDelta(series, period, nowPct) {
+// Per-line movement badge for the chart legend — DAY-OVER-DAY. This is a
+// "when to go today" app, not a trading app: what matters is whether a centre
+// got better or worse SINCE YESTERDAY, not its net drift over 60 days. So each
+// badge compares today's live value to the previous stored day (normally
+// yesterday — score.js writes one tide_history point per day; today's point is
+// pinned to the live headline). The shop-count change leads and the
+// percentage-POINT change of the score follows in parens — "▲ 2 shops (5 pts)".
+// Returns {dir:'flat'} when nothing moved since yesterday (common, and honest —
+// rendered as "No change"), or null when there's no prior day to compare. The
+// shop figure is dropped (points alone) when the prior count is missing or its
+// sign disagrees with the score move (never show a contradiction). neon ▲ up /
+// coral ▼ down. NOTE: independent of the chart's 7D/30D/60D tab — the window
+// only scopes the CHART line; the badge is always today vs the day before.
+function tideLegendDelta(series, nowPct) {
   if (!Array.isArray(series) || series.length < 2) return null;
-  const win = windowTideSeries(series, period);
-  if (win.length < 2) return null;
-  const first = win[0], last = win[win.length - 1];
-  if (!first || !Number.isFinite(+first.score)) return null;
-  const end = Number.isFinite(+nowPct) ? Math.round(+nowPct) : Math.round(+last.score);
-  const delta = end - Math.round(+first.score);
-  if (delta === 0) return null;
+  const today = series[series.length - 1];
+  const prev  = series[series.length - 2];
+  if (!today || !prev || !Number.isFinite(+prev.score) || !Number.isFinite(+today.score)) return null;
+  const end = Number.isFinite(+nowPct) ? Math.round(+nowPct) : Math.round(+today.score);
+  const delta = end - Math.round(+prev.score);
   // Concrete shop-count change (the lead figure). null means "unknown", and
-  // +null === 0, so null-check BEFORE coercing — a missing start count must drop
+  // +null === 0, so null-check BEFORE coercing — a missing prior count must drop
   // the shops figure, not read as zero.
   const fin = x => x != null && Number.isFinite(+x);
-  const firstOn = fin(first.onSale) ? Math.round(+first.onSale) : null;
-  const lastOn  = fin(last.onSale)  ? Math.round(+last.onSale)  : null;
+  const prevOn = fin(prev.onSale)  ? Math.round(+prev.onSale)  : null;
+  const nowOn  = fin(today.onSale) ? Math.round(+today.onSale) : null;
   let shops = null;
-  if (firstOn != null && lastOn != null) {
-    const sd = lastOn - firstOn;
+  if (prevOn != null && nowOn != null) {
+    const sd = nowOn - prevOn;
     if (sd !== 0 && (sd > 0) === (delta > 0)) shops = Math.abs(sd);   // sign must agree
   }
+  if (delta === 0) return { dir: 'flat' };
   return delta > 0
     ? { dir: 'up',   glyph: '▲', value: Math.abs(delta), shops }
     : { dir: 'down', glyph: '▼', value: Math.abs(delta), shops };
@@ -4255,30 +4254,35 @@ function buildTideLegendHTML(c, period) {
   const items = [{
     label: (c.opts && c.opts.primaryLabel) || 'Whole centre',
     kind: 'you',
-    delta: tideLegendDelta(c.series, period, c.pct),
+    delta: tideLegendDelta(c.series, c.pct),
   }];
+  // The secondary LINE is only drawn on the chart when it has ≥2 points in the
+  // selected window, so its badge follows that visibility (the period still
+  // gates the line, not the day-over-day delta).
   const secWin = (Array.isArray(c.personal) && c.personal.length) ? windowTideSeries(c.personal, period) : [];
   if (secWin.length >= 2) {
     items.push({
       label: (c.opts && c.opts.secondaryLabel) || 'Whole centre',
       kind: 'centre',
-      delta: tideLegendDelta(c.personal, period, c.opts ? c.opts.secondaryPct : null),
+      delta: tideLegendDelta(c.personal, c.opts ? c.opts.secondaryPct : null),
     });
   }
   const row = items.map(it => {
     let deltaHTML;
-    if (it.delta) {
+    if (it.delta && (it.delta.dir === 'up' || it.delta.dir === 'down')) {
       const cls = it.delta.dir === 'up' ? 'is-up' : 'is-down';
-      // Lead with the concrete shop-count change (unit shown so a bare "10"
+      // Lead with the concrete shop-count change (unit shown so a bare "2"
       // can't be misread); the score move follows in parens as percentage
-      // POINTS, not "%", since the metric is itself a % (a "+40%" reads as a
-      // relative rise — it isn't). With no start count we lead with the points.
+      // POINTS, not "%", since the metric is itself a % (a "+5%" reads as a
+      // relative rise — it isn't). With no prior count we lead with the points.
       const unit = it.delta.shops === 1 ? ' shop' : ' shops';
       const lead = it.delta.shops != null ? (it.delta.shops + unit) : (it.delta.value + ' pts');
       const sub = it.delta.shops != null ? ' <span class="tide-legend-delta-pct">(' + it.delta.value + ' pts)</span>' : '';
       deltaHTML = '<span class="tide-legend-delta ' + cls + '">'
         + '<span class="tide-legend-arrow" aria-hidden="true">' + it.delta.glyph + '</span> '
         + lead + sub + '</span>';
+    } else if (it.delta && it.delta.dir === 'flat') {
+      deltaHTML = '<span class="tide-legend-delta is-flat">No change</span>';
     } else {
       deltaHTML = '<span class="tide-legend-delta is-flat">—</span>';
     }
@@ -4288,13 +4292,16 @@ function buildTideLegendHTML(c, period) {
       + deltaHTML
       + '</span>';
   }).join('');
-  // Shared timeframe caption — the fix for the "▲ rising NOW?" misread: these
-  // arrows are NET change across the window the chart shows (start → today), not
-  // current momentum, so the baseline is stated once for both lines and
-  // re-renders with the 7D/30D/60D tabs. "Go now"/the count line carry the
-  // right-now call; this row is the period stat that captions the chart.
-  const WINDOW_WORD = { '7D': 'vs 7 days ago', '30D': 'vs 30 days ago', '60D': 'vs 60 days ago', MAX: 'vs start' };
-  const windowLabel = WINDOW_WORD[period] || ('vs ' + period);
+  // Shared caption — these arrows are TODAY vs the previous day, so the baseline
+  // is stated once for both lines: "vs yesterday". On the rare day with a gap in
+  // stored history the prior point isn't literally yesterday, so we word it from
+  // the real gap ("vs N days ago") rather than claim yesterday.
+  const sref = Array.isArray(c.series) ? c.series : [];
+  let windowLabel = 'vs yesterday';
+  if (sref.length >= 2 && sref[sref.length - 1].date && sref[sref.length - 2].date) {
+    const gap = _tideDaysBetween(sref[sref.length - 2].date, sref[sref.length - 1].date);
+    if (gap > 1) windowLabel = 'vs ' + gap + ' days ago';
+  }
   const caption = '<span class="tide-legend-window">' + windowLabel + '</span>';
   return '<div class="tide-legend">' + row + caption + '</div>';
 }

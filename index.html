@@ -4178,20 +4178,25 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
     endpointDots += '<circle cx="' + secondaryDot.x + '" cy="' + secondaryDot.y + '" r="9" fill="' + YOU + '" opacity="0.12"/>'
       + '<circle cx="' + secondaryDot.x + '" cy="' + secondaryDot.y + '" r="3.4" fill="' + YOU + '" stroke="#0B0B0D" stroke-width="1.4"/>';
   }
-  // Resolve non-overlapping vertical centres for the pills.
-  const PILL_H = 24, PILL_GAP = 8;
+  // Resolve pill vertical centres — FIXED identity order, not value order:
+  // your-shops ALWAYS sits above its line end, whole-centre ALWAYS below its. So
+  // the top pill is always "yours" (predictable), and they spread into the open
+  // space above the rising neon line instead of crowding the dots. Anchored to
+  // each line's own endpoint, with a guaranteed gap if the ends sit close, and
+  // clamped inside the plot.
+  const PILL_H = 24, PILL_GAP = 10, OFF = PILL_H / 2 + 10, MINGAP = PILL_H + PILL_GAP;
   const specs = [];
   if (primaryDot && Number.isFinite(+endpointPct)) specs.push({ kind: 'you',    val: Math.round(+endpointPct), y: primaryDot.y });
   if (secondaryDot && sPct != null)                specs.push({ kind: 'centre', val: Math.round(sPct),        y: secondaryDot.y });
   const loC = PT + PILL_H / 2 + 2, hiC = PT + H - PILL_H / 2 - 2;
   const centreY = {};
   if (specs.length === 2) {
-    const order = specs.slice().sort((a, b) => b.val - a.val);   // higher % sits on top
-    const mid = (specs[0].y + specs[1].y) / 2, half = (PILL_H + PILL_GAP) / 2;
-    let top = mid - half, bot = mid + half;
-    if (top < loC) { top = loC; bot = loC + PILL_H + PILL_GAP; }
-    if (bot > hiC) { bot = hiC; top = hiC - PILL_H - PILL_GAP; }
-    centreY[order[0].kind] = top; centreY[order[1].kind] = bot;
+    const you = specs.find(s => s.kind === 'you'), ctr = specs.find(s => s.kind === 'centre');
+    let yC = you.y - OFF, cC = ctr.y + OFF;            // your-shops up, whole-centre down
+    if (cC - yC < MINGAP) { const mid = (you.y + ctr.y) / 2; yC = mid - MINGAP / 2; cC = mid + MINGAP / 2; }
+    if (yC < loC) { yC = loC; cC = Math.max(cC, yC + MINGAP); }
+    if (cC > hiC) { cC = hiC; yC = Math.min(yC, cC - MINGAP); }
+    centreY.you = Math.max(loC, yC); centreY.centre = Math.min(hiC, cC);
   } else if (specs.length === 1) {
     centreY[specs[0].kind] = Math.max(loC, Math.min(hiC, specs[0].y));
   }

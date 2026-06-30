@@ -4146,78 +4146,75 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
     line = '<path d="' + d + '" fill="none" stroke="' + NEON + '" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" filter="url(#tideGlow)"/>';
   }
 
-  // Neon endpoint dot + value pill.
-  let endpoint = '';
-  if (pts.length) {
-    const ex = pts[pts.length - 1][0], ey = pts[pts.length - 1][1];
-    const label = Math.round(endpointPct) + '%';
-    const pw = 22 + label.length * 10;
-    const px = Math.min(ex + 8, X1 - pw);
-    // Endpoint sits high after the auto-zoom — drop the pill below the dot when
-    // it's in the upper quarter so it never clips the top edge.
-    const py = ey < PT + H * 0.25 ? ey + 12 : ey - 33;
-    endpoint = '<circle cx="' + ex + '" cy="' + ey + '" r="11" fill="' + NEON + '" opacity="0.20"/>'
-      + '<circle cx="' + ex + '" cy="' + ey + '" r="4.2" fill="' + NEON + '" stroke="#0B0B0D" stroke-width="1.6" filter="url(#tideGlow)"/>'
-      + '<g transform="translate(' + px.toFixed(1) + ',' + py.toFixed(1) + ')">'
-      +   '<rect width="' + pw + '" height="26" rx="13" fill="' + NEON + '"/>'
-      +   '<text x="' + (pw / 2) + '" y="17.5" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="800" fill="#06281C">' + label + '</text>'
-      + '</g>';
-  }
-
-  // Secondary line — muted sage, dashed, thin, NO glow so it reads as context
-  // beneath the neon hero. Which dataset is hero vs secondary is decided by the
-  // caller (the view toggle) and passed in as `series`/`personal`; this function
-  // always paints `series` neon and `personal` dashed. Shares the x-axis (mapped
-  // by date) so it aligns point-for-point with the hero line. Legend labels come
-  // from opts so they track whichever line is which.
-  // The "whole centre" comparison line stays in the brand's green family — both
-  // lines measure the SAME metric (% of shops on sale), so one hue is honest;
-  // brightness carries "yours vs centre". Bright neon solid = your shops; this
-  // muted, glow-less, dashed sage = the centre baseline. (The old blue was the
-  // only blue anywhere in the app — off-brand — and a neutral grey collided with
-  // the white gridlines; the muted green avoids both.)
+  // Secondary (whole-centre) line — thin, dashed, glow-less sage, drawn BEHIND
+  // the neon hero (see return order) so it reads as the comparison baseline. Same
+  // x-axis (mapped by date) so it aligns point-for-point with the hero line. One
+  // hue family (both measure % of shops on sale); brightness carries "yours vs
+  // centre". The old blue was the only blue in the app; a neutral grey collided
+  // with the white gridlines — muted sage avoids both.
   const YOU = '#5E9E7E';
   const sPct = (opts && Number.isFinite(+opts.secondaryPct)) ? +opts.secondaryPct : null;
-  let youLine = '', youEnd = '';
   const winP = (Array.isArray(personal) && personal.length) ? windowTideSeries(personal, period) : [];
-  if (winP.length >= 2) {
-    const ptsP = winP.map(p => [xForDate(p.date), yFor(p.score)]);
-    // Quiet secondary line: thin, glow-less, lower opacity so the "whole centre"
-    // baseline reads as a reference BEHIND the neon hero, not a second line
-    // competing with it. The earlier heavier-stroke + glow treatment made the two
-    // green lines blend into one untidy band — contrast (bright/crisp vs
-    // muted/faint), not weight, is what separates "your shops" from "the centre".
-    // Still dashed and the muted sage hue (never neon) so it stays the comparison.
-    youLine = '<path d="' + smoothCurvePath(ptsP) + '" fill="none" stroke="' + YOU + '" stroke-width="1.6" stroke-dasharray="7 5" stroke-linejoin="round" stroke-linecap="round" opacity="0.5"/>';
-    const le = ptsP[ptsP.length - 1];
-    youEnd = '<circle cx="' + le[0] + '" cy="' + le[1] + '" r="9" fill="' + YOU + '" opacity="0.12"/>'
-      + '<circle cx="' + le[0] + '" cy="' + le[1] + '" r="3.4" fill="' + YOU + '" stroke="#0B0B0D" stroke-width="1.4"/>';
-    // Second value pill — the whole-centre % — so the chart carries BOTH sets of
-    // data (your shops % on the neon endpoint, whole-centre % here). Sage fill to
-    // tie it to its line. If it would collide vertically with the neon pill,
-    // flip it to the opposite side of its dot.
-    if (sPct != null) {
-      const slabel = Math.round(sPct) + '%';
-      const spw = 22 + slabel.length * 10;
-      const spx = Math.min(le[0] + 8, X1 - spw);
-      const neonEy = pts.length ? pts[pts.length - 1][1] : null;
-      let spy = le[1] < PT + H * 0.25 ? le[1] + 12 : le[1] - 33;
-      if (neonEy != null && Math.abs(spy - (neonEy < PT + H * 0.25 ? neonEy + 12 : neonEy - 33)) < 28) {
-        spy = le[1] < neonEy ? le[1] - 33 : le[1] + 12;   // push to far side of the neon pill
-      }
-      youEnd += '<g transform="translate(' + spx.toFixed(1) + ',' + spy.toFixed(1) + ')">'
-        +   '<rect width="' + spw + '" height="26" rx="13" fill="' + YOU + '"/>'
-        +   '<text x="' + (spw / 2) + '" y="17.5" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="800" fill="#06281C">' + slabel + '</text>'
-        + '</g>';
-    }
+  const ptsP = winP.length >= 2 ? winP.map(p => [xForDate(p.date), yFor(p.score)]) : [];
+  const youLine = ptsP.length >= 2
+    ? '<path d="' + smoothCurvePath(ptsP) + '" fill="none" stroke="' + YOU + '" stroke-width="1.6" stroke-dasharray="7 5" stroke-linejoin="round" stroke-linecap="round" opacity="0.5"/>'
+    : '';
+
+  // Endpoint dots + value pills. BOTH lines finish at the same right edge, so
+  // their pills used to land on top of each other (and on the dots). They are now
+  // placed as a STACKED PAIR — higher % on top — sitting just LEFT of the dots
+  // with a guaranteed gap, so the two pills can never overlap each other, the
+  // dots, or the right-hand axis gutter. And they're unmistakably differentiated:
+  // your-shops is a SOLID neon pill (matches the solid neon line); whole-centre is
+  // an OUTLINED sage pill (matches the dashed sage line).
+  const primaryDot   = pts.length    ? { x: pts[pts.length - 1][0],   y: pts[pts.length - 1][1] }   : null;
+  const secondaryDot = ptsP.length >= 2 ? { x: ptsP[ptsP.length - 1][0], y: ptsP[ptsP.length - 1][1] } : null;
+  let endpointDots = '';
+  if (primaryDot) {
+    endpointDots += '<circle cx="' + primaryDot.x + '" cy="' + primaryDot.y + '" r="11" fill="' + NEON + '" opacity="0.20"/>'
+      + '<circle cx="' + primaryDot.x + '" cy="' + primaryDot.y + '" r="4.2" fill="' + NEON + '" stroke="#0B0B0D" stroke-width="1.6" filter="url(#tideGlow)"/>';
+  }
+  if (secondaryDot) {
+    endpointDots += '<circle cx="' + secondaryDot.x + '" cy="' + secondaryDot.y + '" r="9" fill="' + YOU + '" opacity="0.12"/>'
+      + '<circle cx="' + secondaryDot.x + '" cy="' + secondaryDot.y + '" r="3.4" fill="' + YOU + '" stroke="#0B0B0D" stroke-width="1.4"/>';
+  }
+  // Resolve non-overlapping vertical centres for the pills.
+  const PILL_H = 24, PILL_GAP = 8;
+  const specs = [];
+  if (primaryDot && Number.isFinite(+endpointPct)) specs.push({ kind: 'you',    val: Math.round(+endpointPct), y: primaryDot.y });
+  if (secondaryDot && sPct != null)                specs.push({ kind: 'centre', val: Math.round(sPct),        y: secondaryDot.y });
+  const loC = PT + PILL_H / 2 + 2, hiC = PT + H - PILL_H / 2 - 2;
+  const centreY = {};
+  if (specs.length === 2) {
+    const order = specs.slice().sort((a, b) => b.val - a.val);   // higher % sits on top
+    const mid = (specs[0].y + specs[1].y) / 2, half = (PILL_H + PILL_GAP) / 2;
+    let top = mid - half, bot = mid + half;
+    if (top < loC) { top = loC; bot = loC + PILL_H + PILL_GAP; }
+    if (bot > hiC) { bot = hiC; top = hiC - PILL_H - PILL_GAP; }
+    centreY[order[0].kind] = top; centreY[order[1].kind] = bot;
+  } else if (specs.length === 1) {
+    centreY[specs[0].kind] = Math.max(loC, Math.min(hiC, specs[0].y));
+  }
+  let endpointPills = '';
+  for (const s of specs) {
+    const label = s.val + '%';
+    const pw = 20 + label.length * 9;
+    const x = (X1 - 12) - pw;            // sit left of the right-edge dots, gap clears the dot
+    const y = centreY[s.kind] - PILL_H / 2;
+    const ty = PILL_H / 2 + 4.5;
+    const body = s.kind === 'you'
+      ? '<rect width="' + pw + '" height="' + PILL_H + '" rx="' + (PILL_H / 2) + '" fill="' + NEON + '"/>'
+        + '<text x="' + (pw / 2) + '" y="' + ty + '" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="800" fill="#06281C">' + label + '</text>'
+      : '<rect width="' + pw + '" height="' + PILL_H + '" rx="' + (PILL_H / 2) + '" fill="#0B0B0D" stroke="' + YOU + '" stroke-width="1.5"/>'
+        + '<text x="' + (pw / 2) + '" y="' + ty + '" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="700" fill="' + YOU + '">' + label + '</text>';
+    endpointPills += '<g transform="translate(' + x.toFixed(1) + ',' + y.toFixed(1) + ')">' + body + '</g>';
   }
 
-  // The key + the up/down signal now live OUTSIDE the SVG, in a bold HTML row
-  // above the chart (buildTideLegendHTML) — the tiny in-SVG legend was too small
-  // to read. The chart itself stays pure line/area/markers.
+  // The key lives OUTSIDE the SVG (buildTideLegendHTML). Draw order: secondary
+  // line under the neon hero; dots under pills so the pills always stay on top.
   return '<svg viewBox="0 0 ' + (W + PL + PR) + ' ' + (H + PT + PB) + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tide history, ' + period + '">'
     + '<defs>' + defs + '</defs>'
-    + refs + area + youLine + line + peakDots + endpoint + youEnd
+    + refs + area + youLine + line + peakDots + endpointDots + endpointPills
     + '</svg>';
 }
 

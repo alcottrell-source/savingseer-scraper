@@ -413,6 +413,10 @@
   .tide-legend-delta.is-up { color: var(--tide-neon); background: rgba(94,255,176,0.11); }
   .tide-legend-delta.is-down { color: #FF9B7A; background: rgba(255,155,122,0.12); }
   .tide-legend-delta.is-flat { color: rgba(245,241,235,0.5); background: rgba(245,241,235,0.05); font-size: 15px; padding: 4px 11px; }
+  /* Shared timeframe caption — sits on its own line under the badges so it
+     captions BOTH, making clear the arrows are net change vs the window start
+     (not "rising right now"). */
+  .tide-legend-window { flex-basis: 100%; margin-top: -2px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: rgba(245,241,235,0.42); }
   .tide-saved-line { position: relative; z-index: 6; display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; margin-bottom: 14px; padding: 13px 16px; border-radius: 14px; border: 1px solid rgba(245,241,235,0.10); background: rgba(245,241,235,0.03); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.4; color: rgba(245,241,235,0.82); }
   .tide-saved-line.is-hit { border-color: rgba(230,169,75,0.40); background: rgba(230,169,75,0.08); }
   .tide-saved-line.is-prompt { cursor: pointer; justify-content: space-between; color: rgba(245,241,235,0.74); transition: background 0.15s, border-color 0.15s; }
@@ -4265,8 +4269,13 @@ function buildTideLegendHTML(c, period) {
     let deltaHTML;
     if (it.delta) {
       const cls = it.delta.dir === 'up' ? 'is-up' : 'is-down';
-      const lead = it.delta.shops != null ? it.delta.shops : it.delta.value + '%';
-      const sub = it.delta.shops != null ? ' <span class="tide-legend-delta-pct">(' + it.delta.value + '%)</span>' : '';
+      // Lead with the concrete shop-count change (unit shown so a bare "10"
+      // can't be misread); the score move follows in parens as percentage
+      // POINTS, not "%", since the metric is itself a % (a "+40%" reads as a
+      // relative rise — it isn't). With no start count we lead with the points.
+      const unit = it.delta.shops === 1 ? ' shop' : ' shops';
+      const lead = it.delta.shops != null ? (it.delta.shops + unit) : (it.delta.value + ' pts');
+      const sub = it.delta.shops != null ? ' <span class="tide-legend-delta-pct">(' + it.delta.value + ' pts)</span>' : '';
       deltaHTML = '<span class="tide-legend-delta ' + cls + '">'
         + '<span class="tide-legend-arrow" aria-hidden="true">' + it.delta.glyph + '</span> '
         + lead + sub + '</span>';
@@ -4279,7 +4288,15 @@ function buildTideLegendHTML(c, period) {
       + deltaHTML
       + '</span>';
   }).join('');
-  return '<div class="tide-legend">' + row + '</div>';
+  // Shared timeframe caption — the fix for the "▲ rising NOW?" misread: these
+  // arrows are NET change across the window the chart shows (start → today), not
+  // current momentum, so the baseline is stated once for both lines and
+  // re-renders with the 7D/30D/60D tabs. "Go now"/the count line carry the
+  // right-now call; this row is the period stat that captions the chart.
+  const WINDOW_WORD = { '7D': 'vs 7 days ago', '30D': 'vs 30 days ago', '60D': 'vs 60 days ago', MAX: 'vs start' };
+  const windowLabel = WINDOW_WORD[period] || ('vs ' + period);
+  const caption = '<span class="tide-legend-window">' + windowLabel + '</span>';
+  return '<div class="tide-legend">' + row + caption + '</div>';
 }
 
 // Period-tab handler. Rebuilds only the chart SVG (cheap) from the stash set

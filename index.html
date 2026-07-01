@@ -2465,11 +2465,19 @@ function getTideMode() {
   try { m = localStorage.getItem('tide_view_mode'); } catch (e) {}
   return m === 'all' ? 'all' : 'mine';   // default to My shops
 }
-// (The runtime mode setter + the in-hero view toggle were removed Jun 2026: the
-// hero now always shows the whole-centre call, and the chart's green line is
-// always "your shops" / the muted line always the centre — the lens no longer
-// flips at runtime. getTideMode() above stays read-only: it resolves the default
-// lens for the landing personalisation and the brand-chip grid.)
+// Runtime setter for the view mode. Restored Jul 2026: the "Your shops / All
+// shops" selector lives in the centre's brand-list heading (see filterTabs
+// below). Persists the choice so it flows through the whole journey — the
+// brand-chip grid at the centre AND the landing "Today's tide" personalisation
+// both read getTideMode(). Re-renders the current view in place.
+function setTideMode(mode) {
+  const m = mode === 'all' ? 'all' : 'mine';
+  try { localStorage.setItem('tide_view_mode', m); } catch (e) {}
+  const sel = document.getElementById('centre-select');
+  renderCentre(sel ? sel.value : '');     // re-render the open centre (or landing)
+}
+// Back-compat alias — the brand-list toggle calls setBrandFilter('mine'|'all').
+function setBrandFilter(which) { setTideMode(which); }
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
 let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SALE_TYPE = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
@@ -5872,12 +5880,18 @@ async function renderCentre(centreId) {
   if (stage === 'Rising' || stage === 'High Tide') showNotifyBanner();
   else hideNotifyBanner();
 
-  // The old per-section My/All chip tabs are retired — the prominent global
-  // My shops / All shops toggle at the top of the page is now the single control,
-  // and the brand grid already pre-filters off the shared mode (see
-  // visibleBrandsAtCentre / brandFilter above). Kept as '' so the template slot
-  // below is a no-op.
-  const filterTabs = '';
+  // "Your shops / All shops" selector — sits under the brand-list heading and
+  // flips brandFilter between the user's followed shops and every brand at the
+  // centre. Only shown when the user actually follows ≥1 brand present here
+  // (nothing to toggle otherwise). setBrandFilter persists the choice globally,
+  // so the landing "Today's tide" personalisation follows the same lens.
+  let filterTabs = '';
+  if (showBrandFilterTabs) {
+    filterTabs = '<div class="brand-filter-tabs" role="tablist" aria-label="Show your shops or all shops">'
+               + '<button class="brand-filter-tab '+(brandFilter==='mine'?'active':'')+'" onclick="setBrandFilter(\'mine\')" role="tab" aria-selected="'+(brandFilter==='mine')+'">Your shops ('+myAtCentre+')</button>'
+               + '<button class="brand-filter-tab '+(brandFilter==='all'?'active':'')+'" onclick="setBrandFilter(\'all\')" role="tab" aria-selected="'+(brandFilter==='all')+'">All shops ('+totalAtCentre+')</button>'
+               + '</div>';
+  }
   // Mode-aware section heading — in My-shops mode the grid is your followed
   // brands only, so "Brands at this centre" would mislabel it.
   const brandsHeading = brandFilter === 'mine' ? 'Your shops here' : 'Brands at this centre';
@@ -5904,7 +5918,7 @@ async function renderCentre(centreId) {
     : '';
 
   content.innerHTML = heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
-    + '<div class="brands-section" id="brands-section"><div class="section-heading">'+brandsHeading+' <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+contribIntro+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>'
+    + '<div class="brands-section" id="brands-section"><div class="section-heading">'+brandsHeading+' <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+filterTabs+contribIntro+'<div class="brand-grid">'+brandHTML+'</div></div>'
     + seoHubLinkHTML;
 
   // Detail content is in the DOM — only now flip the chrome into centre-view.

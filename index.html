@@ -716,6 +716,11 @@
   .saved-chip.current { background: var(--leaf-lt); border-color: var(--leaf); color: var(--leaf); }
   .saved-chips-label { flex-shrink: 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); align-self: center; padding-right: 4px; }
 
+  /* ── Global "My shops / All shops" view-mode pill (top of landing + centre) ── */
+  .tide-mode-toggle { display: flex; gap: 0; margin: 0 auto 16px; background: var(--stone-lt); border: 1px solid var(--border); border-radius: 999px; padding: 4px; width: fit-content; }
+  .tide-mode-btn { background: none; border: none; padding: 9px 22px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; color: var(--stone); border-radius: 999px; cursor: pointer; transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); letter-spacing: 0.01em; }
+  .tide-mode-btn.is-active { background: var(--leaf); color: #fff; box-shadow: 0 1px 3px rgba(44,24,16,0.18); }
+
   /* ── My brands / All brands tab toggle on the dashboard ── */
   .brand-filter-tabs { display: flex; gap: 0; margin-bottom: 12px; background: var(--stone-lt); border-radius: 999px; padding: 3px; width: fit-content; }
   .brand-filter-tab { background: none; border: none; padding: 7px 16px; font-size: 12px; font-weight: 500; color: var(--stone); border-radius: 999px; cursor: pointer; font-family: inherit; transition: all 0.15s; letter-spacing: 0.02em; }
@@ -2475,11 +2480,33 @@ function getTideMode() {
   try { m = localStorage.getItem('tide_view_mode'); } catch (e) {}
   return m === 'all' ? 'all' : 'mine';   // default to My shops
 }
-// (The runtime mode setter + the in-hero view toggle were removed Jun 2026: the
-// hero now always shows the whole-centre call, and the chart's green line is
-// always "your shops" / the muted line always the centre — the lens no longer
-// flips at runtime. getTideMode() above stays read-only: it resolves the default
-// lens for the landing personalisation and the brand-chip grid.)
+// Runtime mode setter — persists the choice and re-renders whatever is on
+// screen (the landing or the open centre). Restored Jul 2026: the "My shops /
+// All shops" pill (renderModeToggle) is the single visible control again, so
+// the lens the landing list, brand grid, and centre hero read must be able to
+// flip at runtime.
+function setTideMode(mode) {
+  const m = mode === 'all' ? 'all' : 'mine';
+  try { localStorage.setItem('tide_view_mode', m); } catch (e) {}
+  window._tideBrandFilter = m;            // keep the brand-chip grid in sync
+  const sel = document.getElementById('centre-select');
+  renderCentre(sel ? sel.value : '');     // re-render landing or the open centre
+}
+// Back-compat alias — older brand-chip call sites use setBrandFilter('mine'|'all').
+function setBrandFilter(which) { setTideMode(which); }
+
+// The prominent "My shops / All shops" segmented control — the single visible
+// expression of the view mode, mounted at the top of the landing and the centre
+// page. Shown only for users who follow ≥1 brand (everyone else has nothing to
+// personalise, so there's nothing to switch between and the control is hidden).
+function renderModeToggle() {
+  if (!tideHasFollowed()) return '';
+  const m = getTideMode();
+  const btn = (val, label) => '<button type="button" class="tide-mode-btn' + (m === val ? ' is-active' : '')
+    + '" aria-pressed="' + (m === val) + '" onclick="setTideMode(\'' + val + '\')">' + label + '</button>';
+  return '<div class="tide-mode-toggle" role="tablist" aria-label="Shops view">'
+    + btn('mine', 'My shops') + btn('all', 'All shops') + '</div>';
+}
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
 let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SALE_TYPE = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
@@ -4587,17 +4614,19 @@ function renderTideVessel(v) {
   const hasCount = Number.isFinite(+v.onSaleCount) && Number.isFinite(+v.totalCount) && +v.totalCount > 0;
   const pct = Math.max(0, Math.min(100, Math.round(+v.pct || 0)));
 
-  // The view toggle ([ Your shops | Whole centre ]) drives EVERYTHING: the
-  // headline number, the count line, and which chart line is the neon hero.
-  // When the user follows none of this centre's shops there's nothing to flip
-  // to, so we lock to the whole-centre view and hide the toggle.
+  // The global "My shops / All shops" pill (renderModeToggle, mounted at the top
+  // of the page) drives which lens this hero leads with. In "My shops" mode we
+  // surface the your-shops row/line/detail alongside the whole centre; in "All
+  // shops" mode the hero collapses to the whole-centre call only. When the user
+  // follows none of this centre's shops there's nothing personal to show, so it
+  // locks to the whole-centre view regardless of mode (and the pill is hidden).
   const myPresent = Array.isArray(v.followedPresent) ? v.followedPresent.length : 0;
   const myOnNames = Array.isArray(v.followedOnSale) ? v.followedOnSale : [];
   const myOn = myOnNames.length;
   const personalPct = myPresent > 0 ? Math.round((myOn / myPresent) * 100) : 0;
-  const canToggle = !!(v.hasFollowed && myPresent > 0);
-  const selected = canToggle ? (v.mode === 'all' ? 'all' : 'mine') : 'all';
-  const leadPersonal = selected === 'mine';
+  // Show the personal lens only when the user both follows a shop present here
+  // AND hasn't switched the pill to "All shops".
+  const showPersonal = v.mode !== 'all' && !!v.hasFollowed && myPresent > 0;
 
   // Header: big Playfair centre name, an uppercase location line (commas → · ),
   // and a plain "Updated {when}" timestamp — all left-aligned, stacked.
@@ -4631,7 +4660,7 @@ function renderTideVessel(v) {
   // shop here we show BOTH rows (your shops = primary neon, whole centre = muted)
   // split by a divider; otherwise the whole centre IS the hero and takes the
   // single neon row.
-  const hasPersonalHeadline = !!(v.hasFollowed && myPresent > 0);
+  const hasPersonalHeadline = showPersonal;
   const metricRow = (o) => {
     const move = tideWeekFromHTML(o.series, o.pct);
     const count = o.count ? '<div class="tide-metric-count">' + o.count + '</div>' : '';
@@ -4684,7 +4713,7 @@ function renderTideVessel(v) {
   // neon and `personal` dashed-blue, so we pass your-shops as `series`. When the
   // user follows nothing here there's no personal line, so the lone neon line is
   // the centre (labelled as such in the legend).
-  const hasPersonalLine = personalSeries.length >= 2;
+  const hasPersonalLine = showPersonal && personalSeries.length >= 2;
   let primarySeries, primaryPct, primaryLabel, secondarySeries, secondaryLabel, secondaryPct, primaryOnSale;
   if (hasPersonalLine) {
     primarySeries = personalSeries; primaryPct = personalPct; primaryLabel = 'Your shops';
@@ -4713,7 +4742,7 @@ function renderTideVessel(v) {
   // when the user follows ≥1 shop here; otherwise the follow CTA takes its place.
   // The neon dot ties it to the green "Your shops" line directly above.
   let detailHTML;
-  if (v.hasFollowed && myPresent > 0) {
+  if (showPersonal) {
     const namesShown = myOnNames.slice(0, 3).map(esc).join(', ');
     const namesExtra = myOnNames.length > 3 ? ' +' + (myOnNames.length - 3) + ' more' : '';
     const body = myOn > 0
@@ -5694,10 +5723,10 @@ async function renderCentre(centreId) {
       // then a small "search above" prompt.
       const savedHTML = renderSavedCentresLanding(savedIds);
       const hotHTML = renderLandingHotSections(savedIds);
-      content.innerHTML = renderTide60Light() + personaliseHTML + savedHTML + hotHTML;
+      content.innerHTML = renderModeToggle() + renderTide60Light() + personaliseHTML + savedHTML + hotHTML;
     } else {
       // No saved centres — show the proof hero (sample card + 3-step + CTA).
-      content.innerHTML = personaliseHTML + renderLandingHero();
+      content.innerHTML = renderModeToggle() + personaliseHTML + renderLandingHero();
       // Reset edit mode whenever we drop back into the no-saved state.
       _savedCentresEditMode = false;
     }
@@ -6137,7 +6166,7 @@ async function renderCentre(centreId) {
     ? '<a class="seo-hub-link" href="/centre/'+supabaseCentreId+'">Full sale history &amp; FAQ for '+safeCentreName+' &rarr;</a>'
     : '';
 
-  content.innerHTML = heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
+  content.innerHTML = renderModeToggle() + heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
     + '<div class="brands-section" id="brands-section"><div class="section-heading">'+brandsHeading+' <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+contribIntro+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>'
     + seoHubLinkHTML;
 

@@ -174,8 +174,9 @@
      segment slope in renderTideVessel; if they disagree, the arrow is
      neutralised to '→' so an upward arrow can never sit next to a
      descending line. */
-  .tide-vessel-eyebrow-row { position: relative; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+  .tide-vessel-eyebrow-row { position: relative; z-index: 6; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
   .tide-vessel-eyebrow-row--pill-only { justify-content: flex-end; }
+  .tide-vessel-centre-block { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .tide-vessel-centre-name { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(245,241,235,0.55); }
   .tide-vessel-trend-pill { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: var(--tide-cream); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
   .tide-vessel-trend-pill.is-up   { color: #9FD8B0; }
@@ -359,6 +360,10 @@
   .tide-vessel-verdict-word.tone-rise { color: #9FD8B0; }
   .tide-vessel-verdict-word.tone-fall { color: #F4B79F; }
   .tide-vessel-verdict-word.tone-wait { color: rgba(245,241,235,0.78); }
+  /* Verdict word as its own block below the percentages (the mockup's "Go now"
+     headline moment) — controls spacing since the word itself is inline. */
+  .tide-vessel-verdict-line { position: relative; z-index: 6; margin: 6px 0 16px; }
+  .tide-vessel-verdict-line .tide-vessel-verdict-word { margin-bottom: 0; }
   .tide-vessel-fact { font-family: 'Inter', sans-serif; font-weight: 500; font-size: 21px; line-height: 1.2; color: var(--tide-cream); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; margin-bottom: 8px; }
   .tide-vessel-statement { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 400; line-height: 1.45; color: rgba(245,241,235,0.62); letter-spacing: 0; }
   .tide-vessel-statement.tone-go   { color: #FFD79A; }
@@ -379,7 +384,7 @@
   /* ── Centre-detail hero rebuild (Jun 2026) ──────────────────────────
      % + verdict headline, "Verified {when}" badge, saved-shops line,
      direction-in-shops count line, faithful 0–100 chart + period tabs. */
-  .tide-vessel-centre-loc { color: rgba(245,241,235,0.36); }
+  .tide-vessel-centre-loc { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(245,241,235,0.38); }
   /* Verified = quiet reassurance, not a headline. Muted text + a small steady
      green dot (no glow) so it never pulls the eye off the verdict. */
   .tide-vessel-verified { display: inline-flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.02em; color: rgba(245,241,235,0.45); white-space: nowrap; }
@@ -4309,8 +4314,10 @@ function renderTideVessel(v) {
   // Eyebrow: centre name + location (left), "Verified {when}" badge (right).
   const safeCentre = esc(v.centreName);
   const safeLoc = esc(v.centreLocation);
-  const eyebrowName = '<span class="tide-vessel-centre-name">' + safeCentre
-    + (safeLoc ? ' <span class="tide-vessel-centre-loc">' + safeLoc + '</span>' : '') + '</span>';
+  const eyebrowName = '<div class="tide-vessel-centre-block">'
+    + '<span class="tide-vessel-centre-name">' + safeCentre + '</span>'
+    + (safeLoc ? '<span class="tide-vessel-centre-loc">' + safeLoc + '</span>' : '')
+    + '</div>';
   const verifiedHTML = v.verifiedLabel
     ? '<span class="tide-vessel-verified"><span class="tide-vessel-verified-dot" aria-hidden="true"></span>' + esc(v.verifiedLabel) + '</span>'
     : '';
@@ -4361,15 +4368,21 @@ function renderTideVessel(v) {
       +     centreMoveHTML
       +   '</div>'
       + '</div>'
-      + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
       + '</div>';
   } else {
     headlineRow = '<div class="tide-vessel-headline-row">'
       + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
-      + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
       + '</div>'
       + centreMoveHTML;
   }
+
+  // Verdict word — its OWN block below the percentage stack (was inline to the
+  // right of the big %). This is the mockup's "Go now" headline moment: a large
+  // amber (tone-cued) Playfair line sitting between the percentages and the
+  // count line, reading top-to-bottom rather than competing for the % baseline.
+  const verdictHTML = '<div class="tide-vessel-verdict-line">'
+    + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
+    + '</div>';
 
   // Whole-centre count — state only ("N of M shops on sale"). Movement no longer
   // lives here; it's the per-line weekly figure under each headline %. When the
@@ -4441,6 +4454,7 @@ function renderTideVessel(v) {
   return '<div class="tide-vessel has-verdict verdict-' + tone + ' tide-vessel--merged" data-verdict-word="' + verdict.word + '" role="img" aria-label="' + ariaLabel + '">'
     +   '<div class="tide-vessel-eyebrow-row">' + eyebrowName + verifiedHTML + '</div>'
     +   headlineRow
+    +   verdictHTML
     +   countHTML
     +   '<div class="tide-vessel-chart">'
     +     '<div class="tide-legend-host">' + legendHTML + '</div>'

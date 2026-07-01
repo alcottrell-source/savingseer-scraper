@@ -373,26 +373,22 @@
   .tide-vessel-sub { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(245,241,235,0.45); margin-top: 7px; }
   .tide-vessel-updated { font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 400; color: rgba(245,241,235,0.5); margin-top: 12px; }
   .tide-metric { position: relative; z-index: 6; display: flex; align-items: center; gap: 20px; }
-  .tide-metric-marker { flex: none; width: 22px; display: flex; align-items: center; justify-content: center; align-self: center; margin-top: 13px; }
-  .tide-metric-marker--you { height: 16px; }
-  .tide-metric-marker--you::before { content: ''; width: 15px; height: 15px; border-radius: 50%; background: var(--tide-neon); box-shadow: 0 0 14px rgba(94,255,176,0.55); }
-  .tide-metric-marker--centre { height: 0; border-top: 3px dashed rgba(245,241,235,0.38); }
   .tide-metric-main { flex: 1 1 auto; min-width: 0; }
-  .tide-metric-label { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 2px; }
+  .tide-metric-label { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 2px; }
   .tide-metric--you .tide-metric-label { color: var(--tide-neon); }
   .tide-metric--centre .tide-metric-label { color: rgba(245,241,235,0.5); }
-  .tide-metric-pct { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 68px; line-height: 0.92; letter-spacing: -0.03em; color: var(--tide-cream); }
+  .tide-metric-pct { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 56px; line-height: 0.92; letter-spacing: -0.03em; color: var(--tide-cream); }
   .tide-metric--centre .tide-metric-pct { color: rgba(245,241,235,0.82); }
-  .tide-metric-pct-sign { font-family: 'Playfair Display', serif; font-size: 32px; font-weight: 500; color: rgba(245,241,235,0.42); margin-left: 2px; }
+  .tide-metric-pct-sign { font-family: 'Playfair Display', serif; font-size: 27px; font-weight: 500; color: rgba(245,241,235,0.42); margin-left: 2px; }
   .tide-metric-side { flex: none; text-align: right; font-variant-numeric: tabular-nums; }
-  .tide-metric-count { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 400; line-height: 1.25; color: var(--tide-cream); }
+  .tide-metric-count { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 400; line-height: 1.25; color: var(--tide-cream); }
   .tide-metric--centre .tide-metric-count { color: rgba(245,241,235,0.6); }
-  .tide-metric-move { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 400; line-height: 1.25; margin-top: 4px; }
-  .tide-metric-move-arrow { font-size: 13px; }
+  .tide-metric-move { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 400; line-height: 1.25; margin-top: 4px; }
+  .tide-metric-move-arrow { font-size: 12px; }
   .tide-metric-move.is-up   { color: var(--tide-neon); }
   .tide-metric-move.is-down { color: #FF9B7A; }
   .tide-metric-move.is-flat { color: rgba(245,241,235,0.5); }
-  .tide-metric-divider { position: relative; z-index: 6; height: 1px; background: rgba(245,241,235,0.1); margin: 22px 0 22px 42px; }
+  .tide-metric-divider { position: relative; z-index: 6; height: 1px; background: rgba(245,241,235,0.1); margin: 18px 0; }
   .tide-vessel-statement2 { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 400; line-height: 1.4; color: rgba(245,241,235,0.7); margin-bottom: 22px; }
   .tide-vessel-statement2 strong { color: var(--tide-cream); font-weight: 700; }
   .tide-vessel-fact { font-family: 'Inter', sans-serif; font-weight: 500; font-size: 21px; line-height: 1.2; color: var(--tide-cream); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; margin-bottom: 8px; }
@@ -4375,7 +4371,6 @@ function renderTideVessel(v) {
   const safeLoc = esc(v.centreLocation).replace(/,\s*/g, ' &middot; ');
   const updatedLabel = v.verifiedLabel ? esc(v.verifiedLabel).replace(/^Verified/, 'Updated') : '';
   const headHTML = '<div class="tide-vessel-head">'
-    + '<div class="tide-vessel-title">' + safeCentre + '</div>'
     + (safeLoc ? '<div class="tide-vessel-sub">' + safeLoc + '</div>' : '')
     + (updatedLabel ? '<div class="tide-vessel-updated">' + updatedLabel + '</div>' : '')
     + '</div>';
@@ -4407,7 +4402,6 @@ function renderTideVessel(v) {
     const move = tideWeekFromHTML(o.series, o.pct);
     const count = o.count ? '<div class="tide-metric-count">' + o.count + '</div>' : '';
     return '<div class="tide-metric tide-metric--' + o.kind + '">'
-      + '<span class="tide-metric-marker tide-metric-marker--' + o.kind + '" aria-hidden="true"></span>'
       + '<div class="tide-metric-main">'
       +   '<div class="tide-metric-label">' + o.label + '</div>'
       +   '<div class="tide-metric-pct">' + o.pct + '<span class="tide-metric-pct-sign">%</span></div>'

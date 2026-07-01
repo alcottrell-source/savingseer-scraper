@@ -362,8 +362,39 @@
   .tide-vessel-verdict-word.tone-wait { color: rgba(245,241,235,0.78); }
   /* Verdict word as its own block below the percentages (the mockup's "Go now"
      headline moment) — controls spacing since the word itself is inline. */
-  .tide-vessel-verdict-line { position: relative; z-index: 6; margin: 6px 0 16px; }
-  .tide-vessel-verdict-line .tide-vessel-verdict-word { margin-bottom: 0; }
+  .tide-vessel-verdict-line { position: relative; z-index: 6; margin: 30px 0 14px; }
+  .tide-vessel-verdict-line .tide-vessel-verdict-word { margin-bottom: 0; font-size: 60px; }
+  /* ── Centre hero — two-column metric layout (image-1 rebuild) ────────
+     Playfair title + uppercase location + "Updated {when}", then per-metric
+     rows: marker · (label over big %) · (count over movement), a divider,
+     the amber verdict word, and a "Based on …" statement. */
+  .tide-vessel-head { position: relative; z-index: 6; margin-bottom: 26px; }
+  .tide-vessel-title { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 38px; line-height: 1.05; letter-spacing: -0.01em; color: var(--tide-cream); }
+  .tide-vessel-sub { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(245,241,235,0.45); margin-top: 7px; }
+  .tide-vessel-updated { font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 400; color: rgba(245,241,235,0.5); margin-top: 12px; }
+  .tide-metric { position: relative; z-index: 6; display: flex; align-items: center; gap: 20px; }
+  .tide-metric-marker { flex: none; width: 22px; display: flex; align-items: center; justify-content: center; align-self: center; margin-top: 13px; }
+  .tide-metric-marker--you { height: 16px; }
+  .tide-metric-marker--you::before { content: ''; width: 15px; height: 15px; border-radius: 50%; background: var(--tide-neon); box-shadow: 0 0 14px rgba(94,255,176,0.55); }
+  .tide-metric-marker--centre { height: 0; border-top: 3px dashed rgba(245,241,235,0.38); }
+  .tide-metric-main { flex: 1 1 auto; min-width: 0; }
+  .tide-metric-label { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 2px; }
+  .tide-metric--you .tide-metric-label { color: var(--tide-neon); }
+  .tide-metric--centre .tide-metric-label { color: rgba(245,241,235,0.5); }
+  .tide-metric-pct { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 68px; line-height: 0.92; letter-spacing: -0.03em; color: var(--tide-cream); }
+  .tide-metric--centre .tide-metric-pct { color: rgba(245,241,235,0.82); }
+  .tide-metric-pct-sign { font-family: 'Playfair Display', serif; font-size: 32px; font-weight: 500; color: rgba(245,241,235,0.42); margin-left: 2px; }
+  .tide-metric-side { flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+  .tide-metric-count { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 400; line-height: 1.25; color: var(--tide-cream); }
+  .tide-metric--centre .tide-metric-count { color: rgba(245,241,235,0.6); }
+  .tide-metric-move { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 400; line-height: 1.25; margin-top: 4px; }
+  .tide-metric-move-arrow { font-size: 13px; }
+  .tide-metric-move.is-up   { color: var(--tide-neon); }
+  .tide-metric-move.is-down { color: #FF9B7A; }
+  .tide-metric-move.is-flat { color: rgba(245,241,235,0.5); }
+  .tide-metric-divider { position: relative; z-index: 6; height: 1px; background: rgba(245,241,235,0.1); margin: 22px 0 22px 42px; }
+  .tide-vessel-statement2 { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 400; line-height: 1.4; color: rgba(245,241,235,0.7); margin-bottom: 22px; }
+  .tide-vessel-statement2 strong { color: var(--tide-cream); font-weight: 700; }
   .tide-vessel-fact { font-family: 'Inter', sans-serif; font-weight: 500; font-size: 21px; line-height: 1.2; color: var(--tide-cream); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; margin-bottom: 8px; }
   .tide-vessel-statement { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 400; line-height: 1.45; color: rgba(245,241,235,0.62); letter-spacing: 0; }
   .tide-vessel-statement.tone-go   { color: #FFD79A; }
@@ -4062,6 +4093,33 @@ function tideWeekMoveHTML(series, nowScore, nowOnSale, standalone) {
   return '<div class="tide-vessel-pct-move is-' + dir + cls + '">' + body + '</div>';
 }
 
+// "up from 71% last week" — names the PRIOR WEEK'S value (not the delta), for
+// the two-column metric rows. Same ~7-days-ago anchor logic as tideWeekMoveHTML,
+// but the copy reads "up/down from {pastPct}% last week". Returns '' when there
+// isn't ≥3 days of history to honestly call it "last week".
+function tideWeekFromHTML(series, nowScore) {
+  if (!Array.isArray(series) || series.length < 2) return '';
+  const today = series[series.length - 1];
+  if (!today || !today.date) return '';
+  const target = new Date(new Date(today.date + 'T00:00:00Z').getTime() - 7 * 86400000).toISOString().slice(0, 10);
+  let pick = null, best = Infinity;
+  for (const p of series) {
+    if (!p || !p.date) continue;
+    const gap = Math.abs(_tideDaysBetween(p.date, target));
+    if (gap < best) { best = gap; pick = p; }
+  }
+  if (!pick || _tideDaysBetween(pick.date, today.date) < 3) return '';
+  const fin = x => x != null && Number.isFinite(+x);
+  const nowSc  = fin(nowScore) ? Math.round(+nowScore) : (fin(today.score) ? Math.round(+today.score) : null);
+  const pastSc = fin(pick.score) ? Math.round(+pick.score) : null;
+  if (nowSc == null || pastSc == null) return '';
+  let dir, text;
+  if (nowSc > pastSc)      { dir = 'up';   text = '<span class="tide-metric-move-arrow" aria-hidden="true">▲</span> up from ' + pastSc + '% last week'; }
+  else if (nowSc < pastSc) { dir = 'down'; text = '<span class="tide-metric-move-arrow" aria-hidden="true">▼</span> down from ' + pastSc + '% last week'; }
+  else                     { dir = 'flat'; text = 'level with last week'; }
+  return '<div class="tide-metric-move is-' + dir + '">' + text + '</div>';
+}
+
 // Centre-detail history chart — the line is the hero. Pure-black panel, a bold
 // neon-green curve with glow + gradient fill (the old TIDE neon, restored),
 // and a neon endpoint value pill. The y-axis is a FIXED 0–100% scale, so every
@@ -4311,16 +4369,16 @@ function renderTideVessel(v) {
   const selected = canToggle ? (v.mode === 'all' ? 'all' : 'mine') : 'all';
   const leadPersonal = selected === 'mine';
 
-  // Eyebrow: centre name + location (left), "Verified {when}" badge (right).
+  // Header: big Playfair centre name, an uppercase location line (commas → · ),
+  // and a plain "Updated {when}" timestamp — all left-aligned, stacked.
   const safeCentre = esc(v.centreName);
-  const safeLoc = esc(v.centreLocation);
-  const eyebrowName = '<div class="tide-vessel-centre-block">'
-    + '<span class="tide-vessel-centre-name">' + safeCentre + '</span>'
-    + (safeLoc ? '<span class="tide-vessel-centre-loc">' + safeLoc + '</span>' : '')
+  const safeLoc = esc(v.centreLocation).replace(/,\s*/g, ' &middot; ');
+  const updatedLabel = v.verifiedLabel ? esc(v.verifiedLabel).replace(/^Verified/, 'Updated') : '';
+  const headHTML = '<div class="tide-vessel-head">'
+    + '<div class="tide-vessel-title">' + safeCentre + '</div>'
+    + (safeLoc ? '<div class="tide-vessel-sub">' + safeLoc + '</div>' : '')
+    + (updatedLabel ? '<div class="tide-vessel-updated">' + updatedLabel + '</div>' : '')
     + '</div>';
-  const verifiedHTML = v.verifiedLabel
-    ? '<span class="tide-vessel-verified"><span class="tide-vessel-verified-dot" aria-hidden="true"></span>' + esc(v.verifiedLabel) + '</span>'
-    : '';
 
   // Real-history series + an optional "your shops" overlay built over the same
   // dates so both lines share the x-axis; the today endpoint is pinned to the
@@ -4337,60 +4395,52 @@ function renderTideVessel(v) {
     last.onSale = liveOn;
   }
 
-  // Copy rule (every word, one job, one place): headline = the number(s) +
-  // verdict, each with its own weekly movement directly beneath; count line =
-  // the fraction + unit ("on sale"); the your-shops detail (below the chart)
-  // names which of the user's shops are on. When the user follows ≥1 shop here,
-  // the headline leads with TWO percentages — the BIG one is "your shops" (the
-  // personal %, matching the neon line) and a SMALLER one beneath is "whole
-  // centre". Movement is WEEKLY (vs last week), one figure per line; the chart
-  // below carries the long (60-day) view.
+  // Two-column metric rows. Each row: a left MARKER (neon dot for "your shops",
+  // dashed line for "whole centre" — echoing the chart's solid vs dashed lines),
+  // a label + big Playfair %, and a right column with the "N of M on sale" count
+  // over an "up/down from X% last week" movement line. When the user follows ≥1
+  // shop here we show BOTH rows (your shops = primary neon, whole centre = muted)
+  // split by a divider; otherwise the whole centre IS the hero and takes the
+  // single neon row.
   const hasPersonalHeadline = !!(v.hasFollowed && myPresent > 0);
-  const centreMoveHTML = tideWeekMoveHTML(series, pct, v.onSaleCount, !hasPersonalHeadline);
-  const yourMoveHTML = (personalSeries.length >= 2)
-    ? tideWeekMoveHTML(personalSeries, personalPct, myOn, false) : '';
-  let headlineRow;
-  if (hasPersonalHeadline) {
-    headlineRow = '<div class="tide-vessel-headline-row tide-vessel-headline-row--dual">'
-      + '<div class="tide-vessel-pct-stack">'
-      +   '<div class="tide-vessel-pct-group">'
-      +     '<div class="tide-vessel-pct-primary">'
-      +       '<span class="tide-vessel-pct">' + personalPct + '<span class="tide-vessel-pct-sign">%</span></span>'
-      +       '<span class="tide-vessel-pct-scope">of your shops are on sale</span>'
-      +     '</div>'
-      +     yourMoveHTML
-      +   '</div>'
-      +   '<div class="tide-vessel-pct-group">'
-      +     '<div class="tide-vessel-pct-secondary">'
-      +       '<span class="tide-vessel-pct-sub">' + pct + '<span class="tide-vessel-pct-sub-sign">%</span></span>'
-      +       '<span class="tide-vessel-pct-scope">whole centre</span>'
-      +     '</div>'
-      +     centreMoveHTML
-      +   '</div>'
+  const metricRow = (o) => {
+    const move = tideWeekFromHTML(o.series, o.pct);
+    const count = o.count ? '<div class="tide-metric-count">' + o.count + '</div>' : '';
+    return '<div class="tide-metric tide-metric--' + o.kind + '">'
+      + '<span class="tide-metric-marker tide-metric-marker--' + o.kind + '" aria-hidden="true"></span>'
+      + '<div class="tide-metric-main">'
+      +   '<div class="tide-metric-label">' + o.label + '</div>'
+      +   '<div class="tide-metric-pct">' + o.pct + '<span class="tide-metric-pct-sign">%</span></div>'
       + '</div>'
+      + '<div class="tide-metric-side">' + count + move + '</div>'
       + '</div>';
+  };
+  const centreCount = hasCount ? (v.onSaleCount + ' of ' + v.totalCount + ' on sale') : '';
+  let metricsHTML;
+  if (hasPersonalHeadline) {
+    metricsHTML = metricRow({ kind: 'you', label: 'Your shops', pct: personalPct,
+        count: myPresent > 0 ? (myOn + ' of ' + myPresent + ' on sale') : '', series: personalSeries })
+      + '<div class="tide-metric-divider"></div>'
+      + metricRow({ kind: 'centre', label: 'Whole centre', pct, count: centreCount, series });
   } else {
-    headlineRow = '<div class="tide-vessel-headline-row">'
-      + '<span class="tide-vessel-pct">' + pct + '<span class="tide-vessel-pct-sign">%</span></span>'
-      + '</div>'
-      + centreMoveHTML;
+    metricsHTML = metricRow({ kind: 'you', label: 'Whole centre', pct, count: centreCount, series });
   }
 
-  // Verdict word — its OWN block below the percentage stack (was inline to the
-  // right of the big %). This is the mockup's "Go now" headline moment: a large
-  // amber (tone-cued) Playfair line sitting between the percentages and the
-  // count line, reading top-to-bottom rather than competing for the % baseline.
+  // Verdict word — the amber "Go now" headline moment on its own line.
   const verdictHTML = '<div class="tide-vessel-verdict-line">'
     + '<span class="tide-vessel-verdict-word tone-' + tone + '" data-verdict-word="' + verdict.word + '">' + headlineWord + '</span>'
     + '</div>';
 
-  // Whole-centre count — state only ("N of M shops on sale"). Movement no longer
-  // lives here; it's the per-line weekly figure under each headline %. When the
-  // server hasn't returned a raw count yet, carry only the unit.
-  const countText = hasCount
-    ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale')
-    : 'of shops on sale';
-  const countHTML = '<div class="tide-count-line">' + countText + '</div>';
+  // Statement — "Based on your shops — near the top of this cycle." The basis is
+  // "your shops" when the user follows ≥1 shop here, else "the whole centre";
+  // the cycle-position phrase is derived from the verdict word.
+  const CYCLE_PHRASE = { PEAK: 'near the top of this cycle', RISING: 'on the way up this cycle',
+    EASING: 'easing down from the peak', OVER: 'near the end of this cycle', QUIET: 'early in this cycle' };
+  const cyclePhrase = CYCLE_PHRASE[verdict.word] || '';
+  const basisLabel = hasPersonalHeadline ? 'your shops' : 'the whole centre';
+  const statementHTML = cyclePhrase
+    ? '<div class="tide-vessel-statement2">Based on <strong>' + basisLabel + '</strong> &mdash; ' + cyclePhrase + '.</div>'
+    : '';
   // MAX only earns its own tab once the centre has ≥80 days of history (else it
   // duplicates the 60D line). Span measured across the real series' date range.
   const _spanSeries = (series && series.length) ? series : [];
@@ -4452,10 +4502,10 @@ function renderTideVessel(v) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   return '<div class="tide-vessel has-verdict verdict-' + tone + ' tide-vessel--merged" data-verdict-word="' + verdict.word + '" role="img" aria-label="' + ariaLabel + '">'
-    +   '<div class="tide-vessel-eyebrow-row">' + eyebrowName + verifiedHTML + '</div>'
-    +   headlineRow
+    +   headHTML
+    +   metricsHTML
     +   verdictHTML
-    +   countHTML
+    +   statementHTML
     +   '<div class="tide-vessel-chart">'
     +     '<div class="tide-legend-host">' + legendHTML + '</div>'
     +     '<div class="tide-vessel-chart-svg-host">' + chartSVG + '</div>'

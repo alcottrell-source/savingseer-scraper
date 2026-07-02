@@ -1,0 +1,20 @@
+{
+  "id": "/?source=pwa",
+  "name": "Tide — UK shopping-centre sale tracker",
+  "short_name": "Tide",
+  "description": "Check the Tide Score before you go — know when UK shopping centres are actually worth the trip.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF7F2",
+  "theme_color": "#FAF7F2",
+  "lang": "en-GB",
+  "dir": "ltr",
+  "categories": ["shopping", "lifestyle", "utilities"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

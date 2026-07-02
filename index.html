@@ -101,7 +101,13 @@
     .search-hero-headline { font-size: 30px; margin-bottom: 12px; }
     .search-hero-sub { font-size: 14px; margin-bottom: 20px; }
     .centre-search { font-size: 15px; padding: 14px 18px 14px 44px; background-position: 16px center; }
+    /* Shrink only the placeholder (not typed text) so the full location hint
+       renders on phones — at 15px it clipped to "…postcod" on a Pixel 8. */
+    .centre-search::placeholder { font-size: 12.5px; }
     .search-hint { font-size: 12px; }
+  }
+  @media (max-width: 380px) {
+    .centre-search::placeholder { font-size: 11px; }
   }
   /* Desktop: give the landing intentional presence instead of a phone-width
      column marooned in whitespace. Larger hero, more top-light breathing room,

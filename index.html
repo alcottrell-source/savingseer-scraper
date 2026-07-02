@@ -4451,35 +4451,55 @@ function buildTideChartSVG(series, period, tone, endpointPct, personal, opts) {
     endpointDots += '<circle cx="' + secondaryDot.x + '" cy="' + secondaryDot.y + '" r="9" fill="' + YOU + '" opacity="0.12"/>'
       + '<circle cx="' + secondaryDot.x + '" cy="' + secondaryDot.y + '" r="3.4" fill="' + YOU + '" stroke="#0B0B0D" stroke-width="1.4"/>';
   }
-  // Resolve pill vertical centres — FIXED identity order, not value order:
-  // your-shops ALWAYS sits above its line end, whole-centre ALWAYS below its. So
-  // the top pill is always "yours" (predictable), and they spread into the open
-  // space above the rising neon line instead of crowding the dots. Anchored to
-  // each line's own endpoint, with a guaranteed gap if the ends sit close, and
-  // clamped inside the plot.
-  const PILL_H = 24, PILL_GAP = 10, OFF = PILL_H / 2 + 10, MINGAP = PILL_H + PILL_GAP;
+  // Resolve pill vertical centres. The earlier version anchored each pill a FIXED
+  // offset from its own endpoint — but the pills sit LEFT of the dots, directly
+  // over the line, and near a high flat plateau a fixed offset couldn't clear it,
+  // so the pills merged into the curve. Fix: place each pill in the genuinely
+  // CLEAR zone of its horizontal band — your-shops floats ABOVE the highest line
+  // content there, whole-centre floats BELOW the lowest — and a short leader line
+  // ties each pill back to its own dot so the association survives the gap. FIXED
+  // identity order stays: your-shops is always the upper pill, whole-centre the
+  // lower one.
+  const PILL_H = 24, PILL_GAP = 10, CLEAR = 9, MINGAP = PILL_H + PILL_GAP;
   const specs = [];
-  if (primaryDot && Number.isFinite(+endpointPct)) specs.push({ kind: 'you',    val: Math.round(+endpointPct), y: primaryDot.y });
-  if (secondaryDot && sPct != null)                specs.push({ kind: 'centre', val: Math.round(sPct),        y: secondaryDot.y });
+  if (primaryDot && Number.isFinite(+endpointPct)) specs.push({ kind: 'you',    val: Math.round(+endpointPct), dot: primaryDot });
+  if (secondaryDot && sPct != null)                specs.push({ kind: 'centre', val: Math.round(sPct),        dot: secondaryDot });
   const loC = PT + PILL_H / 2 + 2, hiC = PT + H - PILL_H / 2 - 2;
+  // Highest (min y) and lowest (max y) line content in the pills' horizontal band,
+  // across BOTH lines — so a pill placed above `bandTop` / below `bandBot` can't
+  // touch either curve. Band ~66px wide covers the widest pill ("100%") + gap.
+  const bandLeft = X1 - 12 - 66;
+  const bandYs = pts.concat(ptsP).filter(p => p[0] >= bandLeft).map(p => p[1]);
+  const bandTop = bandYs.length ? Math.min.apply(null, bandYs) : (primaryDot ? primaryDot.y : PT);
+  const bandBot = bandYs.length ? Math.max.apply(null, bandYs) : (primaryDot ? primaryDot.y : PT + H);
   const centreY = {};
   if (specs.length === 2) {
-    const you = specs.find(s => s.kind === 'you'), ctr = specs.find(s => s.kind === 'centre');
-    let yC = you.y - OFF, cC = ctr.y + OFF;            // your-shops up, whole-centre down
-    if (cC - yC < MINGAP) { const mid = (you.y + ctr.y) / 2; yC = mid - MINGAP / 2; cC = mid + MINGAP / 2; }
-    if (yC < loC) { yC = loC; cC = Math.max(cC, yC + MINGAP); }
-    if (cC > hiC) { cC = hiC; yC = Math.min(yC, cC - MINGAP); }
-    centreY.you = Math.max(loC, yC); centreY.centre = Math.min(hiC, cC);
+    let yC = bandTop - CLEAR - PILL_H / 2;   // your-shops floats above all line content
+    let cC = bandBot + CLEAR + PILL_H / 2;   // whole-centre floats below all line content
+    if (yC < loC) yC = loC;
+    if (cC > hiC) cC = hiC;
+    if (cC - yC < MINGAP) {                  // clamping squeezed them — re-spread within the plot
+      const mid = Math.min(hiC - MINGAP / 2, Math.max(loC + MINGAP / 2, (yC + cC) / 2));
+      yC = mid - MINGAP / 2; cC = mid + MINGAP / 2;
+    }
+    centreY.you = yC; centreY.centre = cC;
   } else if (specs.length === 1) {
-    centreY[specs[0].kind] = Math.max(loC, Math.min(hiC, specs[0].y));
+    // Lone line: float the pill just above the band so it never sits on the curve.
+    centreY[specs[0].kind] = Math.max(loC, Math.min(hiC, bandTop - CLEAR - PILL_H / 2));
   }
   let endpointPills = '';
   for (const s of specs) {
     const label = s.val + '%';
     const pw = 20 + label.length * 9;
     const x = (X1 - 12) - pw;            // sit left of the right-edge dots, gap clears the dot
-    const y = centreY[s.kind] - PILL_H / 2;
+    const cy = centreY[s.kind];
+    const y = cy - PILL_H / 2;
     const ty = PILL_H / 2 + 4.5;
+    const stroke = s.kind === 'you' ? NEON : YOU;
+    // Leader: thin line from the pill's right edge to its own endpoint dot.
+    endpointPills += '<line x1="' + (x + pw).toFixed(1) + '" y1="' + cy.toFixed(1)
+      + '" x2="' + s.dot.x.toFixed(1) + '" y2="' + s.dot.y.toFixed(1)
+      + '" stroke="' + stroke + '" stroke-width="1.4" opacity="0.55"/>';
     const body = s.kind === 'you'
       ? '<rect width="' + pw + '" height="' + PILL_H + '" rx="' + (PILL_H / 2) + '" fill="' + NEON + '"/>'
         + '<text x="' + (pw / 2) + '" y="' + ty + '" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="800" fill="#06281C">' + label + '</text>'
@@ -4656,8 +4676,8 @@ function renderTideVessel(v) {
     ? _tideDaysBetween(_spanSeries[0].date, _spanSeries[_spanSeries.length - 1].date)
     : 0;
   const PERIODS = histSpanDays >= 80 ? ['7D', '30D', '60D', 'MAX'] : ['7D', '30D', '60D'];
-  let period = (typeof window !== 'undefined' && window._tideChartPeriod) || '60D';
-  if (!PERIODS.includes(period)) period = '60D';  // stored 'MAX' before it's unlocked → 60D
+  let period = (typeof window !== 'undefined' && window._tideChartPeriod) || '30D';
+  if (!PERIODS.includes(period)) period = '30D';  // stored 'MAX' before it's unlocked → 30D
   // CONSISTENT line encoding (no toggle): the neon-green hero line is ALWAYS
   // "your shops" and the blue dashed line is ALWAYS "whole centre" — the same
   // colour never means two different things. buildTideChartSVG paints `series`

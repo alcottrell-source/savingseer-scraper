@@ -95,11 +95,13 @@
   .centre-search { width: 100%; box-sizing: border-box; appearance: none; -webkit-appearance: none; background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Ccircle cx='8' cy='8' r='5.5' stroke='%238C8070' stroke-width='1.6' fill='none'/%3E%3Cpath d='M12 12l4 4' stroke='%238C8070' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 18px center; border: 1px solid var(--border); border-radius: 999px; padding: 16px 20px 16px 48px; font-family: 'Inter', sans-serif; font-size: 16px; color: var(--bark); transition: border-color 0.2s, box-shadow 0.2s; box-shadow: 0 6px 24px rgba(28,26,20,0.06); }
   .centre-search:focus { outline: none; border-color: var(--leaf); box-shadow: 0 6px 24px rgba(28,26,20,0.10); }
   .centre-search::placeholder { color: var(--stone); }
+  .search-hint { font-family: 'Inter', sans-serif; font-size: 13px; line-height: 1.45; color: var(--stone); max-width: 520px; margin: 10px auto 0; }
   @media (max-width: 480px) {
     .picker-section { padding: 36px 20px 22px; }
     .search-hero-headline { font-size: 30px; margin-bottom: 12px; }
     .search-hero-sub { font-size: 14px; margin-bottom: 20px; }
     .centre-search { font-size: 15px; padding: 14px 18px 14px 44px; background-position: 16px center; }
+    .search-hint { font-size: 12px; }
   }
   /* Desktop: give the landing intentional presence instead of a phone-width
      column marooned in whitespace. Larger hero, more top-light breathing room,
@@ -109,6 +111,7 @@
     .search-hero-headline { font-size: 52px; margin-bottom: 18px; }
     .search-hero-sub { font-size: 18px; max-width: 500px; margin-bottom: 30px; }
     .centre-search { padding: 18px 22px 18px 52px; font-size: 17px; }
+    .search-hint { font-size: 14px; margin-top: 12px; }
   }
   .centre-suggestions { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: white; border: 1px solid var(--border); border-radius: 12px; margin: 0; padding: 6px 0; list-style: none; max-height: min(420px, 60vh); overflow-y: auto; box-shadow: 0 12px 32px rgba(28,26,20,0.18); z-index: 200; }
   .centre-suggestions[hidden] { display: none; }
@@ -990,9 +993,10 @@
   <h1 class="search-hero-headline">Never make a wasted trip to the shops.</h1>
   <p class="search-hero-sub">Tide tracks the brands you <b>actually buy</b> across 30 UK centres, and tells you the day they&rsquo;re worth the journey.</p>
   <div class="centre-search-wrap">
-    <input type="search" class="centre-search" id="centre-search" name="centre-search" placeholder="Try Westfield London, Bluewater, Trafford…" oninput="filterCentres(this.value)" onfocus="filterCentres(this.value)" onkeydown="onCentreSearchKey(event)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="centre-suggestions" aria-label="Search any UK shopping centre">
+    <input type="search" class="centre-search" id="centre-search" name="centre-search" placeholder="Try Westfield London, or a town, city or postcode" oninput="filterCentres(this.value)" onfocus="filterCentres(this.value)" onkeydown="onCentreSearchKey(event)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="centre-suggestions" aria-label="Search a shopping centre, town, city or postcode">
     <ul class="centre-suggestions" id="centre-suggestions" role="listbox" hidden></ul>
   </div>
+  <p class="search-hint">Search a shopping centre by name, or enter your town, city or postcode to find the three nearest.</p>
   <select class="centre-select" id="centre-select" onchange="renderCentre(this.value)" aria-hidden="true" tabindex="-1">
     <option value="">-- Select a centre --</option>
     <option value="C01">Festival Place, Basingstoke</option>

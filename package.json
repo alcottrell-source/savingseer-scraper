@@ -12,6 +12,7 @@
     "run-all": "node score.js && node summarise.js",
     "seo:build": "node seo/generate.mjs",
     "seo:sample": "node seo/generate.mjs --fixtures seo/fixtures.westquay.json --out .seo-sample",
+    "icons": "node scripts/gen-icons.mjs",
     "test": "node --test test/*.test.mjs",
     "test:e2e": "playwright test"
   },
@@ -20,5 +21,8 @@
     "@supabase/supabase-js": "^2.39.0",
     "marked": "^12.0.2",
     "playwright": "^1.42.0"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.5"
   }
 }

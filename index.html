@@ -8,6 +8,18 @@
 <meta name="description" content="Tide tracks the brands you actually buy across UK shopping centres and tells you the day sales peak — so you never make a wasted trip to the shops.">
 <link rel="canonical" href="https://tidego.co/">
 <link rel="icon" href="/favicon.png" type="image/png">
+<!-- PWA / installability: manifest, theme colour, and home-screen icons.
+     Lets people install Tide to their home screen (one-tap on Android/Chrome,
+     Share -> Add to Home Screen on iOS) so re-access is a tap, not a re-search. -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#FAF7F2">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tide">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png">
 <!-- Open Graph / social preview. The SPA can't vary these per centre (crawlers
      don't run the JS that would swap them), so the homepage ships one static
      branded card; per-centre previews come from the static /centre/<slug> SEO
@@ -1077,8 +1089,82 @@
 </script>
 
 <section class="home-info" id="home-info-section" aria-label="Install Tide">
-  <p class="install-instruction"><strong>Never waste a trip.</strong> Tap <strong>Share &rarr; Add to Home Screen</strong> in Safari, or <strong>Install App</strong> in Chrome — and check the score before you go, every time.</p>
+  <!-- Smart install: the button shows on Chrome/Android (fires the native
+       one-tap prompt); the text shows on iOS Safari (no programmatic install).
+       Both stay hidden once installed / launched standalone. Wired below. -->
+  <button class="btn btn-primary install-btn" id="install-btn" type="button" hidden>Install Tide — never waste a trip</button>
+  <p class="install-instruction" id="install-ios" hidden><strong>Never waste a trip.</strong> Tap <strong>Share &rarr; Add to Home Screen</strong> in Safari — and check the score before you go, every time.</p>
 </section>
+<script>
+// ── Smart install UX ────────────────────────────────────────────────────────
+// Chrome/Android: capture beforeinstallprompt, show a one-tap "Install Tide"
+// button. iOS Safari: no such event, so show manual Share->Add instructions.
+// Already installed (standalone): show neither. The parent #home-info-section's
+// existing landing/centre display toggle still governs whether it's on screen.
+(function () {
+  var btn = document.getElementById('install-btn');
+  var ios = document.getElementById('install-ios');
+  if (!btn || !ios) return;
+
+  var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+                 || window.navigator.standalone === true;
+  if (standalone) return; // already installed — leave both hidden
+
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+           && !/crios|fxios|edgios/i.test(navigator.userAgent); // Safari only
+  var deferred = null;
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferred = e;
+    btn.hidden = false;
+    ios.hidden = true;
+  });
+
+  btn.addEventListener('click', function () {
+    if (!deferred) return;
+    deferred.prompt();
+    deferred.userChoice.then(function (choice) {
+      if (window.gtag) window.gtag('event', 'pwa_install_prompt', { outcome: choice && choice.outcome });
+      deferred = null;
+      btn.hidden = true;
+    });
+  });
+
+  window.addEventListener('appinstalled', function () {
+    btn.hidden = true;
+    ios.hidden = true;
+    if (window.gtag) window.gtag('event', 'pwa_installed');
+  });
+
+  // iOS has no beforeinstallprompt — surface the manual steps instead.
+  if (isIOS) ios.hidden = false;
+})();
+
+// ── Service worker: offline shell + installability, never caches live scores ─
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js').then(function (reg) {
+      reg.addEventListener('updatefound', function () {
+        var nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', function () {
+          // A new worker is ready while an old one controls the page: activate it.
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            nw.postMessage('SKIP_WAITING');
+          }
+        });
+      });
+      var refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+    }).catch(function () { /* SW is an enhancement; ignore failures */ });
+  });
+}
+</script>
 
 <!-- ── Survey card ── -->
 <div class="survey-card" id="survey-card">

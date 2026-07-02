@@ -691,6 +691,7 @@
   .ob-centre-row-check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; }
   .ob-centre-row.active .ob-centre-row-check { background: var(--leaf); border-color: var(--leaf); }
   .ob-centre-empty { padding: 24px 16px; text-align: center; color: var(--stone); font-size: 13px; font-style: italic; }
+  .ob-centre-nearby-head { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin: 2px 2px 8px; }
 
   /* ── Personalise-your-Tide promo card (signed-in users without prefs) ── */
   .personalise-card { margin: 24px; background: linear-gradient(135deg, var(--leaf-lt) 0%, var(--amber-lt) 100%); border: 1px solid rgba(61,107,53,0.18); border-radius: 16px; padding: 22px 22px 20px; position: relative; }
@@ -2283,10 +2284,10 @@ function obRenderStep4Centres() {
     '<div class="ob-eyebrow">Step 4 of 5</div>'
     + '<h1 class="ob-title">Where do you shop?</h1>'
     + '<p class="ob-sub">Pick the centres you actually visit. We\'ll alert you when one of them hits peak sale.</p>'
-    + '<input class="ob-centre-search" type="search" name="ob-centre-search" placeholder="Search by centre or city" oninput="obCentreSearch(this.value)" value="'+query.replace(/"/g,'&quot;')+'" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other">'
+    + '<input class="ob-centre-search" type="search" name="ob-centre-search" placeholder="Search a centre, town, city or postcode" oninput="obCentreSearch(this.value)" value="'+query.replace(/"/g,'&quot;')+'" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other">'
     + (filtered.length
         ? '<div class="ob-centre-list">'+rows+'</div>'
-        : '<div class="ob-centre-empty">No centres match &ldquo;'+query.replace(/</g,'&lt;')+'&rdquo;.</div>');
+        : obNearestHtml(query));
   // Re-focus the search after re-render so typing stays smooth.
   if (query) {
     const input = document.querySelector('.ob-centre-search');
@@ -2298,6 +2299,47 @@ function obRenderStep4Centres() {
   document.getElementById('ob-help').textContent = onb.centres.size === 0
     ? 'Pick at least one centre'
     : onb.centres.size + ' centre' + (onb.centres.size === 1 ? '' : 's') + ' selected';
+}
+
+// When the onboarding centre search matches no tracked centre by name/location,
+// treat the query as a place/postcode and offer the 3 nearest centres — reusing
+// the same geocode engine as the landing search (geocodeUKLocation / GEO_CACHE /
+// _nearestCentres). Because obRenderStep4Centres builds one synchronous HTML
+// string, we render from the GEO_CACHE cache-hit and schedule a debounced
+// geocode that re-renders the step once the result lands.
+let _obGeoTimer = null;
+function obScheduleGeocode(q) {
+  if (_obGeoTimer) clearTimeout(_obGeoTimer);
+  _obGeoTimer = setTimeout(() => {
+    geocodeUKLocation(q).then(() => {
+      if (onb.step === 4 && (window._obCentreSearch || '').trim().toLowerCase() === q) obRender();
+    });
+  }, 320); // matches the landing debounce; stays within Nominatim's rate limit
+}
+function obNearestHtml(query) {
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  if (query in GEO_CACHE) {              // resolved (value may be null)
+    const geo = GEO_CACHE[query];
+    if (!geo) return '<div class="ob-centre-empty">No centres or places match &ldquo;' + esc(query) + '&rdquo;.</div>';
+    const near = _nearestCentres(geo.lat, geo.lng, 3);
+    const rows = near.map((c) => {
+      const id = 'C' + String(c.idx + 1).padStart(2, '0');
+      const on = onb.centres.has(id);
+      const loc = CENTRE_LOCATIONS[c.idx] || '';
+      const miles = Math.max(1, Math.round(c.miles));
+      const dist = miles + (miles === 1 ? ' mile away' : ' miles away');
+      const locLine = (loc ? esc(loc) + ' · ' : '') + dist;
+      return '<button class="ob-centre-row ' + (on ? 'active' : '') + '" onclick="obToggleCentre(\'' + id + '\')">'
+           + '<div class="ob-centre-row-text">'
+           +   '<div class="ob-centre-row-name">' + esc(CENTRE_NAMES[c.idx]) + '</div>'
+           +   '<div class="ob-centre-row-loc">' + locLine + '</div>'
+           + '</div><div class="ob-centre-row-check">&#10003;</div></button>';
+    }).join('');
+    return '<div class="ob-centre-nearby-head">Nearest centres to ' + esc(geo.label) + '</div>'
+         + '<div class="ob-centre-list">' + rows + '</div>';
+  }
+  obScheduleGeocode(query);             // not resolved yet — show loading, re-render when ready
+  return '<div class="ob-centre-empty">Searching for centres near &ldquo;' + esc(query) + '&rdquo;…</div>';
 }
 
 function obRenderStep5Notifications() {

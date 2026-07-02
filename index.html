@@ -116,6 +116,12 @@
   .centre-suggestions li:hover, .centre-suggestions li.active { background: var(--leaf-lt); color: var(--leaf); }
   .centre-suggestions .no-match { color: var(--stone); cursor: default; font-style: italic; }
   .centre-suggestions .no-match:hover { background: transparent; color: var(--stone); }
+  /* Location-search results (nearest centres to a place/postcode) get a quiet
+     eyebrow header + a right-aligned distance chip. The header + hint rows are
+     non-interactive; only the centre rows below them are pickable. */
+  .centre-suggestions .suggest-head { padding: 10px 18px 6px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); cursor: default; }
+  .centre-suggestions .suggest-head:hover { background: transparent; color: var(--stone); }
+  .centre-suggestions .suggest-dist { margin-left: 6px; font-size: 13px; font-weight: 400; color: var(--stone); opacity: 0.7; font-variant-numeric: tabular-nums; }
   /* While the dropdown is open, dim the page behind so the suggestions
      read as a focused floating panel rather than overlapping the saved-
      centres / hot-centres blocks below. The picker section also gets
@@ -2707,8 +2713,56 @@ function updateScoringStatus(latestDate) {
   el.textContent = ' · scoring is ' + daysBehind + ' day' + (daysBehind === 1 ? '' : 's') + ' behind';
 }
 
+// Append one pickable centre row to the suggestions list. `distText` (e.g.
+// "12 mi") is optional and only shown for location-search results. Shares the
+// early-tap pick handling so both name matches and nearest-centre rows behave
+// identically on iOS.
+function appendCentreSuggestion(list, id, name, active, distText) {
+  const li = document.createElement('li');
+  li.setAttribute('role', 'option');
+  li.dataset.id = id;
+  li.textContent = name;
+  if (distText) {
+    li.classList.add('suggest-centre');
+    const distEl = document.createElement('span');
+    distEl.className = 'suggest-dist';
+    distEl.textContent = distText;
+    li.appendChild(distEl);
+  }
+  if (active) li.classList.add('active');
+  // Pick the centre on the earliest possible tap event so iOS Safari's
+  // password-autofill suggestion (or any other native UI) can't steal
+  // the gesture before it lands. Guard against double-firing across
+  // pointerdown/touchend/mousedown by deduping.
+  let _picked = false;
+  const pick = (e) => {
+    if (_picked) return;
+    _picked = true;
+    e.preventDefault();
+    chooseCentreSuggestion(id, name);
+  };
+  li.addEventListener('pointerdown', pick);
+  li.addEventListener('mousedown', pick);
+  li.addEventListener('touchend', pick);
+  list.appendChild(li);
+}
+
+// Total shops at a centre (BRANDS x PRESENCE) — used to rank name matches so
+// the busiest centres surface first, matching each detail page's count.
+function _shopsForCentreOpt(v) {
+  const idx = parseInt(v.replace('C', ''), 10) - 1;
+  return BRANDS.filter(b => (PRESENCE[b.id] || [])[idx] === 1).length;
+}
+
+function _openSuggestions(list, input) {
+  list.hidden = false;
+  input.setAttribute('aria-expanded', 'true');
+  document.body.classList.add('is-search-open');
+}
+
 function filterCentres(query) {
-  const q = (query || '').trim().toLowerCase();
+  const raw = (query || '').trim();
+  const q = raw.toLowerCase();
   const sel = document.getElementById('centre-select');
   const list = document.getElementById('centre-suggestions');
   const input = document.getElementById('centre-search');
@@ -2723,46 +2777,164 @@ function filterCentres(query) {
   // Sort by total shops at the centre desc, matching the count shown on
   // each centre's detail page (BRANDS x PRESENCE). Done here, not on the
   // underlying <select>, so option order never changes between gestures.
-  const _shopsForOpt = (v) => {
-    const idx = parseInt(v.replace('C', ''), 10) - 1;
-    return BRANDS.filter(b => (PRESENCE[b.id] || [])[idx] === 1).length;
-  };
-  matches.sort((a, b) => _shopsForOpt(b.id) - _shopsForOpt(a.id));
-  if (!matches.length) {
-    const li = document.createElement('li');
-    li.className = 'no-match';
-    li.textContent = 'No matching centres';
-    list.appendChild(li);
-  } else {
+  matches.sort((a, b) => _shopsForCentreOpt(b.id) - _shopsForCentreOpt(a.id));
+  if (matches.length) {
     // Empty query (focus with nothing typed) browses all centres; typed
     // query narrows to top 8 matches.
     const cap = q ? 8 : matches.length;
-    matches.slice(0, cap).forEach((m, i) => {
-      const li = document.createElement('li');
-      li.textContent = m.name;
-      li.setAttribute('role', 'option');
-      li.dataset.id = m.id;
-      if (i === 0) li.classList.add('active');
-      // Pick the centre on the earliest possible tap event so iOS Safari's
-      // password-autofill suggestion (or any other native UI) can't steal
-      // the gesture before it lands. Guard against double-firing across
-      // pointerdown/touchend/mousedown by deduping on dataset.id.
-      let _picked = false;
-      const pick = (e) => {
-        if (_picked) return;
-        _picked = true;
-        e.preventDefault();
-        chooseCentreSuggestion(m.id, m.name);
-      };
-      li.addEventListener('pointerdown', pick);
-      li.addEventListener('mousedown', pick);
-      li.addEventListener('touchend', pick);
-      list.appendChild(li);
-    });
+    matches.slice(0, cap).forEach((m, i) => appendCentreSuggestion(list, m.id, m.name, i === 0));
+    _openSuggestions(list, input);
+    return;
   }
-  list.hidden = false;
-  input.setAttribute('aria-expanded', 'true');
-  document.body.classList.add('is-search-open');
+  // No centre name matched. Treat the query as a place or postcode and show
+  // the nearest tracked centres (e.g. "Exeter" / "EX4 6PX" -> the closest 3).
+  // Empty query never reaches here (it matches every centre above).
+  showNearestForQuery(raw);
+  _openSuggestions(list, input);
+}
+
+// --- Location search: "nearest centres to {place/postcode}" ----------------
+// Geocoding uses postcodes.io (open data, no API key, CORS-enabled, free).
+// Only fires when the typed query matches no centre name, and is debounced so
+// we don't hit the API on every keystroke. Results are cached per query.
+const GEO_CACHE = {};
+let _geoTimer = null;
+let _geoSeq = 0;
+
+function _haversineMiles(lat1, lng1, lat2, lng2) {
+  const toRad = (d) => d * Math.PI / 180;
+  const R = 3958.8; // Earth radius in miles
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function _nearestCentres(lat, lng, n) {
+  return CENTRE_COORDS
+    .map((c, idx) => ({ idx, miles: _haversineMiles(lat, lng, c[0], c[1]) }))
+    .sort((a, b) => a.miles - b.miles)
+    .slice(0, n);
+}
+
+// Instant offline lookup of common UK town/city names we don't have a centre
+// in. Keyed by lowercased name -> [lat, lng]. Lets the headline cases resolve
+// with zero network dependency (and no geocoder rate limits); anything not
+// listed falls through to the live geocoders below.
+const UK_PLACES = {
+  'exeter':[50.7236,-3.5339], 'plymouth':[50.3755,-4.1427], 'truro':[50.2632,-5.0510],
+  'torquay':[50.4619,-3.5253], 'bournemouth':[50.7192,-1.8808], 'poole':[50.7150,-1.9872],
+  'swindon':[51.5558,-1.7797], 'gloucester':[51.8642,-2.2380], 'cheltenham':[51.8994,-2.0783],
+  'bath':[51.3811,-2.3590], 'taunton':[51.0143,-3.1039], 'salisbury':[51.0688,-1.7945],
+  'winchester':[51.0632,-1.3080], 'portsmouth':[50.8198,-1.0880], 'brighton':[50.8225,-0.1372],
+  'oxford':[51.7520,-1.2577], 'cambridge':[52.2053,0.1218], 'norwich':[52.6309,1.2974],
+  'ipswich':[52.0567,1.1482], 'northampton':[52.2405,-0.9027], 'coventry':[52.4068,-1.5197],
+  'nottingham':[52.9548,-1.1581], 'derby':[52.9226,-1.4746], 'lincoln':[53.2307,-0.5406],
+  'hull':[53.7676,-0.3274], 'york':[53.9600,-1.0873], 'blackpool':[53.8175,-3.0357],
+  'preston':[53.7632,-2.7031], 'chester':[53.1934,-2.8931], 'stoke-on-trent':[53.0027,-2.1794],
+  'stoke':[53.0027,-2.1794], 'wolverhampton':[52.5870,-2.1288], 'sunderland':[54.9069,-1.3838],
+  'middlesbrough':[54.5742,-1.2350], 'durham':[54.7772,-1.5757], 'carlisle':[54.8925,-2.9329],
+  'swansea':[51.6214,-3.9436], 'wrexham':[53.0466,-2.9925], 'aberdeen':[57.1497,-2.0943],
+  'dundee':[56.4620,-2.9707], 'inverness':[57.4778,-4.2247], 'stirling':[56.1165,-3.9369],
+  'perth':[56.3950,-3.4308], 'belfast':[54.5973,-5.9301], 'milton keynes':[52.0406,-0.7594],
+  'luton':[51.8787,-0.4200], 'guildford':[51.2362,-0.5704], 'maidstone':[51.2720,0.5292],
+  'canterbury':[51.2802,1.0789], 'colchester':[51.8959,0.8919], 'chelmsford':[51.7356,0.4685],
+  'southend':[51.5459,0.7077], 'southend-on-sea':[51.5459,0.7077], 'worthing':[50.8179,-0.3728]
+};
+
+// Pull {lat, lng, label} out of either a postcodes.io response ({result:{…}})
+// or a Nominatim response ([{…}]). Returns null if no usable coordinates.
+function _extractGeo(data, fallbackLabel) {
+  let r = null;
+  if (Array.isArray(data)) r = data[0];                          // Nominatim
+  else if (data && data.result) r = Array.isArray(data.result) ? data.result[0] : data.result; // postcodes.io
+  if (!r) return null;
+  const lat = Number(r.latitude != null ? r.latitude : r.lat);
+  const lng = Number(r.longitude != null ? r.longitude : r.lon);
+  if (!isFinite(lat) || !isFinite(lng)) return null;
+  const label = r.postcode || r.outcode || r.name_1 ||
+    (r.display_name ? String(r.display_name).split(',')[0].trim() : '') || fallbackLabel;
+  return { lat, lng, label };
+}
+
+// Resolve a free-text UK location (place name, full postcode, or outcode) to
+// {lat, lng, label}. Tries an offline town lookup first, then postcodes.io for
+// exact postcodes/outcodes, then Nominatim (OpenStreetMap) for any place name.
+// All sources are free, key-free and CORS-enabled (whitelisted in the CSP
+// connect-src). Returns null if nothing resolves.
+async function geocodeUKLocation(raw) {
+  const cleaned = raw.trim();
+  if (!cleaned) return null;
+  const key = cleaned.toLowerCase();
+  if (key in GEO_CACHE) return GEO_CACHE[key];
+  let result = null;
+  if (UK_PLACES[key]) {
+    result = { lat: UK_PLACES[key][0], lng: UK_PLACES[key][1],
+               label: cleaned.replace(/\b\w/g, (c) => c.toUpperCase()) };
+  }
+  const compact = cleaned.replace(/\s+/g, '').toUpperCase();
+  const isFullPostcode = /^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/.test(compact);
+  const isOutcode = /^[A-Z]{1,2}\d[A-Z\d]?$/.test(compact);
+  const attempts = [];
+  if (!result && isFullPostcode) attempts.push('https://api.postcodes.io/postcodes/' + encodeURIComponent(compact));
+  if (!result && isOutcode)      attempts.push('https://api.postcodes.io/outcodes/' + encodeURIComponent(compact));
+  // Nominatim resolves any place name (and anything the above missed). UK-only.
+  if (!result) attempts.push('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=gb&q=' + encodeURIComponent(cleaned));
+  for (const url of attempts) {
+    if (result) break;
+    try {
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) continue;
+      result = _extractGeo(await res.json(), cleaned);
+    } catch (_) { /* CSP/network/CORS — try the next source, then give up */ }
+  }
+  GEO_CACHE[key] = result;
+  return result;
+}
+
+function showNearestForQuery(raw) {
+  const list = document.getElementById('centre-suggestions');
+  const input = document.getElementById('centre-search');
+  const seq = ++_geoSeq;               // token: ignore responses for stale queries
+  if (_geoTimer) clearTimeout(_geoTimer);
+  // Immediate lightweight loading state.
+  list.innerHTML = '';
+  const loading = document.createElement('li');
+  loading.className = 'no-match';
+  loading.textContent = 'Searching for centres near “' + raw + '”…';
+  list.appendChild(loading);
+  // Debounce the network call while the user is still typing.
+  _geoTimer = setTimeout(async () => {
+    const geo = await geocodeUKLocation(raw);
+    if (seq !== _geoSeq) return;       // a newer query superseded this one
+    // The input may have changed synchronously; re-check it still has no
+    // centre-name match before painting location results.
+    list.innerHTML = '';
+    if (!geo) {
+      const li = document.createElement('li');
+      li.className = 'no-match';
+      li.textContent = 'No matching centres or places';
+      list.appendChild(li);
+      _openSuggestions(list, input);
+      return;
+    }
+    const head = document.createElement('li');
+    head.className = 'suggest-head';
+    head.textContent = 'Nearest centres to ' + geo.label;
+    list.appendChild(head);
+    const near = _nearestCentres(geo.lat, geo.lng, 3);
+    near.forEach((c, i) => {
+      const id = 'C' + String(c.idx + 1).padStart(2, '0');
+      const opt = document.getElementById('centre-select')
+        .querySelector('option[value="' + id + '"]');
+      const name = opt ? opt.textContent : CENTRE_NAMES[c.idx];
+      const miles = Math.max(1, Math.round(c.miles));
+      const distText = '(' + miles + (miles === 1 ? ' mile away)' : ' miles away)');
+      appendCentreSuggestion(list, id, name, i === 0, distText);
+    });
+    _openSuggestions(list, input);
+  }, 320);
 }
 
 function chooseCentreSuggestion(id, name) {
@@ -2780,7 +2952,7 @@ function chooseCentreSuggestion(id, name) {
 function onCentreSearchKey(e) {
   const list = document.getElementById('centre-suggestions');
   if (list.hidden) return;
-  const items = Array.from(list.querySelectorAll('li:not(.no-match)'));
+  const items = Array.from(list.querySelectorAll('li:not(.no-match):not(.suggest-head)'));
   if (!items.length) return;
   const activeIdx = items.findIndex(li => li.classList.contains('active'));
   if (e.key === 'ArrowDown') {
@@ -3216,6 +3388,44 @@ const CENTRE_LOCATIONS = [
   'Peterborough','Bristol','Leicester','Solihull',
   'Kingston upon Thames','Leeds','Bristol','Glasgow',
   'Glasgow','Edinburgh'
+];
+
+// Static [lat, lng] per centre, aligned to CENTRE_NAMES order. Approximate
+// (centre building centroids) — precise enough for a "nearest three" ranking
+// at inter-city scale. Used only client-side to answer "closest centres to
+// {place/postcode}" when a user searches a location we don't track (e.g.
+// "Exeter" or an "EX" postcode). Static factual data, no API, no cost.
+const CENTRE_COORDS = [
+  [51.2620, -1.0870], // Festival Place, Basingstoke
+  [50.9010, -1.4060], // Westquay, Southampton
+  [51.5074, -0.2216], // Westfield London, Shepherd's Bush
+  [51.5435, -0.0083], // Westfield Stratford
+  [53.4668, -2.3487], // Trafford Centre, Manchester
+  [54.9575, -1.6660], // Metrocentre, Gateshead
+  [51.4380,  0.2710], // Bluewater, Kent
+  [53.4150, -1.4110], // Meadowhall, Sheffield
+  [52.4775, -1.8940], // Bullring, Birmingham
+  [51.4870,  0.2830], // Lakeside, Essex
+  [53.4030, -2.9880], // Liverpool ONE
+  [51.4790, -3.1760], // St David's, Cardiff
+  [51.4590, -2.5860], // Cabot Circus, Bristol
+  [53.4840, -2.2410], // Arndale, Manchester
+  [51.5766, -0.2240], // Brent Cross, London
+  [53.7975, -1.5400], // Victoria Leeds
+  [54.9740, -1.6150], // Eldon Square, Newcastle
+  [51.4530, -0.9720], // The Oracle, Reading
+  [51.4160, -0.7530], // The Lexicon, Bracknell
+  [51.5865, -2.9970], // Friars Walk, Newport
+  [52.5730, -0.2450], // Queensgate, Peterborough
+  [51.4570, -2.5890], // Broadmead, Bristol
+  [52.6360, -1.1330], // Highcross, Leicester
+  [52.4120, -1.7780], // Touchwood, Solihull
+  [51.4110, -0.3050], // Bentall Centre, Kingston
+  [53.7530, -1.5720], // White Rose, Leeds
+  [51.5250, -2.6030], // Cribbs Causeway, Bristol
+  [55.8750, -4.3660], // Braehead, Glasgow
+  [55.8180, -4.3390], // Silverburn, Glasgow
+  [55.9540, -3.1880]  // St James Quarter, Edinburgh
 ];
 
 // Opening hours per centre, keyed by index. Each entry has 7 day strings (Mon..Sun)

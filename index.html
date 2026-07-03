@@ -6141,12 +6141,11 @@ async function renderCentre(centreId) {
   if (stage === 'Rising' || stage === 'High Tide') showNotifyBanner();
   else hideNotifyBanner();
 
-  // The old per-section My/All chip tabs are retired — the prominent global
-  // My shops / All shops toggle at the top of the page is now the single control,
-  // and the brand grid already pre-filters off the shared mode (see
-  // visibleBrandsAtCentre / brandFilter above). Kept as '' so the template slot
-  // below is a no-op.
-  const filterTabs = '';
+  // The old per-section My/All chip tabs are retired in favour of the shared
+  // renderModeToggle() pill — mounted here, directly above the brand list it
+  // actually filters (visibleBrandsAtCentre / brandFilter above), rather than
+  // at the top of the page where it read as controlling the whole centre hero.
+  const filterTabs = renderModeToggle();
   // Mode-aware section heading — in My-shops mode the grid is your followed
   // brands only, so "Brands at this centre" would mislabel it.
   const brandsHeading = brandFilter === 'mine' ? 'Your shops here' : 'Brands at this centre';
@@ -6172,7 +6171,7 @@ async function renderCentre(centreId) {
     ? '<a class="seo-hub-link" href="/centre/'+supabaseCentreId+'">Full sale history &amp; FAQ for '+safeCentreName+' &rarr;</a>'
     : '';
 
-  content.innerHTML = renderModeToggle() + heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
+  content.innerHTML = heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
     + '<div class="brands-section" id="brands-section"><div class="section-heading">'+brandsHeading+' <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+contribIntro+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>'
     + seoHubLinkHTML;
 

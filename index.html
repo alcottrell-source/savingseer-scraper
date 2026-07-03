@@ -5729,10 +5729,10 @@ async function renderCentre(centreId) {
       // then a small "search above" prompt.
       const savedHTML = renderSavedCentresLanding(savedIds);
       const hotHTML = renderLandingHotSections(savedIds);
-      content.innerHTML = renderModeToggle() + renderTide60Light() + personaliseHTML + savedHTML + hotHTML;
+      content.innerHTML = renderTide60Light() + personaliseHTML + savedHTML + hotHTML;
     } else {
       // No saved centres — show the proof hero (sample card + 3-step + CTA).
-      content.innerHTML = renderModeToggle() + personaliseHTML + renderLandingHero();
+      content.innerHTML = personaliseHTML + renderLandingHero();
       // Reset edit mode whenever we drop back into the no-saved state.
       _savedCentresEditMode = false;
     }

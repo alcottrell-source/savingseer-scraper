@@ -282,7 +282,7 @@ async function calculateAllCentreScores(opts = {}) {
       .order('centre_id', { ascending: true }).order('brand_id', { ascending: true })),
     // One row per brand — paginate defensively as the brand list grows.
     selectAllRows(() => supabase.from('brand_sale_events')
-      .select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(max_discount_pct)')
+      .select('brand_id, last_verified_status, last_verified_date, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(max_discount_pct, sale_type)')
       .order('brand_id', { ascending: true })),
     supabase.from('centre_seer_scores')
       .select('centre_id, score_date, tide_score, verdict, trajectory')
@@ -507,6 +507,43 @@ async function calculateAllCentreScores(opts = {}) {
   }
 
   console.log(`  ✓ ${scoreRows.length} centre scores written`);
+
+  // Daily per-brand snapshot — built straight from brandSaleMap (every brand,
+  // globally), not the centre loop above, so a carried-forward or skipped
+  // centre never leaves its brands unsnapshotted. Lets the front-end compare
+  // a brand's current discount % against the value recorded when its live
+  // cycle began (grouped by cycle_id) — e.g. "was 50%, now 60%" in the
+  // Newest Sales panel — without a separate audit trail on brand_sale_cycles.
+  const snapshotRows = [...brandSaleMap.values()].map(sale => {
+    // Admin-only source of truth (mirrors the centre-score path above):
+    // verified cycle, or last verified status. No scraper fallback.
+    const isOnSale = sale.active_cycle_id
+      ? true
+      : sale.last_verified_date
+        ? sale.last_verified_status
+        : false;
+    return {
+      brand_id: sale.brand_id,
+      snapshot_date: TODAY,
+      cycle_id: sale.active_cycle_id || null,
+      on_sale: isOnSale,
+      discount_pct: (isOnSale && sale.cycle && Number.isFinite(sale.cycle.max_discount_pct)) ? sale.cycle.max_discount_pct : null,
+      sale_type: (isOnSale && sale.cycle && sale.cycle.sale_type) || null,
+    };
+  });
+
+  const { error: snapshotError } = await supabase
+    .from('brand_daily_snapshot')
+    .upsert(snapshotRows, { onConflict: 'brand_id,snapshot_date' });
+
+  if (snapshotError) {
+    // Non-fatal: the Newest Sales discount-change badge degrades gracefully
+    // to "no comparison" without this data, so a write failure here must not
+    // take down the centre-score run.
+    console.error('  ⚠ brand_daily_snapshot write failed:', snapshotError.message);
+  } else {
+    console.log(`  ✓ ${snapshotRows.length} brand snapshots written`);
+  }
 
   // Cache up to 60 days of score history per centre for sparkline display
   // and the day-on-day change line on the centre vessel. We persist the

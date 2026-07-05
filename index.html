@@ -790,6 +790,8 @@
   .rank-logo.is-mono::after { content: attr(data-mono); font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; color: var(--stone); text-transform: uppercase; }
   .rank-name { font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .rank-deal { font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 700; color: var(--leaf); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
+  .rank-deal.is-up { color: var(--leaf); }
+  .rank-deal.is-down { color: #C75C4A; }
   .rank-pill { font-size: 10px; letter-spacing: 0.08em; font-weight: 600; padding: 3px 8px; border-radius: 6px; border: 1px solid; text-transform: uppercase; }
   .rank-pill-new { color: var(--leaf); border-color: var(--leaf); background: var(--leaf-lt); }
   .rank-pill-old { color: var(--stone); border-color: var(--border); background: transparent; }
@@ -2524,6 +2526,12 @@ let LAST_VERIFIED_DATE = {};
 // The full sale-episode history that powers the shop detail sheet. Empty until
 // loadTideData runs (or stays empty if the cycle history can't be read).
 let BRAND_CYCLES = {};
+// dashboard brand name -> discount % recorded in brand_daily_snapshot on the
+// first day the brand's CURRENT live cycle was snapshotted. Compared against
+// MAX_DISCOUNT_PCT (today's live value) to show "was 50%, now 60%" in the
+// Newest Sales panel. Empty (no comparison shown) until brand_daily_snapshot
+// has accrued history, or if that table/migration isn't present yet.
+let CYCLE_START_DISCOUNT_PCT = {};
 
 // Sale-type taxonomy. Keys must match the CHECK constraint in
 // supabase/migrations/20260508_add_sale_type.sql. `short` is the chip label
@@ -2561,13 +2569,17 @@ let FLOORS = {};
 async function loadTideData() {
   try {
     const today = new Date().toISOString().split('T')[0];
+    // Lookback window for the Newest Sales discount-change comparison — only
+    // needs to cover FRESH_WINDOW_DAYS (5) worth of cycle starts, padded for
+    // safety.
+    const snapshotSince = new Date(Date.now() - 10 * 86400000).toISOString().split('T')[0];
     // Fetch events and cycles separately rather than via PostgREST embedded
     // resource (`cycle:brand_sale_cycles!active_cycle_id(...)`). The embedded
     // form silently fails for the whole query if PostgREST's schema cache
     // hasn't picked up the active_cycle_id FK, which leaves the dashboard
     // falling back to the stale Google Sheet — so admin confirmations never
     // surface. Two flat queries + a JS join is what admin.html does.
-    const [centresRes, salesRes, cyclesRes, scoresRes, floorsRes, allCyclesRes] = await Promise.all([
+    const [centresRes, salesRes, cyclesRes, scoresRes, floorsRes, allCyclesRes, snapshotsRes] = await Promise.all([
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,last_verified_status,last_verified_date,active_cycle_id'),
       pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type&end_date=is.null'),
@@ -2578,6 +2590,10 @@ async function loadTideData() {
       // any) is the live episode. Ordered newest-first so the sheet's
       // "Every sale on record" list and rhythm chart render without re-sorting.
       pgRead('brand_sale_cycles?select=brand_id,start_date,end_date,max_discount_pct,sale_type&order=start_date.desc'),
+      // Daily per-brand snapshots (score.js writes one row/brand/day). Oldest
+      // first within the window so the first row per cycle_id is the cycle's
+      // starting discount %.
+      pgRead('brand_daily_snapshot?select=brand_id,cycle_id,snapshot_date,discount_pct&snapshot_date=gte.' + snapshotSince + '&order=snapshot_date.asc'),
     ]);
     if (centresRes.error || salesRes.error || cyclesRes.error || scoresRes.error) {
       console.error('Tide data load failed:', { centres: centresRes.error, sales: salesRes.error, cycles: cyclesRes.error, scores: scoresRes.error });
@@ -2600,6 +2616,20 @@ async function loadTideData() {
         if (!FLOORS[cid]) FLOORS[cid] = {};
         if (!FLOORS[cid][name]) FLOORS[cid][name] = [];
         FLOORS[cid][name].push({ label: row.floor_label, order: row.floor_order });
+      }
+    }
+    // Snapshot data is optional — a missing table (migration not yet run) or
+    // RLS block just means no discount-change comparison, not a broken load.
+    // Rows arrive oldest-first, so the first one seen per cycle_id is that
+    // cycle's starting discount %.
+    const cycleStartPctById = new Map();
+    if (snapshotsRes.error) {
+      console.warn('brand_daily_snapshot load failed (Newest Sales will show no discount-change comparison):', snapshotsRes.error);
+    } else {
+      for (const row of snapshotsRes.data || []) {
+        if (!row.cycle_id || !cycleStartPctById.has(row.cycle_id)) {
+          cycleStartPctById.set(row.cycle_id, row.discount_pct);
+        }
       }
     }
     const centresList = centresRes.data || [];
@@ -2678,6 +2708,12 @@ async function loadTideData() {
       SALE_STATUS[name] = isOnSale;
       LAST_VERIFIED_DATE[name] = row.last_verified_date || null;
       MAX_DISCOUNT_PCT[name] = (isOnSale && discountPct !== null) ? discountPct : null;
+      // Discount % as recorded on the first day this brand's CURRENT live
+      // cycle was snapshotted — null if the cycle predates the snapshot
+      // table, or if there's no active cycle to compare against.
+      CYCLE_START_DISCOUNT_PCT[name] = (isOnSale && row.active_cycle_id && cycleStartPctById.has(row.active_cycle_id))
+        ? cycleStartPctById.get(row.active_cycle_id)
+        : null;
       SALE_TYPE[name] = isOnSale ? saleType : null;
       if (isOnSale && startDate) {
         const days = Math.floor((new Date(latestDate) - new Date(startDate)) / 86400000) + 1;
@@ -3616,15 +3652,27 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
         const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
         const typeKey = SALE_TYPE[b.name];
         const hasPct = (typeof pct === 'number' && pct > 0);
+        // Discount depth vs. the day this brand's current cycle first
+        // appeared in brand_daily_snapshot — "50% → 60%" when it's
+        // deepened (or shallowed) since the sale began. null/undefined
+        // (no snapshot history yet, or unchanged) falls back to the plain
+        // "Up to N%" reading.
+        const startPct = CYCLE_START_DISCOUNT_PCT[b.name];
+        const hasChange = hasPct && typeof startPct === 'number' && startPct !== pct;
+        const dealDir = hasChange ? (pct > startPct ? 'up' : 'down') : null;
         // Prefer the explicit sale-type label (e.g. "2 for 1") when the type
         // isn't percent_off — that's the headline detail. For percent_off, the
-        // "Up to N%" string is already the headline.
+        // "Up to N%" string is already the headline (or the before/after
+        // change reading when the discount has moved since the sale began).
         let dealTxt;
         if (typeKey && typeKey !== 'percent_off' && SALE_TYPE_LABEL[typeKey]) {
           dealTxt = SALE_TYPE_LABEL[typeKey] + (hasPct ? (' · Up to ' + pct + '%') : '');
+        } else if (hasChange) {
+          dealTxt = startPct + '% → ' + pct + '%';
         } else {
           dealTxt = hasPct ? ('Up to ' + pct + '%') : '—';
         }
+        const dealClass = 'rank-deal' + (dealDir ? ' is-' + dealDir : '');
         const pillClass = (b.days <= 1) ? 'rank-pill rank-pill-new' : 'rank-pill rank-pill-old';
         const pillTxt = (b.days <= 1) ? 'NEW' : (b.days + (b.days === 1 ? ' day' : ' days'));
         // Small brand icon — Google-favicon src (same source as the brand
@@ -3639,7 +3687,7 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
              +   '<span class="rank-num">' + (i + 1) + '</span>'
              +   logoHTML
              +   '<span class="rank-name">' + escapeHtml(b.name) + '</span>'
-             +   '<span class="rank-deal">' + escapeHtml(dealTxt) + '</span>'
+             +   '<span class="' + dealClass + '">' + escapeHtml(dealTxt) + '</span>'
              +   '<span class="' + pillClass + '">' + pillTxt + '</span>'
              + '</li>';
       }).join('') + '</ul>'

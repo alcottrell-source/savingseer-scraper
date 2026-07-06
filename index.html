@@ -2516,6 +2516,10 @@ function renderModeToggle() {
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSB_PpgQi30TKLnar6jBERXQXxXU-4WOzyyJS41DHKyqkY2fKxmRzpt2ImmYN-bvTDcPgKfBHkdyvXM/pub?gid=0&single=true&output=csv';
 let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SALE_TYPE = {}, SHEET_ROWS = {}, SHEET_DATE_COLS = [];
+// dashboard brand name -> free-text sale description from the live cycle's
+// brand_sale_cycles.description (admin-written, e.g. "Extra 20% off
+// end-of-season lines"). Null when off-sale or no description was entered.
+let SALE_DESCRIPTION = {};
 // dashboard brand name -> last date the admin verified this brand's state
 // (brand_sale_events.last_verified_date). Drives the hero's "Verified {when}"
 // freshness badge — the most-recent verification across brands at a centre.
@@ -2570,14 +2574,14 @@ async function loadTideData() {
     const [centresRes, salesRes, cyclesRes, scoresRes, floorsRes, allCyclesRes] = await Promise.all([
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,last_verified_status,last_verified_date,active_cycle_id'),
-      pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type&end_date=is.null'),
+      pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type,description&end_date=is.null'),
       pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,top_brands,narrative&score_date=eq.' + today),
       pgRead('centre_brand_floors?select=centre_id,brand_id,floor_label,floor_order'),
       // Full sale-episode history (every cycle, open or closed) for the shop
       // detail sheet. Each closed cycle is one past sale; the open cycle (if
       // any) is the live episode. Ordered newest-first so the sheet's
       // "Every sale on record" list and rhythm chart render without re-sorting.
-      pgRead('brand_sale_cycles?select=brand_id,start_date,end_date,max_discount_pct,sale_type&order=start_date.desc'),
+      pgRead('brand_sale_cycles?select=brand_id,start_date,end_date,max_discount_pct,sale_type,description&order=start_date.desc'),
     ]);
     if (centresRes.error || salesRes.error || cyclesRes.error || scoresRes.error) {
       console.error('Tide data load failed:', { centres: centresRes.error, sales: salesRes.error, cycles: cyclesRes.error, scores: scoresRes.error });
@@ -2679,6 +2683,7 @@ async function loadTideData() {
       LAST_VERIFIED_DATE[name] = row.last_verified_date || null;
       MAX_DISCOUNT_PCT[name] = (isOnSale && discountPct !== null) ? discountPct : null;
       SALE_TYPE[name] = isOnSale ? saleType : null;
+      SALE_DESCRIPTION[name] = (isOnSale && cycle && cycle.description) ? cycle.description : null;
       if (isOnSale && startDate) {
         const days = Math.floor((new Date(latestDate) - new Date(startDate)) / 86400000) + 1;
         DAYS_RUNNING[name] = Math.max(days, 1);
@@ -2709,6 +2714,7 @@ async function loadTideData() {
           end: row.end_date || null,
           pct: Number.isFinite(row.max_discount_pct) ? row.max_discount_pct : null,
           saleType: row.sale_type || 'percent_off',
+          description: row.description || null,
           live,
           lengthDays,
         });
@@ -6390,6 +6396,7 @@ document.addEventListener('visibilitychange', () => {
   .ts-now{font-family:'Playfair Display',serif;font-size:34px;font-weight:600;line-height:1.04;}
   .ts-deep{font-size:15px;font-weight:600;margin-top:9px;}
   .ts-meta{font-size:13px;color:#5A6175;margin-top:4px;}
+  .ts-sale-desc{font-size:13.5px;color:#1C2A45;line-height:1.45;margin-top:12px;padding:11px 13px;background:#F1EAD9;border-radius:10px;}
 
   .ts-facts{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#ECE4D6;border:1px solid #ECE4D6;border-radius:14px;overflow:hidden;margin-bottom:26px;}
   .ts-fact{background:#FEFCF8;padding:14px;}
@@ -6421,6 +6428,7 @@ document.addEventListener('visibilitychange', () => {
   .ts-sale.live .ts-bar span{background:#BC8A2E;}
   .ts-len{font-size:12px;color:#5A6175;margin-top:8px;display:flex;justify-content:space-between;gap:10px;}
   .ts-len em{font-style:normal;color:#9A9CA3;}
+  .ts-sale-note{font-size:12.5px;color:#5A6175;line-height:1.4;margin-top:8px;}
 
   .ts-cta{display:block;width:100%;margin-top:24px;background:#1C2A45;color:#fff;border:0;text-align:center;text-decoration:none;
     font-family:'Inter',sans-serif;font-size:15px;font-weight:600;letter-spacing:.2px;padding:16px;border-radius:14px;cursor:pointer;transition:background .18s;}
@@ -6706,7 +6714,9 @@ document.addEventListener('visibilitychange', () => {
       '<div class="ts-rule"></div>'+
       '<div class="ts-status"><div class="ts-now">'+esc(headline)+'</div>'+
         (sub!=null ? '<div class="ts-deep" style="color:'+deepColor+'">'+esc(sub)+'</div>' : '')+
-        '<div class="ts-meta">'+meta+'</div></div>';
+        '<div class="ts-meta">'+meta+'</div>'+
+        (liveEp && liveEp.description ? '<div class="ts-sale-desc">'+esc(liveEp.description)+'</div>' : '')+
+      '</div>';
 
     // Facts grid — historical aggregates only. Hidden when nothing on record.
     if(onRecord>0){
@@ -6749,7 +6759,12 @@ document.addEventListener('visibilitychange', () => {
             (ep.live?'<span class="ts-livetag">LIVE</span>':'')+'</div>'+
             '<div class="ts-pct">'+pctDisp+'</div></div>'+
           '<div class="ts-bar"><span style="width:'+barW+'%"></span></div>'+
-          '<div class="ts-len"><span>'+dayLen(ep)+'</span><em>'+footRight+'</em></div></div>';
+          '<div class="ts-len"><span>'+dayLen(ep)+'</span><em>'+footRight+'</em></div>'+
+          // Live episode's description is already shown once, prominently, in
+          // the status block above — repeating it here would say the same
+          // thing twice. Only past episodes with a saved description show it.
+          (!ep.live && ep.description ? '<div class="ts-sale-note">'+esc(ep.description)+'</div>' : '')+
+        '</div>';
       }).join('');
     }
     html += '</div>';

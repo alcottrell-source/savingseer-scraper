@@ -151,6 +151,8 @@
   .action-btn.muted:hover { background: #e8e4de; }
   .action-btn.ghost { background: white; color: var(--stone); border-color: var(--border); }
   .action-btn.ghost:hover { color: var(--bark); border-color: var(--bark); }
+  .action-btn.increase { background: var(--amber-lt); color: var(--amber); border-color: rgba(193,122,43,0.20); }
+  .action-btn.increase:hover { background: rgba(193,122,43,0.16); }
   .action-btn:disabled { opacity: 0.5; cursor: wait; }
 
   /* ── Inline confirm-on-sale form ──────────────────────────────────── */
@@ -502,8 +504,8 @@ async function loadAndRender() {
   showStatus('Loading…');
   const [eventsRes, cyclesRes, reviewsRes, reportsRes] = await Promise.all([
     pg.read('brand_sale_events?select=brand_id,max_discount_pct,sale_type,last_verified_date,last_verified_status,active_cycle_id'),
-    pg.read('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct,sale_type&end_date=is.null'),
-    pg.read('admin_review_log?select=brand_id,action,created_at&reviewed_date=eq.' + TODAY),
+    pg.read('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct,sale_type,description&end_date=is.null'),
+    pg.read('admin_review_log?select=brand_id,action,created_at,notes&reviewed_date=eq.' + TODAY),
     // Advisory user-report signal. Tolerant: if the view/migration isn't
     // live yet this stays empty and the panel works exactly as before.
     pg.read('user_reports_24h_summary?select=*'),
@@ -820,7 +822,8 @@ function renderRow({ ev, def, cycle, review, reports, queue }, isConfirmed) {
     + (cycle ? ' data-cycle-id="'    + esc(cycle.id)                          + '"'
              + ' data-cycle-start="' + esc(cycle.start_date)                  + '"'
              + ' data-cycle-pct="'   + esc(cycle.max_discount_pct ?? '')      + '"'
-             + ' data-cycle-type="'  + esc(cycle.sale_type ?? 'percent_off')  + '"' : '')
+             + ' data-cycle-type="'  + esc(cycle.sale_type ?? 'percent_off')  + '"'
+             + ' data-cycle-description="' + esc(cycle.description ?? '')     + '"' : '')
     + '>' +
       '<div class="row-top">' +
         '<div class="row-name">' + esc(def.name) +
@@ -911,7 +914,8 @@ function renderActionButtons(ev, cycle) {
       '<button class="action-btn primary" data-action="confirm_on">Still on</button>' +
       '<button class="action-btn danger"  data-action="confirm_end">Sale ended</button>' +
       '<button class="action-btn ghost"   data-action="dismiss">Dismiss</button>' +
-      '<button class="action-btn ghost"   data-action="edit_cycle" style="width:auto;padding:5px 12px;margin:0;font-size:11px;">Edit</button>' +
+      '<button class="action-btn ghost"    data-action="edit_cycle"    style="width:auto;padding:5px 12px;margin:0;font-size:11px;">Edit</button>' +
+      '<button class="action-btn increase" data-action="increase_pct" style="width:auto;padding:5px 12px;margin:0;font-size:11px;">Sale increased</button>' +
     '</div>';
   }
   // No active cycle — choose between starting one or confirming no sale.
@@ -931,6 +935,7 @@ function renderConfirmedNote(review, cycle) {
     dismissed:       'Dismissed',
     edited:          'Edited',
     deleted:         'Cycle deleted',
+    increased:       'Sale increased' + (review.notes ? ' (' + review.notes + ')' : ''),
   }[review.action] || review.action;
   const time = new Date(review.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   // Every confirmed shop gets an Edit affordance. With a live cycle, Edit opens
@@ -967,6 +972,10 @@ async function handleAction(card, btn) {
   }
   if (action === 'edit_cycle') {
     openEditForm(card, brandId, def);
+    return;
+  }
+  if (action === 'increase_pct') {
+    openIncreaseForm(card, brandId, def);
     return;
   }
   // Contextual user-report buttons reuse the existing sanctioned write paths.
@@ -1096,6 +1105,9 @@ function openStartForm(card, brandId, def) {
         '<label>Sale type <select class="input" id="frm-type">' + saleTypeOptions('percent_off') + '</select></label>' +
         '<label>Discount % <input class="input" type="number" id="frm-pct" min="1" max="99" placeholder="e.g. 30" value="' + esc(prefilledPct) + '"></label>' +
       '</div>' +
+      '<div class="inline-form-row">' +
+        '<label style="flex:1">Sale description (shown to shoppers) <textarea class="input" id="frm-desc" rows="2" placeholder="e.g. Extra 20% off end-of-season lines"></textarea></label>' +
+      '</div>' +
       '<div class="inline-form-actions">' +
         '<button class="btn btn-primary" id="frm-save">Save cycle</button>' +
         '<button class="btn" id="frm-cancel" style="background:var(--stone-lt);color:var(--bark)">Cancel</button>' +
@@ -1107,6 +1119,7 @@ function openStartForm(card, brandId, def) {
     const startDate = mount.querySelector('#frm-start').value;
     const pct = mount.querySelector('#frm-pct').value;
     const saleType = mount.querySelector('#frm-type').value;
+    const description = mount.querySelector('#frm-desc').value.trim();
     if (!startDate) { toast('Pick a start date'); return; }
     setRowBusy(card, true);
     try {
@@ -1114,6 +1127,7 @@ function openStartForm(card, brandId, def) {
         start_date: startDate,
         max_discount_pct: pct ? parseInt(pct, 10) : null,
         sale_type: saleType,
+        description: description || null,
       });
       triggerRescore();
       toast('Sale cycle saved · ' + def.name);
@@ -1131,12 +1145,16 @@ function openEditForm(card, brandId, def) {
   const currentStart = card.dataset.cycleStart || TODAY;
   const currentPct   = card.dataset.cyclePct   || '';
   const currentType  = card.dataset.cycleType  || 'percent_off';
+  const currentDesc  = card.dataset.cycleDescription || '';
   mount.innerHTML =
     '<div class="inline-form">' +
       '<div class="inline-form-row">' +
         '<label>Started <input class="input" type="date" id="edit-start" value="' + esc(currentStart) + '"></label>' +
         '<label>Sale type <select class="input" id="edit-type">' + saleTypeOptions(currentType) + '</select></label>' +
         '<label>Discount % <input class="input" type="number" id="edit-pct" min="1" max="99" placeholder="e.g. 30" value="' + esc(currentPct) + '"></label>' +
+      '</div>' +
+      '<div class="inline-form-row">' +
+        '<label style="flex:1">Sale description (shown to shoppers) <textarea class="input" id="edit-desc" rows="2" placeholder="e.g. Extra 20% off end-of-season lines">' + esc(currentDesc) + '</textarea></label>' +
       '</div>' +
       '<div class="inline-form-actions">' +
         '<button class="btn btn-primary" id="edit-save">Save changes</button>' +
@@ -1149,6 +1167,7 @@ function openEditForm(card, brandId, def) {
     const startDate = mount.querySelector('#edit-start').value;
     const pct = mount.querySelector('#edit-pct').value;
     const saleType = mount.querySelector('#edit-type').value;
+    const description = mount.querySelector('#edit-desc').value.trim();
     if (!startDate) { toast('Pick a start date'); return; }
     setRowBusy(card, true);
     try {
@@ -1156,6 +1175,7 @@ function openEditForm(card, brandId, def) {
         start_date: startDate,
         max_discount_pct: pct ? parseInt(pct, 10) : null,
         sale_type: saleType,
+        description: description || null,
       });
       triggerRescore();
       toast('Updated · ' + def.name);
@@ -1181,6 +1201,62 @@ function openEditForm(card, brandId, def) {
       }
     });
   }
+}
+
+// Dedicated "Sale increased" flow: only ever moves an already-open cycle's
+// discount % UP (start date, sale type and cycle identity are untouched —
+// that's what Edit is for). Narrower than openEditForm on purpose so the
+// admin console has one unambiguous verb for "the discount just got deeper",
+// which the confirmed-today list and admin_review_log can show distinctly
+// from a general edit.
+function openIncreaseForm(card, brandId, def) {
+  const mount = card.querySelector('.inline-form-mount');
+  const cycleId      = card.dataset.cycleId    || null;
+  const currentPct    = card.dataset.cyclePct   || '';
+  const currentType   = card.dataset.cycleType  || 'percent_off';
+  const currentDesc   = card.dataset.cycleDescription || '';
+  const currentLabel  = currentPct !== '' ? currentPct + '%' : 'not set';
+  mount.innerHTML =
+    '<div class="inline-form">' +
+      '<div class="inline-form-row">' +
+        '<label style="flex:none;">Current <div class="input" style="background:var(--stone-lt);border:none;">' + esc(currentLabel) + '</div></label>' +
+        '<label>New discount % <input class="input" type="number" id="inc-pct" min="1" max="99" placeholder="e.g. 40" autofocus></label>' +
+      '</div>' +
+      '<div class="inline-form-row">' +
+        '<label style="flex:1">Sale description (shown to shoppers) <textarea class="input" id="inc-desc" rows="2" placeholder="e.g. Now up to 40% off">' + esc(currentDesc) + '</textarea></label>' +
+      '</div>' +
+      '<div class="inline-form-actions">' +
+        '<button class="btn btn-primary" id="inc-save">Save increase</button>' +
+        '<button class="btn" id="inc-cancel" style="background:var(--stone-lt);color:var(--bark)">Cancel</button>' +
+      '</div>' +
+    '</div>';
+
+  mount.querySelector('#inc-cancel').addEventListener('click', () => { mount.innerHTML = ''; });
+  mount.querySelector('#inc-save').addEventListener('click', async () => {
+    const pctRaw = mount.querySelector('#inc-pct').value;
+    const description = mount.querySelector('#inc-desc').value.trim();
+    if (!pctRaw) { toast('Enter the new discount %'); return; }
+    const newPct = parseInt(pctRaw, 10);
+    const prevPct = currentPct !== '' ? Number(currentPct) : null;
+    if (prevPct != null && newPct <= prevPct) {
+      toast('New % must be higher than the current ' + prevPct + '% — use Edit for a decrease');
+      return;
+    }
+    setRowBusy(card, true);
+    try {
+      await applyIncrease(brandId, cycleId, {
+        max_discount_pct: newPct,
+        sale_type: currentType,
+        description: description || null,
+      }, prevPct);
+      triggerRescore();
+      toast('Sale increased to ' + newPct + '% · ' + def.name);
+      await loadAndRender();
+    } catch (err) {
+      showStatus('Save failed: ' + err.message, true);
+      setRowBusy(card, false);
+    }
+  });
 }
 
 // ── Mutations ─────────────────────────────────────────────────────────────
@@ -1261,12 +1337,17 @@ async function applyAction(brandId, action, opts) {
     const existing = (openCycles || [])[0];
     let cycleId;
     if (existing) {
-      const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + existing.id, {
+      // Only include description in the update when the caller actually
+      // supplied one — the crowd-report quick actions call this path with no
+      // description field at all, and must not wipe out an existing one.
+      const cycleUpdate = {
         max_discount_pct: opts.max_discount_pct,
         sale_type: opts.sale_type || 'percent_off',
         // start_date intentionally preserved — re-confirming an open sale is
         // not a fresh start. Use Edit to deliberately change the start date.
-      });
+      };
+      if (opts.description !== undefined) cycleUpdate.description = opts.description;
+      const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + existing.id, cycleUpdate);
       if (cErr) throw cErr;
       cycleId = existing.id;
     } else {
@@ -1275,6 +1356,7 @@ async function applyAction(brandId, action, opts) {
         start_date: opts.start_date,
         max_discount_pct: opts.max_discount_pct,
         sale_type: opts.sale_type || 'percent_off',
+        description: opts.description ?? null,
         source: 'admin',
       }, true);
       if (cErr) throw cErr;
@@ -1345,11 +1427,13 @@ async function applyAction(brandId, action, opts) {
 
 async function applyEdit(brandId, cycleId, opts) {
   if (cycleId) {
-    const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + cycleId, {
+    const cycleUpdate = {
       start_date: opts.start_date,
       max_discount_pct: opts.max_discount_pct,
       sale_type: opts.sale_type || 'percent_off',
-    });
+    };
+    if (opts.description !== undefined) cycleUpdate.description = opts.description;
+    const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + cycleId, cycleUpdate);
     if (cErr) throw cErr;
   }
   // Mirror max_discount_pct + sale_type on brand_sale_events as a denormalised
@@ -1362,6 +1446,28 @@ async function applyEdit(brandId, cycleId, opts) {
   });
   if (uErr) throw uErr;
   await logReview(brandId, 'edited', cycleId);
+}
+
+// "Sale increased" — moves an already-open cycle's discount % up in place.
+// Deliberately narrower than applyEdit: never touches start_date or
+// sale_type, always requires an existing cycleId, and logs a dedicated
+// 'increased' verb (with a before/after note) so the confirmed-today list
+// reads "Sale increased to 40%" rather than the generic "Edited".
+async function applyIncrease(brandId, cycleId, opts, prevPct) {
+  if (!cycleId) throw new Error('No active cycle to increase');
+  const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + cycleId, {
+    max_discount_pct: opts.max_discount_pct,
+    description: opts.description ?? null,
+  });
+  if (cErr) throw cErr;
+  const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
+    max_discount_pct: opts.max_discount_pct,
+    last_verified_status: true,
+    last_verified_date: TODAY,
+  });
+  if (uErr) throw uErr;
+  const note = (prevPct != null ? prevPct + '%' : '—') + ' → ' + opts.max_discount_pct + '%';
+  await logReview(brandId, 'increased', cycleId, note);
 }
 
 // Hard-delete a cycle the admin created by mistake. Clears the FK on
@@ -1387,10 +1493,10 @@ async function deleteCycle(brandId, cycleId) {
   await logReview(brandId, 'deleted', cycleId);
 }
 
-async function logReview(brandId, action, cycleId) {
+async function logReview(brandId, action, cycleId, notes) {
   const { error } = await pg.upsert(
     'admin_review_log',
-    { brand_id: brandId, reviewed_date: TODAY, action, cycle_id: cycleId },
+    { brand_id: brandId, reviewed_date: TODAY, action, cycle_id: cycleId, notes: notes ?? null },
     'brand_id,reviewed_date'
   );
   if (error) throw error;

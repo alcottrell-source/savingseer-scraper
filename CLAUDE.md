@@ -96,6 +96,14 @@ Don't switch the model to `gemini-2.5-flash-lite`: its free-tier daily cap is 20
 
 Required env var on the GitHub Action's `score` job: `GEMINI_API_KEY` (repo secret).
 
+## "Newest Sales" panel — start date vs. discount change (Jul 2026)
+The "Newest Sales" card (`renderCentreNarrativeCard` in `index.html`) surfaces a brand when EITHER its sale started in the last `FRESH_WINDOW_DAYS` (5) days OR its discount % last changed in that window — not start date alone. This matters because an admin routinely revisits an old, already-listed cycle (e.g. bumping White Stuff from 50% to 60% on day 18) via Edit/Increase in `admin.html`; without the second condition that update would never surface here, which read as a bug ("I updated the %, why isn't it showing?").
+
+- `brand_sale_cycles.pct_changed_date` (migration `20260707_add_pct_changed_date.sql`) tracks the date `max_discount_pct` was last actually changed, backfilled to `start_date` for existing rows. `admin.html` only bumps it to today when the new % differs from the previous value — a routine re-confirm with the same % (crowd-report quick action, `confirm_start` reusing an open cycle) must NOT make an old sale look freshly updated. `applyIncrease` always bumps it (that action's whole purpose is raising the %); `applyEdit`/`confirm_start` compare against the prior % first.
+- `index.html` derives `PCT_CHANGE_DAYS`/`PCT_CHANGE_DATE`/`SALE_START_DATE` per brand alongside the existing `DAYS_RUNNING`, and `calcCentreScore` carries `pctChangeDays`/`startDate`/`pctChangeDate` onto each on-sale brand object.
+- A row that's fresh because of a % change (not because the sale itself is new — i.e. `pctChangeDays < days`) gets an amber **UPDATED** badge next to the deal text plus a small "Started {date} · % updated {relative}" meta line under the brand name, so it's clear the row isn't a brand-new sale. A genuinely new sale (`days <= 1`) keeps just the existing "NEW" pill — no redundant meta line.
+- Ranking (`freshRank`) uses whichever is more recent, start or % change, so a just-bumped old sale can outrank a several-day-old "new" one.
+
 ## Notification emails (May 2026)
 Supabase Edge function `notify-high-tide` runs three passes, gated by the POST body so one function serves two schedules. Scheduled in-repo by `.github/workflows/notify.yml` (NOT pg_cron — unschedule any old `notify-high-tide-daily` job to avoid a daily digest).
 

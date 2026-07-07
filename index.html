@@ -788,8 +788,11 @@
   .rank-logo.is-mono { background: var(--stone-lt); border-color: var(--stone-lt); }
   .rank-logo.is-mono .rank-logo-img { display: none; }
   .rank-logo.is-mono::after { content: attr(data-mono); font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; color: var(--stone); text-transform: uppercase; }
+  .rank-name-col { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .rank-name { font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .rank-meta { font-size: 11px; color: var(--stone); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rank-deal { font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 700; color: var(--leaf); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
+  .rank-updated-badge { font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: var(--amber); border: 1px solid var(--amber); border-radius: 5px; padding: 2px 5px; vertical-align: 1px; text-transform: uppercase; }
   .rank-pill { font-size: 10px; letter-spacing: 0.08em; font-weight: 600; padding: 3px 8px; border-radius: 6px; border: 1px solid; text-transform: uppercase; }
   .rank-pill-new { color: var(--leaf); border-color: var(--leaf); background: var(--leaf-lt); }
   .rank-pill-old { color: var(--stone); border-color: var(--border); background: transparent; }
@@ -2520,6 +2523,15 @@ let SALE_STATUS = {}, DAYS_RUNNING = {}, MAX_DISCOUNT_PCT = {}, SALE_TYPE = {}, 
 // brand_sale_cycles.description (admin-written, e.g. "Extra 20% off
 // end-of-season lines"). Null when off-sale or no description was entered.
 let SALE_DESCRIPTION = {};
+// dashboard brand name -> days since the live cycle's max_discount_pct last
+// changed (brand_sale_cycles.pct_changed_date), distinct from DAYS_RUNNING
+// (days since the sale started). Lets "Newest Sales" surface a sale whose
+// discount just got deeper even though the sale itself started long ago.
+let PCT_CHANGE_DAYS = {}, PCT_CHANGE_DATE = {};
+// dashboard brand name -> raw start_date string of the live cycle (or the
+// last_verified_date fallback), for formatting an actual date in the UI
+// rather than just a day-count.
+let SALE_START_DATE = {};
 // dashboard brand name -> last date the admin verified this brand's state
 // (brand_sale_events.last_verified_date). Drives the hero's "Verified {when}"
 // freshness badge — the most-recent verification across brands at a centre.
@@ -2574,7 +2586,7 @@ async function loadTideData() {
     const [centresRes, salesRes, cyclesRes, scoresRes, floorsRes, allCyclesRes] = await Promise.all([
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,last_verified_status,last_verified_date,active_cycle_id'),
-      pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type,description&end_date=is.null'),
+      pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type,description,pct_changed_date&end_date=is.null'),
       pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,top_brands,narrative&score_date=eq.' + today),
       pgRead('centre_brand_floors?select=centre_id,brand_id,floor_label,floor_order'),
       // Full sale-episode history (every cycle, open or closed) for the shop
@@ -2687,8 +2699,22 @@ async function loadTideData() {
       if (isOnSale && startDate) {
         const days = Math.floor((new Date(latestDate) - new Date(startDate)) / 86400000) + 1;
         DAYS_RUNNING[name] = Math.max(days, 1);
+        SALE_START_DATE[name] = startDate;
       } else {
         DAYS_RUNNING[name] = 0;
+        SALE_START_DATE[name] = null;
+      }
+      // pct_changed_date falls back to the cycle start (admin.html backfills
+      // it there too), so a brand-new sale reads the same "0 days since
+      // change" as "0 days since start" rather than looking stale.
+      const pctChangedDate = (cycle && (cycle.pct_changed_date || cycle.start_date)) || null;
+      if (isOnSale && pctChangedDate) {
+        const changeDays = Math.floor((new Date(latestDate) - new Date(pctChangedDate)) / 86400000) + 1;
+        PCT_CHANGE_DAYS[name] = Math.max(changeDays, 1);
+        PCT_CHANGE_DATE[name] = pctChangedDate;
+      } else {
+        PCT_CHANGE_DAYS[name] = 0;
+        PCT_CHANGE_DATE[name] = null;
       }
     }
 
@@ -3589,11 +3615,14 @@ function formatTodayHours(centreIdx) {
 // — we fall back to a template narrative built from the same real data.
 function renderCentreNarrativeCard(centreIdx, onSale, history) {
   // The panel shows the newest sales at this centre — brands whose sale
-  // started in the last FRESH_WINDOW_DAYS days. Headline count + ranked
-  // list both honour the same window so what's counted is what's shown.
+  // started OR whose discount % last changed in the last FRESH_WINDOW_DAYS
+  // days (brand_sale_cycles.pct_changed_date, bumped by admin.html whenever
+  // an Edit/Increase actually moves the %). Headline count + ranked list
+  // both honour the same window so what's counted is what's shown.
   const FRESH_WINDOW_DAYS = 5;
   const onSaleCount = onSale.length;
-  const freshDeals = onSale.filter(b => (b.days || 0) <= FRESH_WINDOW_DAYS);
+  const freshDeals = onSale.filter(b => (b.days || 0) <= FRESH_WINDOW_DAYS
+    || (b.pctChangeDays > 0 && b.pctChangeDays <= FRESH_WINDOW_DAYS));
   const freshCount = freshDeals.length;
   const fresh = onSale.length
     ? onSale.slice().sort((a, b) => (a.days || 0) - (b.days || 0))[0]
@@ -3612,11 +3641,15 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
       + '</h2>'
     + '</div>';
 
-  // Ranked deals list — newest first (days asc), tie-broken by discount
-  // desc. Shows ALL deals within the freshness window so the list length
-  // matches the headline count (if it says "8 new sales", all 8 are listed).
+  // Ranked deals list — newest first, where "newest" is whichever is more
+  // recent of the sale's start or its last discount change, tie-broken by
+  // discount desc. Shows ALL deals within the freshness window so the list
+  // length matches the headline count (if it says "8 new sales", all 8 are
+  // listed).
+  const fmtRankDate = s => s ? new Date(s + 'T12:00:00').toLocaleDateString('en-GB', {day:'numeric', month:'short'}) : '';
+  const freshRank = b => Math.min(b.days || Infinity, (b.pctChangeDays > 0 ? b.pctChangeDays : Infinity));
   const topDeals = freshDeals.slice()
-    .sort((a, b) => (a.days || 0) - (b.days || 0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)));
+    .sort((a, b) => freshRank(a) - freshRank(b) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)));
   const rankList = topDeals.length
     ? '<ul class="rank-list">' + topDeals.map((b, i) => {
         const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
@@ -3631,8 +3664,17 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
         } else {
           dealTxt = hasPct ? ('Up to ' + pct + '%') : '—';
         }
+        // A brand surfaces here either because the sale just started or
+        // because its discount just changed (pct_changed_date more recent
+        // than start_date, admin-driven via Edit/Increase). Flag the latter
+        // distinctly — otherwise an 18-day-old sale showing up under
+        // "Newest Sales" with only a day-count pill reads as a bug.
+        const isPctUpdate = b.pctChangeDays > 0 && b.pctChangeDays <= FRESH_WINDOW_DAYS && b.pctChangeDays < (b.days || 0);
         const pillClass = (b.days <= 1) ? 'rank-pill rank-pill-new' : 'rank-pill rank-pill-old';
         const pillTxt = (b.days <= 1) ? 'NEW' : (b.days + (b.days === 1 ? ' day' : ' days'));
+        const metaTxt = isPctUpdate
+          ? 'Started ' + fmtRankDate(b.startDate) + ' · % updated ' + (b.pctChangeDays <= 1 ? 'today' : b.pctChangeDays + 'd ago')
+          : '';
         // Small brand icon — Google-favicon src (same source as the brand
         // chips/strip), monogram fallback when we have no URL or the favicon
         // fails to load (onerror flips the tile to its lettered .is-mono state).
@@ -3641,11 +3683,15 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
         const logoHTML = '<span class="rank-logo' + (logoSrc ? '' : ' is-mono') + '" data-mono="' + escapeHtml(mono) + '">'
              + (logoSrc ? '<img class="rank-logo-img" alt="" loading="lazy" src="' + logoSrc + '" onerror="this.closest(\'.rank-logo\').classList.add(\'is-mono\')">' : '')
              + '</span>';
+        const nameHTML = '<span class="rank-name-col">'
+             +   '<span class="rank-name">' + escapeHtml(b.name) + '</span>'
+             +   (metaTxt ? '<span class="rank-meta">' + escapeHtml(metaTxt) + '</span>' : '')
+             + '</span>';
         return '<li class="rank-row">'
              +   '<span class="rank-num">' + (i + 1) + '</span>'
              +   logoHTML
-             +   '<span class="rank-name">' + escapeHtml(b.name) + '</span>'
-             +   '<span class="rank-deal">' + escapeHtml(dealTxt) + '</span>'
+             +   nameHTML
+             +   '<span class="rank-deal">' + escapeHtml(dealTxt) + (isPctUpdate ? ' <span class="rank-updated-badge">UPDATED</span>' : '') + '</span>'
              +   '<span class="' + pillClass + '">' + pillTxt + '</span>'
              + '</li>';
       }).join('') + '</ul>'
@@ -4088,7 +4134,7 @@ function calcCentreScore(centreIdx) {
   const onSale = [];
   for (const brand of brandsAtCentre) {
     if (SALE_STATUS[brand.name]===true) {
-      onSale.push({...brand, days: DAYS_RUNNING[brand.name]||0});
+      onSale.push({...brand, days: DAYS_RUNNING[brand.name]||0, pctChangeDays: PCT_CHANGE_DAYS[brand.name]||0, startDate: SALE_START_DATE[brand.name]||null, pctChangeDate: PCT_CHANGE_DATE[brand.name]||null});
     }
   }
   const score = Math.round((onSale.length/brandsAtCentre.length)*100);

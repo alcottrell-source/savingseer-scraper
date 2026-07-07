@@ -504,7 +504,7 @@ async function loadAndRender() {
   showStatus('Loading…');
   const [eventsRes, cyclesRes, reviewsRes, reportsRes] = await Promise.all([
     pg.read('brand_sale_events?select=brand_id,max_discount_pct,sale_type,last_verified_date,last_verified_status,active_cycle_id'),
-    pg.read('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct,sale_type,description&end_date=is.null'),
+    pg.read('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct,sale_type,description,pct_changed_date&end_date=is.null'),
     pg.read('admin_review_log?select=brand_id,action,created_at,notes&reviewed_date=eq.' + TODAY),
     // Advisory user-report signal. Tolerant: if the view/migration isn't
     // live yet this stays empty and the panel works exactly as before.
@@ -998,13 +998,14 @@ async function handleAction(card, btn) {
   }
   if (action === 'user_update_pct') {
     const pct = Number(btn.dataset.pct);
+    const prevPct = card.dataset.cyclePct ? Number(card.dataset.cyclePct) : null;
     setRowBusy(card, true);
     try {
       await applyEdit(brandId, card.dataset.cycleId || null, {
         start_date: card.dataset.cycleStart || TODAY,
         max_discount_pct: pct,
         sale_type: card.dataset.cycleType || 'percent_off',
-      });
+      }, prevPct);
       triggerRescore();
       toast('Updated to ' + pct + '% · ' + def.name);
       await loadAndRender();
@@ -1171,12 +1172,13 @@ function openEditForm(card, brandId, def) {
     if (!startDate) { toast('Pick a start date'); return; }
     setRowBusy(card, true);
     try {
+      const prevPct = currentPct !== '' ? Number(currentPct) : null;
       await applyEdit(brandId, cycleId, {
         start_date: startDate,
         max_discount_pct: pct ? parseInt(pct, 10) : null,
         sale_type: saleType,
         description: description || null,
-      });
+      }, prevPct);
       triggerRescore();
       toast('Updated · ' + def.name);
       await loadAndRender();
@@ -1331,7 +1333,7 @@ async function applyAction(brandId, action, opts) {
     // start_date (the sale didn't restart). A genuinely new sale only reaches
     // the insert path once the prior cycle has been end-dated (confirm_end).
     const { data: openCycles, error: lookupErr } = await pg.read(
-      'brand_sale_cycles?select=id,start_date&brand_id=eq.' + brandId + '&end_date=is.null&order=start_date.desc&limit=1'
+      'brand_sale_cycles?select=id,start_date,max_discount_pct&brand_id=eq.' + brandId + '&end_date=is.null&order=start_date.desc&limit=1'
     );
     if (lookupErr) throw lookupErr;
     const existing = (openCycles || [])[0];
@@ -1347,6 +1349,12 @@ async function applyAction(brandId, action, opts) {
         // not a fresh start. Use Edit to deliberately change the start date.
       };
       if (opts.description !== undefined) cycleUpdate.description = opts.description;
+      // Only bump pct_changed_date when the % actually moved — a routine
+      // re-confirm (crowd-report quick action) with the same % must not make
+      // an old sale look freshly updated on the public "Newest Sales" panel.
+      if ((existing.max_discount_pct ?? null) !== (opts.max_discount_pct ?? null)) {
+        cycleUpdate.pct_changed_date = TODAY;
+      }
       const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + existing.id, cycleUpdate);
       if (cErr) throw cErr;
       cycleId = existing.id;
@@ -1357,6 +1365,7 @@ async function applyAction(brandId, action, opts) {
         max_discount_pct: opts.max_discount_pct,
         sale_type: opts.sale_type || 'percent_off',
         description: opts.description ?? null,
+        pct_changed_date: opts.start_date,
         source: 'admin',
       }, true);
       if (cErr) throw cErr;
@@ -1425,7 +1434,7 @@ async function applyAction(brandId, action, opts) {
   throw new Error('Unknown action: ' + action);
 }
 
-async function applyEdit(brandId, cycleId, opts) {
+async function applyEdit(brandId, cycleId, opts, prevPct) {
   if (cycleId) {
     const cycleUpdate = {
       start_date: opts.start_date,
@@ -1433,6 +1442,12 @@ async function applyEdit(brandId, cycleId, opts) {
       sale_type: opts.sale_type || 'percent_off',
     };
     if (opts.description !== undefined) cycleUpdate.description = opts.description;
+    // Only bump pct_changed_date when the % actually moved, so editing just
+    // the start date or description doesn't falsely resurface an old sale
+    // as "recently updated" on the public "Newest Sales" panel.
+    if ((prevPct ?? null) !== (opts.max_discount_pct ?? null)) {
+      cycleUpdate.pct_changed_date = TODAY;
+    }
     const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + cycleId, cycleUpdate);
     if (cErr) throw cErr;
   }
@@ -1458,6 +1473,7 @@ async function applyIncrease(brandId, cycleId, opts, prevPct) {
   const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + cycleId, {
     max_discount_pct: opts.max_discount_pct,
     description: opts.description ?? null,
+    pct_changed_date: TODAY,
   });
   if (cErr) throw cErr;
   const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {

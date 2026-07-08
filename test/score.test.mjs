@@ -17,13 +17,33 @@ test('getTrajectory — <3 days history defaults to RISING (spec §9.3)', () => 
   assert.equal(getTrajectory(50, [40, 30], null), 'RISING');
 });
 
-test('getTrajectory — RISING is sticky through noise, flips only on a real drop', () => {
-  // prior RISING, dip < FLAT band (1.5) → stays RISING
-  assert.equal(getTrajectory(49.5, [50, 50, 50], 'RISING'), 'RISING');
-  // prior RISING, dip past FLAT band but not FLIP band (1.5–4) → FLAT
-  assert.equal(getTrajectory(48, [50, 50, 50], 'RISING'), 'FLAT');
-  // prior RISING, drop > FLIP band (4) → FALLING
-  assert.equal(getTrajectory(40, [50, 50, 50], 'RISING'), 'FALLING');
+test('getTrajectory — RISING is sticky through noise on a genuine climb, flips only on a real drop', () => {
+  // Window still climbing (44→47→50, avg 47): a small dip below the newest
+  // point keeps RISING, a moderate one goes FLAT, a big one flips FALLING.
+  assert.equal(getTrajectory(49.5, [50, 47, 44], 'RISING'), 'RISING'); // diff +2.5
+  assert.equal(getTrajectory(45, [50, 47, 44], 'RISING'), 'FLAT');     // diff −2
+  assert.equal(getTrajectory(42, [50, 47, 44], 'RISING'), 'FALLING');  // diff −5
+});
+
+test('getTrajectory — stall decay: a plateaued climb goes FLAT (OQ1 fix, ADR-002 §5.1)', () => {
+  // Window + today all within the stall range (1.5): the climb has flattened.
+  assert.equal(getTrajectory(50, [50, 50, 50], 'RISING'), 'FLAT');
+  assert.equal(getTrajectory(49.5, [50, 50, 50], 'RISING'), 'FLAT', 'sub-band jitter is still a stall');
+  // Span ≥ 1.5: still moving — no stall.
+  assert.equal(getTrajectory(52, [50, 50, 50], 'RISING'), 'RISING');
+  // RISING-only by design: FALLING and FLAT priors are untouched.
+  assert.equal(getTrajectory(50, [50, 50, 50], 'FALLING'), 'FALLING');
+  assert.equal(getTrajectory(50, [50, 50, 50], 'FLAT'), 'FLAT');
+});
+
+test('stall → getTideStage fires the one-shot local peak (the user-visible OQ1 fix)', () => {
+  // The RISING→FLAT flip produced by a stall is a localPeak trigger: the
+  // plateaued centre finally gets its PEAK day instead of "Rising" forever.
+  const traj = getTrajectory(20, [20, 20, 20], 'RISING');
+  assert.equal(traj, 'FLAT');
+  const r = getTideStage(20, 'Rising', traj, 'RISING');
+  assert.equal(r.verdict, 'Peak');
+  assert.equal(r.stage, 'High Tide');
 });
 
 test('getTrajectory — FALLING is sticky (mirror image)', () => {

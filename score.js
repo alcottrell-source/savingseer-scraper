@@ -127,6 +127,11 @@ function deriveStageFromVerdict(verdict) {
 // `Peak` (one-shot) so users get the GO NOW signal at their centre's natural
 // maximum. The day after, the descent path picks it up and we transition to
 // Easing.
+// TODO(ADR-002 docs/architecture/tide-score.md §10): replace the inline
+// getTrajectory/getTideStage calls (fresh + carry-forward paths) with
+// lib/tide-machine.js nextTideState, and persist the explicit state columns
+// (stage, stage_entered_date, last_peak_date, observed_days). The parity
+// suite in test/tide-machine.test.mjs proves the swap is behaviour-safe.
 function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   const wasHighTide = yesterdayStage === 'High Tide';
   const wasDescent  = yesterdayStage === 'Falling' || yesterdayStage === 'Low';
@@ -138,8 +143,9 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   //
   // It must catch FLAT too, not just FALLING. getTrajectory's stickiness
   // only ever leaves RISING via FLAT for a gentle roll-over (a drop of
-  // 1.5–4 pts vs the 3-day average) and via FALLING for a sharp one
-  // (>4 pts). If we only fired on RISING→FALLING, every centre that peaks
+  // 1.5–4 pts vs the 3-day average) or a stalled climb (window flat within
+  // TRAJECTORY_STALL_RANGE — the plateau is the peak), and via FALLING for
+  // a sharp one (>4 pts). If we only fired on RISING→FALLING, every centre that peaks
   // gently below HIGH_TIDE_ENTER would slide RISING→FLAT→FALLING and never
   // emit a Peak — no GO NOW, no peak-alert email — which silently breaks
   // the core promise that every centre has a peak day. The sticky thresholds
@@ -219,7 +225,17 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
 //   - FLAT (or unknown prior): symmetric ±TRAJECTORY_FLAT_BAND thresholds.
 //
 // Requires ≥3 days of history; defaults to RISING for new centres (spec §9.3).
-const TRAJECTORY_FLIP_BAND = 4.0;
+//
+// Stall decay (OQ1 fix, ADR-002 — 2026-07-08): sticky RISING only ever exited
+// on a DROP, so a centre whose score plateaued read "Rising" forever and its
+// local peak never fired. Now, when the whole window plus today spans less
+// than TRAJECTORY_STALL_RANGE, the climb has genuinely flattened → FLAT. The
+// RISING→FLAT this produces is the roll-over that fires the one-shot Peak in
+// getTideStage — deliberately: a plateau IS the centre's peak (picks are
+// freshest now). RISING-only by design: decaying FALLING would soften the
+// new-cycle escape threshold, a separate behaviour change nobody asked for.
+const TRAJECTORY_FLIP_BAND  = 4.0;
+const TRAJECTORY_STALL_RANGE = 1.5;  // window∪today span below this = stalled climb
 function getTrajectory(todayScore, recentScores, yesterdayTrajectory) {
   if (recentScores.length < 3) return 'RISING';
   const avg = (recentScores[0] + recentScores[1] + recentScores[2]) / 3;
@@ -228,6 +244,9 @@ function getTrajectory(todayScore, recentScores, yesterdayTrajectory) {
   if (prior === 'RISING') {
     if (diff < -TRAJECTORY_FLIP_BAND) return 'FALLING';
     if (diff < -TRAJECTORY_FLAT_BAND) return 'FLAT';
+    const w = recentScores.slice(0, 3);
+    const span = Math.max(todayScore, ...w) - Math.min(todayScore, ...w);
+    if (span < TRAJECTORY_STALL_RANGE) return 'FLAT';
     return 'RISING';
   }
   if (prior === 'FALLING') {
@@ -574,6 +593,11 @@ async function calculateAllCentreScores(opts = {}) {
 
 // ── Personal score helpers ─────────────────────────────────────────────────────
 
+// TODO(ADR-003 docs/architecture/personalisation-ranking.md §8.2): rewrite
+// calculatePersonalScores as the follows-first history pass — import
+// resolveLens/buildHistoryRow from lib/personal-rank.js, stamp the new
+// `basis` column, and delete this private brandMatchesPrefs (the shared
+// module owns the definition now).
 function brandMatchesPrefs(brand, prefs) {
   const genderMatch =
     (prefs.womenswear    && brand.womenswear)    ||
@@ -699,6 +723,11 @@ async function calculatePersonalScores(opts = {}) {
 // just the touched centre instead of all 30.
 export async function runScoring(opts = {}) {
   const summary = await calculateAllCentreScores(opts);
+  // TODO(ADR-001 docs/architecture/gravity-engine.md §9.2): add a gravity
+  // pass here — lib/gravity.js brandConfidence/centreGravity per brand/centre,
+  // persisted daily (brand_gravity table + centre_seer_scores confidence
+  // columns; migration per the ADR). Flag-never-mutate: it must not touch
+  // tide_score or sale state.
   try {
     await calculatePersonalScores(opts);
   } catch (err) {

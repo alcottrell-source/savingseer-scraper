@@ -1670,8 +1670,11 @@ async function applyAction(brandId, action, opts) {
       // Only bump pct_changed_date when the % actually moved — a routine
       // re-confirm (crowd-report quick action) with the same % must not make
       // an old sale look freshly updated on the public "Newest Sales" panel.
+      // prior_discount_pct captures the value being replaced so the public
+      // "Just got deeper" panel can say "Was X%, now up to Y%".
       if ((existing.max_discount_pct ?? null) !== (opts.max_discount_pct ?? null)) {
         cycleUpdate.pct_changed_date = TODAY;
+        cycleUpdate.prior_discount_pct = existing.max_discount_pct ?? null;
       }
       const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + existing.id, cycleUpdate);
       if (cErr) throw cErr;
@@ -1763,8 +1766,11 @@ async function applyEdit(brandId, cycleId, opts, prevPct) {
     // Only bump pct_changed_date when the % actually moved, so editing just
     // the start date or description doesn't falsely resurface an old sale
     // as "recently updated" on the public "Newest Sales" panel.
+    // prior_discount_pct captures the value being replaced so the public
+    // "Just got deeper" panel can say "Was X%, now up to Y%".
     if ((prevPct ?? null) !== (opts.max_discount_pct ?? null)) {
       cycleUpdate.pct_changed_date = TODAY;
+      cycleUpdate.prior_discount_pct = prevPct ?? null;
     }
     const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + cycleId, cycleUpdate);
     if (cErr) throw cErr;
@@ -1792,6 +1798,9 @@ async function applyIncrease(brandId, cycleId, opts, prevPct) {
     max_discount_pct: opts.max_discount_pct,
     description: opts.description ?? null,
     pct_changed_date: TODAY,
+    // Captures the value being replaced so the public "Just got deeper"
+    // panel can say "Was X%, now up to Y%".
+    prior_discount_pct: prevPct ?? null,
   });
   if (cErr) throw cErr;
   const { error: uErr } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {

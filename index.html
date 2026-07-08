@@ -771,12 +771,12 @@
   .narrative-section { padding: 20px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.1s, transform 0.4s ease 0.1s; }
   .narrative-section.visible { opacity: 1; transform: translateY(0); }
   .narrative-card { background: white; border: var(--card-border); box-shadow: var(--card-elev); border-radius: 14px; overflow: hidden; }
-  .narrative-hero { padding: 16px 20px 14px; border-bottom: 1px solid var(--leaf); }
-  .narrative-hero-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .narrative-hero { padding: 14px 18px 12px; border-bottom: 1px solid var(--leaf); }
+  .narrative-hero-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
   .narrative-title { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--stone); }
   .narrative-live { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--leaf); letter-spacing: 0.02em; }
   .narrative-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); animation: pulse 2s ease-in-out infinite; }
-  .narrative-headline { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 600; color: var(--bark); letter-spacing: -0.025em; line-height: 1.05; margin: 0; }
+  .narrative-headline { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; color: var(--bark); letter-spacing: -0.025em; line-height: 1.05; margin: 0; }
   .narrative-headline-num { color: var(--green-bright); font-weight: 600; }
   .narrative-headline-num.muted { color: var(--stone); }
   /* Group titles split the ranked list into "New sales" vs "Just got deeper"
@@ -785,13 +785,13 @@
      Colour carries the same signal the old per-row "UPDATED" badge used to
      (amber = deepened), just consolidated to one place instead of repeated
      on every row. */
-  .rank-group-title { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 10px 14px 6px; }
+  .rank-group-title { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 8px 14px 4px; }
   .rank-group-title-new { color: var(--leaf); }
   .rank-group-title-deeper { color: var(--amber); }
   .rank-list { list-style: none; margin: 0; padding: 0; }
-  .rank-row { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .rank-row { padding: 8px 14px; border-bottom: 1px solid var(--border); }
   .rank-row:last-child { border-bottom: none; }
-  .rank-row-top { display: grid; grid-template-columns: 22px 26px minmax(0,1fr) auto; align-items: center; gap: 7px; }
+  .rank-row-top { display: grid; grid-template-columns: 22px 24px minmax(0,1fr) auto; align-items: center; gap: 6px; }
   /* Deal % and the day/NEW pill stack vertically (value over tag) instead of
      sitting side-by-side — side-by-side, the two ate enough width on common
      360-390px phones to squeeze the name column down to a few characters. */
@@ -799,17 +799,17 @@
   /* Meta/description sit on their own full-width line below the compact top
      row instead of squeezed into the narrow name column — that column is too
      tight (competing with the deal % + pills) to wrap a sentence readably. */
-  .rank-row-extra { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; padding-left: 62px; }
+  .rank-row-extra { display: flex; flex-direction: column; gap: 2px; margin-top: 3px; padding-left: 58px; }
   .rank-num { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: var(--stone); font-variant-numeric: tabular-nums; }
-  .rank-logo { width: 26px; height: 26px; border-radius: 6px; background: #fff; border: 1px solid var(--border); flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .rank-logo { width: 24px; height: 24px; border-radius: 6px; background: #fff; border: 1px solid var(--border); flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   .rank-logo-img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
   .rank-logo.is-mono { background: var(--stone-lt); border-color: var(--stone-lt); }
   .rank-logo.is-mono .rank-logo-img { display: none; }
   .rank-logo.is-mono::after { content: attr(data-mono); font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; color: var(--stone); text-transform: uppercase; }
-  .rank-name { font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .rank-name { font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .rank-meta { font-size: 11px; color: var(--stone); line-height: 1.35; }
   .rank-desc { font-size: 12px; color: var(--ink-mid); line-height: 1.45; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-  .rank-deal { font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 700; color: var(--leaf); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
+  .rank-deal { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 700; color: var(--leaf); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
   .rank-pill { font-size: 10px; letter-spacing: 0.08em; font-weight: 600; padding: 3px 8px; border-radius: 6px; border: 1px solid; text-transform: uppercase; }
   .rank-pill-new { color: var(--leaf); border-color: var(--leaf); background: var(--leaf-lt); }
   .rank-pill-old { color: var(--stone); border-color: var(--border); background: transparent; }
@@ -2545,6 +2545,11 @@ let SALE_DESCRIPTION = {};
 // (days since the sale started). Lets "Newest Sales" surface a sale whose
 // discount just got deeper even though the sale itself started long ago.
 let PCT_CHANGE_DAYS = {}, PCT_CHANGE_DATE = {};
+// dashboard brand name -> the discount % a live cycle had immediately before
+// its last bump (brand_sale_cycles.prior_discount_pct), so the "Just got
+// deeper" panel can say "Was 50%, now up to 70%" instead of just the new %.
+// Null when never bumped (brand-new sale) or on legacy rows predating this.
+let PCT_PRIOR = {};
 // dashboard brand name -> raw start_date string of the live cycle (or the
 // last_verified_date fallback), for formatting an actual date in the UI
 // rather than just a day-count.
@@ -2603,7 +2608,7 @@ async function loadTideData() {
     const [centresRes, salesRes, cyclesRes, scoresRes, floorsRes, allCyclesRes] = await Promise.all([
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,last_verified_status,last_verified_date,active_cycle_id'),
-      pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type,description,pct_changed_date&end_date=is.null'),
+      pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type,description,pct_changed_date,prior_discount_pct&end_date=is.null'),
       pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,top_brands,narrative&score_date=eq.' + today),
       pgRead('centre_brand_floors?select=centre_id,brand_id,floor_label,floor_order'),
       // Full sale-episode history (every cycle, open or closed) for the shop
@@ -2713,6 +2718,7 @@ async function loadTideData() {
       MAX_DISCOUNT_PCT[name] = (isOnSale && discountPct !== null) ? discountPct : null;
       SALE_TYPE[name] = isOnSale ? saleType : null;
       SALE_DESCRIPTION[name] = (isOnSale && cycle && cycle.description) ? cycle.description : null;
+      PCT_PRIOR[name] = (isOnSale && cycle && Number.isFinite(cycle.prior_discount_pct)) ? cycle.prior_discount_pct : null;
       if (isOnSale && startDate) {
         const days = Math.floor((new Date(latestDate) - new Date(startDate)) / 86400000) + 1;
         DAYS_RUNNING[name] = Math.max(days, 1);
@@ -3686,12 +3692,19 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
     }
     const pillClass = (b.days <= 1) ? 'rank-pill rank-pill-new' : 'rank-pill rank-pill-old';
     const pillTxt = (b.days <= 1) ? 'NEW' : (b.days + (b.days === 1 ? ' day' : ' days'));
-    // "Started {date} · % updated {relative}" only for the deepened group —
-    // the "Just got deeper" group header already says what happened, this
-    // line adds the actual dates. The old inline amber "UPDATED" badge was
-    // dropped: it repeated exactly what the group header now says.
+    // Deepened-group meta line. Prefer the actual before/after — "Was 50%,
+    // now up to 70%" — over the generic "% updated {relative}" wording,
+    // since that's the number shoppers actually want. This lives here (the
+    // full-width extra line), not in the compact .rank-deal figure, which
+    // stays "Up to 70%" for every row — a "Was X%, now up to Y%" string is
+    // roughly double the width and would reintroduce the name-column squeeze
+    // that grid was tuned to avoid on 360-390px phones. Falls back to the
+    // old date-only wording when there's no prior value (legacy rows from
+    // before prior_discount_pct existed, or a non-percent_off sale type).
     const metaTxt = isDeepened(b)
-      ? 'Started ' + fmtRankDate(b.startDate) + ' · % updated ' + (b.pctChangeDays <= 1 ? 'today' : b.pctChangeDays + 'd ago')
+      ? (hasPct && b.priorPct != null && b.priorPct !== pct
+          ? 'Was ' + b.priorPct + '%, now up to ' + pct + '% · started ' + fmtRankDate(b.startDate)
+          : 'Started ' + fmtRankDate(b.startDate) + ' · % updated ' + (b.pctChangeDays <= 1 ? 'today' : b.pctChangeDays + 'd ago'))
       : '';
     // Admin-written sale description (brand_sale_cycles.description, set
     // via the Start/Edit/Increase forms in admin.html). Optional — most
@@ -4176,7 +4189,7 @@ function calcCentreScore(centreIdx) {
   const onSale = [];
   for (const brand of brandsAtCentre) {
     if (SALE_STATUS[brand.name]===true) {
-      onSale.push({...brand, days: DAYS_RUNNING[brand.name]||0, pctChangeDays: PCT_CHANGE_DAYS[brand.name]||0, startDate: SALE_START_DATE[brand.name]||null, pctChangeDate: PCT_CHANGE_DATE[brand.name]||null});
+      onSale.push({...brand, days: DAYS_RUNNING[brand.name]||0, pctChangeDays: PCT_CHANGE_DAYS[brand.name]||0, startDate: SALE_START_DATE[brand.name]||null, pctChangeDate: PCT_CHANGE_DATE[brand.name]||null, priorPct: PCT_PRIOR[brand.name] ?? null});
     }
   }
   const score = Math.round((onSale.length/brandsAtCentre.length)*100);

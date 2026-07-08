@@ -494,6 +494,12 @@ let OPEN_CYCLES = [];
 let TOP_CENTRES = null;
 let INCREASED_SALES = null;
 
+// Denominator floor for the centre-density ranking — mirrors index.html's
+// HOT_MIN_TRACKED_BRANDS (same threshold). A centre with only a handful of
+// centre_brands rows can swing to 100%/Peak on a single sale, which isn't a
+// meaningful density comparison against a fully-seeded ~90-brand centre.
+const MIN_TRACKED_BRANDS = 10;
+
 // Sale-type taxonomy. Keys must match the CHECK constraint in
 // supabase/migrations/20260508_add_sale_type.sql.
 const SALE_TYPES = [
@@ -1291,7 +1297,7 @@ async function loadTopCentres() {
     if (!latestByCentre.has(row.centre_id)) latestByCentre.set(row.centre_id, row);
   }
   return [...latestByCentre.values()]
-    .filter(r => r.tide_score != null)
+    .filter(r => r.tide_score != null && Number(r.total_brands) >= MIN_TRACKED_BRANDS)
     .sort((a, b) => b.tide_score - a.tide_score)
     .map(r => ({ ...r, name: nameById[r.centre_id] || r.centre_id }));
 }

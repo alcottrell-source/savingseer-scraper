@@ -1,0 +1,25 @@
+-- Migration: deactivate "The Walks" — under-seeded centre_brands data.
+-- Run once in the Supabase SQL editor (project: vrezzwadwzrmumjpdgge).
+--
+-- "The Walks" (King's Lynn) was never included in the May 2026 presence-
+-- matrix rebuild (supabase/migrations/20260525_rebuild_centre_brands.sql) —
+-- it's not in that migration's list of 32 centre names, so it never received
+-- the bulk true/false centre_brands rows every other tracked centre got for
+-- our ~91 brands. The one centre_brands row it does have (from a one-off
+-- manual insert, not this repo's seeding) makes centre_seer_scores.total_brands
+-- = 1, so a single brand on sale there reads as a 100%/Peak centre — a
+-- sample size of one masquerading as a fully-scored one. That surfaced as
+-- "The Walks — 1 of 1 shops on sale · Peak" topping the admin Insights tab's
+-- "Top 3 centres" ranking.
+--
+-- Deactivating removes it end-to-end for free: score.js only scores
+-- .eq('active', true) centres, and index.html / seo/generate.mjs only
+-- list/render active ones — so this also covers the centre picker, its own
+-- detail page, and SEO pages, not just the admin ranking.
+--
+-- Re-activate once a proper centre_brands presence migration exists for it,
+-- following the same true/false-per-brand pattern as 20260525_rebuild_centre_brands.sql.
+--
+-- Idempotent: safe to re-run.
+
+UPDATE centres SET active = false WHERE name = 'The Walks';

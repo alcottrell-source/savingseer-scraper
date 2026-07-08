@@ -127,6 +127,11 @@ function deriveStageFromVerdict(verdict) {
 // `Peak` (one-shot) so users get the GO NOW signal at their centre's natural
 // maximum. The day after, the descent path picks it up and we transition to
 // Easing.
+// TODO(ADR-002 docs/architecture/tide-score.md §10): replace the inline
+// getTrajectory/getTideStage calls (fresh + carry-forward paths) with
+// lib/tide-machine.js nextTideState, and persist the explicit state columns
+// (stage, stage_entered_date, last_peak_date, observed_days). The parity
+// suite in test/tide-machine.test.mjs proves the swap is behaviour-safe.
 function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   const wasHighTide = yesterdayStage === 'High Tide';
   const wasDescent  = yesterdayStage === 'Falling' || yesterdayStage === 'Low';
@@ -574,6 +579,11 @@ async function calculateAllCentreScores(opts = {}) {
 
 // ── Personal score helpers ─────────────────────────────────────────────────────
 
+// TODO(ADR-003 docs/architecture/personalisation-ranking.md §8.2): rewrite
+// calculatePersonalScores as the follows-first history pass — import
+// resolveLens/buildHistoryRow from lib/personal-rank.js, stamp the new
+// `basis` column, and delete this private brandMatchesPrefs (the shared
+// module owns the definition now).
 function brandMatchesPrefs(brand, prefs) {
   const genderMatch =
     (prefs.womenswear    && brand.womenswear)    ||
@@ -699,6 +709,11 @@ async function calculatePersonalScores(opts = {}) {
 // just the touched centre instead of all 30.
 export async function runScoring(opts = {}) {
   const summary = await calculateAllCentreScores(opts);
+  // TODO(ADR-001 docs/architecture/gravity-engine.md §9.2): add a gravity
+  // pass here — lib/gravity.js brandConfidence/centreGravity per brand/centre,
+  // persisted daily (brand_gravity table + centre_seer_scores confidence
+  // columns; migration per the ADR). Flag-never-mutate: it must not touch
+  // tide_score or sale state.
   try {
     await calculatePersonalScores(opts);
   } catch (err) {

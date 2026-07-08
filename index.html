@@ -5481,6 +5481,11 @@ const HOT_VERDICT_SEVERITY = { PEAK: 5, RISING: 4, EASING: 3, QUIET: 2, OVER: 1 
 // user's FOLLOWED shops at that centre, and only centres where ≥1 of your shops
 // is on sale are surfaced — ranked by how many of your shops are dropping. Falls
 // through to the global ranking when `personal` is off or the user follows none.
+// TODO(ADR-003 docs/architecture/personalisation-ranking.md §8.3): replace
+// this bespoke personal branch with the shared lib/personal-rank.js functions
+// (buildPersonalRow/rankPersonalFeed — adds the freshness sort key) inlined
+// between /* SYNC-START lib/personal-rank.js */ … /* SYNC-END */ markers; the
+// freshness inputs are already loaded (SALE_START_DATE / PCT_CHANGE_DAYS).
 function getHotCentres(n, excludeIds, personal) {
   const exclude = new Set(Array.isArray(excludeIds) ? excludeIds : []);
   const followed = (personal && typeof userPrefs !== 'undefined' && userPrefs && Array.isArray(userPrefs.brand_ids))

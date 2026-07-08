@@ -296,6 +296,7 @@
     color: var(--bark); white-space: nowrap; flex-shrink: 0;
   }
   .insight-stat.small { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--stone); }
+  .insight-stat.wide { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; color: var(--amber); white-space: nowrap; }
 
   .caption-box {
     margin: 6px 20px 0; background: white; border: 1px solid var(--border); border-radius: 12px;
@@ -395,6 +396,11 @@
     <div class="insight-list" id="insight-pct-list"><div class="empty-section">Loading…</div></div>
 
     <div class="section-bar">
+      <div class="section-title">Sales that just got deeper</div>
+    </div>
+    <div class="insight-list" id="insight-increase-list"><div class="empty-section">Loading…</div></div>
+
+    <div class="section-bar">
       <div class="section-title">Just dropped / just updated</div>
     </div>
     <div class="insight-list" id="insight-new-list"><div class="empty-section">Loading…</div></div>
@@ -486,6 +492,7 @@ const BRAND_BY_ID = Object.fromEntries(BRAND_DEFS.map(b => [b.id, b]));
 // to the tab and cached for the session.
 let OPEN_CYCLES = [];
 let TOP_CENTRES = null;
+let INCREASED_SALES = null;
 
 // Sale-type taxonomy. Keys must match the CHECK constraint in
 // supabase/migrations/20260508_add_sale_type.sql.
@@ -1216,8 +1223,57 @@ async function renderInsights() {
     }
   }
   renderCentreInsights(TOP_CENTRES);
+
+  if (INCREASED_SALES === null) {
+    $('insight-increase-list').innerHTML = '<div class="empty-section">Loading…</div>';
+    try {
+      INCREASED_SALES = await loadIncreasedSales();
+    } catch (err) {
+      console.error('loadIncreasedSales failed:', err);
+      $('insight-increase-list').innerHTML = '<div class="empty-section">Could not load increase history.</div>';
+      INCREASED_SALES = null;  // leave null so a later visit retries
+    }
+  }
+  if (INCREASED_SALES) renderIncreasedInsights();
+
   $('caption-box').textContent = buildCaption();
   wireCaptionCopy();
+}
+
+// "increased" is a dedicated admin_review_log verb (see applyIncrease) that
+// stores a "50% → 60%" before/after note — the only place that pairing is
+// recorded, since brand_sale_cycles only ever holds the current %. Not
+// scoped to today, so a discount deepened last week still surfaces here.
+async function loadIncreasedSales() {
+  const res = await pg.read(
+    'admin_review_log?select=brand_id,cycle_id,notes,reviewed_date&action=eq.increased&order=reviewed_date.desc&limit=30'
+  );
+  if (res.error) throw res.error;
+  return res.data || [];
+}
+
+// Cross-checked against OPEN_CYCLES so a stale increase on a cycle that has
+// since ended doesn't surface as if it were still live.
+function computeIncreasedSales(limit) {
+  const openCycleIds = new Set(OPEN_CYCLES.map(c => c.id));
+  return (INCREASED_SALES || [])
+    .filter(r => BRAND_BY_ID[r.brand_id] && openCycleIds.has(r.cycle_id) && r.notes && !r.notes.startsWith('—'))
+    .slice(0, limit || 8);
+}
+
+function renderIncreasedInsights() {
+  const rows = computeIncreasedSales(8);
+  $('insight-increase-list').innerHTML = rows.length
+    ? rows.map((r, i) => {
+        const def = BRAND_BY_ID[r.brand_id];
+        return '<div class="insight-row">'
+          + '<div class="insight-rank">' + (i + 1) + '</div>'
+          + '<div class="insight-main"><div class="insight-name">' + esc(def.name) + '</div>'
+          + '<div class="insight-sub">Discount deepened · ' + esc(relDate(r.reviewed_date)) + '</div></div>'
+          + '<div class="insight-stat wide">' + esc(r.notes) + '</div>'
+          + '</div>';
+      }).join('')
+    : '<div class="empty-section">No live sales have had their discount increased recently.</div>';
 }
 
 async function loadTopCentres() {
@@ -1309,6 +1365,7 @@ function buildCaption() {
     .slice().sort((a, b) => b.max_discount_pct - a.max_discount_pct).slice(0, 5);
   const newest = live.slice()
     .sort((a, b) => cycleFreshDate(b).localeCompare(cycleFreshDate(a))).slice(0, 5);
+  const increased = computeIncreasedSales(5);
 
   let out = 'TIDE — SALE UPDATE, ' + dateLabel + '\n\n';
   if (centres.length) {
@@ -1319,6 +1376,11 @@ function buildCaption() {
   if (topPct.length) {
     out += 'BIGGEST DISCOUNTS\n';
     topPct.forEach(c => { out += BRAND_BY_ID[c.brand_id].name + ' — up to ' + c.max_discount_pct + '% off\n'; });
+    out += '\n';
+  }
+  if (increased.length) {
+    out += 'JUST GOT DEEPER\n';
+    increased.forEach(r => { out += BRAND_BY_ID[r.brand_id].name + ' — now ' + r.notes + '\n'; });
     out += '\n';
   }
   if (newest.length) {

@@ -771,18 +771,27 @@
   .narrative-section { padding: 20px 24px 0; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease 0.1s, transform 0.4s ease 0.1s; }
   .narrative-section.visible { opacity: 1; transform: translateY(0); }
   .narrative-card { background: white; border: var(--card-border); box-shadow: var(--card-elev); border-radius: 14px; overflow: hidden; }
-  .narrative-hero { padding: 18px 20px 16px; border-bottom: 1px solid var(--leaf); }
+  .narrative-hero { padding: 16px 20px 14px; border-bottom: 1px solid var(--leaf); }
   .narrative-hero-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .narrative-title { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--stone); }
   .narrative-live { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--leaf); letter-spacing: 0.02em; }
   .narrative-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); animation: pulse 2s ease-in-out infinite; }
-  .narrative-headline { font-family: 'Playfair Display', serif; font-size: 34px; font-weight: 600; color: var(--bark); letter-spacing: -0.025em; line-height: 1.05; margin: 0; }
+  .narrative-headline { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 600; color: var(--bark); letter-spacing: -0.025em; line-height: 1.05; margin: 0; }
   .narrative-headline-num { color: var(--green-bright); font-weight: 600; }
   .narrative-headline-num.muted { color: var(--stone); }
+  /* Group titles split the ranked list into "New sales" vs "Just got deeper"
+     (brands whose sale just started vs. an existing sale whose % just got
+     bumped) — mirrors the same split/wording in admin.html's Insights tab.
+     Colour carries the same signal the old per-row "UPDATED" badge used to
+     (amber = deepened), just consolidated to one place instead of repeated
+     on every row. */
+  .rank-group-title { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 10px 14px 6px; }
+  .rank-group-title-new { color: var(--leaf); }
+  .rank-group-title-deeper { color: var(--amber); }
   .rank-list { list-style: none; margin: 0; padding: 0; }
-  .rank-row { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .rank-row { padding: 10px 14px; border-bottom: 1px solid var(--border); }
   .rank-row:last-child { border-bottom: none; }
-  .rank-row-top { display: grid; grid-template-columns: 22px 26px minmax(0,1fr) auto; align-items: center; gap: 8px; }
+  .rank-row-top { display: grid; grid-template-columns: 22px 26px minmax(0,1fr) auto; align-items: center; gap: 7px; }
   /* Deal % and the day/NEW pill stack vertically (value over tag) instead of
      sitting side-by-side — side-by-side, the two ate enough width on common
      360-390px phones to squeeze the name column down to a few characters. */
@@ -790,7 +799,7 @@
   /* Meta/description sit on their own full-width line below the compact top
      row instead of squeezed into the narrow name column — that column is too
      tight (competing with the deal % + pills) to wrap a sentence readably. */
-  .rank-row-extra { display: flex; flex-direction: column; gap: 2px; margin-top: 5px; padding-left: 64px; }
+  .rank-row-extra { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; padding-left: 62px; }
   .rank-num { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: var(--stone); font-variant-numeric: tabular-nums; }
   .rank-logo { width: 26px; height: 26px; border-radius: 6px; background: #fff; border: 1px solid var(--border); flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   .rank-logo-img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
@@ -801,7 +810,6 @@
   .rank-meta { font-size: 11px; color: var(--stone); line-height: 1.35; }
   .rank-desc { font-size: 12px; color: var(--ink-mid); line-height: 1.45; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
   .rank-deal { font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 700; color: var(--leaf); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
-  .rank-updated-badge { font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: var(--amber); border: 1px solid var(--amber); border-radius: 5px; padding: 2px 5px; vertical-align: 1px; text-transform: uppercase; }
   .rank-pill { font-size: 10px; letter-spacing: 0.08em; font-weight: 600; padding: 3px 8px; border-radius: 6px; border: 1px solid; text-transform: uppercase; }
   .rank-pill-new { color: var(--leaf); border-color: var(--leaf); background: var(--leaf-lt); }
   .rank-pill-old { color: var(--stone); border-color: var(--border); background: transparent; }
@@ -3646,75 +3654,89 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
       +   '<span class="narrative-live"><span class="narrative-live-dot"></span>Live</span>'
       + '</div>'
       + '<h2 class="narrative-headline">'
-      +   '<span class="' + numClass + '">' + freshCount + '</span> new sale' + (freshCount === 1 ? '' : 's')
+      +   '<span class="' + numClass + '">' + freshCount + '</span> fresh deal' + (freshCount === 1 ? '' : 's')
       + '</h2>'
     + '</div>';
 
-  // Ranked deals list — newest first, where "newest" is whichever is more
-  // recent of the sale's start or its last discount change, tie-broken by
-  // discount desc. Shows ALL deals within the freshness window so the list
-  // length matches the headline count (if it says "8 new sales", all 8 are
-  // listed).
+  // Ranked deals list, split into two labeled groups — brands whose sale
+  // just started ("New sales") and brands whose discount just got bumped on
+  // an already-listed sale ("Just got deeper", mirroring admin.html's
+  // Insights panel of the same name). Previously these were merged into one
+  // list distinguished only by a small inline badge, which read as
+  // confusing — a several-day-old sale sitting at the top of "Newest Sales"
+  // next to a genuinely brand-new one, with no clear separation.
   const fmtRankDate = s => s ? new Date(s + 'T12:00:00').toLocaleDateString('en-GB', {day:'numeric', month:'short'}) : '';
-  const freshRank = b => Math.min(b.days || Infinity, (b.pctChangeDays > 0 ? b.pctChangeDays : Infinity));
-  const topDeals = freshDeals.slice()
-    .sort((a, b) => freshRank(a) - freshRank(b) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)));
-  const rankList = topDeals.length
-    ? '<ul class="rank-list">' + topDeals.map((b, i) => {
-        const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
-        const typeKey = SALE_TYPE[b.name];
-        const hasPct = (typeof pct === 'number' && pct > 0);
-        // Prefer the explicit sale-type label (e.g. "2 for 1") when the type
-        // isn't percent_off — that's the headline detail. For percent_off, the
-        // "Up to N%" string is already the headline.
-        let dealTxt;
-        if (typeKey && typeKey !== 'percent_off' && SALE_TYPE_LABEL[typeKey]) {
-          dealTxt = SALE_TYPE_LABEL[typeKey] + (hasPct ? (' · Up to ' + pct + '%') : '');
-        } else {
-          dealTxt = hasPct ? ('Up to ' + pct + '%') : '—';
-        }
-        // A brand surfaces here either because the sale just started or
-        // because its discount just changed (pct_changed_date more recent
-        // than start_date, admin-driven via Edit/Increase). Flag the latter
-        // distinctly — otherwise an 18-day-old sale showing up under
-        // "Newest Sales" with only a day-count pill reads as a bug.
-        const isPctUpdate = b.pctChangeDays > 0 && b.pctChangeDays <= FRESH_WINDOW_DAYS && b.pctChangeDays < (b.days || 0);
-        const pillClass = (b.days <= 1) ? 'rank-pill rank-pill-new' : 'rank-pill rank-pill-old';
-        const pillTxt = (b.days <= 1) ? 'NEW' : (b.days + (b.days === 1 ? ' day' : ' days'));
-        const metaTxt = isPctUpdate
-          ? 'Started ' + fmtRankDate(b.startDate) + ' · % updated ' + (b.pctChangeDays <= 1 ? 'today' : b.pctChangeDays + 'd ago')
-          : '';
-        // Admin-written sale description (brand_sale_cycles.description, set
-        // via the Start/Edit/Increase forms in admin.html). Optional — most
-        // rows have none, so it only takes up space when actually used.
-        const descTxt = (typeof SALE_DESCRIPTION !== 'undefined' && SALE_DESCRIPTION[b.name]) ? SALE_DESCRIPTION[b.name] : '';
-        // Small brand icon — Google-favicon src (same source as the brand
-        // chips/strip), monogram fallback when we have no URL or the favicon
-        // fails to load (onerror flips the tile to its lettered .is-mono state).
-        const logoSrc = hotTileLogoSrc(b.name);
-        const mono = hotTileLabel(b.name);
-        const logoHTML = '<span class="rank-logo' + (logoSrc ? '' : ' is-mono') + '" data-mono="' + escapeHtml(mono) + '">'
-             + (logoSrc ? '<img class="rank-logo-img" alt="" loading="lazy" src="' + logoSrc + '" onerror="this.closest(\'.rank-logo\').classList.add(\'is-mono\')">' : '')
-             + '</span>';
-        const extraHTML = (metaTxt || descTxt)
-             ? '<div class="rank-row-extra">'
-             +   (metaTxt ? '<span class="rank-meta">' + escapeHtml(metaTxt) + '</span>' : '')
-             +   (descTxt ? '<span class="rank-desc">' + escapeHtml(descTxt) + '</span>' : '')
-             + '</div>'
-             : '';
-        return '<li class="rank-row">'
-             +   '<div class="rank-row-top">'
-             +     '<span class="rank-num">' + (i + 1) + '</span>'
-             +     logoHTML
-             +     '<span class="rank-name">' + escapeHtml(b.name) + '</span>'
-             +     '<span class="rank-deal-col">'
-             +       '<span class="rank-deal">' + escapeHtml(dealTxt) + (isPctUpdate ? ' <span class="rank-updated-badge">UPDATED</span>' : '') + '</span>'
-             +       '<span class="' + pillClass + '">' + pillTxt + '</span>'
-             +     '</span>'
-             +   '</div>'
-             +   extraHTML
-             + '</li>';
-      }).join('') + '</ul>'
+  // A brand surfaces here either because the sale just started or because
+  // its discount just changed (pct_changed_date more recent than
+  // start_date, admin-driven via Edit/Increase) — this flag is what splits
+  // it into one group or the other.
+  const isDeepened = b => b.pctChangeDays > 0 && b.pctChangeDays <= FRESH_WINDOW_DAYS && b.pctChangeDays < (b.days || 0);
+  const renderRankRow = (b, i) => {
+    const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
+    const typeKey = SALE_TYPE[b.name];
+    const hasPct = (typeof pct === 'number' && pct > 0);
+    // Prefer the explicit sale-type label (e.g. "2 for 1") when the type
+    // isn't percent_off — that's the headline detail. For percent_off, the
+    // "Up to N%" string is already the headline.
+    let dealTxt;
+    if (typeKey && typeKey !== 'percent_off' && SALE_TYPE_LABEL[typeKey]) {
+      dealTxt = SALE_TYPE_LABEL[typeKey] + (hasPct ? (' · Up to ' + pct + '%') : '');
+    } else {
+      dealTxt = hasPct ? ('Up to ' + pct + '%') : '—';
+    }
+    const pillClass = (b.days <= 1) ? 'rank-pill rank-pill-new' : 'rank-pill rank-pill-old';
+    const pillTxt = (b.days <= 1) ? 'NEW' : (b.days + (b.days === 1 ? ' day' : ' days'));
+    // "Started {date} · % updated {relative}" only for the deepened group —
+    // the "Just got deeper" group header already says what happened, this
+    // line adds the actual dates. The old inline amber "UPDATED" badge was
+    // dropped: it repeated exactly what the group header now says.
+    const metaTxt = isDeepened(b)
+      ? 'Started ' + fmtRankDate(b.startDate) + ' · % updated ' + (b.pctChangeDays <= 1 ? 'today' : b.pctChangeDays + 'd ago')
+      : '';
+    // Admin-written sale description (brand_sale_cycles.description, set
+    // via the Start/Edit/Increase forms in admin.html). Optional — most
+    // rows have none, so it only takes up space when actually used.
+    const descTxt = (typeof SALE_DESCRIPTION !== 'undefined' && SALE_DESCRIPTION[b.name]) ? SALE_DESCRIPTION[b.name] : '';
+    // Small brand icon — Google-favicon src (same source as the brand
+    // chips/strip), monogram fallback when we have no URL or the favicon
+    // fails to load (onerror flips the tile to its lettered .is-mono state).
+    const logoSrc = hotTileLogoSrc(b.name);
+    const mono = hotTileLabel(b.name);
+    const logoHTML = '<span class="rank-logo' + (logoSrc ? '' : ' is-mono') + '" data-mono="' + escapeHtml(mono) + '">'
+         + (logoSrc ? '<img class="rank-logo-img" alt="" loading="lazy" src="' + logoSrc + '" onerror="this.closest(\'.rank-logo\').classList.add(\'is-mono\')">' : '')
+         + '</span>';
+    const extraHTML = (metaTxt || descTxt)
+         ? '<div class="rank-row-extra">'
+         +   (metaTxt ? '<span class="rank-meta">' + escapeHtml(metaTxt) + '</span>' : '')
+         +   (descTxt ? '<span class="rank-desc">' + escapeHtml(descTxt) + '</span>' : '')
+         + '</div>'
+         : '';
+    return '<li class="rank-row">'
+         +   '<div class="rank-row-top">'
+         +     '<span class="rank-num">' + (i + 1) + '</span>'
+         +     logoHTML
+         +     '<span class="rank-name">' + escapeHtml(b.name) + '</span>'
+         +     '<span class="rank-deal-col">'
+         +       '<span class="rank-deal">' + escapeHtml(dealTxt) + '</span>'
+         +       '<span class="' + pillClass + '">' + pillTxt + '</span>'
+         +     '</span>'
+         +   '</div>'
+         +   extraHTML
+         + '</li>';
+  };
+  const newRows = freshDeals.filter(b => !isDeepened(b))
+    .sort((a, b) => (a.days||0) - (b.days||0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)));
+  const deeperRows = freshDeals.filter(isDeepened)
+    .sort((a, b) => (a.pctChangeDays||0) - (b.pctChangeDays||0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)));
+  // A group's title+list is omitted entirely when it has zero rows, rather
+  // than showing an empty/half-empty section.
+  const renderRankGroup = (title, cls, rows) => rows.length
+    ? '<div class="rank-group-title ' + cls + '">' + title + '</div>'
+      + '<ul class="rank-list">' + rows.map(renderRankRow).join('') + '</ul>'
+    : '';
+  const rankList = freshDeals.length
+    ? renderRankGroup('New sales', 'rank-group-title-new', newRows)
+      + renderRankGroup('Just got deeper', 'rank-group-title-deeper', deeperRows)
     : '<div class="rank-empty">' + (onSaleCount > 0
         ? 'No new sales in the last ' + FRESH_WINDOW_DAYS + ' days.'
         : 'No sales today.') + '</div>';

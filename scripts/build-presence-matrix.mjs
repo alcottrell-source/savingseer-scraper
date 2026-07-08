@@ -31,7 +31,6 @@ const BRAND_ALIASES = {
   B015: ['Arket'],
   B016: ['& Other Stories', 'And Other Stories', 'Other Stories'],
   B017: ['Weekday'],
-  B018: ['Monki'],
   B019: ['Hollister', 'Hollister Co'],
   B020: ['Abercrombie', 'Abercrombie & Fitch'],
   // Classic British

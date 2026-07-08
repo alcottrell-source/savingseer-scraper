@@ -121,14 +121,6 @@ export const brands = [
     confirmText: ['sale', 'up to', '% off'],
   },
   {
-    id: 'B018', name: 'Monki', cluster: 'Contemporary',
-    womenswear: true, menswear: false, childrenswear: false,
-    renderMode: 'browser',
-    url: 'https://www.monki.com/en_gbp/',
-    saleSelectors: ['h1', '[class*="sale"]'],
-    confirmText: ['sale', 'up to', '% off'],
-  },
-  {
     id: 'B019', name: 'Hollister', cluster: 'Contemporary',
     womenswear: true, menswear: true, childrenswear: false,
     renderMode: 'browser',

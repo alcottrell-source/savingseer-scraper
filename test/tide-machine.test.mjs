@@ -78,11 +78,32 @@ test('E1 — new centre day 1: RISING default, stage from the table with null pr
   assert.equal(s.stageEnteredDate, D0);
 });
 
-test('E2 — constant-score centre stays RISING forever (preserved quirk, OQ1)', () => {
-  const s = run(Array(10).fill(20));
-  assert.equal(s.trajectory, 'RISING');
-  assert.equal(s.verdict, 'Rising');
-  assert.equal(s.lastPeakDate, null, 'never fires its local peak');
+test('E2 — stall decay: a plateaued centre fires its one-shot peak, then eases (OQ1 fixed)', () => {
+  // Constant 20% from day 1: RISING by default while young; the first full
+  // window (day 4) reads a dead-flat span → FLAT → local peak fires once.
+  const s4 = run([20, 20, 20, 20]);
+  assert.equal(s4.trajectory, 'FLAT');
+  assert.equal(s4.verdict, 'Peak', 'the plateau IS the peak');
+  const s5 = run([20, 20, 20, 20, 20]);
+  assert.equal(s5.verdict, 'Easing', 'one-shot resolves the next day');
+  assert.equal(s5.lastPeakDate, s4.date);
+  const s10 = run(Array(10).fill(20));
+  assert.equal(s10.verdict, 'Easing', 'no second peak from the same plateau');
+  assert.equal(s10.lastPeakDate, s4.date);
+});
+
+test('E2b — stall decay after a real climb: peak fires once the window catches the plateau', () => {
+  // 16→20→24→27, then flat 27s. Sticky RISING holds while the 3-day window
+  // still contains climb points (span ≥ 1.5); the third plateau day makes
+  // the window dead flat → FLAT → one-shot peak, then descent.
+  const climb = run([16, 20, 24, 27, 27, 27]);
+  assert.equal(climb.trajectory, 'RISING', 'window still spans the climb — no stall yet');
+  const peak = run([16, 20, 24, 27, 27, 27, 27]);
+  assert.equal(peak.verdict, 'Peak');
+  assert.equal(peak.trajectory, 'FLAT');
+  const after = run([16, 20, 24, 27, 27, 27, 27, 27]);
+  assert.equal(after.verdict, 'Easing');
+  assert.equal(after.lastPeakDate, peak.date);
 });
 
 test('E3 — one-shot local peak resolves to Easing the next day', () => {

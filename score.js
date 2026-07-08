@@ -143,8 +143,9 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   //
   // It must catch FLAT too, not just FALLING. getTrajectory's stickiness
   // only ever leaves RISING via FLAT for a gentle roll-over (a drop of
-  // 1.5–4 pts vs the 3-day average) and via FALLING for a sharp one
-  // (>4 pts). If we only fired on RISING→FALLING, every centre that peaks
+  // 1.5–4 pts vs the 3-day average) or a stalled climb (window flat within
+  // TRAJECTORY_STALL_RANGE — the plateau is the peak), and via FALLING for
+  // a sharp one (>4 pts). If we only fired on RISING→FALLING, every centre that peaks
   // gently below HIGH_TIDE_ENTER would slide RISING→FLAT→FALLING and never
   // emit a Peak — no GO NOW, no peak-alert email — which silently breaks
   // the core promise that every centre has a peak day. The sticky thresholds
@@ -224,7 +225,17 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
 //   - FLAT (or unknown prior): symmetric ±TRAJECTORY_FLAT_BAND thresholds.
 //
 // Requires ≥3 days of history; defaults to RISING for new centres (spec §9.3).
-const TRAJECTORY_FLIP_BAND = 4.0;
+//
+// Stall decay (OQ1 fix, ADR-002 — 2026-07-08): sticky RISING only ever exited
+// on a DROP, so a centre whose score plateaued read "Rising" forever and its
+// local peak never fired. Now, when the whole window plus today spans less
+// than TRAJECTORY_STALL_RANGE, the climb has genuinely flattened → FLAT. The
+// RISING→FLAT this produces is the roll-over that fires the one-shot Peak in
+// getTideStage — deliberately: a plateau IS the centre's peak (picks are
+// freshest now). RISING-only by design: decaying FALLING would soften the
+// new-cycle escape threshold, a separate behaviour change nobody asked for.
+const TRAJECTORY_FLIP_BAND  = 4.0;
+const TRAJECTORY_STALL_RANGE = 1.5;  // window∪today span below this = stalled climb
 function getTrajectory(todayScore, recentScores, yesterdayTrajectory) {
   if (recentScores.length < 3) return 'RISING';
   const avg = (recentScores[0] + recentScores[1] + recentScores[2]) / 3;
@@ -233,6 +244,9 @@ function getTrajectory(todayScore, recentScores, yesterdayTrajectory) {
   if (prior === 'RISING') {
     if (diff < -TRAJECTORY_FLIP_BAND) return 'FALLING';
     if (diff < -TRAJECTORY_FLAT_BAND) return 'FLAT';
+    const w = recentScores.slice(0, 3);
+    const span = Math.max(todayScore, ...w) - Math.min(todayScore, ...w);
+    if (span < TRAJECTORY_STALL_RANGE) return 'FLAT';
     return 'RISING';
   }
   if (prior === 'FALLING') {

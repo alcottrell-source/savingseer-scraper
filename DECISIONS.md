@@ -98,13 +98,10 @@ of each section.
   supply the original document).
 
 ## Open questions (Phase 2/3 — for the owner, non-blocking)
-- **OQ1 — the eternal-RISING quirk (preserved for parity).** A centre whose
-  score enters at the RISING default and then never *drops* stays trajectory
-  RISING forever (sticky RISING only exits on falls). A stable 20% centre
-  therefore reads "Rising" indefinitely and never fires its local peak. The
-  formal machine preserves this exactly (test `E2`). Candidate fix — RISING
-  decays to FLAT after N consecutive |diff| < 1.5 days — is a behaviour change
-  (verdict copy + peak-alert timing) needing the owner's call. See ADR-002 §6 E2.
+- **OQ1 — the eternal-RISING quirk. RESOLVED → D16 (owner: "fix it").**
+  Was: a centre whose score plateaued stayed trajectory RISING forever (sticky
+  RISING only exited on drops), reading "Rising" indefinitely and never firing
+  its local peak. Fixed by the stall decay rule — see D16 and ADR-002 §5.1/§6 E2.
 - **OQ2 — graduated crowd trust.** Enough independent corroborating reports
   auto-refreshing `last_verified_date` (still never opening/closing cycles) was
   deliberately deferred (D6); requires reporter track-record weighting first.
@@ -177,6 +174,21 @@ of each section.
   suite. A short window on observation 4+ means a broken (gapped) window →
   FLAT rebuild (divergence V2, a deliberate bug-fix over the shipped RISING
   default after gaps).
+
+- **D16 (2026-07-08, owner — "fix it" on OQ1):** **Stall decay** added to the
+  RISING trajectory branch: when the 3-day window *plus today* spans less than
+  `TRAJECTORY_STALL_RANGE` (1.5 pts), the climb has genuinely flattened →
+  FLAT. The resulting RISING→FLAT flip fires the one-shot local Peak — by
+  design, the plateau IS the centre's peak (aligned with D10: a plateaued
+  centre previously *missed* its peak entirely). Design choices: (a)
+  **stateless** window-range test rather than a persisted streak counter, so
+  the identical rule ships in both `lib/tide-machine.js` and production
+  `score.js` with parity intact and no schema change; (b) **RISING-only** —
+  decaying FALLING would soften the new-cycle escape threshold (>4 → >1.5), a
+  separate unrequested behaviour change; (c) accepted consequences: a one-time
+  catch-up wave of Peak verdicts/emails for currently-plateaued centres on the
+  first post-deploy run, and new centres onboarded mid-plateau at ≥15% firing
+  their one-shot Peak on ~day 4. See ADR-002 §5.1 + §6 E2.
 
 ## Phase 2/3 record (2026-07-08)
 

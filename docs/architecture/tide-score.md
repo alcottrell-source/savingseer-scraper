@@ -130,7 +130,8 @@ Bands: `FLAT_BAND = 1.5`, `FLIP_BAND = 4.0` (tide_score points).
 (`observedDays` counts total observations **including today's**.)
 | RISING | `diff < −4.0` | FALLING |
 | RISING | `−4.0 ≤ diff < −1.5` | FLAT |
-| RISING | `diff ≥ −1.5` | RISING (sticky through dips) |
+| RISING | `diff ≥ −1.5` and `span(window ∪ {today}) < 1.5` (`TRAJECTORY_STALL_RANGE`) | FLAT — **stall decay** (OQ1 fix, D16): the climb has genuinely flattened; the resulting RISING→FLAT flip fires the one-shot local peak downstream, because the plateau IS the centre's peak. Stateless (window-range test, no streak counter), so `score.js`'s `getTrajectory` applies the identical rule and parity holds |
+| RISING | `diff ≥ −1.5` otherwise | RISING (sticky through dips on a genuine climb) |
 | FALLING | `diff > 4.0` | RISING |
 | FALLING | `1.5 < diff ≤ 4.0` | FLAT |
 | FALLING | `diff ≤ 1.5` | FALLING (sticky through bounces) |
@@ -189,11 +190,19 @@ as `STAGE_FROM_VERDICT` in `score.js`.
 
 - **E1 new centre, day 1:** `prevState = null` → trajectory RISING (default),
   stage from T1–T9 with `prevStage = null` (so T3/T7/T8/T9 territory).
-- **E2 constant-score new centre:** enters RISING and *stays* RISING forever
-  (sticky RISING only exits on drops) — so a stable 20% centre reads "Rising"
-  indefinitely and never fires its local peak. **Preserved for parity**;
-  logged as open question OQ1 in `DECISIONS.md` (candidate fix: RISING decays
-  to FLAT after N flat days — a behaviour change needing the owner's call).
+- **E2 plateaued centre (OQ1, FIXED 2026-07-08 — owner-approved, D16):**
+  sticky RISING previously only exited on drops, so a stable 20% centre read
+  "Rising" forever and never fired its local peak. Now the **stall decay** row
+  (§5.1) sends it FLAT once the window flattens, firing the one-shot Peak —
+  then the descent path takes over (Easing) exactly like any other local peak.
+  Two documented consequences: **(a) one-time catch-up wave** — on the first
+  scoring run after deploy, every centre currently plateaued in RISING fires
+  its one-shot Peak (+ GO NOW badge + peak-alert email); these are peaks the
+  old rule was silently swallowing, so the wave is the fix working, not a
+  regression. **(b) new centres onboarded mid-plateau** at ≥15% fire their
+  one-shot Peak on ~day 4 (first full window). Defensible — that is the best
+  information available about a centre that arrived already at its level —
+  but worth knowing when onboarding a batch.
 - **E3 one-shot Peak resolution:** local peak at 25 → next day score 25,
   prevStage High Tide → T3 fails (25 < 30) → T6 Easing. Automatic.
 - **E4 hysteresis hold:** 45 → Peak; 35 next day → still Peak (hold ≥ 30);
@@ -221,6 +230,10 @@ as `STAGE_FROM_VERDICT` in `score.js`.
   case, which previously produced a bug.
 - **V3 — date-aware steps.** The machine sees real dates and defines gap
   semantics; `score.js` today only sees "whatever rows the last 3 days had".
+
+Note: the **stall decay** (§5.1, E2) is *not* a divergence — it was applied to
+`lib/tide-machine.js` and shipped `score.js` simultaneously (owner-approved
+behaviour change, D16), so the parity suite still holds across both.
 
 ## 8. Failure modes
 
@@ -262,7 +275,10 @@ fields exist for this reason, not just for UI copy.
   29, 31, 35, 39, 41, 60} × prev stages {null + all 5} × prev trajectories
   {null + all 3} × window diffs {−6, −3, −1, 0, +2, +5}) on the no-gap path —
   stage, verdict, and trajectory must match exactly.
-- Every edge case E1–E9 as a named scenario test.
+- Every edge case E1–E9 as a named scenario test, including the stall-decay
+  suite (E2/E2b in `tide-machine.test.mjs` + the `getTrajectory` stall tests in
+  `score.test.mjs`): plateau fires exactly one Peak then eases; a genuine climb
+  with span ≥ 1.5 never stalls; FALLING/FLAT priors are untouched.
 - Full-cycle simulation: Quiet → Rising → Peak(40+) → hold → Easing → Over →
   new-cycle escape, asserting stage dates/durations along the way.
 - Gap suite: 2-day and 3-day gaps behave as consecutive; 4+ day gap clears

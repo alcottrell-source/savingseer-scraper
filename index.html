@@ -780,17 +780,26 @@
   .narrative-headline-num { color: var(--green-bright); font-weight: 600; }
   .narrative-headline-num.muted { color: var(--stone); }
   .rank-list { list-style: none; margin: 0; padding: 0; }
-  .rank-row { display: grid; grid-template-columns: 24px 26px 1fr auto auto; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--border); }
+  .rank-row { padding: 12px 14px; border-bottom: 1px solid var(--border); }
   .rank-row:last-child { border-bottom: none; }
+  .rank-row-top { display: grid; grid-template-columns: 22px 26px minmax(0,1fr) auto; align-items: center; gap: 8px; }
+  /* Deal % and the day/NEW pill stack vertically (value over tag) instead of
+     sitting side-by-side — side-by-side, the two ate enough width on common
+     360-390px phones to squeeze the name column down to a few characters. */
+  .rank-deal-col { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  /* Meta/description sit on their own full-width line below the compact top
+     row instead of squeezed into the narrow name column — that column is too
+     tight (competing with the deal % + pills) to wrap a sentence readably. */
+  .rank-row-extra { display: flex; flex-direction: column; gap: 2px; margin-top: 5px; padding-left: 64px; }
   .rank-num { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: var(--stone); font-variant-numeric: tabular-nums; }
   .rank-logo { width: 26px; height: 26px; border-radius: 6px; background: #fff; border: 1px solid var(--border); flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   .rank-logo-img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
   .rank-logo.is-mono { background: var(--stone-lt); border-color: var(--stone-lt); }
   .rank-logo.is-mono .rank-logo-img { display: none; }
   .rank-logo.is-mono::after { content: attr(data-mono); font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; color: var(--stone); text-transform: uppercase; }
-  .rank-name-col { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .rank-name { font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .rank-meta { font-size: 11px; color: var(--stone); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rank-meta { font-size: 11px; color: var(--stone); line-height: 1.35; }
+  .rank-desc { font-size: 12px; color: var(--ink-mid); line-height: 1.45; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
   .rank-deal { font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 700; color: var(--leaf); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
   .rank-updated-badge { font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: var(--amber); border: 1px solid var(--amber); border-radius: 5px; padding: 2px 5px; vertical-align: 1px; text-transform: uppercase; }
   .rank-pill { font-size: 10px; letter-spacing: 0.08em; font-weight: 600; padding: 3px 8px; border-radius: 6px; border: 1px solid; text-transform: uppercase; }
@@ -3675,6 +3684,10 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
         const metaTxt = isPctUpdate
           ? 'Started ' + fmtRankDate(b.startDate) + ' · % updated ' + (b.pctChangeDays <= 1 ? 'today' : b.pctChangeDays + 'd ago')
           : '';
+        // Admin-written sale description (brand_sale_cycles.description, set
+        // via the Start/Edit/Increase forms in admin.html). Optional — most
+        // rows have none, so it only takes up space when actually used.
+        const descTxt = (typeof SALE_DESCRIPTION !== 'undefined' && SALE_DESCRIPTION[b.name]) ? SALE_DESCRIPTION[b.name] : '';
         // Small brand icon — Google-favicon src (same source as the brand
         // chips/strip), monogram fallback when we have no URL or the favicon
         // fails to load (onerror flips the tile to its lettered .is-mono state).
@@ -3683,16 +3696,23 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
         const logoHTML = '<span class="rank-logo' + (logoSrc ? '' : ' is-mono') + '" data-mono="' + escapeHtml(mono) + '">'
              + (logoSrc ? '<img class="rank-logo-img" alt="" loading="lazy" src="' + logoSrc + '" onerror="this.closest(\'.rank-logo\').classList.add(\'is-mono\')">' : '')
              + '</span>';
-        const nameHTML = '<span class="rank-name-col">'
-             +   '<span class="rank-name">' + escapeHtml(b.name) + '</span>'
+        const extraHTML = (metaTxt || descTxt)
+             ? '<div class="rank-row-extra">'
              +   (metaTxt ? '<span class="rank-meta">' + escapeHtml(metaTxt) + '</span>' : '')
-             + '</span>';
+             +   (descTxt ? '<span class="rank-desc">' + escapeHtml(descTxt) + '</span>' : '')
+             + '</div>'
+             : '';
         return '<li class="rank-row">'
-             +   '<span class="rank-num">' + (i + 1) + '</span>'
-             +   logoHTML
-             +   nameHTML
-             +   '<span class="rank-deal">' + escapeHtml(dealTxt) + (isPctUpdate ? ' <span class="rank-updated-badge">UPDATED</span>' : '') + '</span>'
-             +   '<span class="' + pillClass + '">' + pillTxt + '</span>'
+             +   '<div class="rank-row-top">'
+             +     '<span class="rank-num">' + (i + 1) + '</span>'
+             +     logoHTML
+             +     '<span class="rank-name">' + escapeHtml(b.name) + '</span>'
+             +     '<span class="rank-deal-col">'
+             +       '<span class="rank-deal">' + escapeHtml(dealTxt) + (isPctUpdate ? ' <span class="rank-updated-badge">UPDATED</span>' : '') + '</span>'
+             +       '<span class="' + pillClass + '">' + pillTxt + '</span>'
+             +     '</span>'
+             +   '</div>'
+             +   extraHTML
              + '</li>';
       }).join('') + '</ul>'
     : '<div class="rank-empty">' + (onSaleCount > 0

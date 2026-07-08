@@ -255,7 +255,54 @@
     .section-bar { max-width: 720px; margin: 0 auto; padding-left: 0; padding-right: 0; }
     .filter-bar { max-width: 720px; margin: 0 auto; padding-left: 0; padding-right: 0; }
     header { padding-left: max(20px, calc((100vw - 720px) / 2)); padding-right: max(20px, calc((100vw - 720px) / 2)); }
+    .tab-nav { max-width: 720px; margin: 0 auto; padding-left: 0; padding-right: 0; }
+    .insight-list, .stat-grid { max-width: 720px; margin-left: auto; margin-right: auto; }
   }
+
+  /* ── Top-level tab nav ──────────────────────────────────────────────── */
+  .tab-nav {
+    display: flex; gap: 4px; padding: 14px 20px 0;
+    position: sticky; top: 61px; background: var(--cream); z-index: 90;
+  }
+  .tab-btn {
+    font: inherit; font-size: 13px; font-weight: 500;
+    border: none; background: none; color: var(--stone);
+    padding: 8px 4px 10px; cursor: pointer; border-bottom: 2px solid transparent;
+  }
+  .tab-btn.active { color: var(--bark); border-bottom-color: var(--leaf); }
+  .tab-btn:hover:not(.active) { color: var(--bark); }
+
+  /* ── Insights tab ──────────────────────────────────────────────────── */
+  .insight-intro { padding: 4px 20px 14px; font-size: 12px; color: var(--stone); line-height: 1.5; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; padding: 0 20px; margin-bottom: 22px; }
+  .stat-tile { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 14px; text-align: center; }
+  .stat-tile .stat-n { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; color: var(--leaf); line-height: 1.1; }
+  .stat-tile .stat-l { font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--stone); margin-top: 5px; }
+
+  .insight-list { padding: 0 20px; display: flex; flex-direction: column; gap: 8px; }
+  .insight-row {
+    background: white; border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; display: flex; align-items: center; gap: 12px;
+  }
+  .insight-rank {
+    font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600;
+    color: var(--leaf); width: 20px; text-align: center; flex-shrink: 0;
+  }
+  .insight-main { flex: 1; min-width: 0; }
+  .insight-name { font-size: 14px; font-weight: 500; color: var(--bark); line-height: 1.25; }
+  .insight-sub { font-size: 11px; color: var(--stone); margin-top: 2px; }
+  .insight-stat {
+    font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 600;
+    color: var(--bark); white-space: nowrap; flex-shrink: 0;
+  }
+  .insight-stat.small { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--stone); }
+
+  .caption-box {
+    margin: 6px 20px 0; background: white; border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; font-size: 12px; color: var(--bark); white-space: pre-wrap;
+    line-height: 1.5; max-height: 220px; overflow-y: auto;
+  }
+  .caption-box:empty::before { content: 'Loading…'; color: var(--stone); font-style: italic; }
 </style>
 </head>
 <body>
@@ -291,35 +338,73 @@
 
 <!-- Main app -->
 <main id="app" style="display:none">
-  <div class="section-bar">
-    <div class="section-title urgent">Needs review</div>
-    <div class="count-pill urgent" id="needs-count">0</div>
+  <div class="tab-nav" id="tab-nav">
+    <button class="tab-btn active" data-tab="queue" id="tabbtn-queue" type="button">Review queue</button>
+    <button class="tab-btn" data-tab="insights" id="tabbtn-insights" type="button">Insights</button>
   </div>
-  <div class="filter-bar" id="filter-bar" style="display:none">
-    <button class="filter-chip active" data-filter="urgent" id="chip-urgent">Urgent<span class="chip-n" id="n-urgent">0</span></button>
-    <button class="filter-chip" data-filter="easy" id="chip-easy">Easy<span class="chip-n" id="n-easy">0</span></button>
-    <button class="filter-chip" data-filter="routine" id="chip-routine">Routine<span class="chip-n" id="n-routine">0</span></button>
-  </div>
-  <div class="brand-list" id="needs-list"></div>
-  <div id="needs-empty" class="empty-section" style="display:none">All caught up. Nothing to review today.</div>
 
-  <div class="section-bar confirmed">
-    <div class="section-title">Confirmed today</div>
-    <div class="count-pill" id="confirmed-count">0</div>
-  </div>
-  <div class="brand-list" id="confirmed-list"></div>
-  <div id="confirmed-empty" class="empty-section" style="display:none">No actions yet today.</div>
-
-  <div class="section-bar">
-    <div class="section-title">Waitlist</div>
-    <div style="display:flex; align-items:center; gap:10px;">
-      <button id="waitlist-copy" class="wl-copy-btn" type="button" style="display:none">Copy emails</button>
-      <div class="count-pill" id="waitlist-count">0</div>
+  <div id="panel-queue">
+    <div class="section-bar">
+      <div class="section-title urgent">Needs review</div>
+      <div class="count-pill urgent" id="needs-count">0</div>
     </div>
+    <div class="filter-bar" id="filter-bar" style="display:none">
+      <button class="filter-chip active" data-filter="urgent" id="chip-urgent">Urgent<span class="chip-n" id="n-urgent">0</span></button>
+      <button class="filter-chip" data-filter="easy" id="chip-easy">Easy<span class="chip-n" id="n-easy">0</span></button>
+      <button class="filter-chip" data-filter="routine" id="chip-routine">Routine<span class="chip-n" id="n-routine">0</span></button>
+    </div>
+    <div class="brand-list" id="needs-list"></div>
+    <div id="needs-empty" class="empty-section" style="display:none">All caught up. Nothing to review today.</div>
+
+    <div class="section-bar confirmed">
+      <div class="section-title">Confirmed today</div>
+      <div class="count-pill" id="confirmed-count">0</div>
+    </div>
+    <div class="brand-list" id="confirmed-list"></div>
+    <div id="confirmed-empty" class="empty-section" style="display:none">No actions yet today.</div>
+
+    <div class="section-bar">
+      <div class="section-title">Waitlist</div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button id="waitlist-copy" class="wl-copy-btn" type="button" style="display:none">Copy emails</button>
+        <div class="count-pill" id="waitlist-count">0</div>
+      </div>
+    </div>
+    <div id="waitlist-summary" class="wl-summary"></div>
+    <div class="brand-list" id="waitlist-list"></div>
+    <div id="waitlist-empty" class="empty-section" style="display:none">No expansion signups yet.</div>
   </div>
-  <div id="waitlist-summary" class="wl-summary"></div>
-  <div class="brand-list" id="waitlist-list"></div>
-  <div id="waitlist-empty" class="empty-section" style="display:none">No expansion signups yet.</div>
+
+  <div id="panel-insights" style="display:none">
+    <div class="insight-intro">Live snapshot for social posts — pulled straight from today's verified sale data. Nothing here is saved; refresh the page to re-pull.</div>
+
+    <div class="stat-grid">
+      <div class="stat-tile"><div class="stat-n" id="stat-live">—</div><div class="stat-l">Live sales / tracked</div></div>
+      <div class="stat-tile"><div class="stat-n" id="stat-avg">—</div><div class="stat-l">Avg. discount</div></div>
+      <div class="stat-tile"><div class="stat-n" id="stat-longest">—</div><div class="stat-l">Longest live sale</div></div>
+    </div>
+
+    <div class="section-bar">
+      <div class="section-title">Top 3 centres · sales density</div>
+    </div>
+    <div class="insight-list" id="insight-centres-list"><div class="empty-section">Loading…</div></div>
+
+    <div class="section-bar">
+      <div class="section-title">Biggest discounts right now</div>
+    </div>
+    <div class="insight-list" id="insight-pct-list"><div class="empty-section">Loading…</div></div>
+
+    <div class="section-bar">
+      <div class="section-title">Just dropped / just updated</div>
+    </div>
+    <div class="insight-list" id="insight-new-list"><div class="empty-section">Loading…</div></div>
+
+    <div class="section-bar">
+      <div class="section-title">Instagram / Facebook caption</div>
+      <button id="insight-copy-caption" class="wl-copy-btn" type="button">Copy caption</button>
+    </div>
+    <div class="caption-box" id="caption-box"></div>
+  </div>
 </main>
 
 <div id="toast" class="toast"></div>
@@ -393,6 +478,14 @@ const pg = {
 const ANCHOR_BRAND_IDS = new Set(['B001','B002','B003','B011','B012']);
 const TODAY = new Date().toISOString().split('T')[0];
 const BRAND_BY_ID = Object.fromEntries(BRAND_DEFS.map(b => [b.id, b]));
+
+// ── Insights tab state ──────────────────────────────────────────────────────
+// OPEN_CYCLES is populated by loadAndRender() (it already fetches every open
+// brand_sale_cycles row for the queue) — the insights panels reuse it rather
+// than firing a second query. TOP_CENTRES is fetched lazily on first visit
+// to the tab and cached for the session.
+let OPEN_CYCLES = [];
+let TOP_CENTRES = null;
 
 // Sale-type taxonomy. Keys must match the CHECK constraint in
 // supabase/migrations/20260508_add_sale_type.sql.
@@ -536,6 +629,11 @@ async function loadAndRender() {
 
   const cycleById = new Map((cyclesRes.data || []).map(c => [c.id, c]));
   const reviewByBrand = new Map((reviewsRes.data || []).map(r => [r.brand_id, r]));
+
+  // Cached for the Insights tab — same open cycles the queue already fetched,
+  // no need for a second round trip.
+  OPEN_CYCLES = cyclesRes.data || [];
+  if ($('tabbtn-insights').classList.contains('active')) renderInsights();
 
   const needs = [];
   const confirmed = [];
@@ -1081,6 +1179,164 @@ function prettyAction(a) {
     confirm_off:   'Confirmed off',
     dismiss:       'Dismissed',
   })[a] || a;
+}
+
+// ── Top-level tabs (Review queue / Insights) ────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.onclick = () => switchTab(btn.dataset.tab);
+});
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  $('panel-queue').style.display = tab === 'queue' ? '' : 'none';
+  $('panel-insights').style.display = tab === 'insights' ? '' : 'none';
+  if (tab === 'insights') renderInsights();
+}
+
+// ── Insights tab — marketing snapshot for social posts ──────────────────────
+// A brand's "freshness" mirrors the Newest Sales rule in index.html: fresh
+// because the sale started recently OR because its % was bumped recently
+// (an admin re-confirming an old cycle at a higher discount), whichever is
+// more recent. ISO date strings compare correctly with plain string ops.
+function cycleFreshDate(c) {
+  const bumped = c.pct_changed_date || c.start_date;
+  return bumped > c.start_date ? bumped : c.start_date;
+}
+
+async function renderInsights() {
+  renderSalesInsights();
+  if (!TOP_CENTRES) {
+    $('insight-centres-list').innerHTML = '<div class="empty-section">Loading…</div>';
+    try {
+      TOP_CENTRES = await loadTopCentres();
+    } catch (err) {
+      console.error('loadTopCentres failed:', err);
+      $('insight-centres-list').innerHTML = '<div class="empty-section">Could not load centre scores.</div>';
+      TOP_CENTRES = null;
+      return;
+    }
+  }
+  renderCentreInsights(TOP_CENTRES);
+  $('caption-box').textContent = buildCaption();
+  wireCaptionCopy();
+}
+
+async function loadTopCentres() {
+  const [scoresRes, centresRes] = await Promise.all([
+    // Most recent ~3 days per centre is plenty to find each centre's latest
+    // row without assuming today's cron has already run.
+    pg.read('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,brands_on_sale,total_brands&order=score_date.desc&limit=600'),
+    pg.read('centres?select=id,name&active=eq.true'),
+  ]);
+  if (scoresRes.error) throw scoresRes.error;
+  if (centresRes.error) throw centresRes.error;
+  const nameById = Object.fromEntries((centresRes.data || []).map(c => [c.id, c.name]));
+  const latestByCentre = new Map();
+  for (const row of scoresRes.data || []) {
+    if (!latestByCentre.has(row.centre_id)) latestByCentre.set(row.centre_id, row);
+  }
+  return [...latestByCentre.values()]
+    .filter(r => r.tide_score != null)
+    .sort((a, b) => b.tide_score - a.tide_score)
+    .map(r => ({ ...r, name: nameById[r.centre_id] || r.centre_id }));
+}
+
+function renderCentreInsights(list) {
+  const top3 = (list || []).slice(0, 3);
+  $('insight-centres-list').innerHTML = top3.length
+    ? top3.map((c, i) => (
+        '<div class="insight-row">'
+        + '<div class="insight-rank">' + (i + 1) + '</div>'
+        + '<div class="insight-main">'
+          + '<div class="insight-name">' + esc(c.name) + '</div>'
+          + '<div class="insight-sub">' + (c.brands_on_sale ?? '—') + ' of ' + (c.total_brands ?? '—') + ' shops on sale'
+            + (c.verdict ? ' · ' + esc(c.verdict) : '') + '</div>'
+        + '</div>'
+        + '<div class="insight-stat">' + Math.round(c.tide_score) + '%</div>'
+        + '</div>'
+      )).join('')
+    : '<div class="empty-section">No centre scores available yet.</div>';
+}
+
+function renderSalesInsights() {
+  const live = OPEN_CYCLES.filter(c => BRAND_BY_ID[c.brand_id]);
+
+  const topPct = live.filter(c => c.max_discount_pct != null)
+    .slice().sort((a, b) => b.max_discount_pct - a.max_discount_pct).slice(0, 8);
+  $('insight-pct-list').innerHTML = topPct.length
+    ? topPct.map((c, i) => {
+        const def = BRAND_BY_ID[c.brand_id];
+        const sub = (SALE_TYPE_LABEL[c.sale_type] || 'On sale') + (c.description ? ' · ' + c.description : '');
+        return '<div class="insight-row">'
+          + '<div class="insight-rank">' + (i + 1) + '</div>'
+          + '<div class="insight-main"><div class="insight-name">' + esc(def.name) + '</div>'
+          + '<div class="insight-sub">' + esc(sub) + '</div></div>'
+          + '<div class="insight-stat">' + c.max_discount_pct + '%</div>'
+          + '</div>';
+      }).join('')
+    : '<div class="empty-section">No live sale percentages recorded yet.</div>';
+
+  const newest = live.slice()
+    .sort((a, b) => cycleFreshDate(b).localeCompare(cycleFreshDate(a)))
+    .slice(0, 8);
+  $('insight-new-list').innerHTML = newest.length
+    ? newest.map((c, i) => {
+        const def = BRAND_BY_ID[c.brand_id];
+        const isBump = c.pct_changed_date && c.pct_changed_date > c.start_date;
+        const label = (isBump ? 'Discount updated · ' : 'Sale started · ') + relDate(cycleFreshDate(c));
+        const pctLabel = c.max_discount_pct != null ? ' — up to ' + c.max_discount_pct + '%' : '';
+        return '<div class="insight-row">'
+          + '<div class="insight-rank">' + (i + 1) + '</div>'
+          + '<div class="insight-main"><div class="insight-name">' + esc(def.name) + esc(pctLabel) + '</div>'
+          + '<div class="insight-sub">' + esc(label) + '</div></div>'
+          + '<div class="insight-stat small">' + esc(relDate(cycleFreshDate(c))) + '</div>'
+          + '</div>';
+      }).join('')
+    : '<div class="empty-section">No live sales recorded yet.</div>';
+
+  const pctVals = live.map(c => c.max_discount_pct).filter(v => v != null);
+  const avgPct = pctVals.length ? Math.round(pctVals.reduce((a, b) => a + b, 0) / pctVals.length) : null;
+  const longest = live.reduce((max, c) => Math.max(max, daysSince(c.start_date) || 0), 0);
+  $('stat-live').textContent = live.length + ' / ' + BRAND_DEFS.length;
+  $('stat-avg').textContent = avgPct != null ? avgPct + '%' : '—';
+  $('stat-longest').textContent = longest ? longest + 'd' : '—';
+}
+
+function buildCaption() {
+  const dateLabel = new Date(TODAY + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+  const live = OPEN_CYCLES.filter(c => BRAND_BY_ID[c.brand_id]);
+  const centres = (TOP_CENTRES || []).slice(0, 3);
+  const topPct = live.filter(c => c.max_discount_pct != null)
+    .slice().sort((a, b) => b.max_discount_pct - a.max_discount_pct).slice(0, 5);
+  const newest = live.slice()
+    .sort((a, b) => cycleFreshDate(b).localeCompare(cycleFreshDate(a))).slice(0, 5);
+
+  let out = 'TIDE — SALE UPDATE, ' + dateLabel + '\n\n';
+  if (centres.length) {
+    out += 'TOP CENTRES RIGHT NOW\n';
+    centres.forEach((c, i) => { out += (i + 1) + '. ' + c.name + ' — ' + Math.round(c.tide_score) + '% of shops on sale\n'; });
+    out += '\n';
+  }
+  if (topPct.length) {
+    out += 'BIGGEST DISCOUNTS\n';
+    topPct.forEach(c => { out += BRAND_BY_ID[c.brand_id].name + ' — up to ' + c.max_discount_pct + '% off\n'; });
+    out += '\n';
+  }
+  if (newest.length) {
+    out += 'JUST DROPPED\n';
+    newest.forEach(c => { out += BRAND_BY_ID[c.brand_id].name + ' — ' + relDate(cycleFreshDate(c)) + '\n'; });
+  }
+  return out.trim();
+}
+
+function wireCaptionCopy() {
+  $('insight-copy-caption').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(buildCaption());
+      toast('Caption copied');
+    } catch (e) {
+      toast('Copy failed — ' + (e.message || e));
+    }
+  };
 }
 
 function setRowBusy(card, busy) {

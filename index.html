@@ -2563,6 +2563,48 @@ let LAST_VERIFIED_DATE = {};
 // loadTideData runs (or stays empty if the cycle history can't be read).
 let BRAND_CYCLES = {};
 
+// A DB "sale ended" followed by a fresh "confirm on sale" the next admin visit
+// can split one continuous sale into two adjacent brand_sale_cycles rows (no
+// gap between them) — the raw rows are left as-is (admin audit trail), but the
+// display must treat them as a single episode. "No gap" = the later episode's
+// start is the same day as, or the calendar day immediately after, the
+// earlier episode's end. Input/output are both newest-first by `start`;
+// closed episodes only can be the "earlier" side of a merge (a live episode
+// has no end_date to compare, so it can only ever be the "later" side).
+function mergeAdjacentEpisodes(eps, today) {
+  if (!Array.isArray(eps) || eps.length < 2) return eps || [];
+  const dayMs = 86400000;
+  const toMs = d => new Date(d + 'T12:00:00').getTime();
+  const out = [eps[0]];
+  for (let i = 1; i < eps.length; i++) {
+    const older = eps[i];               // chronologically earlier
+    const newer = out[out.length - 1];  // chronologically later (current merge head)
+    if (older.end != null) {
+      const gapDays = Math.round((toMs(newer.start) - toMs(older.end)) / dayMs);
+      if (gapDays === 0 || gapDays === 1) {
+        const pctWinner =
+          older.pct == null && newer.pct == null ? null :
+          older.pct == null ? newer :
+          newer.pct == null ? older :
+          newer.pct >= older.pct ? newer : older; // tie/most-recent wins
+        const endRef = newer.live ? toMs(today) : toMs(newer.end);
+        out[out.length - 1] = {
+          start: older.start,
+          end: newer.end,
+          pct: pctWinner ? pctWinner.pct : null,
+          saleType: pctWinner ? pctWinner.saleType : newer.saleType,
+          description: newer.description != null ? newer.description : older.description,
+          live: newer.live,
+          lengthDays: Math.max(1, Math.round((endRef - toMs(older.start)) / dayMs) + 1),
+        };
+        continue;
+      }
+    }
+    out.push(older);
+  }
+  return out;
+}
+
 // Sale-type taxonomy. Keys must match the CHECK constraint in
 // supabase/migrations/20260508_add_sale_type.sql. `short` is the chip label
 // used inline on brand rows; `label` is the longer form for the freshest-deals
@@ -2772,6 +2814,14 @@ async function loadTideData() {
       // principle have its single open cycle out of band — keep it strict.
       for (const k in BRAND_CYCLES) {
         BRAND_CYCLES[k].sort((a, b) => (a.start < b.start ? 1 : a.start > b.start ? -1 : 0));
+      }
+      // Collapse same-brand episodes with zero actual gap between them (see
+      // mergeAdjacentEpisodes doc comment) — a "sale ended" followed by an
+      // erroneous "confirm on sale" the next day must render as one
+      // continuous sale, not two. DB rows are untouched; this only reshapes
+      // the in-memory episode list every consumer of BRAND_CYCLES reads.
+      for (const k in BRAND_CYCLES) {
+        BRAND_CYCLES[k] = mergeAdjacentEpisodes(BRAND_CYCLES[k], latestDate);
       }
     }
 

@@ -1,6 +1,6 @@
 // Invariants for the inline BRANDS array and the PRESENCE matrix in
 // index.html. These guard against:
-//   - PRESENCE rows that don't have exactly 30 ints
+//   - PRESENCE rows that don't have exactly 24 ints
 //   - BRANDS entries with no PRESENCE row (UI would show "(0)" forever)
 //   - PRESENCE keys that don't have a BRANDS row (silent orphan data)
 //   - Surviving brands with sum(PRESENCE) < 2 (violates the May 2026 rule)
@@ -48,9 +48,9 @@ test('every PRESENCE key has a BRANDS entry', () => {
   assert.deepEqual(orphans, [], `PRESENCE keys without BRANDS: ${orphans.join(', ')}`);
 });
 
-test('every PRESENCE row has exactly 30 ints', () => {
+test('every PRESENCE row has exactly 24 ints', () => {
   const rows = extractPresence();
-  const bad = Object.entries(rows).filter(([_, v]) => v.length !== 30 || v.some(x => x !== 0 && x !== 1));
+  const bad = Object.entries(rows).filter(([_, v]) => v.length !== 24 || v.some(x => x !== 0 && x !== 1));
   assert.deepEqual(bad.map(([k]) => k), [], `malformed PRESENCE rows: ${bad.map(([k,v]) => `${k} (len=${v.length})`).join(', ')}`);
 });
 

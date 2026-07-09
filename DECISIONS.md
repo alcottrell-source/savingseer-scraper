@@ -190,6 +190,36 @@ of each section.
   first post-deploy run, and new centres onboarded mid-plateau at ≥15% firing
   their one-shot Peak on ~day 4. See ADR-002 §5.1 + §6 E2.
 
+- **D17 (2026-07-09, owner — "all centres must be main centres with lots of
+  the tracked stores"):** **Centre audit.** The May 2026 presence audit had
+  silently failed for a third of the catalogue (fetch/Wikipedia fallbacks
+  yielding junk), leaving major malls with absurd store counts — Lakeside 0,
+  Bluewater 5, St David's 3 — and `HOT_MIN_TRACKED_BRANDS` was hiding the
+  breakage from the landing list while the admin insights tab still showed
+  "3 of 3 shops". Resolution, per the owner's rule (remove handful-store
+  centres OR fix their store lists): (a) **six secondary/duplicate-coverage
+  centres removed** — The Lexicon, Friars Walk, Queensgate, Broadmead
+  (Bristol already covered by Cabot Circus), Touchwood, Bentall Centre —
+  deactivated in the DB (`centres.active = false`, history preserved) and
+  dropped from every centre-indexed static array in `index.html`; (b)
+  **eleven unambiguously-major centres kept and their presence rows rebuilt**
+  (Lakeside, Bluewater, Metrocentre, St David's, Eldon Square, Silverburn,
+  Braehead, White Rose, Highcross, Cribbs Causeway, St James Quarter) from
+  July 2026 directory/store-locator research, unioned with the surviving
+  audit rows — conservative: a brand is marked present only on strong
+  evidence, so these centres may still under-count slightly (re-run
+  `scripts/fetch-centre-directories.mjs` + `build-presence-matrix.mjs`
+  locally to refine; NOTE those scripts still assume the old 30-centre index
+  space); (c) **Evans (B007) and Coast (B036) removed from the tracked brand
+  set** — both online-only since ~2021, their listed stores didn't exist
+  (their `brands`/`brand_sale_events` DB rows are kept for history, just
+  `present = false` everywhere). Every live centre now has 11–56 tracked
+  stores. Migration: `supabase/migrations/20260709_centre_audit.sql`.
+  Centre position-codes (C01…) shifted for centres after The Oracle — safe
+  because persistence translates codes↔DB-ids by name at runtime, but any
+  hardcoded C-code list (like the `#centre-select` options) must stay in
+  CENTRE_NAMES order.
+
 ## Phase 2/3 record (2026-07-08)
 
 - ADRs written: `docs/architecture/gravity-engine.md` (ADR-001),

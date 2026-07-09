@@ -3,6 +3,11 @@
 ## Project overview
 Single-file static web app (`index.html`) deployed to Vercel. No build step. Talks directly to Supabase for auth and data. Pipeline lives in separate Node scripts: `score.js` (compute Tide Score per centre) → `summarise.js` (Claude-written 1–2 sentence Centre Intelligence narrative). **Sale state is admin-verified only** — an operator confirms each brand's sale in the admin console (`admin.html`), writing `brand_sale_cycles` + `brand_sale_events` (`active_cycle_id` / `last_verified_status`). The old automated `scraper.js` was **removed** (Jun 2026); the now-frozen `brand_sale_events.sale_status` / `date_first_detected` / `scraper_error` columns remain in the DB but are unread. Admins find sales via the "open shop" link + crowd user-reports (the review nudge), not a scraper.
 
+## Centre catalogue (Jul 2026 audit — main centres only)
+The app tracks **24 UK centres** (owner's rule: every centre must be a main destination centre with lots of the tracked stores). The July 2026 audit (DECISIONS.md D17) removed six secondary centres (The Lexicon, Friars Walk, Queensgate, Broadmead, Touchwood, Bentall Centre — deactivated via `centres.active = false`, not deleted) and rebuilt the broken presence rows of eleven major centres (Lakeside had 0 tracked stores, Bluewater 5). Evans (B007) and Coast (B036) were dropped from the tracked brand set — online-only brands with no physical stores. Every live centre now has 11–56 tracked stores.
+
+Centre identity: the UI uses **position codes** (`'C' + (index+1)` into `CENTRE_NAMES`); the DB keys centres by slug id, translated at the persistence boundary by name-matching (`ensureCentreIdMaps`). When adding/removing a centre, keep ALL centre-indexed structures in `index.html` in sync — `CENTRE_NAMES`, `CENTRE_DOMAINS`, `CENTRE_LOCATIONS`, `CENTRE_COORDS`, `CENTRE_HOURS`, every `PRESENCE` row (one column per centre, `test/presence.test.mjs` asserts 24), and the hardcoded `#centre-select` option list — plus a `centres` DB migration. The one-off audit scripts in `scripts/` (fetch-centre-directories etc.) still assume the pre-audit 30-centre index space; re-map their indices before reusing them.
+
 ## Running locally
 ```bash
 npx serve .
@@ -92,7 +97,7 @@ The card under each centre's score shows a 1–2 sentence trend narrative. It's 
 
 The Gemini prompt forbids numbers AND recommendation language — narratives describe what's happening (which brands just arrived, which are picked-over) but never tell the reader what to do. The headline + PEAK badge are the only places the dashboard prescribes action.
 
-Don't switch the model to `gemini-2.5-flash-lite`: its free-tier daily cap is 20 RPD, below our 30+ centre count, and the script will dead-end halfway through. `gemini-2.0-flash-lite` is the only Gemini free-tier model with enough headroom for this workload as of May 2026.
+Don't switch the model to `gemini-2.5-flash-lite`: its free-tier daily cap is 20 RPD, close to our 24-centre count with no headroom, and the script risks dead-ending partway through. `gemini-2.0-flash-lite` is the only Gemini free-tier model with enough headroom for this workload as of May 2026.
 
 Required env var on the GitHub Action's `score` job: `GEMINI_API_KEY` (repo secret).
 

@@ -1022,7 +1022,7 @@
 
 <div class="picker-section" id="picker-section">
   <h1 class="search-hero-headline">Never make a wasted trip to the shops.</h1>
-  <p class="search-hero-sub">Tide tracks the brands you <b>actually buy</b> across 30 UK centres, and tells you the day they&rsquo;re worth the journey.</p>
+  <p class="search-hero-sub">Tide tracks the brands you <b>actually buy</b> across 24 UK centres, and tells you the day they&rsquo;re worth the journey.</p>
   <div class="centre-search-wrap">
     <input type="search" class="centre-search" id="centre-search" name="centre-search" placeholder="Try Westfield London, or a town, city or postcode" oninput="filterCentres(this.value)" onfocus="filterCentres(this.value)" onkeydown="onCentreSearchKey(event)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="centre-suggestions" aria-label="Search a shopping centre, town, city or postcode">
     <ul class="centre-suggestions" id="centre-suggestions" role="listbox" hidden></ul>
@@ -1048,18 +1048,12 @@
     <option value="C16">Victoria Leeds</option>
     <option value="C17">Eldon Square, Newcastle</option>
     <option value="C18">The Oracle, Reading</option>
-    <option value="C19">The Lexicon, Bracknell</option>
-    <option value="C20">Friars Walk, Newport</option>
-    <option value="C21">Queensgate, Peterborough</option>
-    <option value="C22">Broadmead, Bristol</option>
-    <option value="C23">Highcross, Leicester</option>
-    <option value="C24">Touchwood, Solihull</option>
-    <option value="C25">The Bentall Centre, Kingston</option>
-    <option value="C26">White Rose, Leeds</option>
-    <option value="C27">Cribbs Causeway, Bristol</option>
-    <option value="C28">Braehead, Glasgow</option>
-    <option value="C29">Silverburn, Glasgow</option>
-    <option value="C30">St James Quarter, Edinburgh</option>
+    <option value="C19">Highcross, Leicester</option>
+    <option value="C20">White Rose, Leeds</option>
+    <option value="C21">Cribbs Causeway, Bristol</option>
+    <option value="C22">Braehead, Glasgow</option>
+    <option value="C23">Silverburn, Glasgow</option>
+    <option value="C24">St James Quarter, Edinburgh</option>
   </select>
 </div>
 
@@ -1160,7 +1154,7 @@
   <div class="notify-banner-top">
     <div class="notify-banner-text">
       <strong>🌍 Tide is UK-only — for now.</strong><br>
-      We track 30 UK shopping centres today. Want it in <span id="waitlist-country">your country</span>? Leave your email and we'll tell you the moment we expand.
+      We track 24 UK shopping centres today. Want it in <span id="waitlist-country">your country</span>? Leave your email and we'll tell you the moment we expand.
     </div>
     <button class="notify-banner-close" onclick="dismissWaitlistBanner()" aria-label="Dismiss">&times;</button>
   </div>
@@ -3309,7 +3303,6 @@ const BRANDS = [
   {id:'B002',name:"M&S",cluster:'High Street',womenswear:true,menswear:true,childrenswear:true},
   {id:'B003',name:"River Island",cluster:'High Street',womenswear:true,menswear:true,childrenswear:false},
   {id:'B004',name:"New Look",cluster:'High Street',womenswear:true,menswear:false,childrenswear:false},
-  {id:'B007',name:"Evans",cluster:'High Street',womenswear:true,menswear:false,childrenswear:false},
   {id:'B011',name:"Zara",cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:true},
   {id:'B012',name:"H&M",cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:true},
   {id:'B013',name:"Mango",cluster:'Contemporary',womenswear:true,menswear:true,childrenswear:false},
@@ -3325,7 +3318,6 @@ const BRANDS = [
   {id:'B031',name:"Phase Eight",cluster:'Smart/Occasion',womenswear:true,menswear:false,childrenswear:false},
   {id:'B032',name:"Whistles",cluster:'Smart/Occasion',womenswear:true,menswear:false,childrenswear:false},
   {id:'B033',name:"Reiss",cluster:'Smart/Occasion',womenswear:true,menswear:true,childrenswear:false},
-  {id:'B036',name:"Coast",cluster:'Smart/Occasion',womenswear:true,menswear:false,childrenswear:false},
   {id:'B037',name:"Monsoon",cluster:'Smart/Occasion',womenswear:true,menswear:false,childrenswear:true},
   {id:'B038',name:"Accessorize",cluster:'Smart/Occasion',womenswear:true,menswear:false,childrenswear:false},
   {id:'B041',name:"Sweaty Betty",cluster:'Premium Casual',womenswear:true,menswear:false,childrenswear:false},
@@ -3375,83 +3367,79 @@ const BRANDS = [
 ];
 
 const PRESENCE = {
-  B001:[0,1,1,1,1,0,0,1,1,0,0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1,1],
-  B002:[1,1,1,1,1,0,0,0,1,0,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0],
-  B003:[1,0,1,1,1,1,0,0,1,0,0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0],
-  B004:[1,1,0,0,1,1,0,0,0,0,1,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0],
-  B007:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0],
-  B011:[0,1,1,1,1,1,0,0,1,0,1,0,1,1,1,0,0,1,0,0,0,0,1,0,0,0,0,0,0,1],
-  B012:[1,1,1,1,1,0,0,1,1,0,0,0,1,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1],
-  B013:[1,1,1,1,1,0,0,0,1,0,0,0,1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
-  B014:[0,0,1,1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  B016:[0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B019:[0,1,1,1,1,0,0,0,1,0,1,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B020:[0,0,1,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B021:[1,1,0,0,0,0,0,1,1,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B023:[0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B025:[0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B027:[0,1,1,1,1,0,0,0,1,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B028:[0,1,1,1,1,0,0,0,1,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0],
-  B031:[0,1,1,1,0,0,0,0,1,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B032:[0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B033:[0,0,1,1,1,0,0,0,1,0,1,0,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B036:[0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0],
-  B037:[1,0,1,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B038:[1,1,1,1,1,0,0,1,1,0,0,1,0,1,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B041:[0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B042:[0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B043:[1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B046:[0,0,1,1,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B047:[0,1,1,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B048:[0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B049:[0,1,1,1,1,0,0,1,1,0,1,0,1,1,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B050:[0,1,1,1,1,0,0,0,1,0,1,0,1,1,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B051:[0,0,1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B052:[0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B053:[0,0,1,1,1,0,0,0,1,0,1,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B057:[0,0,1,1,1,0,0,0,1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B061:[1,1,1,1,1,0,0,0,1,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B062:[0,0,1,1,1,0,0,1,1,0,0,0,0,1,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B063:[1,1,1,1,1,0,0,0,1,0,1,0,1,1,0,0,0,1,0,0,0,1,1,0,0,0,1,0,0,0],
-  B064:[1,0,1,1,1,0,0,1,1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0],
-  B065:[0,0,1,1,1,0,0,0,1,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B066:[1,1,1,1,1,0,0,0,1,0,1,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B069:[0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  B070:[0,1,0,1,0,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B071:[1,1,1,1,1,0,0,0,1,0,1,0,1,1,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B073:[1,1,1,1,0,0,0,0,1,0,1,0,0,1,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B075:[1,1,1,1,1,0,0,1,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B076:[1,1,1,1,1,1,0,0,0,0,0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B077:[0,1,1,1,1,0,0,0,0,0,1,0,0,0,1,1,1,0,0,0,1,0,1,1,1,0,1,0,0,1],
-  B078:[0,0,1,1,1,1,1,1,0,0,0,1,1,1,0,1,0,0,0,0,0,1,0,0,0,0,1,0,0,0],
-  B079:[1,1,1,1,1,1,1,1,1,0,1,0,1,1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0],
-  B080:[0,1,1,0,1,0,0,1,1,0,1,0,0,1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0],
-  B081:[0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B083:[0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B085:[0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B086:[1,0,0,0,1,0,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B090:[0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B092:[0,0,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0],
-  B093:[0,0,1,1,0,0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B094:[0,0,1,1,1,0,0,1,1,0,1,0,1,1,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
-  B095:[0,0,1,1,1,0,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B096:[1,0,1,1,1,1,0,0,1,0,1,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B097:[1,0,1,1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B098:[0,0,1,1,1,0,0,1,1,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B099:[0,0,1,1,1,0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B100:[0,0,1,1,1,0,0,0,1,0,1,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-  B101:[0,0,1,1,1,0,0,1,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  B102:[0,0,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0],
+  B001:[0,1,1,1,1,1,1,1,1,1,0,1,1,1,0,0,1,1,1,1,1,1,1,1],
+  B002:[1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,0,0,1,1,1,1,0],
+  B003:[1,0,1,1,1,1,1,0,1,1,0,1,1,1,0,0,1,1,1,1,1,1,1,0],
+  B004:[1,1,0,0,1,1,1,0,0,1,1,1,1,1,0,0,1,1,0,1,1,1,1,0],
+  B011:[0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0,0,1,1,1,0,0,1,1],
+  B012:[1,1,1,1,1,1,1,1,1,1,0,1,1,0,1,0,1,1,1,1,1,1,1,1],
+  B013:[1,1,1,1,1,1,1,0,1,1,0,1,1,0,1,0,1,0,1,0,0,0,1,1],
+  B014:[0,0,1,1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  B016:[0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,1,0,0,0,0,0,0,0,0],
+  B019:[0,1,1,1,1,1,1,0,1,0,1,1,0,1,0,0,0,1,1,0,1,0,0,0],
+  B020:[0,0,1,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  B021:[1,1,0,0,0,0,1,1,1,0,0,0,1,0,0,0,0,1,0,0,1,0,0,0],
+  B023:[0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0],
+  B025:[0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  B027:[0,1,1,1,1,0,1,0,1,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0],
+  B028:[0,1,1,1,1,0,1,0,1,0,1,0,0,0,1,1,0,0,0,0,1,0,0,0],
+  B031:[0,1,1,1,0,0,1,0,1,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0],
+  B032:[0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0],
+  B033:[0,0,1,1,1,1,1,0,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0,1],
+  B037:[1,0,1,1,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  B038:[1,1,1,1,1,0,1,1,1,0,0,1,0,1,1,0,0,1,0,0,0,0,0,0],
+  B041:[0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],
+  B042:[0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  B043:[1,0,1,0,0,1,1,0,0,1,0,1,0,1,0,0,0,1,0,1,1,1,1,0],
+  B046:[0,0,1,1,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0],
+  B047:[0,1,1,1,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  B048:[0,0,1,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  B049:[0,1,1,1,1,0,1,1,1,0,1,1,1,1,1,0,0,1,0,0,0,0,1,1],
+  B050:[0,1,1,1,1,0,1,0,1,1,1,0,1,1,1,0,0,1,0,0,0,0,0,0],
+  B051:[0,0,1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],
+  B052:[0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  B053:[0,0,1,1,1,0,1,0,1,0,1,0,1,1,1,0,0,0,0,0,0,0,0,0],
+  B057:[0,0,1,1,1,0,0,0,1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0],
+  B061:[1,1,1,1,1,1,1,0,1,1,1,1,1,1,0,0,1,0,1,1,1,1,1,0],
+  B062:[0,0,1,1,1,0,1,1,1,0,0,0,0,1,1,0,0,1,0,0,0,0,0,0],
+  B063:[1,1,1,1,1,0,1,0,1,1,1,0,1,1,0,0,0,1,1,0,1,0,0,0],
+  B064:[1,0,1,1,1,1,1,1,1,1,0,1,0,1,1,0,1,0,1,1,1,0,0,0],
+  B065:[0,0,1,1,1,0,1,0,1,0,0,1,0,1,0,1,0,0,0,0,0,0,0,0],
+  B066:[1,1,1,1,1,0,1,0,1,1,1,1,0,0,1,0,0,1,0,0,0,0,0,0],
+  B069:[0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  B070:[0,1,0,1,0,1,1,1,0,1,0,1,1,0,0,0,0,0,0,0,0,1,1,0],
+  B071:[1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0],
+  B073:[1,1,1,1,0,1,1,0,1,1,1,1,0,1,1,0,0,1,0,0,1,0,0,0],
+  B075:[1,1,1,1,1,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0],
+  B076:[1,1,1,1,1,1,1,0,0,1,0,1,1,1,0,0,1,1,1,1,1,0,1,0],
+  B077:[0,1,1,1,1,0,1,0,0,0,1,1,0,0,1,1,1,0,1,0,1,0,0,1],
+  B078:[0,0,1,1,1,1,1,1,0,0,0,1,1,1,0,1,0,0,0,0,1,0,0,0],
+  B079:[1,1,1,1,1,1,1,1,1,1,1,0,1,1,0,0,0,1,0,1,1,0,0,0],
+  B080:[0,1,1,0,1,0,1,1,1,1,1,0,0,1,0,0,0,1,0,1,0,0,0,0],
+  B081:[0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1,1,0,0,0,0,0,0,0],
+  B083:[0,0,1,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  B085:[0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],
+  B086:[1,0,0,0,1,0,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,1,0],
+  B090:[0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0],
+  B092:[0,0,1,1,0,1,1,0,0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,0],
+  B093:[0,0,1,1,0,0,1,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0],
+  B094:[0,0,1,1,1,1,1,1,1,1,1,0,1,1,1,0,0,0,1,0,0,0,0,0],
+  B095:[0,0,1,1,1,0,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,1],
+  B096:[1,0,1,1,1,1,1,0,1,1,1,1,1,1,1,0,1,0,1,1,1,0,1,0],
+  B097:[1,0,1,1,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,1,0,0],
+  B098:[0,0,1,1,1,0,0,1,1,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0],
+  B099:[0,0,1,1,1,1,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0],
+  B100:[0,0,1,1,1,1,0,0,1,0,1,1,0,1,0,0,0,1,0,0,0,0,0,0],
+  B101:[0,0,1,1,1,0,0,1,1,0,1,0,1,0,0,0,0,0,0,0,0,0,1,1],
+  B102:[0,0,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
 };
 const CENTRE_NAMES = [
   'Festival Place','Westquay','Westfield London','Westfield Stratford',
   'Trafford Centre','Metrocentre','Bluewater','Meadowhall',
   'Bullring','Lakeside','Liverpool ONE',"St David's",
   'Cabot Circus','Arndale','Brent Cross','Victoria Leeds',
-  'Eldon Square','The Oracle','The Lexicon','Friars Walk',
-  'Queensgate','Broadmead','Highcross','Touchwood',
-  'Bentall Centre','White Rose','Cribbs Causeway','Braehead',
-  'Silverburn','St James Quarter'
+  'Eldon Square','The Oracle','Highcross','White Rose',
+  'Cribbs Causeway','Braehead','Silverburn','St James Quarter'
 ];
 
 // Best-guess official-website domains, used only to fetch a centre logo via
@@ -3463,10 +3451,8 @@ const CENTRE_DOMAINS = [
   'traffordcentre.co.uk','metrocentre.co.uk','bluewater.co.uk','meadowhall.co.uk',
   'bullring.co.uk','lakeside-shopping.com','liverpool-one.com','stdavidscardiff.com',
   'cabotcircus.com','manchesterarndale.com','brentcross.co.uk','victorialeeds.co.uk',
-  'eldonsquare.co.uk','theoracle.com','thelexiconbracknell.com','friarswalknewport.co.uk',
-  'queensgate-shopping.co.uk','bristolshoppingquarter.co.uk','highcrossleicester.com','touchwoodsolihull.co.uk',
-  'bentall-centre.co.uk','white-rose.co.uk','mall-cribbs.com','braeheadshopping.co.uk',
-  'silverburnshopping.com','stjamesquarter.com'
+  'eldonsquare.co.uk','theoracle.com','highcrossleicester.com','white-rose.co.uk',
+  'mall-cribbs.com','braeheadshopping.co.uk','silverburnshopping.com','stjamesquarter.com'
 ];
 
 // Hardcoded city/area labels shown above the centre name in the hero. Static
@@ -3476,10 +3462,8 @@ const CENTRE_LOCATIONS = [
   'Manchester','Gateshead','Greenhithe, Kent','Sheffield',
   'Birmingham','West Thurrock, Essex','Liverpool','Cardiff',
   'Bristol','Manchester','Hendon, London','Leeds',
-  'Newcastle upon Tyne','Reading','Bracknell','Newport',
-  'Peterborough','Bristol','Leicester','Solihull',
-  'Kingston upon Thames','Leeds','Bristol','Glasgow',
-  'Glasgow','Edinburgh'
+  'Newcastle upon Tyne','Reading','Leicester','Leeds',
+  'Bristol','Glasgow','Glasgow','Edinburgh'
 ];
 
 // Static [lat, lng] per centre, aligned to CENTRE_NAMES order. Approximate
@@ -3506,18 +3490,12 @@ const CENTRE_COORDS = [
   [53.7975, -1.5400], // Victoria Leeds
   [54.9740, -1.6150], // Eldon Square, Newcastle
   [51.4530, -0.9720], // The Oracle, Reading
-  [51.4160, -0.7530], // The Lexicon, Bracknell
-  [51.5865, -2.9970], // Friars Walk, Newport
-  [52.5730, -0.2450], // Queensgate, Peterborough
-  [51.4570, -2.5890], // Broadmead, Bristol
   [52.6360, -1.1330], // Highcross, Leicester
-  [52.4120, -1.7780], // Touchwood, Solihull
-  [51.4110, -0.3050], // Bentall Centre, Kingston
   [53.7530, -1.5720], // White Rose, Leeds
   [51.5250, -2.6030], // Cribbs Causeway, Bristol
   [55.8750, -4.3660], // Braehead, Glasgow
   [55.8180, -4.3390], // Silverburn, Glasgow
-  [55.9540, -3.1880]  // St James Quarter, Edinburgh
+  [55.9540, -3.1880] // St James Quarter, Edinburgh
 ];
 
 // Opening hours per centre, keyed by index. Each entry has 7 day strings (Mon..Sun)
@@ -3561,20 +3539,8 @@ const CENTRE_HOURS = [
   ['09:00-19:00','09:00-19:00','09:00-19:00','09:00-20:00','09:00-19:00','09:00-19:00','11:00-17:00'],
   // The Oracle, Reading
   ['09:30-20:00','09:30-20:00','09:30-20:00','09:30-21:00','09:30-20:00','09:00-19:00','11:00-17:00'],
-  // The Lexicon, Bracknell
-  ['09:00-19:00','09:00-19:00','09:00-19:00','09:00-19:00','09:00-19:00','09:00-18:00','11:00-17:00'],
-  // Friars Walk, Newport
-  ['09:00-18:00','09:00-18:00','09:00-18:00','09:00-19:00','09:00-18:00','09:00-18:00','11:00-17:00'],
-  // Queensgate, Peterborough
-  ['09:00-18:00','09:00-18:00','09:00-18:00','09:00-19:00','09:00-18:00','09:00-18:00','10:30-16:30'],
-  // Broadmead, Bristol
-  ['09:00-18:00','09:00-18:00','09:00-18:00','09:00-19:00','09:00-18:00','09:00-18:00','11:00-17:00'],
   // Highcross, Leicester
   ['09:00-19:00','09:00-19:00','09:00-19:00','09:00-20:00','09:00-19:00','09:00-19:00','11:00-17:00'],
-  // Touchwood, Solihull
-  ['09:00-19:00','09:00-19:00','09:00-19:00','09:00-20:00','09:00-19:00','09:00-19:00','11:00-17:00'],
-  // The Bentall Centre, Kingston
-  ['09:00-19:00','09:00-19:00','09:00-19:00','09:00-21:00','09:00-19:00','09:00-19:00','11:00-17:00'],
   // White Rose, Leeds
   ['09:00-20:00','09:00-20:00','09:00-20:00','09:00-21:00','09:00-20:00','09:00-19:00','11:00-17:00'],
   // Cribbs Causeway, Bristol
@@ -3584,7 +3550,7 @@ const CENTRE_HOURS = [
   // Silverburn, Glasgow
   ['10:00-20:00','10:00-20:00','10:00-20:00','10:00-21:00','10:00-20:00','09:00-19:00','10:00-18:00'],
   // St James Quarter, Edinburgh
-  ['10:00-20:00','10:00-20:00','10:00-20:00','10:00-20:00','10:00-20:00','10:00-19:00','11:00-18:00'],
+  ['10:00-20:00','10:00-20:00','10:00-20:00','10:00-20:00','10:00-20:00','10:00-19:00','11:00-18:00']
 ];
 
 // Returns { hoursLabel, hoursPrefix, statusLine, statusClass } for the hours strip.
@@ -5476,7 +5442,7 @@ const HOT_NEW_DAYS = 3;
 const HOT_STRIP_TILES = 4;
 // Outlet exclusion. No centre_type/is_outlet flag exists on `centres` (DB or
 // client) yet, so the rule is enforced by this explicit C-id set rather than a
-// data column. All 30 tracked centres are full malls today, so it's empty —
+// data column. All 24 tracked centres are full malls today, so it's empty —
 // add e.g. 'C31' here (and document which centre) if an outlet-format centre
 // is ever onboarded. Mirror into a DB flag if the list ever grows.
 const HOT_EXCLUDE_OUTLET_CIDS = new Set([]);

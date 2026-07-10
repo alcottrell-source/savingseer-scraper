@@ -406,6 +406,9 @@
   .tide-metric-divider { position: relative; z-index: 6; height: 1px; background: rgba(245,241,235,0.1); margin: 18px 0; }
   .tide-vessel-statement2 { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 400; line-height: 1.4; color: rgba(245,241,235,0.7); margin-bottom: 22px; }
   .tide-vessel-statement2 strong { color: var(--tide-cream); font-weight: 700; }
+  /* Depth + freshness facts line — quiet muted Inter, sits under the
+     statement (pulled up against its 22px gap), never a glowing pill. */
+  .tide-vessel-facts { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 400; color: rgba(245,241,235,0.5); margin: -14px 0 22px; }
   .tide-vessel-fact { font-family: 'Inter', sans-serif; font-weight: 500; font-size: 21px; line-height: 1.2; color: var(--tide-cream); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; margin-bottom: 8px; }
   .tide-vessel-statement { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 400; line-height: 1.45; color: rgba(245,241,235,0.62); letter-spacing: 0; }
   .tide-vessel-statement.tone-go   { color: #FFD79A; }
@@ -710,6 +713,22 @@
   .saved-centre-card-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
   .saved-centre-card-name { font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; color: var(--bark); }
   .saved-centre-card-location { font-size: 12px; color: var(--stone); }
+  /* Mini metric block on saved-centre cards. The weekly-movement div comes
+     from tideWeekFromHTML (shared with the dark hero), so its is-up/is-down
+     colours are re-tokened here for the light surface (leaf, not neon). */
+  .saved-centre-card-metrics { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+  .saved-centre-card-metrics .tide-metric-move { font-size: 12px; margin-top: 0; }
+  .saved-centre-card-metrics .tide-metric-move.is-up   { color: var(--leaf); }
+  .saved-centre-card-metrics .tide-metric-move.is-down { color: var(--red); }
+  .saved-centre-card-metrics .tide-metric-move.is-flat { color: var(--stone); }
+  .saved-centre-card-facts { font-size: 12px; color: var(--stone); }
+  .saved-centre-card-mine { font-size: 12px; color: var(--leaf); font-weight: 600; }
+  .saved-centre-card-score { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; align-self: flex-start; }
+  .saved-centre-card-pct { font-family: 'Inter', sans-serif; font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--bark); line-height: 1; }
+  .saved-centre-card-pct-sign { font-size: 13px; font-weight: 600; color: var(--stone); }
+  .saved-centre-card-count { font-size: 11px; color: var(--stone); white-space: nowrap; }
+  .saved-centre-row-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .saved-centre-row-count { font-size: 11px; color: var(--stone); font-weight: 400; }
   .saved-centre-card-arrow { font-size: 16px; color: var(--stone); flex-shrink: 0; }
   .saved-centre-card:hover .saved-centre-card-arrow { color: var(--leaf); }
   .saved-centres-divider { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); margin: 24px 0 12px; padding: 0 24px; display: block; }
@@ -1795,8 +1814,14 @@ function renderAccountSavedCentres() {
     const idx = parseInt(String(cid).replace('C',''), 10) - 1;
     const rawName = (typeof CENTRE_NAMES !== 'undefined' && CENTRE_NAMES[idx]) ? CENTRE_NAMES[idx] : cid;
     const safeName = rawName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // One muted density subline (server score — same source as the hero).
+    // This is a management list, not a dashboard, so density only.
+    const s = getServerScore(idx);
+    const countHTML = (s && Number.isFinite(+s.brands_on_sale) && Number.isFinite(+s.total_brands))
+      ? '<span class="saved-centre-row-count">' + (+s.brands_on_sale) + ' of ' + (+s.total_brands) + ' on sale</span>'
+      : '';
     return '<div class="saved-centre-row">'
-         +   '<span>' + safeName + '</span>'
+         +   '<span class="saved-centre-row-main"><span>' + safeName + '</span>' + countHTML + '</span>'
          +   '<button class="saved-centre-row-remove" onclick="removeSavedCentre(\''+cid+'\')" aria-label="Remove '+safeName+'" title="Remove">&times;</button>'
          + '</div>';
   }).join('') + '</div>';
@@ -2552,6 +2577,13 @@ let SALE_START_DATE = {};
 // (brand_sale_events.last_verified_date). Drives the hero's "Verified {when}"
 // freshness badge — the most-recent verification across brands at a centre.
 let LAST_VERIFIED_DATE = {};
+// Shared freshness window (days): a sale counts as "fresh" when it started OR
+// its discount % last changed within this many days. One knob + one predicate
+// for every freshness surface (Newest Sales panel, saved-centre cards, hero
+// facts line); mirrored as FRESH_WINDOW_DAYS in notify-high-tide/index.ts.
+const FRESH_WINDOW_DAYS = 5;
+const isFreshDeal = b => (b.days || 0) <= FRESH_WINDOW_DAYS
+  || (b.pctChangeDays > 0 && b.pctChangeDays <= FRESH_WINDOW_DAYS);
 // dashboard brand name -> [{start,end,pct,saleType,live,lengthDays}, ...] newest-first.
 // The full sale-episode history that powers the shop detail sheet. Empty until
 // loadTideData runs (or stays empty if the cycle history can't be read).
@@ -3607,11 +3639,11 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
   // started OR whose discount % last changed in the last FRESH_WINDOW_DAYS
   // days (brand_sale_cycles.pct_changed_date, bumped by admin.html whenever
   // an Edit/Increase actually moves the %). Headline count + ranked list
-  // both honour the same window so what's counted is what's shown.
-  const FRESH_WINDOW_DAYS = 5;
+  // both honour the same window (the shared top-level FRESH_WINDOW_DAYS /
+  // isFreshDeal, also used by the saved-centre cards) so what's counted is
+  // what's shown — and what the cards count is what this panel lists.
   const onSaleCount = onSale.length;
-  const freshDeals = onSale.filter(b => (b.days || 0) <= FRESH_WINDOW_DAYS
-    || (b.pctChangeDays > 0 && b.pctChangeDays <= FRESH_WINDOW_DAYS));
+  const freshDeals = onSale.filter(isFreshDeal);
   const freshCount = freshDeals.length;
   const fresh = onSale.length
     ? onSale.slice().sort((a, b) => (a.days || 0) - (b.days || 0))[0]
@@ -4777,6 +4809,25 @@ function renderTideVessel(v) {
   const statementHTML = cyclePhrase
     ? '<div class="tide-vessel-statement2">Based on <strong>' + basisLabel + '</strong> &mdash; ' + cyclePhrase + '.</div>'
     : '';
+
+  // Depth + freshness — the two canonical lenses the metric rows don't carry.
+  // ONE quiet muted line directly under the statement, lens-matched via
+  // showPersonal so "up to 70% off" describes the same cohort the statement's
+  // basis names. Copy discipline: counts live in the metric rows, movement in
+  // their right column, verdict on its line — this line owns the deepest live
+  // discount + the single most-recent sale event, nothing else (the Newest
+  // Sales panel below carries the full fresh-deals list). Omitted at 0 on sale.
+  const saleFacts = showPersonal ? (v.saleFactsMine || v.saleFactsAll) : v.saleFactsAll;
+  let factsHTML = '';
+  if (saleFacts && (saleFacts.maxPct || saleFacts.freshestDays != null)) {
+    const bits = [];
+    if (saleFacts.maxPct) bits.push('Up to ' + saleFacts.maxPct + '% off');
+    if (saleFacts.freshestDays != null) {
+      const when = saleFacts.freshestDays <= 0 ? 'today' : saleFacts.freshestDays + 'd ago';
+      bits.push(saleFacts.deepened ? ('a discount deepened ' + when) : ('newest sale started ' + when));
+    }
+    factsHTML = '<div class="tide-vessel-facts">' + bits.join(' &middot; ') + '</div>';
+  }
   // MAX only earns its own tab once the centre has ≥80 days of history (else it
   // duplicates the 60D line). Span measured across the real series' date range.
   const _spanSeries = (series && series.length) ? series : [];
@@ -4842,6 +4893,7 @@ function renderTideVessel(v) {
     +   metricsHTML
     +   verdictHTML
     +   statementHTML
+    +   factsHTML
     +   '<div class="tide-vessel-chart">'
     +     '<div class="tide-legend-host">' + legendHTML + '</div>'
     +     '<div class="tide-vessel-chart-svg-host">' + chartSVG + '</div>'
@@ -5390,8 +5442,53 @@ async function toggleSaveCentre(cid) {
   }
 }
 
+// One centre's five-metric snapshot for the compact landing surfaces
+// (saved-centre cards). Density reads the server score — the same source the
+// hero uses, so the card's % and count can never disagree with the centre
+// page. Direction reuses the hero's own helper (tideWeekFromHTML) over the
+// stored history; freshness uses the shared isFreshDeal predicate (identical
+// to the Newest Sales panel's count); depth is the deepest live discount
+// (MAX_DISCOUNT_PCT); "yours" is the followed∩present∩on-sale cohort.
+// Returns null when the server hasn't scored the centre yet — callers degrade
+// to the plain name-only card rather than rendering zeros.
+function buildCentreMetricSnapshot(centreIdx) {
+  const s = getServerScore(centreIdx);
+  if (!s || !Number.isFinite(+s.tide_score)) return null;
+  const total   = Number.isFinite(+s.total_brands)   ? +s.total_brands   : null;
+  const onSaleN = Number.isFinite(+s.brands_on_sale) ? +s.brands_on_sale : null;
+  const pct = Math.round(+s.tide_score);
+  const series = buildTideRealSeries(getServerHistory(centreIdx), pct, onSaleN, total);
+  const moveHTML = tideWeekFromHTML(series, pct);
+  const { onSale } = calcCentreScore(centreIdx);
+  let maxPct = 0, freshCount = 0;
+  for (const b of onSale) {
+    const p = MAX_DISCOUNT_PCT[b.name];
+    if (typeof p === 'number' && p > maxPct) maxPct = p;
+    if (isFreshDeal(b)) freshCount++;
+  }
+  let myPresent = 0, myOn = 0;
+  if (typeof userPrefs !== 'undefined' && userPrefs && Array.isArray(userPrefs.brand_ids) && userPrefs.brand_ids.length) {
+    const followed = new Set(userPrefs.brand_ids);
+    for (const b of BRANDS) {
+      if (!followed.has(b.id)) continue;
+      if ((PRESENCE[b.id] || [])[centreIdx] !== 1) continue;
+      myPresent++;
+      if (SALE_STATUS[b.name] === true) myOn++;
+    }
+  }
+  return { pct, onSale: onSaleN, total, moveHTML,
+           maxPct: maxPct > 0 ? Math.round(maxPct) : null,
+           freshCount, myPresent, myOn };
+}
+
 // Renders the "Your centres" block on the home landing, with an Edit toggle
-// that flips each card into a remove control (× per card).
+// that flips each card into a remove control (× per card). Each card is a
+// mini metric read of the five canonical lenses — density (% + count),
+// direction (weekly movement), depth + freshness (facts line), and the
+// user's own shops — each line omitted when its datum is missing, and the
+// whole metric block omitted (name-only card) until the centre is scored.
+// No verdict word here: recommendation language stays PEAK-only, on the
+// centre page.
 function renderSavedCentresLanding(savedIds) {
   if (!savedIds || !savedIds.length) return '';
   const cards = savedIds.slice().reverse().map(cid => {
@@ -5409,11 +5506,35 @@ function renderSavedCentresLanding(savedIds) {
            + '<button class="saved-centre-card-remove" onclick="removeSavedCentre(\''+cid+'\')" aria-label="Remove '+safeName+'">&times;</button>'
            + '</div>';
     }
+    const snap = buildCentreMetricSnapshot(idx);
+    let metricsHTML = '', scoreHTML = '';
+    if (snap) {
+      const facts = [];
+      if (snap.maxPct) facts.push('Up to ' + snap.maxPct + '% off');
+      if (snap.freshCount > 0) facts.push(snap.freshCount + ' fresh deal' + (snap.freshCount === 1 ? '' : 's'));
+      const mineText = snap.myPresent > 0
+        ? (snap.myOn + ' of your ' + snap.myPresent + ' on sale' + (snap.myOn === 0 ? ' yet' : ''))
+        : '';
+      metricsHTML = (snap.moveHTML || facts.length || mineText)
+        ? '<div class="saved-centre-card-metrics">'
+          + snap.moveHTML
+          + (facts.length ? '<div class="saved-centre-card-facts">' + facts.join(' &middot; ') + '</div>' : '')
+          + (mineText ? '<div class="saved-centre-card-mine">' + mineText + '</div>' : '')
+          + '</div>'
+        : '';
+      scoreHTML = '<div class="saved-centre-card-score">'
+        + '<div class="saved-centre-card-pct">' + snap.pct + '<span class="saved-centre-card-pct-sign">%</span></div>'
+        + ((snap.onSale != null && snap.total != null)
+            ? '<div class="saved-centre-card-count">' + snap.onSale + ' of ' + snap.total + ' on sale</div>' : '')
+        + '</div>';
+    }
     return '<button class="saved-centre-card" onclick="goToCentre(\''+cid+'\')">'
          + '<div class="saved-centre-card-left">'
          +   '<div class="saved-centre-card-name">'+safeName+'</div>'
          +   (safeLoc ? '<div class="saved-centre-card-location">'+safeLoc+'</div>' : '')
+         +   metricsHTML
          + '</div>'
+         + scoreHTML
          + '<span class="saved-centre-card-arrow" aria-hidden="true">&rsaquo;</span>'
          + '</button>';
   }).join('');
@@ -5521,6 +5642,18 @@ function getHotCentres(n, excludeIds, personal) {
       trajectory:   s.trajectory || 'FLAT',
       stage,
     });
+    // Deepest live discount at this centre — same BRAND_CYCLES derivation as
+    // the personal branch above, unfiltered, so the all-shops rows carry the
+    // identical "up to X% off" depth fact the personal rows already show.
+    let maxPct = 0;
+    for (let bi = 0; bi < BRANDS.length; bi++) {
+      const b = BRANDS[bi];
+      if ((PRESENCE[b.id] || [])[idx] !== 1) continue;
+      if (SALE_STATUS[b.name] !== true) continue;
+      const eps = (typeof BRAND_CYCLES !== 'undefined' && BRAND_CYCLES[b.name]) || [];
+      const live = eps.find(e => e.live) || eps[0];
+      if (live && Number.isFinite(+live.pct)) maxPct = Math.max(maxPct, +live.pct);
+    }
     ranked.push({
       cid,
       idx,
@@ -5533,6 +5666,7 @@ function getHotCentres(n, excludeIds, personal) {
       verdict,
       // Higher = more worth a look today; unknown verdict words sink to 0.
       severity: HOT_VERDICT_SEVERITY[verdict.word] || 0,
+      maxPct: maxPct > 0 ? Math.round(maxPct) : null,
     });
   }
   if (usePersonal) {
@@ -5653,7 +5787,8 @@ function renderHotCentres(opts) {
     const countText = isPersonal
       ? (h.brandsOnSale + ' of your ' + h.totalBrands + ' shops on sale'
          + (h.maxPct ? ' · up to ' + h.maxPct + '% off' : ''))
-      : (h.brandsOnSale + ' of ' + h.totalBrands + ' shops on sale');
+      : (h.brandsOnSale + ' of ' + h.totalBrands + ' shops on sale'
+         + (h.maxPct ? ' · up to ' + h.maxPct + '% off' : ''));
     const strip = getCentreSaleStrip(h.idx, h.brandsOnSale, isPersonal ? followedIds : undefined);
     let stripHTML, countSuffix;
     if (strip.hasVerified) {
@@ -6192,6 +6327,25 @@ async function renderCentre(centreId) {
               .map(b => b.name)
               .sort((a, b) => a.localeCompare(b));
           }
+          // Depth + freshness facts for the hero's quiet facts line: the
+          // deepest live discount in the cohort, and the age of its single
+          // most-recent sale event — where a % bump on an older sale counts
+          // as the event (`deepened`), matching the Newest Sales panel's
+          // isDeepened rule. Computed per lens (whole centre vs followed)
+          // so the line always describes the cohort the hero is scoped to.
+          const saleFactsFor = list => {
+            if (!Array.isArray(list) || !list.length) return null;
+            let maxPct = 0, freshestDays = null, deepened = false;
+            for (const b of list) {
+              const p = MAX_DISCOUNT_PCT[b.name];
+              if (typeof p === 'number' && p > maxPct) maxPct = p;
+              const started = b.days || 0;
+              const bump = (b.pctChangeDays > 0 && b.pctChangeDays < started) ? b.pctChangeDays : null;
+              const age = bump != null ? bump : started;
+              if (freshestDays === null || age < freshestDays) { freshestDays = age; deepened = bump != null; }
+            }
+            return { maxPct: maxPct > 0 ? Math.round(maxPct) : null, freshestDays, deepened };
+          };
           return renderTideVessel({
             pct: heroPct,
             stage,
@@ -6206,6 +6360,10 @@ async function renderCentre(centreId) {
             hasFollowed: !!(userBrandIds && userBrandIds.size),
             followedOnSale,
             followedPresent,
+            saleFactsAll: saleFactsFor(onSale),
+            saleFactsMine: (userBrandIds && userBrandIds.size)
+              ? saleFactsFor(onSale.filter(b => userBrandIds.has(b.id)))
+              : null,
             mode: getTideMode(),
           });
         })()

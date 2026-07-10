@@ -10,7 +10,12 @@
 //      email users who follow that brand (brand_ids, or legacy gender/
 //      cluster match) and have brand_sale_alerts on. Inherently one-shot:
 //      the start-today signal is true only on the cycle's first day, so a
-//      user gets at most one email per brand per cycle.
+//      user gets at most one email per brand per cycle. The same pass also
+//      fires when a followed brand's live discount DEEPENS (admin bumps the
+//      % via Edit/Increase — brand_sale_cycles.pct_changed_date lands on
+//      today). That signal is likewise true for one day only, and admin.html
+//      guarantees pct_changed_date only moves on a REAL % change (a routine
+//      re-confirm at the same % must not re-arm it) — do not weaken that.
 //
 //   3. WEEKEND DIGEST — for every user with saved_centres, list each saved
 //      centre with its current stage. Only sent if at least one of their
@@ -51,11 +56,16 @@ const AMBER      = "#C17A2B";
 const STONE      = "#8C8070";
 
 interface CentreRow      { id: string; name: string }
-interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null }
+interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null; total_brands: number | null }
 interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; brand_ids: string[] | null; excluded_brand_ids: string[] | null; email_alerts: boolean; brand_sale_alerts: boolean; daily_digest: boolean }
 interface BrandRow       { id: string; name: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; cluster: string | null }
-interface SaleEventRow   { brand_id: string; max_discount_pct: number | null; last_verified_status: boolean | null; last_verified_date: string | null; date_first_detected: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null } | null }
+interface SaleEventRow   { brand_id: string; max_discount_pct: number | null; last_verified_status: boolean | null; last_verified_date: string | null; date_first_detected: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null; pct_changed_date?: string | null; prior_discount_pct?: number | null } | null }
 interface CentreBrandRow { centre_id: string; brand_id: string }
+
+// Freshness window (days) — mirror of index.html's FRESH_WINDOW_DAYS: a sale
+// counts as "fresh" when it started OR its discount % last changed within
+// this many days. Keep the two constants in step.
+const FRESH_WINDOW_DAYS = 5;
 
 // ──────────────────────────────────────────────────────────────────────────
 // Utility — derive whether a brand_sale_events row is "on sale" today.
@@ -89,6 +99,49 @@ function daysOnSale(r: SaleEventRow, today: string): number {
 function startedToday(r: SaleEventRow, today: string): boolean {
   if (r.active_cycle_id) return r.cycle?.start_date === today;
   return isOnSale(r) && r.date_first_detected === today;
+}
+
+// True only on the day an admin DEEPENS a live sale's discount (Edit/Increase
+// in admin.html moving the % — pct_changed_date lands on today). One-shot for
+// the same reason startedToday is: the date matches for exactly one day.
+// Guards: `start_date !== today` prevents double-emailing a brand that also
+// started today (startedToday already covers it), and the prior≠current check
+// is belt-and-braces on top of admin.html's guarantee that pct_changed_date
+// only moves on a real % change.
+function deepenedToday(r: SaleEventRow, today: string): boolean {
+  if (!r.active_cycle_id || !r.cycle) return false;
+  if (r.cycle.pct_changed_date !== today) return false;
+  if (r.cycle.start_date === today) return false;
+  if (r.cycle.prior_discount_pct == null || r.cycle.max_discount_pct == null) return false;
+  return r.cycle.prior_discount_pct !== r.cycle.max_discount_pct;
+}
+
+// The live discount % for a sale row: the active cycle's max_discount_pct,
+// falling back to the frozen event-level column for legacy no-cycle rows.
+function livePct(r: SaleEventRow): number | null {
+  if (r.active_cycle_id && r.cycle?.max_discount_pct != null) return r.cycle.max_discount_pct;
+  return r.max_discount_pct ?? null;
+}
+
+// Whole days since an ISO date (0 = today). null when unparseable.
+function daysSince(dateStr: string | null | undefined, today: string): number | null {
+  if (!dateStr) return null;
+  const then = new Date(dateStr).getTime();
+  const now = new Date(today).getTime();
+  if (!isFinite(then) || !isFinite(now)) return null;
+  return Math.max(0, Math.floor((now - then) / 86400000));
+}
+
+// "Up from 24% last week." — the direction metric for email copy. Plain
+// sentence (no chevron glyphs — email clients), naming the prior week's value
+// like the dashboard's tideWeekFromHTML. '' when either value is missing or
+// they're level (a level line adds nothing to an email).
+function directionLine(now: number | null | undefined, past: number | null | undefined): string {
+  if (now == null || past == null || !isFinite(+now) || !isFinite(+past)) return "";
+  const n = Math.round(+now), p = Math.round(+past);
+  if (n > p) return `Up from ${p}% last week.`;
+  if (n < p) return `Down from ${p}% last week.`;
+  return "";
 }
 
 function brandMatchesPrefs(b: BrandRow, p: PrefsRow): boolean {
@@ -165,21 +218,28 @@ function stageDisplay(stage: string): string {
 export function renderHighTideEmail(opts: {
   centreName: string;
   onSaleCount: number;
-  userBrandsOnSale: { name: string; discount?: string }[];
+  totalBrands?: number | null;
+  tideScore?: number | null;
+  directionText?: string;
+  yourShopsLabel?: string;
+  userBrandsOnSale: { name: string; deal?: string }[];
   otherBrandsOnSale: string[];
   remainingCount: number;
   narrative?: string;
 }): { subject: string; html: string; text: string } {
-  const { centreName, onSaleCount, userBrandsOnSale, otherBrandsOnSale, remainingCount, narrative } = opts;
+  const { centreName, onSaleCount, totalBrands, tideScore, directionText, userBrandsOnSale, otherBrandsOnSale, remainingCount, narrative } = opts;
   const subject = `${centreName} is at High Tide today`;
-  const previewText = `${onSaleCount} brands on sale at the same time. This doesn't happen often.`;
+  const previewText = totalBrands
+    ? `${onSaleCount} of ${totalBrands} shops on sale at the same time. This doesn't happen often.`
+    : `${onSaleCount} brands on sale at the same time. This doesn't happen often.`;
+  const yourShopsLabel = opts.yourShopsLabel || 'Your brands on sale';
 
   const yourBrandsBlock = userBrandsOnSale.length > 0 ? `
-    <div style="font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${STONE};margin-bottom:14px">Your brands on sale</div>
+    <div style="font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:${STONE};margin-bottom:14px">${escapeHtml(yourShopsLabel)}</div>
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px">
       ${userBrandsOnSale.map((b, i, arr) => `
         <tr><td style="padding:10px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}font-family:'DM Sans',Arial,sans-serif;font-size:14px;color:${BARK};font-weight:500">
-          <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${AMBER};margin-right:8px;vertical-align:middle"></span>${escapeHtml(b.name)}${b.discount ? `<span style="float:right;font-weight:300;color:${STONE};font-size:13px">up to ${escapeHtml(b.discount)} off</span>` : ''}
+          <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${AMBER};margin-right:8px;vertical-align:middle"></span>${escapeHtml(b.name)}${b.deal ? `<span style="float:right;font-weight:300;color:${STONE};font-size:13px">${escapeHtml(b.deal)}</span>` : ''}
         </td></tr>
       `).join('')}
     </table>` : '';
@@ -198,9 +258,21 @@ export function renderHighTideEmail(opts: {
   const intelligenceBlock = narrative ? `
     <div style="background:${CREAM_DARK};padding:16px 20px;border-left:2px solid ${STONE};margin:24px 0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};line-height:1.65;font-style:italic">${escapeHtml(narrative)}</div>` : '';
 
+  // Density leads the body: "X of Y shops" + the Tide Score — the same
+  // verifiable arithmetic the dashboard hero shows (falls back to the old
+  // count-only copy for a legacy row missing total_brands). Direction sits
+  // beneath as a quiet muted line, mirroring the hero's weekly movement.
+  const densityHtml = (totalBrands && tideScore != null)
+    ? `Right now, <strong>${onSaleCount} of ${totalBrands} shops</strong> are on sale at the same time &mdash; a ${Math.round(tideScore)}% Tide Score. That doesn't happen often.`
+    : `Right now, <strong>${onSaleCount} brands</strong> are on sale at the same time. That doesn't happen often.`;
+  const directionHtml = directionText
+    ? `<p style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};margin:-24px 0 32px">${escapeHtml(directionText)}</p>`
+    : '';
+
   const bodyHtml = `
     <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${AMBER};margin:0 0 16px;line-height:1.25">The tide is in at ${escapeHtml(centreName)}.</div>
-    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">Right now, <strong>${onSaleCount} brands</strong> are on sale at the same time. That doesn't happen often.</p>
+    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">${densityHtml}</p>
+    ${directionHtml}
     <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:28px 0">
     ${yourBrandsBlock}${otherBrandsBlock}${intelligenceBlock}
     <a href="${APP_URL}" style="display:block;background:${AMBER};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See today's score &rarr;</a>`;
@@ -214,12 +286,15 @@ export function renderHighTideEmail(opts: {
 
   const textParts: string[] = [
     `The tide is in at ${centreName}.`,
-    `Right now, ${onSaleCount} brands are on sale at the same time. That doesn't happen often.`,
-    '',
+    (totalBrands && tideScore != null)
+      ? `Right now, ${onSaleCount} of ${totalBrands} shops are on sale at the same time — a ${Math.round(tideScore)}% Tide Score. That doesn't happen often.`
+      : `Right now, ${onSaleCount} brands are on sale at the same time. That doesn't happen often.`,
   ];
+  if (directionText) textParts.push(directionText);
+  textParts.push('');
   if (userBrandsOnSale.length > 0) {
-    textParts.push('Your brands on sale:');
-    userBrandsOnSale.forEach(b => textParts.push(`- ${b.name}${b.discount ? ` (up to ${b.discount} off)` : ''}`));
+    textParts.push(`${yourShopsLabel}:`);
+    userBrandsOnSale.forEach(b => textParts.push(`- ${b.name}${b.deal ? ` (${b.deal})` : ''}`));
     textParts.push('');
   }
   if (otherBrandsOnSale.length > 0) {
@@ -270,12 +345,52 @@ export function renderBrandSaleEmail(opts: {
   return { subject, html, text };
 }
 
+// "Just got deeper" sibling of renderBrandSaleEmail — fires the day an admin
+// bumps a live sale's discount % (pct_changed_date lands on today). Leads
+// with the before/after, the number shoppers actually want. Descriptive
+// copy only — no recommendation clause (that stays PEAK-only).
+export function renderBrandDeeperEmail(opts: {
+  brandName: string;
+  centre1: string;
+  centre2?: string;
+  centreId?: string;
+  discount?: string;
+  priorDiscount?: string;
+}): { subject: string; html: string; text: string } {
+  const { brandName, centre1, centre2, centreId, discount, priorDiscount } = opts;
+  const subject = `${brandName}'s sale just got deeper`;
+  const locationPhrase = centre2 ? `${centre1} and ${centre2}` : centre1;
+  const wasNow = (priorDiscount && discount)
+    ? `Was ${priorDiscount} — now up to ${discount} off.`
+    : (discount ? `Now up to ${discount} off.` : `The discount just went deeper.`);
+  const previewText = `${wasNow} On now at ${locationPhrase}.`;
+
+  const ctaHref = centreId ? `${APP_URL}?centre=${encodeURIComponent(centreId)}` : APP_URL;
+  const ctaLabel = `See it at ${escapeHtml(centre1)} &rarr;`;
+
+  const bodyHtml = `
+    <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${LEAF};margin:0 0 16px;line-height:1.25">${escapeHtml(brandName)} just went deeper.</div>
+    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">${escapeHtml(wasNow)} On now at ${escapeHtml(centre1)}${centre2 ? ` and ${escapeHtml(centre2)}` : ''}.</p>
+    <a href="${ctaHref}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">${ctaLabel}</a>`;
+
+  const html = baseEmailWrap({
+    previewText,
+    bodyHtml,
+    footerReason: `You're receiving this because you follow ${brandName} on Tide and Brand Sale Alerts are switched on. Unsubscribing here turns off alerts for all followed brands.`,
+    unsubLabel: 'Brand Sale Alerts',
+  });
+
+  const text = `${brandName} just went deeper.\n\n${wasNow} On now at ${locationPhrase}.\n\nSee it at ${centre1}: ${ctaHref}`;
+
+  return { subject, html, text };
+}
+
 // Multi-brand sibling of renderBrandSaleEmail. When more than one of a user's
 // followed brands starts a sale on the same day we send ONE summary email
 // listing them all, instead of N separate "X just started a sale" messages.
 // The single-brand path above still handles the one-brand case.
 export function renderBrandSaleDigestEmail(opts: {
-  brands: { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string }[];
+  brands: { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string; kind?: 'started' | 'deepened'; priorDiscount?: string }[];
 }): { subject: string; html: string; text: string } {
   const { brands } = opts;
   const n = brands.length;
@@ -283,22 +398,41 @@ export function renderBrandSaleDigestEmail(opts: {
   const nameList = names.length === 2
     ? `${names[0]} and ${names[1]}`
     : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-  const subject = `${n} of your shops just started a sale`;
+  // Subject/heading follow the cohort: all deepened → "went deeper"; all
+  // started → the original wording; a mixed day gets neutral "sale news".
+  const allDeepened = brands.every(b => b.kind === 'deepened');
+  const allStarted  = brands.every(b => b.kind !== 'deepened');
+  const subject = allDeepened
+    ? `${n} of your shops went deeper`
+    : allStarted
+    ? `${n} of your shops just started a sale`
+    : `Sale news from ${n} of your shops`;
   const previewText = `${nameList} — on now.`;
 
-  const rows = brands.map((b, i, arr) => {
+  const rowMeta = (b: typeof brands[0]) => {
     const locationPhrase = b.centre2 ? `${escapeHtml(b.centre1)} and ${escapeHtml(b.centre2)}` : escapeHtml(b.centre1);
-    const meta = `${b.discount ? `Up to ${escapeHtml(b.discount)} off &middot; ` : ''}On now at ${locationPhrase}`;
-    return `
+    if (b.kind === 'deepened' && b.priorDiscount && b.discount) {
+      return `Was ${escapeHtml(b.priorDiscount)}, now up to ${escapeHtml(b.discount)} off &middot; On now at ${locationPhrase}`;
+    }
+    return `${b.discount ? `Up to ${escapeHtml(b.discount)} off &middot; ` : ''}On now at ${locationPhrase}`;
+  };
+  const rows = brands.map((b, i, arr) => `
     <div style="padding:16px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}">
       <div style="font-family:Georgia,serif;font-size:18px;font-weight:600;color:${LEAF};margin:0 0 4px;line-height:1.3">${escapeHtml(b.brandName)}</div>
-      <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};line-height:1.5">${meta}</div>
-    </div>`;
-  }).join('');
+      <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};line-height:1.5">${rowMeta(b)}</div>
+    </div>`).join('');
 
+  const heading = allDeepened
+    ? `${n} of your shops just went deeper.`
+    : `${n} of your shops just went on sale.`;
+  const intro = allDeepened
+    ? 'All deepened their discount today.'
+    : allStarted
+    ? 'All starting their sale today — worth knowing early in the cycle.'
+    : 'New sales and deeper discounts from your shops today.';
   const bodyHtml = `
-    <div style="font-family:Georgia,serif;font-size:26px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">${n} of your shops just went on sale.</div>
-    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 8px;max-width:420px">All starting their sale today — worth knowing early in the cycle.</p>
+    <div style="font-family:Georgia,serif;font-size:26px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">${heading}</div>
+    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 8px;max-width:420px">${intro}</p>
     <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:20px 0 0">
     ${rows}
     <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See your shops &rarr;</a>`;
@@ -311,9 +445,14 @@ export function renderBrandSaleDigestEmail(opts: {
   });
 
   const textLines = [
-    `${n} of your shops just went on sale.`,
+    heading,
     '',
-    ...brands.map(b => `${b.brandName} — ${b.discount ? `up to ${b.discount} off, ` : ''}on now at ${b.centre2 ? `${b.centre1} and ${b.centre2}` : b.centre1}`),
+    ...brands.map(b => {
+      const loc = b.centre2 ? `${b.centre1} and ${b.centre2}` : b.centre1;
+      return b.kind === 'deepened' && b.priorDiscount && b.discount
+        ? `${b.brandName} — was ${b.priorDiscount}, now up to ${b.discount} off, on now at ${loc}`
+        : `${b.brandName} — ${b.discount ? `up to ${b.discount} off, ` : ''}on now at ${loc}`;
+    }),
     '',
     `See your shops: ${APP_URL}`,
   ];
@@ -344,15 +483,21 @@ function digestStagePill(stage: DigestStage, stageLabel: string): string {
 export function renderDigestEmail(opts: {
   dateLabel: string;
   highTideCount: number;
-  centres: { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string }[];
+  centres: { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string; factLine1?: string; factLine2?: string }[];
 }): { subject: string; html: string; text: string } {
   const { dateLabel, highTideCount, centres } = opts;
   const subject = 'Your Tide briefing — this weekend';
   const previewText = `${highTideCount} of your saved centres at High Tide or Rising. Here's the full picture.`;
 
+  // Two fact lines per card between the name/pill row and the trend line:
+  // density + direction ("12 of 32 shops on sale — up from 24% last week"),
+  // then depth · freshness · yours ("Up to 70% off · 3 fresh deals · 2 of
+  // your 5 on sale"). Each supplied precomposed and omitted when empty.
   const cards = centres.map((c, i, arr) => `
     <div style="padding:16px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}">
       <div style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:500;color:${BARK};margin-bottom:6px">${escapeHtml(c.name)}${digestStagePill(c.stage, c.stageLabel)}</div>
+      ${c.factLine1 ? `<div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${BARK};margin-bottom:3px">${escapeHtml(c.factLine1)}</div>` : ''}
+      ${c.factLine2 ? `<div style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${STONE};margin-bottom:4px">${escapeHtml(c.factLine2)}</div>` : ''}
       <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};margin-bottom:4px">${escapeHtml(c.verdict)}</div>
       ${c.narrative ? `<div style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${STONE};font-style:italic;line-height:1.5">${escapeHtml(c.narrative)}</div>` : ''}
     </div>`).join('');
@@ -375,7 +520,7 @@ export function renderDigestEmail(opts: {
     `Friday, ${dateLabel}`,
     "Here's how your centres are looking this weekend.",
     '',
-    ...centres.map(c => `${c.name} — ${c.stageLabel}\n  ${c.verdict}${c.narrative ? `\n  ${c.narrative}` : ''}`),
+    ...centres.map(c => `${c.name} — ${c.stageLabel}${c.factLine1 ? `\n  ${c.factLine1}` : ''}${c.factLine2 ? `\n  ${c.factLine2}` : ''}\n  ${c.verdict}${c.narrative ? `\n  ${c.narrative}` : ''}`),
     '',
     `Open Tide: ${APP_URL}`,
   ];
@@ -471,25 +616,33 @@ Deno.serve(async (req: Request) => {
   const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
   const today = new Date().toISOString().split("T")[0];
   const yesterday = new Date(new Date(today).getTime() - 86400000).toISOString().split("T")[0];
+  const weekAgo = new Date(new Date(today).getTime() - 7 * 86400000).toISOString().split("T")[0];
 
-  // 1. Today's centre scores + centre names + brands.
-  const [scoresRes, centresRes, brandsRes, salesRes, centreBrandsRes, prefsRes] = await Promise.all([
+  // 1. Today's centre scores + centre names + brands. The week-ago scores
+  //    fetch is unconditional because both consumers run on different
+  //    invocations (peak alert on the daily call, digest on the Friday one).
+  const [scoresRes, centresRes, brandsRes, salesRes, centreBrandsRes, prefsRes, weekScoresRes] = await Promise.all([
     sb.from("centre_seer_scores")
-      .select("centre_id, tide_score, verdict, bluf, trajectory, brands_on_sale")
+      .select("centre_id, tide_score, verdict, bluf, trajectory, brands_on_sale, total_brands")
       .eq("score_date", today),
     sb.from("centres").select("id, name").eq("active", true),
     sb.from("brands").select("id, name, womenswear, menswear, childrenswear, cluster"),
     sb.from("brand_sale_events")
-      .select("brand_id, max_discount_pct, last_verified_status, last_verified_date, date_first_detected, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)"),
+      .select("brand_id, max_discount_pct, last_verified_status, last_verified_date, date_first_detected, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct,pct_changed_date,prior_discount_pct)"),
     sb.from("centre_brands").select("centre_id, brand_id"),
     // No saved_centres filter: brand-sale alerts target followed brands, so
     // users who follow brands without saving a centre must be included too.
     // Each pass filters saved_centres / brand_ids in-code.
     sb.from("user_preferences")
       .select("user_id, womenswear, menswear, childrenswear, style_clusters, saved_centres, brand_ids, excluded_brand_ids, email_alerts, brand_sale_alerts, daily_digest"),
+    // Direction metric ("up from X% last week") for the peak alert + digest.
+    // A centre with no row exactly 7 days back simply omits the line.
+    sb.from("centre_seer_scores")
+      .select("centre_id, tide_score")
+      .eq("score_date", weekAgo),
   ]);
 
-  for (const [name, r] of [["scores", scoresRes], ["centres", centresRes], ["brands", brandsRes], ["sales", salesRes], ["centre_brands", centreBrandsRes], ["prefs", prefsRes]] as const) {
+  for (const [name, r] of [["scores", scoresRes], ["centres", centresRes], ["brands", brandsRes], ["sales", salesRes], ["centre_brands", centreBrandsRes], ["prefs", prefsRes], ["week_scores", weekScoresRes]] as const) {
     if (r.error) return new Response(`Supabase ${name} read failed: ${r.error.message}`, { status: 500 });
   }
 
@@ -504,6 +657,33 @@ Deno.serve(async (req: Request) => {
     brandsAtCentre.set(cb.centre_id, list);
   }
   const allPrefs: PrefsRow[] = prefsRes.data || [];
+  const weekAgoScore = new Map<string, number>((weekScoresRes.data || [])
+    .filter((s: { tide_score: number | null }) => s.tide_score != null)
+    .map((s: { centre_id: string; tide_score: number }) => [s.centre_id, s.tide_score]));
+
+  // Per-centre depth + freshness aggregates ("Up to 70% off", "3 fresh
+  // deals") for the peak alert + digest — derived once from data already in
+  // memory, mirroring the dashboard's shared FRESH_WINDOW_DAYS predicate
+  // (started OR % changed within the window).
+  const centreFactsCache = new Map<string, { maxPct: number | null; freshCount: number }>();
+  function centreFacts(centreId: string): { maxPct: number | null; freshCount: number } {
+    const cached = centreFactsCache.get(centreId);
+    if (cached) return cached;
+    let maxPct = 0, freshCount = 0;
+    for (const bid of (brandsAtCentre.get(centreId) || [])) {
+      const sale = salesById.get(bid);
+      if (!sale || !isOnSale(sale)) continue;
+      const pct = livePct(sale);
+      if (pct != null && pct > maxPct) maxPct = pct;
+      const startAge = daysSince(sale.cycle?.start_date || sale.date_first_detected, today);
+      const bumpAge = daysSince(sale.cycle?.pct_changed_date, today);
+      if ((startAge != null && startAge <= FRESH_WINDOW_DAYS)
+        || (bumpAge != null && bumpAge <= FRESH_WINDOW_DAYS)) freshCount++;
+    }
+    const facts = { maxPct: maxPct > 0 ? Math.round(maxPct) : null, freshCount };
+    centreFactsCache.set(centreId, facts);
+    return facts;
+  }
 
   // Build email lookup for users with saved_centres. Need to call the auth
   // admin API because user_preferences only stores user_id.
@@ -515,7 +695,7 @@ Deno.serve(async (req: Request) => {
     emailById.set(uid, data.user.email);
   }
 
-  const log: { type: string; to?: string; centre?: string; brand?: string; status?: number; ok?: boolean; skipped?: string }[] = [];
+  const log: { type: string; to?: string; centre?: string; brand?: string; brands?: string[]; count?: number; status?: number; ok?: boolean; skipped?: string }[] = [];
   let alertsSent = 0, brandAlertsSent = 0, digestsSent = 0;
 
   // 2. HIGH-TIDE ALERTS. (daily run only — skipped on the Friday digest call)
@@ -547,12 +727,28 @@ Deno.serve(async (req: Request) => {
       .filter(x => x.brand && x.sale && isOnSale(x.sale!))
       .map(x => ({
         brand: x.brand!,
+        sale:  x.sale!,
         days: daysOnSale(x.sale!, today),
-        pct:  (x.sale!.active_cycle_id && x.sale!.cycle?.max_discount_pct != null)
-              ? x.sale!.cycle!.max_discount_pct
-              : (x.sale!.max_discount_pct ?? null),
+        pct:  livePct(x.sale!),
       }))
       .sort((a, b) => a.days - b.days);
+    // Direction — "Up from 24% last week." under the density sentence.
+    const directionText = directionLine(score.tide_score, weekAgoScore.get(score.centre_id));
+    // Per-brand right-cell copy: depth ("up to 50% off") + a freshness clause
+    // when the sale is inside the window — "started 3d ago", or the
+    // before/after when the discount was just deepened.
+    const dealFor = (x: typeof onSaleHere[0]): string | undefined => {
+      const bumpAge = daysSince(x.sale.cycle?.pct_changed_date, today);
+      const deepened = x.sale.cycle?.prior_discount_pct != null && x.pct != null
+        && x.sale.cycle.prior_discount_pct !== x.pct
+        && bumpAge != null && bumpAge <= FRESH_WINDOW_DAYS;
+      if (deepened) return `was ${x.sale.cycle!.prior_discount_pct}%, now up to ${x.pct}% off`;
+      const depth = x.pct ? `up to ${x.pct}% off` : '';
+      const started = x.days <= FRESH_WINDOW_DAYS
+        ? `started ${x.days <= 1 ? 'today' : `${x.days}d ago`}` : '';
+      const deal = [depth, started].filter(Boolean).join(' · ');
+      return deal || undefined;
+    };
 
     const recipients = allPrefs.filter(p => p.saved_centres.includes(score.centre_id) && p.email_alerts !== false);
     for (const p of recipients) {
@@ -568,13 +764,26 @@ Deno.serve(async (req: Request) => {
       const others   = onSaleHere.filter(x => !isFollowed(x));
       const userBrandsOnSale = followed.slice(0, 4).map(x => ({
         name: x.brand.name,
-        discount: x.pct ? `${x.pct}%` : undefined,
+        deal: dealFor(x),
       }));
       const otherBrandsOnSale = others.slice(0, 4).map(x => x.brand.name);
       const remainingCount = Math.max(0, others.length - 4);
+      // "Your shops — 3 of your 5 here on sale": only for explicit follows,
+      // where "of your M" is an honest denominator (followed brands stocked
+      // at this centre). The legacy category-match fallback keeps the plain
+      // label — its cohort isn't a list the user ever picked.
+      let yourShopsLabel: string | undefined;
+      if (followedIds.size > 0) {
+        const followedHere = brandIdsHere.filter(bid => followedIds.has(bid)).length;
+        if (followedHere > 0) yourShopsLabel = `Your shops — ${followed.length} of your ${followedHere} here on sale`;
+      }
       const { subject, html, text } = renderHighTideEmail({
         centreName,
         onSaleCount: onSaleHere.length,
+        totalBrands: score.total_brands,
+        tideScore: score.tide_score,
+        directionText,
+        yourShopsLabel,
         userBrandsOnSale,
         otherBrandsOnSale,
         remainingCount,
@@ -602,17 +811,27 @@ Deno.serve(async (req: Request) => {
     .filter(s => startedToday(s, today))
     .map(s => ({ sale: s, brand: brandsById.get(s.brand_id) }))
     .filter((x): x is { sale: SaleEventRow; brand: BrandRow } => !!x.brand);
+  // The "just got deeper" cohort — an admin bumped a live sale's % today.
+  // Same one-shot dedup as startedToday (deepenedToday matches for exactly
+  // one day), same recipient machinery below.
+  const deepenedBrands = digestOnly ? [] : Array.from(salesById.values())
+    .filter(s => deepenedToday(s, today))
+    .map(s => ({ sale: s, brand: brandsById.get(s.brand_id) }))
+    .filter((x): x is { sale: SaleEventRow; brand: BrandRow } => !!x.brand);
   // Accumulate per user so that a user with several followed brands starting
   // a sale today receives ONE summary email rather than one per brand. We walk
-  // started brands (outer) to reuse the per-brand recipient + centre-pick
+  // alert brands (outer) to reuse the per-brand recipient + centre-pick
   // logic, then group the resulting items by user id (preserving brand order)
   // and send once below.
-  type BrandSaleItem = { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string };
+  type BrandSaleItem = { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string; kind: 'started' | 'deepened'; priorDiscount?: string };
+  const alertBrands: { sale: SaleEventRow; brand: BrandRow; kind: 'started' | 'deepened' }[] = [
+    ...startedBrands.map(x => ({ ...x, kind: 'started' as const })),
+    ...deepenedBrands.map(x => ({ ...x, kind: 'deepened' as const })),
+  ];
   const perUser = new Map<string, { p: PrefsRow; items: BrandSaleItem[] }>();
-  for (const { sale, brand } of startedBrands) {
-    const pct = (sale.active_cycle_id && sale.cycle?.max_discount_pct != null)
-      ? sale.cycle!.max_discount_pct
-      : (sale.max_discount_pct ?? null);
+  for (const { sale, brand, kind } of alertBrands) {
+    const pct = livePct(sale);
+    const priorPct = kind === 'deepened' ? (sale.cycle?.prior_discount_pct ?? null) : null;
     const brandCentreIds = centresForBrand.get(brand.id) || [];
     const recipients = allPrefs.filter(p => {
       if (p.brand_sale_alerts === false) return false;
@@ -629,7 +848,7 @@ Deno.serve(async (req: Request) => {
       const pickCids = (relevant.length > 0 ? relevant : brandCentreIds).filter(cid => !!centres.get(cid));
       if (pickCids.length === 0) { log.push({ type: "brand", to: emailById.get(p.user_id), brand: brand.name, skipped: "no centre carries brand" }); continue; }
       const entry = perUser.get(p.user_id) || { p, items: [] };
-      entry.items.push({ brandName: brand.name, centre1: centres.get(pickCids[0])!, centre2: pickCids[1] ? centres.get(pickCids[1])! : undefined, centreId: pickCids[0], discount: pct ? `${pct}%` : undefined });
+      entry.items.push({ brandName: brand.name, centre1: centres.get(pickCids[0])!, centre2: pickCids[1] ? centres.get(pickCids[1])! : undefined, centreId: pickCids[0], discount: pct ? `${pct}%` : undefined, kind, priorDiscount: priorPct != null ? `${priorPct}%` : undefined });
       perUser.set(p.user_id, entry);
     }
   }
@@ -637,7 +856,7 @@ Deno.serve(async (req: Request) => {
     const to = emailById.get(p.user_id);
     if (!to) { log.push({ type: "brand", skipped: `no email for user ${p.user_id}`, brands: items.map(i => i.brandName) }); continue; }
     const { subject, html, text } = items.length === 1
-      ? renderBrandSaleEmail(items[0])
+      ? (items[0].kind === 'deepened' ? renderBrandDeeperEmail(items[0]) : renderBrandSaleEmail(items[0]))
       : renderBrandSaleDigestEmail({ brands: items });
     if (dryRun) { log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: true, skipped: "dryRun" }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
@@ -660,15 +879,44 @@ Deno.serve(async (req: Request) => {
         const name = centres.get(cid);
         if (!s || !name) return null;
         const bucket: DigestStage = stageBucket(stageFromVerdict(s.verdict));
+        // Fact line 1 — density + direction ("12 of 32 shops on sale — up
+        // from 24% last week"); omitted when the counts are missing.
+        let factLine1: string | undefined;
+        if (s.brands_on_sale != null && s.total_brands != null) {
+          const dir = directionLine(s.tide_score, weekAgoScore.get(cid));
+          factLine1 = `${s.brands_on_sale} of ${s.total_brands} shops on sale`
+            + (dir ? ` — ${dir.toLowerCase().replace(/\.$/, '')}` : '');
+        }
+        // Fact line 2 — depth · freshness · yours; each clause independently
+        // omitted. Depth + freshness are per-centre (cached); only the
+        // "k of your m on sale" clause is per-user.
+        const facts = centreFacts(cid);
+        const clauses: string[] = [];
+        if (facts.maxPct) clauses.push(`Up to ${facts.maxPct}% off`);
+        if (facts.freshCount > 0) clauses.push(`${facts.freshCount} fresh deal${facts.freshCount === 1 ? '' : 's'}`);
+        if ((p.brand_ids || []).length > 0) {
+          const here = new Set(brandsAtCentre.get(cid) || []);
+          let mine = 0, mineOn = 0;
+          for (const bid of p.brand_ids!) {
+            if (!here.has(bid)) continue;
+            mine++;
+            const sale = salesById.get(bid);
+            if (sale && isOnSale(sale)) mineOn++;
+          }
+          if (mine > 0) clauses.push(`${mineOn} of your ${mine} on sale`);
+        }
+        const factLine2 = clauses.length ? clauses.join(' · ') : undefined;
         return {
           name,
           stage: bucket,
           stageLabel: stageLabelFor(bucket),
           verdict: digestVerdictFor(bucket),
           narrative: s.bluf || undefined,
+          factLine1,
+          factLine2,
         };
       })
-      .filter((r): r is { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string } => r !== null)
+      .filter(r => r !== null)
       .sort((a, b) => stagePriority[a.stage] - stagePriority[b.stage]);
     const highTideCount = cards.filter(c => c.stage === "high" || c.stage === "rising").length;
     if (highTideCount === 0) { log.push({ type: "digest", to, skipped: "no centre at Rising or above" }); continue; }
@@ -689,6 +937,7 @@ Deno.serve(async (req: Request) => {
     digestsSent,
     highTideCentres: highTideCentres.length,
     brandsStartedToday: startedBrands.length,
+    brandsDeepenedToday: deepenedBrands.length,
     eligibleUsers: allPrefs.length,
     log,
   }, null, 2), {

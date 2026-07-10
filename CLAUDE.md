@@ -101,6 +101,28 @@ Don't switch the model to `gemini-2.5-flash-lite`: its free-tier daily cap is 20
 
 Required env var on the GitHub Action's `score` job: `GEMINI_API_KEY` (repo secret).
 
+## The five canonical metrics (Jul 2026)
+
+Every consumer surface speaks the same five lenses in the same vocabulary (blog post `/blog/the-five-shopping-metrics-that-matter` is the public statement of this):
+
+| Lens | Canonical copy |
+|---|---|
+| **Density** | `{pct}%` + `{N} of {M} shops on sale` / `{k} of your {m} on sale` |
+| **Direction** | `▲ up from {X}% last week` (names the prior week's VALUE, not the delta — `tideWeekFromHTML`; emails use plain `Up from 24% last week.`) |
+| **Freshness** | `started {today\|Nd ago}` / `NEW` / `{f} fresh deals` (window = top-level `FRESH_WINDOW_DAYS` (5) + `isFreshDeal` predicate, hoisted out of the Newest Sales panel; mirrored as `FRESH_WINDOW_DAYS` in `notify-high-tide/index.ts` — keep in step) |
+| **Depth** | `up to {X}% off` / `was {P}%, now up to {X}% off` |
+| **Yours** | `{k} of your {m} on sale` (+ named shops on the centre hero only) |
+
+Where they live (Jul 2026 additions):
+- **Saved-centre landing cards are mini metric cards** (`renderSavedCentresLanding` + `buildCentreMetricSnapshot`): density % + count on the right, weekly movement / `Up to X% off · N fresh deals` / `k of your m on sale` lines under the name. Each line omits when its datum is missing; an unscored centre degrades to the old name-only card (snapshot returns null). No verdict word on cards — recommendation language stays PEAK-only, on the centre page. The `%` is Inter tabular-nums (data figure), not Playfair. The account panel's saved list (`renderAccountSavedCentres`) carries a single muted `N of M on sale` subline only — it's a management list, not a dashboard.
+- **The centre hero has a quiet facts line** (`.tide-vessel-facts`, directly under the statement): `Up to 70% off · newest sale started 2d ago` (or `· a discount deepened 2d ago` when the freshest event is a % bump). Lens-matched via `showPersonal` (ctx `saleFactsAll`/`saleFactsMine`) so it describes the same cohort the statement's basis names; omitted at 0 on sale. Copy-discipline audit: counts live only in the metric rows, movement only in their right column, verdict on its line, basis+cycle in the statement, **depth + the single most-recent event only here** — nothing repeats (the Newest Sales panel carries the full fresh list).
+- **The all-shops "Today's tide" rows carry the depth suffix** `· up to X% off` — exact parity with the personal rows (the non-personal `getHotCentres` branch now derives `maxPct` from `BRAND_CYCLES` like the personal branch always did). Still NO direction on hot rows — momentum was deliberately removed from that list, and the saved-centre cards directly above now carry direction.
+- **Per-chip followed markers on the brand grid: REJECTED.** Chips already carry four right-side signals on a 360px row; "yours" on the grid is served structurally by the My shops/All shops toggle directly above it. Don't add a per-chip "you follow this" pip.
+
+**Emails carry all five too** (`notify-high-tide`, Jul 2026): the peak alert leads with `23 of 40 shops … a 58% Tide Score`, a muted `Up from 24% last week.` line (new week-ago scores query), a `Your shops — 3 of your 5 here on sale` list label (explicit follows only — the legacy category-match fallback keeps the plain label), and per-brand cells `up to 50% off · started 3d ago` / `was 50%, now up to 70% off`. Digest cards gain two fact lines between the stage pill and the trend line: `12 of 32 shops on sale — up from 24% last week` and `Up to 70% off · 3 fresh deals · 2 of your 5 on sale` (depth/fresh cached per centre; only the yours clause is per-user; every clause independently omitted). `digestVerdictFor` is untouched — the trend-only rule holds. Data cost: `total_brands` added to the scores select, `pct_changed_date`+`prior_discount_pct` to the cycle embed, one extra week-ago `centre_seer_scores` query.
+
+**"Just got deeper" brand alert (Jul 2026).** Pass 2 also fires the day an admin deepens a live sale's % (`deepenedToday`: `cycle.pct_changed_date === today && start_date !== today && prior_discount_pct != null && prior !== max`). One-shot by construction (the date matches for one day), same recipients/gating/unsubscribe as sale-start alerts, new `renderBrandDeeperEmail` (`M&S's sale just got deeper` / `Was 50% — now up to 70% off.`); a mixed started+deepened day goes through the kind-aware `renderBrandSaleDigestEmail` (`N of your shops went deeper` only when ALL items are deepened; mixed = `Sale news from N of your shops`). **This depends on admin.html's guarantee that `pct_changed_date` only moves on a REAL % change** (see the Newest Sales section below) — weakening that re-arms the alert on routine re-confirms.
+
 ## "Newest Sales" panel — start date vs. discount change (Jul 2026)
 The "Newest Sales" card (`renderCentreNarrativeCard` in `index.html`) surfaces a brand when EITHER its sale started in the last `FRESH_WINDOW_DAYS` (5) days OR its discount % last changed in that window — not start date alone. This matters because an admin routinely revisits an old, already-listed cycle (e.g. bumping White Stuff from 50% to 60% on day 18) via Edit/Increase in `admin.html`; without the second condition that update would never surface here, which read as a bug ("I updated the %, why isn't it showing?").
 
@@ -115,10 +137,10 @@ Supabase Edge function `notify-high-tide` runs three passes, gated by the POST b
 | Pass | Trigger | Schedule (body) | Gating column |
 |---|---|---|---|
 | Peak alert | a saved centre hits **Peak** (verdict `Peak`) | daily 07:00 UTC, `{}` | `email_alerts` |
-| Brand-sale alert | a followed brand's sale cycle **starts today** | daily 07:00 UTC, `{}` | `brand_sale_alerts` (+ respects `excluded_brand_ids`) |
+| Brand-sale alert | a followed brand's sale cycle **starts today** OR its live discount **deepened today** (Jul 2026 — `pct_changed_date == today`) | daily 07:00 UTC, `{}` | `brand_sale_alerts` (+ respects `excluded_brand_ids`) |
 | Weekend digest | ≥1 saved centre at Rising or above | **Friday 19:00 UTC**, `{"digestOnly":true}` | `daily_digest` |
 
-UI toggles in the account panel map to these three columns. Don't rename the columns — only the human-readable copy. The digest is **weekly (Friday)**, not daily — the email copy hard-codes "Friday" and that is now correct. Brand-sale "started today" = active cycle `start_date == today` or `date_first_detected == today`; true for one day only, so it self-dedupes (no sent-state table). `digestOnly` runs pass 3 only; the default daily call runs passes 1+2 and skips the digest.
+UI toggles in the account panel map to these three columns. Don't rename the columns — only the human-readable copy. The digest is **weekly (Friday)**, not daily — the email copy hard-codes "Friday" and that is now correct. Brand-sale "started today" = active cycle `start_date == today` or `date_first_detected == today`; true for one day only, so it self-dedupes (no sent-state table); "deepened today" self-dedupes the same way via `pct_changed_date == today` (see "The five canonical metrics" above for the guards). `digestOnly` runs pass 3 only; the default daily call runs passes 1+2 and skips the digest. All three emails now carry the five canonical metrics — see that section for the exact copy.
 
 ## Shop detail sheet (June 2026)
 Tapping any brand chip on a centre opens a **bottom sheet** (`#ts-sheet`, all classes `ts-*` namespaced) with that brand's sale status, full sale-episode history, a tide-rhythm chart, and a contextual CTA. Built to the canonical prototype `tide-detail-prototype.html` (visual source of truth — palette/type/SVG geometry come from there). **Descriptive/historical only — zero predictions** (no estimated end dates, no next-sale forecast); see PRD §4.4 / §11.

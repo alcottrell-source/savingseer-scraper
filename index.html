@@ -4823,7 +4823,9 @@ function renderTideVessel(v) {
     const bits = [];
     if (saleFacts.maxPct) bits.push('Up to ' + saleFacts.maxPct + '% off');
     if (saleFacts.freshestDays != null) {
-      const when = saleFacts.freshestDays <= 0 ? 'today' : saleFacts.freshestDays + 'd ago';
+      // DAYS_RUNNING / PCT_CHANGE_DAYS are 1-based (started today = 1),
+      // matching the Newest Sales panel's `days <= 1` NEW threshold.
+      const when = saleFacts.freshestDays <= 1 ? 'today' : saleFacts.freshestDays + 'd ago';
       bits.push(saleFacts.deepened ? ('a discount deepened ' + when) : ('newest sale started ' + when));
     }
     factsHTML = '<div class="tide-vessel-facts">' + bits.join(' &middot; ') + '</div>';

@@ -392,12 +392,16 @@
   .tide-metric-label { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 2px; }
   .tide-metric--you .tide-metric-label { color: var(--tide-neon); }
   .tide-metric--centre .tide-metric-label { color: rgba(245,241,235,0.5); }
+  /* Depth row: amber is the established deepening accent (chart crest dot,
+     UPDATED badge) — distinct from neon/muted because it isn't a chart line. */
+  .tide-metric--depth .tide-metric-label { color: #E6A94B; }
   .tide-metric-pct { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 56px; line-height: 0.92; letter-spacing: -0.03em; color: var(--tide-cream); }
   .tide-metric--centre .tide-metric-pct { color: rgba(245,241,235,0.82); }
   .tide-metric-pct-sign { font-family: 'Playfair Display', serif; font-size: 27px; font-weight: 500; color: rgba(245,241,235,0.42); margin-left: 2px; }
   .tide-metric-side { flex: none; text-align: right; font-variant-numeric: tabular-nums; }
   .tide-metric-count { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 400; line-height: 1.25; color: var(--tide-cream); }
   .tide-metric--centre .tide-metric-count { color: rgba(245,241,235,0.6); }
+  .tide-metric-count.is-muted { color: rgba(245,241,235,0.5); }
   .tide-metric-move { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 400; line-height: 1.25; margin-top: 4px; }
   .tide-metric-move-arrow { font-size: 12px; }
   .tide-metric-move.is-up   { color: var(--tide-neon); }
@@ -2603,7 +2607,7 @@ async function loadTideData() {
       pgRead('centres?select=id,name,tide_history&active=eq.true&order=id'),
       pgRead('brand_sale_events?select=brand_id,last_verified_status,last_verified_date,active_cycle_id'),
       pgRead('brand_sale_cycles?select=id,start_date,max_discount_pct,sale_type,description,pct_changed_date,prior_discount_pct&end_date=is.null'),
-      pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,top_brands,narrative&score_date=eq.' + today),
+      pgRead('centre_seer_scores?select=centre_id,score_date,tide_score,verdict,bluf,trajectory,brands_on_sale,total_brands,top_brands,avg_discount_pct,narrative&score_date=eq.' + today),
       pgRead('centre_brand_floors?select=centre_id,brand_id,floor_label,floor_order'),
       // Full sale-episode history (every cycle, open or closed) for the shop
       // detail sheet. Each closed cycle is one past sale; the open cycle (if
@@ -3642,7 +3646,7 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
   // its discount just changed (pct_changed_date more recent than
   // start_date, admin-driven via Edit/Increase) — this flag is what splits
   // it into one group or the other.
-  const isDeepened = b => b.pctChangeDays > 0 && b.pctChangeDays <= FRESH_WINDOW_DAYS && b.pctChangeDays < (b.days || 0);
+  const isDeepened = b => isDeepenedBrand(b, FRESH_WINDOW_DAYS);
   const renderRankRow = (b, i) => {
     const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
     const typeKey = SALE_TYPE[b.name];
@@ -4149,6 +4153,18 @@ function computeTrajectory(score, history, yesterdayTrajectory) {
   return 'FLAT';
 }
 
+// A brand counts as "deepened" when its discount % was bumped mid-cycle within
+// the window — pct_changed_date is backfilled to start_date on new cycles, so
+// the third clause excludes sales that are merely new. Shared by the Newest
+// Sales card (FRESH_WINDOW_DAYS) and the hero depth row (DEEPEN_WEEK_DAYS).
+function isDeepenedBrand(b, windowDays) {
+  return b.pctChangeDays > 0 && b.pctChangeDays <= windowDays && b.pctChangeDays < (b.days || 0);
+}
+// Window for the hero depth row's "N deepened this week" count. 7 to match the
+// row's weekly movement anchor ("last week") — deliberately wider than the
+// Newest Sales card's 5-day FRESH_WINDOW_DAYS.
+const DEEPEN_WEEK_DAYS = 7;
+
 function calcCentreScore(centreIdx) {
   const brandsAtCentre = BRANDS.filter(b=>(PRESENCE[b.id]||[])[centreIdx]===1);
   if (!brandsAtCentre.length) return {score:0,onSale:[],total:0};
@@ -4301,6 +4317,28 @@ function buildTideRealSeries(history, todayPct, todayOnSale, todayTotal) {
       onSale: Number.isFinite(+todayOnSale) ? +todayOnSale : null,
       total:  Number.isFinite(+todayTotal)  ? +todayTotal  : null,
     };
+  }
+  return Object.keys(byDate).sort().map(d => byDate[d]);
+}
+
+// Depth series for the hero's "Average discount" row: tide_history entries that
+// carry avg_discount_pct (older entries predating the field simply drop out),
+// mapped to the {date, score} shape tideWeekFromHTML expects, with today pinned
+// to the live resolved average so a fresh rescore beats a stale stored row.
+function buildDepthSeries(history, todayAvg) {
+  const byDate = {};
+  if (Array.isArray(history)) {
+    for (const h of history) {
+      // != null guard first: +null is 0 (finite) — a null avg must drop out,
+      // not plot as a fake 0% depth point.
+      if (h && h.date && h.avg_discount_pct != null && Number.isFinite(+h.avg_discount_pct)) {
+        byDate[h.date] = { date: h.date, score: Math.round(+h.avg_discount_pct) };
+      }
+    }
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  if (todayAvg != null && Number.isFinite(+todayAvg)) {
+    byDate[today] = { date: today, score: Math.round(+todayAvg) };
   }
   return Object.keys(byDate).sort().map(d => byDate[d]);
 }
@@ -4732,17 +4770,20 @@ function renderTideVessel(v) {
     last.onSale = liveOn;
   }
 
-  // Two-column metric rows. Each row: a left MARKER (neon dot for "your shops",
-  // dashed line for "whole centre" — echoing the chart's solid vs dashed lines),
-  // a label + big Playfair %, and a right column with the "N of M on sale" count
-  // over an "up/down from X% last week" movement line. When the user follows ≥1
-  // shop here we show BOTH rows (your shops = primary neon, whole centre = muted)
-  // split by a divider; otherwise the whole centre IS the hero and takes the
-  // single neon row.
+  // Two-column metric rows. Each row: a label (its colour is the row's identity —
+  // neon = "your shops", muted = "whole centre", amber = depth; there is no
+  // literal dot/rule marker element) over a big Playfair %, and a right column
+  // with the "N of M on sale" count over an "up/down from X% last week" movement
+  // line. When the user follows ≥1 shop here we show BOTH breadth rows (your
+  // shops = primary neon, whole centre = muted) split by a divider; otherwise
+  // the whole centre IS the hero and takes the single neon row. The depth row
+  // ("Average discount", amber) is always LAST when shown.
   const hasPersonalHeadline = showPersonal;
   const metricRow = (o) => {
     const move = tideWeekFromHTML(o.series, o.pct);
-    const count = o.count ? '<div class="tide-metric-count">' + o.count + '</div>' : '';
+    const count = o.count
+      ? '<div class="tide-metric-count' + (o.countMuted ? ' is-muted' : '') + '">' + o.count + '</div>'
+      : '';
     return '<div class="tide-metric tide-metric--' + o.kind + '">'
       + '<div class="tide-metric-main">'
       +   '<div class="tide-metric-label">' + o.label + '</div>'
@@ -4751,15 +4792,32 @@ function renderTideVessel(v) {
       + '<div class="tide-metric-side">' + count + move + '</div>'
       + '</div>';
   };
+  // Depth row — the orthogonal "how good are the discounts" signal (breadth =
+  // the rows above). Hidden when no on-sale brand here has a known %. The
+  // count slot carries the "N deepened this week" fact (admin-verified %
+  // bumps, DEEPEN_WEEK_DAYS window); the movement line compares the average
+  // against ~7 days ago via tide_history.avg_discount_pct.
+  const avgDiscount = v.avgDiscountPct != null && Number.isFinite(+v.avgDiscountPct)
+    ? Math.round(+v.avgDiscountPct) : null;
+  const showDepth = avgDiscount != null;
+  const deepened = +v.deepenedCount || 0;
+  const depthRowHTML = showDepth
+    ? '<div class="tide-metric-divider"></div>'
+      + metricRow({ kind: 'depth', label: 'Average discount', pct: avgDiscount,
+          count: deepened > 0 ? (deepened + ' deepened this week') : 'None deepened this week',
+          countMuted: deepened === 0, series: buildDepthSeries(v.history, avgDiscount) })
+    : '';
   const centreCount = hasCount ? (v.onSaleCount + ' of ' + v.totalCount + ' on sale') : '';
   let metricsHTML;
   if (hasPersonalHeadline) {
     metricsHTML = metricRow({ kind: 'you', label: 'Your shops', pct: personalPct,
         count: myPresent > 0 ? (myOn + ' of ' + myPresent + ' on sale') : '', series: personalSeries })
       + '<div class="tide-metric-divider"></div>'
-      + metricRow({ kind: 'centre', label: 'Whole centre', pct, count: centreCount, series });
+      + metricRow({ kind: 'centre', label: 'Whole centre', pct, count: centreCount, series })
+      + depthRowHTML;
   } else {
-    metricsHTML = metricRow({ kind: 'you', label: 'Whole centre', pct, count: centreCount, series });
+    metricsHTML = metricRow({ kind: 'you', label: 'Whole centre', pct, count: centreCount, series })
+      + depthRowHTML;
   }
 
   // Verdict word — the amber "Go now" headline moment on its own line.
@@ -4769,10 +4827,20 @@ function renderTideVessel(v) {
 
   // Statement — "Based on your shops — near the top of this cycle." The basis is
   // "your shops" when the user follows ≥1 shop here, else "the whole centre";
-  // the cycle-position phrase is derived from the verdict word.
+  // the cycle-position phrase is derived from the verdict word. When ≥1 brand
+  // deepened its discount this week the phrase gains a deepening clause —
+  // descriptive only (trend vocabulary; recommendation language stays reserved
+  // for the PEAK verdict word).
   const CYCLE_PHRASE = { PEAK: 'near the top of this cycle', RISING: 'on the way up this cycle',
     EASING: 'easing down from the peak', OVER: 'near the end of this cycle', QUIET: 'early in this cycle' };
-  const cyclePhrase = CYCLE_PHRASE[verdict.word] || '';
+  const CYCLE_PHRASE_DEEPER = {
+    PEAK: 'near the top of this cycle, with discounts still deepening',
+    RISING: 'on the way up this cycle, and discounts are deepening as it builds',
+    EASING: 'easing down from the peak, but remaining sales are cutting deeper',
+    OVER: 'near the end of this cycle, though late sales are cutting deeper',
+    QUIET: 'early in this cycle, but the first sales are already deepening' };
+  const cyclePhrase = (showDepth && deepened >= 1 && CYCLE_PHRASE_DEEPER[verdict.word])
+    || CYCLE_PHRASE[verdict.word] || '';
   const basisLabel = hasPersonalHeadline ? 'your shops' : 'the whole centre';
   const statementHTML = cyclePhrase
     ? '<div class="tide-vessel-statement2">Based on <strong>' + basisLabel + '</strong> &mdash; ' + cyclePhrase + '.</div>'
@@ -4833,7 +4901,8 @@ function renderTideVessel(v) {
     detailHTML = renderSavedShopsLine(v);
   }
 
-  const ariaCount = hasCount ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale') : (pct + '% of shops on sale');
+  const ariaCount = (hasCount ? (v.onSaleCount + ' of ' + v.totalCount + ' shops on sale') : (pct + '% of shops on sale'))
+    + (showDepth ? (', average discount ' + avgDiscount + '%') : '');
   const ariaLabel = (headlineWord + '. ' + ariaCount)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -6192,12 +6261,26 @@ async function renderCentre(centreId) {
               .map(b => b.name)
               .sort((a, b) => a.localeCompare(b));
           }
+          // Depth: average discount across on-sale brands. Server value first
+          // (same precedence rule as the counts above); fall back to the mean
+          // of the live MAX_DISCOUNT_PCT values when the server hasn't scored
+          // this centre. Null (row hidden) when no on-sale brand has a %.
+          const srvAvg = sScore && sScore.avg_discount_pct != null && Number.isFinite(+sScore.avg_discount_pct)
+            ? Math.round(+sScore.avg_discount_pct) : null;
+          const localPcts = onSale
+            .map(b => (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null)
+            .filter(p => Number.isFinite(+p) && +p > 0);
+          const clientAvg = localPcts.length
+            ? Math.round(localPcts.reduce((s, p) => s + +p, 0) / localPcts.length) : null;
+          const deepenedCount = onSale.filter(b => isDeepenedBrand(b, DEEPEN_WEEK_DAYS)).length;
           return renderTideVessel({
             pct: heroPct,
             stage,
             serverVerdict: sScore && sScore.verdict,
             onSaleCount: onSaleN,
             totalCount: totalN,
+            avgDiscountPct: srvAvg != null ? srvAvg : clientAvg,
+            deepenedCount,
             trajectory,
             history,
             centreName,

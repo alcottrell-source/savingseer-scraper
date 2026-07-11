@@ -6,11 +6,13 @@
 //      have that centre in user_preferences.saved_centres and send them a
 //      "go today" email. PEAK is the one state that earns a recommendation.
 //
-//   2. BRAND-SALE ALERTS — for every brand whose sale cycle starts today,
-//      email users who follow that brand (brand_ids, or legacy gender/
-//      cluster match) and have brand_sale_alerts on. Inherently one-shot:
-//      the start-today signal is true only on the cycle's first day, so a
-//      user gets at most one email per brand per cycle.
+//   2. BRAND-SALE ALERTS — for every brand whose sale cycle starts today
+//      OR whose discount deepens today (admin "Sale increased" bumps
+//      pct_changed_date), email users who follow that brand (brand_ids, or
+//      legacy gender/cluster match) and have brand_sale_alerts on. Both
+//      signals are inherently one-shot: start-today is true only on the
+//      cycle's first day, and pct_changed_date only moves on a genuine %
+//      change — so a user gets at most one email per brand per event.
 //
 //   3. WEEKEND DIGEST — for every user with saved_centres, list each saved
 //      centre with its current stage. Only sent if at least one of their
@@ -51,10 +53,10 @@ const AMBER      = "#C17A2B";
 const STONE      = "#8C8070";
 
 interface CentreRow      { id: string; name: string }
-interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null }
+interface ScoreRow       { centre_id: string; tide_score: number | null; verdict: string | null; bluf: string | null; trajectory: string | null; brands_on_sale: number | null; avg_discount_pct: number | null }
 interface PrefsRow       { user_id: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; style_clusters: string[]; saved_centres: string[]; brand_ids: string[] | null; excluded_brand_ids: string[] | null; email_alerts: boolean; brand_sale_alerts: boolean; daily_digest: boolean }
 interface BrandRow       { id: string; name: string; womenswear: boolean; menswear: boolean; childrenswear: boolean; cluster: string | null }
-interface SaleEventRow   { brand_id: string; max_discount_pct: number | null; last_verified_status: boolean | null; last_verified_date: string | null; date_first_detected: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null } | null }
+interface SaleEventRow   { brand_id: string; max_discount_pct: number | null; last_verified_status: boolean | null; last_verified_date: string | null; date_first_detected: string | null; active_cycle_id: string | null; cycle?: { start_date: string | null; max_discount_pct: number | null; pct_changed_date: string | null; prior_discount_pct: number | null } | null }
 interface CentreBrandRow { centre_id: string; brand_id: string }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -89,6 +91,35 @@ function daysOnSale(r: SaleEventRow, today: string): number {
 function startedToday(r: SaleEventRow, today: string): boolean {
   if (r.active_cycle_id) return r.cycle?.start_date === today;
   return isOnSale(r) && r.date_first_detected === today;
+}
+
+// Mirrors index.html's DEEPEN_WEEK_DAYS (the hero depth row's "this week").
+const DEEPEN_WEEK_DAYS = 7;
+
+// True only on the day an admin deepens a live sale's discount mid-cycle.
+// pct_changed_date is backfilled to start_date on new cycles, so the
+// `!== start_date` clause excludes sales that are merely new — those belong
+// to startedToday (the two are mutually exclusive by construction: a cycle
+// started today has pct_changed_date === start_date === today even after a
+// same-day Increase). One-shot like startedToday: admin.html only bumps
+// pct_changed_date on a genuine % change, so this doubles as send-once dedup.
+function deepenedToday(r: SaleEventRow, today: string): boolean {
+  const c = r.active_cycle_id ? r.cycle : null;
+  if (!c?.pct_changed_date || !c.start_date) return false;
+  return c.pct_changed_date === today && c.pct_changed_date !== c.start_date;
+}
+
+// Mirror of index.html's isDeepenedBrand(b, windowDays): the discount was
+// bumped mid-cycle within the last windowDays days (1-based day count —
+// changed today = day 1). Drives the digest's "M cut deeper this week".
+function deepenedWithin(r: SaleEventRow, today: string, windowDays: number): boolean {
+  const c = r.active_cycle_id ? r.cycle : null;
+  if (!c?.pct_changed_date || !c.start_date) return false;
+  if (c.pct_changed_date <= c.start_date) return false; // merely new, not deepened
+  const diff = new Date(today).getTime() - new Date(c.pct_changed_date).getTime();
+  if (!isFinite(diff) || diff < 0) return false;
+  const changeDays = Math.floor(diff / 86400000) + 1;
+  return changeDays >= 1 && changeDays <= windowDays;
 }
 
 function brandMatchesPrefs(b: BrandRow, p: PrefsRow): boolean {
@@ -270,12 +301,61 @@ export function renderBrandSaleEmail(opts: {
   return { subject, html, text };
 }
 
+// Deepened sibling of renderBrandSaleEmail: a followed brand's live sale just
+// cut its discount deeper (admin "Sale increased"). Same LEAF hero + CTA —
+// this is the Brand Sale Alert family (same gate, same unsubscribe label) —
+// with AMBER only as an inline accent on the was→now numbers, echoing the
+// dashboard's amber deepening accent. An all-amber hero would masquerade as
+// the Peak alert. Trend vocabulary only; no recommendation language.
+export function renderBrandDeepenedEmail(opts: {
+  brandName: string;
+  centre1: string;
+  centre2?: string;
+  centreId?: string;
+  discount?: string;
+  wasDiscount?: string;
+}): { subject: string; html: string; text: string } {
+  const { brandName, centre1, centre2, centreId, discount, wasDiscount } = opts;
+  const subject = `${brandName} just cut deeper`;
+  const locationPhrase = centre2 ? `${centre1} and ${centre2}` : centre1;
+  const previewText = discount
+    ? `${wasDiscount ? `Was ${wasDiscount}, now` : 'Now'} up to ${discount} off. On now at ${locationPhrase}.`
+    : `The discount just got deeper. On now at ${locationPhrase}.`;
+
+  const locationHtml = `${escapeHtml(centre1)}${centre2 ? ` and ${escapeHtml(centre2)}` : ''}`;
+  const bodyParagraph = discount
+    ? `${wasDiscount ? `Was <strong style="color:${AMBER}">${escapeHtml(wasDiscount)}</strong>, now` : 'Now'} up to <strong style="color:${AMBER}">${escapeHtml(discount)} off</strong> &mdash; the discount deepened today. On now at ${locationHtml}.`
+    : `The discount deepened today. On now at ${locationHtml}.`;
+
+  const ctaHref = centreId ? `${APP_URL}?centre=${encodeURIComponent(centreId)}` : APP_URL;
+  const ctaLabel = `See it at ${escapeHtml(centre1)} &rarr;`;
+
+  const bodyHtml = `
+    <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${LEAF};margin:0 0 16px;line-height:1.25">${escapeHtml(brandName)} just cut deeper.</div>
+    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">${bodyParagraph}</p>
+    <a href="${ctaHref}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">${ctaLabel}</a>`;
+
+  const html = baseEmailWrap({
+    previewText,
+    bodyHtml,
+    footerReason: `You're receiving this because you follow ${brandName} on Tide and Brand Sale Alerts are switched on. Unsubscribing here turns off alerts for all followed brands.`,
+    unsubLabel: 'Brand Sale Alerts',
+  });
+
+  const textBody = discount
+    ? `${wasDiscount ? `Was ${wasDiscount}, now` : 'Now'} up to ${discount} off — the discount deepened today. On now at ${locationPhrase}.`
+    : `The discount deepened today. On now at ${locationPhrase}.`;
+  const text = `${brandName} just cut deeper.\n\n${textBody}\n\nSee it at ${centre1}: ${ctaHref}`;
+
+  return { subject, html, text };
+}
+
 // Multi-brand sibling of renderBrandSaleEmail. When more than one of a user's
-// followed brands starts a sale on the same day we send ONE summary email
-// listing them all, instead of N separate "X just started a sale" messages.
-// The single-brand path above still handles the one-brand case.
+// followed brands has sale news on the same day (new sales, deepened cuts, or
+// a mix) we send ONE summary email listing them all, instead of N separate
+// messages. The single-brand paths above still handle the one-item case.
 export function renderBrandSaleDigestEmail(opts: {
-  brands: { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string }[];
+  brands: { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string; wasDiscount?: string; kind?: 'started' | 'deepened' }[];
 }): { subject: string; html: string; text: string } {
   const { brands } = opts;
   const n = brands.length;
@@ -283,22 +363,56 @@ export function renderBrandSaleDigestEmail(opts: {
   const nameList = names.length === 2
     ? `${names[0]} and ${names[1]}`
     : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-  const subject = `${n} of your shops just started a sale`;
-  const previewText = `${nameList} — on now.`;
+  const startedN  = brands.filter(b => b.kind !== 'deepened').length;
+  const deepenedN = n - startedN;
+  const allStarted  = deepenedN === 0;
+  const allDeepened = startedN === 0;
 
-  const rows = brands.map((b, i, arr) => {
-    const locationPhrase = b.centre2 ? `${escapeHtml(b.centre1)} and ${escapeHtml(b.centre2)}` : escapeHtml(b.centre1);
-    const meta = `${b.discount ? `Up to ${escapeHtml(b.discount)} off &middot; ` : ''}On now at ${locationPhrase}`;
-    return `
+  const subject = allStarted
+    ? `${n} of your shops just started a sale`
+    : allDeepened
+    ? `${n} of your shops just cut deeper`
+    : `Your shops: ${startedN} new sale${startedN === 1 ? '' : 's'}, ${deepenedN} cut deeper`;
+  const previewText = allStarted ? `${nameList} — on now.` : `${nameList} — sale news today.`;
+  const heading = allStarted
+    ? `${n} of your shops just went on sale.`
+    : allDeepened
+    ? `${n} of your shops just cut deeper.`
+    : `Sale news from ${n} of your shops.`;
+  const intro = allStarted
+    ? 'All starting their sale today — worth knowing early in the cycle.'
+    : allDeepened
+    ? 'All cut their discounts deeper today.'
+    : 'New sales and deeper cuts, all today.';
+
+  // Discount strings are `${number}%` by construction, so only centre names
+  // need escaping in HTML mode.
+  const rowMeta = (b: typeof brands[0], html: boolean): string => {
+    const loc = html
+      ? (b.centre2 ? `${escapeHtml(b.centre1)} and ${escapeHtml(b.centre2)}` : escapeHtml(b.centre1))
+      : (b.centre2 ? `${b.centre1} and ${b.centre2}` : b.centre1);
+    const sep = html ? ' &middot; ' : ' · ';
+    const dash = html ? ' &mdash; ' : ' — ';
+    if (b.kind === 'deepened') {
+      const cut = html ? `<span style="color:${AMBER};font-weight:500">Cut deeper today</span>` : 'Cut deeper today';
+      const pct = b.discount
+        ? `${dash}${b.wasDiscount ? `was ${b.wasDiscount}, ` : ''}now up to ${b.discount} off`
+        : '';
+      return `${cut}${pct}${sep}On at ${loc}`;
+    }
+    const disc = b.discount ? `Up to ${b.discount} off${sep}` : '';
+    return `${disc}On now at ${loc}`;
+  };
+
+  const rows = brands.map((b, i, arr) => `
     <div style="padding:16px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}">
       <div style="font-family:Georgia,serif;font-size:18px;font-weight:600;color:${LEAF};margin:0 0 4px;line-height:1.3">${escapeHtml(b.brandName)}</div>
-      <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};line-height:1.5">${meta}</div>
-    </div>`;
-  }).join('');
+      <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};line-height:1.5">${rowMeta(b, true)}</div>
+    </div>`).join('');
 
   const bodyHtml = `
-    <div style="font-family:Georgia,serif;font-size:26px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">${n} of your shops just went on sale.</div>
-    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 8px;max-width:420px">All starting their sale today — worth knowing early in the cycle.</p>
+    <div style="font-family:Georgia,serif;font-size:26px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">${heading}</div>
+    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 8px;max-width:420px">${intro}</p>
     <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:20px 0 0">
     ${rows}
     <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">See your shops &rarr;</a>`;
@@ -311,9 +425,9 @@ export function renderBrandSaleDigestEmail(opts: {
   });
 
   const textLines = [
-    `${n} of your shops just went on sale.`,
+    heading,
     '',
-    ...brands.map(b => `${b.brandName} — ${b.discount ? `up to ${b.discount} off, ` : ''}on now at ${b.centre2 ? `${b.centre1} and ${b.centre2}` : b.centre1}`),
+    ...brands.map(b => `${b.brandName} — ${rowMeta(b, false)}`),
     '',
     `See your shops: ${APP_URL}`,
   ];
@@ -321,14 +435,18 @@ export function renderBrandSaleDigestEmail(opts: {
   return { subject, html, text: textLines.join('\n') };
 }
 
-function digestVerdictFor(stage: DigestStage): string {
+function digestVerdictFor(stage: DigestStage, deepened = false): string {
   // Trend-only copy, matching the dashboard's May-2026 vocabulary. Action
   // language ("go now") is reserved for the high/peak bucket — the one state
   // where the product tells the reader to act, mirroring the PEAK badge.
-  // Every other line describes direction, not a recommendation.
+  // Every other line describes direction, not a recommendation. The falling
+  // line gains a deepening clause when brands cut deeper this week (mirrors
+  // the dashboard's CYCLE_PHRASE_DEEPER.EASING).
   if (stage === 'high')    return 'Go now — peak alignment across your brands.';
   if (stage === 'rising')  return 'Momentum building across your brands.';
-  if (stage === 'falling') return 'Easing — fewer brands on sale than at the peak.';
+  if (stage === 'falling') return deepened
+    ? 'Easing — fewer brands on sale than at the peak, but remaining sales are cutting deeper.'
+    : 'Easing — fewer brands on sale than at the peak.';
   return 'Largely gone out for now.';
 }
 
@@ -344,16 +462,27 @@ function digestStagePill(stage: DigestStage, stageLabel: string): string {
 export function renderDigestEmail(opts: {
   dateLabel: string;
   highTideCount: number;
-  centres: { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string }[];
+  centres: { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string; avgDiscount?: number | null; deepenedCount?: number }[];
 }): { subject: string; html: string; text: string } {
   const { dateLabel, highTideCount, centres } = opts;
   const subject = 'Your Tide briefing — this weekend';
   const previewText = `${highTideCount} of your saved centres at High Tide or Rising. Here's the full picture.`;
 
+  // Depth fact line, only when the centre has a known average discount. The
+  // deepened clause is omitted at zero so quiet cards stay quiet.
+  const depthLine = (c: typeof centres[0], html: boolean): string => {
+    if (c.avgDiscount == null) return '';
+    const deep = (c.deepenedCount || 0) > 0
+      ? `${html ? ' &middot; ' : ' · '}${c.deepenedCount} cut deeper this week`
+      : '';
+    return `Average discount ${c.avgDiscount}%${deep}`;
+  };
+
   const cards = centres.map((c, i, arr) => `
     <div style="padding:16px 0;${i < arr.length - 1 ? `border-bottom:1px solid ${CREAM_DARK};` : ''}">
       <div style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:500;color:${BARK};margin-bottom:6px">${escapeHtml(c.name)}${digestStagePill(c.stage, c.stageLabel)}</div>
       <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};margin-bottom:4px">${escapeHtml(c.verdict)}</div>
+      ${depthLine(c, true) ? `<div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:${STONE};margin-bottom:4px">${depthLine(c, true)}</div>` : ''}
       ${c.narrative ? `<div style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:${STONE};font-style:italic;line-height:1.5">${escapeHtml(c.narrative)}</div>` : ''}
     </div>`).join('');
 
@@ -375,7 +504,7 @@ export function renderDigestEmail(opts: {
     `Friday, ${dateLabel}`,
     "Here's how your centres are looking this weekend.",
     '',
-    ...centres.map(c => `${c.name} — ${c.stageLabel}\n  ${c.verdict}${c.narrative ? `\n  ${c.narrative}` : ''}`),
+    ...centres.map(c => `${c.name} — ${c.stageLabel}\n  ${c.verdict}${depthLine(c, false) ? `\n  ${depthLine(c, false)}` : ''}${c.narrative ? `\n  ${c.narrative}` : ''}`),
     '',
     `Open Tide: ${APP_URL}`,
   ];
@@ -475,12 +604,12 @@ Deno.serve(async (req: Request) => {
   // 1. Today's centre scores + centre names + brands.
   const [scoresRes, centresRes, brandsRes, salesRes, centreBrandsRes, prefsRes] = await Promise.all([
     sb.from("centre_seer_scores")
-      .select("centre_id, tide_score, verdict, bluf, trajectory, brands_on_sale")
+      .select("centre_id, tide_score, verdict, bluf, trajectory, brands_on_sale, avg_discount_pct")
       .eq("score_date", today),
     sb.from("centres").select("id, name").eq("active", true),
     sb.from("brands").select("id, name, womenswear, menswear, childrenswear, cluster"),
     sb.from("brand_sale_events")
-      .select("brand_id, max_discount_pct, last_verified_status, last_verified_date, date_first_detected, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct)"),
+      .select("brand_id, max_discount_pct, last_verified_status, last_verified_date, date_first_detected, active_cycle_id, cycle:brand_sale_cycles!active_cycle_id(start_date,max_discount_pct,pct_changed_date,prior_discount_pct)"),
     sb.from("centre_brands").select("centre_id, brand_id"),
     // No saved_centres filter: brand-sale alerts target followed brands, so
     // users who follow brands without saving a centre must be included too.
@@ -515,7 +644,7 @@ Deno.serve(async (req: Request) => {
     emailById.set(uid, data.user.email);
   }
 
-  const log: { type: string; to?: string; centre?: string; brand?: string; status?: number; ok?: boolean; skipped?: string }[] = [];
+  const log: { type: string; to?: string; centre?: string; brand?: string; brands?: string[]; kinds?: string[]; count?: number; status?: number; ok?: boolean; skipped?: string }[] = [];
   let alertsSent = 0, brandAlertsSent = 0, digestsSent = 0;
 
   // 2. HIGH-TIDE ALERTS. (daily run only — skipped on the Friday digest call)
@@ -587,9 +716,11 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // 2b. BRAND-SALE ALERTS. (daily run only) "Started today" is true for
-  //     exactly one day, so each follower gets one email per brand per cycle
-  //     without any separate sent-state table.
+  // 2b. BRAND-SALE ALERTS. (daily run only) Two one-shot signals share this
+  //     pass: "started today" (true for exactly one day per cycle) and
+  //     "deepened today" (pct_changed_date bumped by an admin Increase — also
+  //     true for one day per bump). Each follower gets one email per brand
+  //     per event without any separate sent-state table.
   const centresForBrand = new Map<string, string[]>();
   for (const [centreId, brandIds] of brandsAtCentre) {
     for (const bid of brandIds) {
@@ -598,21 +729,34 @@ Deno.serve(async (req: Request) => {
       centresForBrand.set(bid, list);
     }
   }
-  const startedBrands = digestOnly ? [] : Array.from(salesById.values())
-    .filter(s => startedToday(s, today))
-    .map(s => ({ sale: s, brand: brandsById.get(s.brand_id) }))
-    .filter((x): x is { sale: SaleEventRow; brand: BrandRow } => !!x.brand);
-  // Accumulate per user so that a user with several followed brands starting
-  // a sale today receives ONE summary email rather than one per brand. We walk
-  // started brands (outer) to reuse the per-brand recipient + centre-pick
+  // Classify each on-sale brand: 'started' wins over 'deepened' (mutually
+  // exclusive by construction — see deepenedToday), and started items sort
+  // first so new sales lead the mixed summary email.
+  const alertBrands = digestOnly ? [] : Array.from(salesById.values())
+    .map(s => ({
+      sale: s,
+      kind: startedToday(s, today) ? 'started' as const
+          : deepenedToday(s, today) ? 'deepened' as const : null,
+    }))
+    .filter((x): x is { sale: SaleEventRow; kind: 'started' | 'deepened' } => x.kind !== null)
+    .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'started' ? -1 : 1))
+    .map(x => ({ ...x, brand: brandsById.get(x.sale.brand_id) }))
+    .filter((x): x is { sale: SaleEventRow; kind: 'started' | 'deepened'; brand: BrandRow } => !!x.brand);
+  // Accumulate per user so that a user with several followed brands making
+  // sale news today receives ONE summary email rather than one per brand. We
+  // walk alert brands (outer) to reuse the per-brand recipient + centre-pick
   // logic, then group the resulting items by user id (preserving brand order)
   // and send once below.
-  type BrandSaleItem = { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string };
+  type BrandSaleItem = { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string; wasDiscount?: string; kind: 'started' | 'deepened' };
   const perUser = new Map<string, { p: PrefsRow; items: BrandSaleItem[] }>();
-  for (const { sale, brand } of startedBrands) {
+  for (const { sale, kind, brand } of alertBrands) {
     const pct = (sale.active_cycle_id && sale.cycle?.max_discount_pct != null)
       ? sale.cycle!.max_discount_pct
       : (sale.max_discount_pct ?? null);
+    // Prior % for the "was 50%, now up to 70%" clause — deepened items only,
+    // and only when a real prior was recorded (0/null treated as absent,
+    // consistent with the `pct ? …` truthiness below).
+    const priorPct = kind === 'deepened' ? (sale.cycle?.prior_discount_pct ?? null) : null;
     const brandCentreIds = centresForBrand.get(brand.id) || [];
     const recipients = allPrefs.filter(p => {
       if (p.brand_sale_alerts === false) return false;
@@ -629,7 +773,7 @@ Deno.serve(async (req: Request) => {
       const pickCids = (relevant.length > 0 ? relevant : brandCentreIds).filter(cid => !!centres.get(cid));
       if (pickCids.length === 0) { log.push({ type: "brand", to: emailById.get(p.user_id), brand: brand.name, skipped: "no centre carries brand" }); continue; }
       const entry = perUser.get(p.user_id) || { p, items: [] };
-      entry.items.push({ brandName: brand.name, centre1: centres.get(pickCids[0])!, centre2: pickCids[1] ? centres.get(pickCids[1])! : undefined, centreId: pickCids[0], discount: pct ? `${pct}%` : undefined });
+      entry.items.push({ brandName: brand.name, centre1: centres.get(pickCids[0])!, centre2: pickCids[1] ? centres.get(pickCids[1])! : undefined, centreId: pickCids[0], discount: pct ? `${pct}%` : undefined, wasDiscount: priorPct ? `${priorPct}%` : undefined, kind });
       perUser.set(p.user_id, entry);
     }
   }
@@ -637,11 +781,11 @@ Deno.serve(async (req: Request) => {
     const to = emailById.get(p.user_id);
     if (!to) { log.push({ type: "brand", skipped: `no email for user ${p.user_id}`, brands: items.map(i => i.brandName) }); continue; }
     const { subject, html, text } = items.length === 1
-      ? renderBrandSaleEmail(items[0])
+      ? (items[0].kind === 'started' ? renderBrandSaleEmail(items[0]) : renderBrandDeepenedEmail(items[0]))
       : renderBrandSaleDigestEmail({ brands: items });
-    if (dryRun) { log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: true, skipped: "dryRun" }); continue; }
+    if (dryRun) { log.push({ type: "brand", to, brands: items.map(i => i.brandName), kinds: items.map(i => i.kind), count: items.length, ok: true, skipped: "dryRun" }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
-    log.push({ type: "brand", to, brands: items.map(i => i.brandName), count: items.length, ok: result.ok, status: result.status });
+    log.push({ type: "brand", to, brands: items.map(i => i.brandName), kinds: items.map(i => i.kind), count: items.length, ok: result.ok, status: result.status });
     if (result.ok) brandAlertsSent++;
   }
 
@@ -650,6 +794,18 @@ Deno.serve(async (req: Request) => {
   const scoreByCentre = new Map<string, ScoreRow>(scores.map(s => [s.centre_id, s]));
   const dateLabel = new Date(today + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long" });
   const stagePriority: Record<DigestStage, number> = { high: 0, rising: 1, falling: 2, low: 3 };
+  // Per-centre "cut deeper this week" counts — on-sale brands whose discount
+  // was bumped mid-cycle in the last DEEPEN_WEEK_DAYS days (mirrors the hero
+  // depth row). Computed once; user cards read from it.
+  const deepenedAtCentre = new Map<string, number>();
+  if (digestOnly) {
+    for (const [cid, bids] of brandsAtCentre) {
+      deepenedAtCentre.set(cid, bids.filter(bid => {
+        const s = salesById.get(bid);
+        return s && isOnSale(s) && deepenedWithin(s, today, DEEPEN_WEEK_DAYS);
+      }).length);
+    }
+  }
   for (const p of (digestOnly ? allPrefs : [])) {
     if (p.daily_digest !== true) { log.push({ type: "digest", to: emailById.get(p.user_id), skipped: "daily_digest opt-out" }); continue; }
     const to = emailById.get(p.user_id);
@@ -660,20 +816,27 @@ Deno.serve(async (req: Request) => {
         const name = centres.get(cid);
         if (!s || !name) return null;
         const bucket: DigestStage = stageBucket(stageFromVerdict(s.verdict));
+        const deepenedCount = deepenedAtCentre.get(cid) || 0;
+        // != null guard BEFORE coercion: +null is 0 (finite), which would
+        // render a no-percentages centre as a fake "Average discount 0%".
+        const avgDiscount = s.avg_discount_pct != null && Number.isFinite(+s.avg_discount_pct)
+          ? Math.round(+s.avg_discount_pct) : null;
         return {
           name,
           stage: bucket,
           stageLabel: stageLabelFor(bucket),
-          verdict: digestVerdictFor(bucket),
+          verdict: digestVerdictFor(bucket, deepenedCount > 0),
           narrative: s.bluf || undefined,
+          avgDiscount,
+          deepenedCount,
         };
       })
-      .filter((r): r is { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string } => r !== null)
+      .filter((r): r is { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string; avgDiscount: number | null; deepenedCount: number } => r !== null)
       .sort((a, b) => stagePriority[a.stage] - stagePriority[b.stage]);
     const highTideCount = cards.filter(c => c.stage === "high" || c.stage === "rising").length;
     if (highTideCount === 0) { log.push({ type: "digest", to, skipped: "no centre at Rising or above" }); continue; }
     const { subject, html, text } = renderDigestEmail({ dateLabel, highTideCount, centres: cards });
-    if (dryRun) { log.push({ type: "digest", to, ok: true, skipped: "dryRun" }); continue; }
+    if (dryRun) { log.push({ type: "digest", to, ok: true, skipped: "dryRun", brands: cards.map(c => `${c.name}: avg ${c.avgDiscount ?? '—'}, deepened ${c.deepenedCount}`) }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
     log.push({ type: "digest", to, ok: result.ok, status: result.status });
     if (result.ok) digestsSent++;
@@ -688,7 +851,8 @@ Deno.serve(async (req: Request) => {
     brandAlertsSent,
     digestsSent,
     highTideCentres: highTideCentres.length,
-    brandsStartedToday: startedBrands.length,
+    brandsStartedToday: alertBrands.filter(x => x.kind === 'started').length,
+    brandsDeepenedToday: alertBrands.filter(x => x.kind === 'deepened').length,
     eligibleUsers: allPrefs.length,
     log,
   }, null, 2), {

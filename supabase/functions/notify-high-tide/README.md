@@ -10,26 +10,37 @@ two schedules:
    of Peak and climbs back later earns a new alert. The "top 3 brands on sale"
    list is filtered to the user's preferences (gender + style cluster) when
    they have any set.
-2. **Brand-sale alerts** — for each brand whose sale cycle starts today,
-   email users who follow that brand (`brand_ids`, or legacy gender/cluster
-   match) and have `brand_sale_alerts` on, unless the brand is in their
-   `excluded_brand_ids`. The "started today" signal is true for exactly one
-   day, so each follower gets one email per brand per cycle — no separate
-   sent-state table needed.
+2. **Brand-sale alerts** — for each brand whose sale cycle starts today OR
+   whose discount deepens today (admin "Sale increased" bumps
+   `pct_changed_date` mid-cycle), email users who follow that brand
+   (`brand_ids`, or legacy gender/cluster match) and have `brand_sale_alerts`
+   on, unless the brand is in their `excluded_brand_ids`. Both signals are
+   true for exactly one day (started: the cycle's first day; deepened:
+   `pct_changed_date == today != start_date`, and admin.html only bumps it on
+   a genuine % change), so each follower gets one email per brand per event —
+   no separate sent-state table needed. Mixed same-day news (one brand
+   starts, another cuts deeper) groups into ONE summary email per user, new
+   sales listed first. The deepened email says "was 50%, now up to 70% off"
+   when `prior_discount_pct` was recorded. Copy stays trend-only.
 3. **Weekend digest** — for each user with saved centres, list each saved
    centre's stage. Only sent when at least one of their saved centres is at
-   Rising or above.
+   Rising or above. Cards carry a depth fact line when the centre has one —
+   "Average discount 45% · 3 cut deeper this week" (from
+   `centre_seer_scores.avg_discount_pct` + the 7-day deepened count; the
+   clause is omitted at zero, the whole line when the average is null) — and
+   the Easing verdict line gains "…but remaining sales are cutting deeper"
+   when any brand there deepened this week.
 
 ### Invocation modes (POST body)
 
 | Body | Passes run | Schedule |
 |---|---|---|
-| `{}` | 1 + 2 (peak + brand-sale) | daily 07:00 UTC |
+| `{}` | 1 + 2 (peak + brand-sale) | daily 11:00 UTC |
 | `{"digestOnly":true}` | 3 (weekend digest) | Friday 19:00 UTC |
 | add `"dryRun":true` | preview only, nothing sent | — |
 
 Trigger: GitHub Actions — see `.github/workflows/notify.yml` (two crons:
-`0 7 * * *` daily, `0 19 * * 5` Friday 19:00 UTC). It derives the function
+`0 11 * * *` daily, `0 19 * * 5` Friday 19:00 UTC). It derives the function
 URL from the `SUPABASE_URL` secret and authenticates with
 `SUPABASE_SERVICE_KEY`. The daily run must land _after_ the scorer so
 today's `centre_seer_scores` row exists.
@@ -126,8 +137,8 @@ select cron.unschedule('notify-high-tide-daily');
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- Daily 07:00 UTC — peak + brand-sale alerts.
-select cron.schedule('notify-daily', '0 7 * * *', $$
+-- Daily 11:00 UTC — peak + brand-sale alerts (after the 10:00 scorer).
+select cron.schedule('notify-daily', '0 11 * * *', $$
   select net.http_post(
     url     := 'https://<PROJECT_REF>.functions.supabase.co/notify-high-tide',
     headers := jsonb_build_object('Content-Type','application/json',
@@ -169,7 +180,9 @@ curl -X POST 'https://vrezzwadwzrmumjpdgge.functions.supabase.co/notify-high-tid
 ```
 
 The JSON response includes `mode`, `alertsSent`, `brandAlertsSent`,
-`digestsSent`, `brandsStartedToday`, and a per-recipient `log`.
+`digestsSent`, `brandsStartedToday`, `brandsDeepenedToday`, and a
+per-recipient `log` (brand entries carry `kinds`; digest dry-run entries
+carry per-centre avg/deepened figures).
 
 Real send to one test address: sign yourself up via the web app, save a
 centre that's currently at Rising or Peak, and invoke the function with no
@@ -190,6 +203,11 @@ centre that's currently at Rising or Peak, and invoke the function with no
   the same way the dashboard sorts on-sale chips.
 - Brand-sale "started today" = the active cycle's `start_date` is today
   (admin-verified cycles) or `date_first_detected` is today (scraper-only
-  rows). True for one day only, so it self-dedupes.
-- On Fridays a user may receive a peak/brand alert (07:00) _and_ the digest
+  rows). "Deepened today" = the active cycle's `pct_changed_date` is today
+  and differs from `start_date`. Both true for one day only, so they
+  self-dedupe; they're mutually exclusive by construction (a cycle started
+  today has `pct_changed_date == start_date`), with started winning.
+- To exercise the deepened path: use admin.html's "Sale increased" on a live
+  cycle, then dry-run the same day — the log entry shows `kinds:["deepened"]`.
+- On Fridays a user may receive a peak/brand alert (11:00) _and_ the digest
   (19:00) — intentional, they carry different value.

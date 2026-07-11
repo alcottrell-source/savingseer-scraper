@@ -10,6 +10,7 @@ import {
   getTrajectory,
   getTideStage,
   deriveStageFromVerdict,
+  buildHistoryEntries,
 } from '../score.js';
 
 test('getTrajectory — <3 days history defaults to RISING (spec §9.3)', () => {
@@ -127,4 +128,34 @@ test('deriveStageFromVerdict — new + legacy vocabularies both resolve', () => 
   assert.equal(deriveStageFromVerdict("It's over"), 'Low', 'legacy');
   assert.equal(deriveStageFromVerdict(null), null);
   assert.equal(deriveStageFromVerdict('garbage'), null);
+});
+
+test('buildHistoryEntries — entry shape carries avg_discount_pct (int passthrough, null preserved)', () => {
+  const rows = [
+    { centre_id: 'lakeside', score_date: '2026-07-01', tide_score: 40, brands_on_sale: 8, total_brands: 20, avg_discount_pct: 45 },
+    { centre_id: 'lakeside', score_date: '2026-07-02', tide_score: 45, brands_on_sale: 9, total_brands: 20, avg_discount_pct: null },
+    { centre_id: 'bluewater', score_date: '2026-07-01', tide_score: 10, brands_on_sale: 3, total_brands: 30, avg_discount_pct: '50' },
+  ];
+  const byCentre = buildHistoryEntries(rows);
+  assert.deepEqual(byCentre.get('lakeside'), [
+    { date: '2026-07-01', score: 40, brands_on_sale: 8, total_brands: 20, avg_discount_pct: 45 },
+    { date: '2026-07-02', score: 45, brands_on_sale: 9, total_brands: 20, avg_discount_pct: null },
+  ]);
+  // Numeric strings from PostgREST coerce; the key is always present.
+  assert.deepEqual(byCentre.get('bluewater'), [
+    { date: '2026-07-01', score: 10, brands_on_sale: 3, total_brands: 30, avg_discount_pct: 50 },
+  ]);
+});
+
+test('buildHistoryEntries — per-centre grouping preserves input (oldest-first) order', () => {
+  const rows = [
+    { centre_id: 'a', score_date: '2026-07-01', tide_score: 1, brands_on_sale: 1, total_brands: 10 },
+    { centre_id: 'b', score_date: '2026-07-01', tide_score: 2, brands_on_sale: 2, total_brands: 10 },
+    { centre_id: 'a', score_date: '2026-07-02', tide_score: 3, brands_on_sale: 3, total_brands: 10 },
+  ];
+  const byCentre = buildHistoryEntries(rows);
+  assert.deepEqual([...byCentre.keys()], ['a', 'b']);
+  assert.deepEqual(byCentre.get('a').map(e => e.date), ['2026-07-01', '2026-07-02']);
+  // Rows without the column (pre-migration selects) still get the key, as null.
+  assert.equal(byCentre.get('b')[0].avg_discount_pct, null);
 });

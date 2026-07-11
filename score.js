@@ -259,6 +259,28 @@ function getTrajectory(todayScore, recentScores, yesterdayTrajectory) {
   return 'FLAT';
 }
 
+// Map centre_seer_scores rows (oldest-first) into the per-centre tide_history
+// entry arrays written onto centres.tide_history. Pure so the entry shape is
+// unit-testable. avg_discount_pct rides along (int or null) so the front-end
+// can show depth movement ("up from X% last week") next to the score movement.
+function buildHistoryEntries(rows) {
+  const historyByCentre = new Map();
+  for (const row of rows) {
+    if (!historyByCentre.has(row.centre_id)) historyByCentre.set(row.centre_id, []);
+    historyByCentre.get(row.centre_id).push({
+      date: row.score_date,
+      score: row.tide_score,
+      brands_on_sale: row.brands_on_sale,
+      total_brands: row.total_brands,
+      // != null guard first: +null is 0 (finite), which would turn a
+      // no-percentages day into a fake 0% average.
+      avg_discount_pct: row.avg_discount_pct != null && Number.isFinite(+row.avg_discount_pct)
+        ? +row.avg_discount_pct : null,
+    });
+  }
+  return historyByCentre;
+}
+
 async function calculateAllCentreScores(opts = {}) {
   const supabase = getSupabase();
   const TODAY          = opts.today || dateStr(0);
@@ -540,7 +562,7 @@ async function calculateAllCentreScores(opts = {}) {
   // order so no day is dropped or duplicated across page boundaries.
   const { data: historyData, error: historyError } = await selectAllRows(() => supabase
     .from('centre_seer_scores')
-    .select('centre_id, score_date, tide_score, brands_on_sale, total_brands')
+    .select('centre_id, score_date, tide_score, brands_on_sale, total_brands, avg_discount_pct')
     .gte('score_date', HISTORY_START)
     .not('tide_score', 'is', null)
     .order('score_date', { ascending: true })
@@ -552,16 +574,7 @@ async function calculateAllCentreScores(opts = {}) {
     console.error('History fetch error:', historyError);
     historyFetchFailed = true;
   } else {
-    const historyByCentre = new Map();
-    for (const row of historyData) {
-      if (!historyByCentre.has(row.centre_id)) historyByCentre.set(row.centre_id, []);
-      historyByCentre.get(row.centre_id).push({
-        date: row.score_date,
-        score: row.tide_score,
-        brands_on_sale: row.brands_on_sale,
-        total_brands: row.total_brands,
-      });
-    }
+    const historyByCentre = buildHistoryEntries(historyData);
 
     const noHistory = centresRes.data.filter(c => !historyByCentre.has(c.id));
     if (noHistory.length > 0) {
@@ -738,7 +751,7 @@ export async function runScoring(opts = {}) {
 
 // Pure scoring primitives — exported for unit testing (test/score.test.mjs).
 // No side effects, no Supabase: safe to import from a test runner.
-export { getTrajectory, getTideStage, deriveStageFromVerdict };
+export { getTrajectory, getTideStage, deriveStageFromVerdict, buildHistoryEntries };
 
 // CLI entry — only fires when this file is invoked directly via
 // `node score.js`, not when imported as a module by /api/rescore.js.

@@ -1,0 +1,275 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<title>Newest Sales — tighter prototypes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+
+
+/* ── Tokens: identical to index.html production palette; the pg-* shell
+   tokens are the only prototype-page additions (they dim to a dark desk in
+   dark mode while the phone frames stay product-cream). ── */
+:root {
+  --cream: #FAF7F2; --bark: #2C1810; --leaf: #3D6B35; --leaf-lt: #EEF4EC;
+  --amber: #C17A2B; --amber-lt: #FBF2E4; --red: #B84C3A;
+  --stone: #6B5F52; --stone-lt: #F2EFE9; --border: rgba(44,24,16,0.10);
+  --ink: #14110E; --ink-mid: #2E2823;
+  --card-border: 1px solid rgba(44,24,16,0.14);
+  --card-elev: 0 1px 2px rgba(44,24,16,0.06), 0 10px 30px rgba(44,24,16,0.10);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1); --dur-1: 150ms; --dur-2: 240ms;
+
+  --pg-bg: linear-gradient(180deg, #FCFBF7 0%, var(--cream) 32%);
+  --pg-bg-solid: #FAF7F2;
+  --pg-ink: var(--ink);
+  --pg-sub: var(--stone);
+  --pg-rule: var(--border);
+  --frame-shadow: 0 2px 6px rgba(44,24,16,0.08), 0 24px 60px rgba(44,24,16,0.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --pg-bg: linear-gradient(180deg, #1D1714 0%, #171210 40%);
+    --pg-bg-solid: #171210;
+    --pg-ink: #EDE6DC;
+    --pg-sub: #A6988A;
+    --pg-rule: rgba(237,230,220,0.14);
+    --frame-shadow: 0 2px 6px rgba(0,0,0,0.4), 0 28px 70px rgba(0,0,0,0.55);
+  }
+}
+:root[data-theme="dark"] {
+  --pg-bg: linear-gradient(180deg, #1D1714 0%, #171210 40%);
+  --pg-bg-solid: #171210;
+  --pg-ink: #EDE6DC;
+  --pg-sub: #A6988A;
+  --pg-rule: rgba(237,230,220,0.14);
+  --frame-shadow: 0 2px 6px rgba(0,0,0,0.4), 0 28px 70px rgba(0,0,0,0.55);
+}
+:root[data-theme="light"] {
+  --pg-bg: linear-gradient(180deg, #FCFBF7 0%, #FAF7F2 32%);
+  --pg-bg-solid: #FAF7F2;
+  --pg-ink: #14110E;
+  --pg-sub: #6B5F52;
+  --pg-rule: rgba(44,24,16,0.10);
+  --frame-shadow: 0 2px 6px rgba(44,24,16,0.08), 0 24px 60px rgba(44,24,16,0.14);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--pg-bg) var(--pg-bg-solid); background-repeat: no-repeat;
+  color: var(--pg-ink);
+  font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  font-size: 16px; line-height: 1.5; letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased; min-height: 100vh;
+}
+
+/* ── Page shell ── */
+.pg { max-width: 1440px; margin: 0 auto; padding: 48px 28px 72px; }
+.pg-head { max-width: 620px; margin-bottom: 44px; }
+.pg-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--pg-sub); margin-bottom: 14px; }
+.pg-head h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 34px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; margin: 0 0 14px; text-wrap: balance; }
+.pg-sub { font-size: 14.5px; line-height: 1.65; color: var(--pg-sub); margin: 0; }
+.pg-sub b { color: var(--pg-ink); font-weight: 600; }
+
+.frames { display: flex; flex-wrap: wrap; gap: 44px 36px; align-items: flex-start; }
+.variant { width: 390px; max-width: 100%; }
+
+/* Phone frame = a slice of the product canvas, always light regardless of
+   page theme (it IS the product surface). */
+.phone {
+  background: var(--cream); border: 1px solid rgba(44,24,16,0.16);
+  border-radius: 26px; padding: 16px 14px 18px;
+  box-shadow: var(--frame-shadow);
+}
+.cap { padding: 16px 6px 0; }
+.cap-name { font-size: 13px; font-weight: 700; letter-spacing: 0.01em; color: var(--pg-ink); margin: 0 0 5px; }
+.cap-name .cap-key { display: inline-block; width: 20px; height: 20px; border-radius: 6px; background: var(--pg-ink); color: var(--pg-bg-solid); font-size: 11px; font-weight: 700; text-align: center; line-height: 20px; margin-right: 8px; letter-spacing: 0; }
+.cap p { font-size: 13px; line-height: 1.6; color: var(--pg-sub); margin: 0; }
+
+.pg-foot { margin-top: 52px; padding-top: 18px; border-top: 1px solid var(--pg-rule); font-size: 12.5px; color: var(--pg-sub); max-width: 620px; line-height: 1.6; }
+
+/* ── Shared card + hero (verbatim from production .narrative-card) ── */
+.card { background: white; border: var(--card-border); box-shadow: var(--card-elev); border-radius: 14px; overflow: hidden; }
+.hero { padding: 14px 18px 12px; border-bottom: 1px solid var(--leaf); }
+.hero-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.hero-title { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--stone); }
+.live { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--leaf); letter-spacing: 0.02em; }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); }
+@media (prefers-reduced-motion: no-preference) {
+  .live-dot { animation: pulse 2s ease-in-out infinite; }
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+.hero-headline { font-family: 'Playfair Display', Georgia, serif; font-size: 24px; font-weight: 600; color: var(--bark); letter-spacing: -0.025em; line-height: 1.05; margin: 0; }
+.hero-headline .num { color: var(--leaf); }
+
+/* Shared row atoms */
+.logo { width: 22px; height: 22px; border-radius: 6px; background: var(--stone-lt); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color: var(--stone); letter-spacing: 0.02em; }
+ul.rows { list-style: none; margin: 0; padding: 0; }
+s { text-decoration: line-through; text-decoration-thickness: 1.2px; }
+
+/* ── Variant A · tinted sections ── */
+.sec { display: flex; align-items: center; justify-content: space-between; padding: 7px 14px 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.sec-n { font-variant-numeric: tabular-nums; opacity: 0.75; font-size: 11px; letter-spacing: 0; }
+.sec-new { background: var(--leaf-lt); color: var(--leaf); }
+.sec-deep { background: var(--amber-lt); color: var(--amber); }
+.a-row { display: grid; grid-template-columns: 22px minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border); border-left: 2px solid transparent; }
+.a-row:last-child { border-bottom: none; }
+.a-row-deep { border-left-color: var(--amber); }
+.a-name { font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.a-right { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.a-val { font-size: 15px; font-weight: 700; color: var(--leaf); font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: -0.01em; }
+.a-val .upto { font-size: 10px; font-weight: 400; color: var(--stone); letter-spacing: 0.02em; margin-right: 2px; }
+.a-val s { color: var(--stone); font-weight: 500; font-size: 12px; margin-right: 3px; }
+.a-age { font-size: 10.5px; color: var(--stone); font-variant-numeric: tabular-nums; }
+.a-age.a-age-raised { color: var(--amber); }
+
+/* ── Variant B · one list, delta chips ── */
+.b-row { display: grid; grid-template-columns: 22px minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border); }
+.b-row:last-child { border-bottom: none; }
+.b-name { font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.b-tag { display: inline-block; vertical-align: 2px; margin-left: 7px; font-size: 8px; font-weight: 700; letter-spacing: 0.09em; color: #fff; background: var(--leaf); border-radius: 4px; padding: 2px 5px; }
+.b-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.b-val { font-size: 15px; font-weight: 700; color: var(--leaf); font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: -0.01em; }
+.b-val .upto { font-size: 10px; font-weight: 400; color: var(--stone); letter-spacing: 0.02em; margin-right: 2px; }
+.b-chip { display: inline-flex; align-items: baseline; gap: 3px; background: var(--amber-lt); color: var(--amber); border-radius: 6px; padding: 3px 7px; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.b-chip .tri { font-size: 9px; }
+.b-chip b { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.b-age { font-size: 10.5px; color: var(--stone); font-variant-numeric: tabular-nums; }
+
+/* ── Variant C · ledger ── */
+.c-wrap { padding: 4px 14px 10px; }
+.c-cols { display: grid; grid-template-columns: 18px minmax(0,1fr) 44px 48px 36px; gap: 8px; align-items: center; padding: 8px 0 3px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--stone); }
+.c-cols span { text-align: right; }
+.c-rule { display: flex; align-items: center; gap: 8px; padding: 9px 0 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.c-rule::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.25; }
+.c-rule .sec-n { font-size: 10.5px; }
+.c-rule-new { color: var(--leaf); }
+.c-rule-deep { color: var(--amber); }
+.c-row { display: grid; grid-template-columns: 18px minmax(0,1fr) 44px 48px 36px; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.c-row:last-child { border-bottom: none; }
+.c-row .logo { width: 18px; height: 18px; border-radius: 5px; font-size: 7px; }
+.c-name { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.c-was { text-align: right; font-size: 12px; color: var(--stone); font-variant-numeric: tabular-nums; }
+.c-was s { text-decoration-thickness: 1px; }
+.c-now { text-align: right; font-size: 14px; font-weight: 700; color: var(--leaf); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.c-days { text-align: right; font-size: 11px; color: var(--stone); font-variant-numeric: tabular-nums; }
+.c-foot { padding: 9px 0 2px; font-size: 10px; color: var(--stone); }
+
+@media (max-width: 480px) {
+  .pg { padding: 32px 16px 56px; }
+  .pg-head h1 { font-size: 28px; }
+  .frames { gap: 36px; justify-content: center; }
+}
+</style>
+
+<div class="pg">
+  <header class="pg-head">
+    <div class="pg-eyebrow">Tide · Newest Sales panel · design prototypes</div>
+    <h1>Three tighter reads of the same nine deals</h1>
+    <p class="pg-sub">Same data as the live panel. Shared moves in all three: <b>rank numbers dropped</b> (it's a recency list, not a chart), the <b>"Was 50%, now up to 70% · started 20 Jun" sentence becomes a struck-through was&nbsp;→ bold now</b>, and the <b>DAYS pill is demoted</b> to quiet text. What differs is how each one separates <b>new sales</b> from <b>discounts that just went deeper</b>.</p>
+  </header>
+
+  <main class="frames">
+    <section class="variant">
+      <div class="phone"><div class="card" id="v-a"></div></div>
+      <div class="cap">
+        <p class="cap-name"><span class="cap-key">A</span>Tinted sections</p>
+        <p>The split is structural, not a label: each group is a colour-keyed block — leaf&nbsp;= just started, amber&nbsp;= went deeper, with an amber edge on every deepened row. The raise date sits quietly under the figure.</p>
+      </div>
+    </section>
+
+    <section class="variant">
+      <div class="phone"><div class="card" id="v-b"></div></div>
+      <div class="cap">
+        <p class="cap-name"><span class="cap-key">B</span>One list, delta chips</p>
+        <p>No sections at all. A single leaf <b>NEW</b> tag marks fresh starts; the amber <b>▲ chip</b> tells the whole "got deeper" story in one glance — the same chevron vocabulary the centre hero already uses. Shortest scan path.</p>
+      </div>
+    </section>
+
+    <section class="variant">
+      <div class="phone"><div class="card" id="v-c"></div></div>
+      <div class="cap">
+        <p class="cap-name"><span class="cap-key">C</span>Ledger</p>
+        <p>Maximum density: was / now / days as true columns under micro-headers, groups as thin labelled rules with counts. Nine deals in roughly half the current panel height.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pg-foot">
+    Prototype only — no production change. Palette, type and the card hero are verbatim from <code>index.html</code> tokens (cream / leaf / amber, Playfair&nbsp;Display + Inter), so whichever variant wins ports directly into <code>renderCentreNarrativeCard</code>. Logo tiles use the production monogram fallback; live favicons drop straight in.
+  </footer>
+</div>
+
+<script>
+// Same nine deals as the screenshot. `was == null` mirrors legacy cycles
+// with no prior_discount_pct (H&M, Reiss, Kurt Geiger in the live panel).
+const NEW_DEALS = [
+  { n: 'Urban Outfitters', mono: 'UO',  pct: 75, days: 4 },
+  { n: 'Adidas',           mono: 'AD',  pct: 30, days: 4 },
+];
+const DEEPER = [
+  { n: 'Mango',       mono: 'M',   was: 50,   pct: 70, days: 22, raised: 3 },
+  { n: 'Ann Summers', mono: 'AS',  was: 60,   pct: 70, days: 20, raised: 2 },
+  { n: 'Hobbs',       mono: 'H',   was: 50,   pct: 60, days: 32, raised: 4 },
+  { n: 'Hugo Boss',   mono: 'HB',  was: 40,   pct: 50, days: 20, raised: 2 },
+  { n: 'H&M',         mono: 'H&M', was: null, pct: 70, days: 12, raised: 4 },
+  { n: 'Reiss',       mono: 'R',   was: null, pct: 60, days: 18, raised: 4 },
+  { n: 'Kurt Geiger', mono: 'KG',  was: null, pct: 60, days: 14, raised: 5 },
+];
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const logo = (b, cls) => '<span class="logo' + (cls ? ' ' + cls : '') + '">' + esc(b.mono) + '</span>';
+const hero = '<div class="hero">'
+  + '<div class="hero-top"><span class="hero-title">Newest Sales</span>'
+  + '<span class="live"><span class="live-dot"></span>Live</span></div>'
+  + '<h2 class="hero-headline"><span class="num">9</span> fresh deals</h2>'
+  + '</div>';
+
+/* A — tinted sections */
+const aRow = (b, deep) => '<li class="a-row' + (deep ? ' a-row-deep' : '') + '">'
+  + logo(b)
+  + '<span class="a-name">' + esc(b.n) + '</span>'
+  + '<span class="a-right">'
+  +   '<span class="a-val"><span class="upto">up to</span>' + (b.was ? '<s>' + b.was + '%</s>' : '') + '<b>' + b.pct + '%</b></span>'
+  +   (deep
+        ? '<span class="a-age a-age-raised">raised ' + b.raised + 'd ago</span>'
+        : '<span class="a-age">' + b.days + ' days</span>')
+  + '</span></li>';
+document.getElementById('v-a').innerHTML = hero
+  + '<div class="sec sec-new"><span>Just started</span><span class="sec-n">' + NEW_DEALS.length + '</span></div>'
+  + '<ul class="rows">' + NEW_DEALS.map(b => aRow(b, false)).join('') + '</ul>'
+  + '<div class="sec sec-deep"><span>Discounts went deeper</span><span class="sec-n">' + DEEPER.length + '</span></div>'
+  + '<ul class="rows">' + DEEPER.map(b => aRow(b, true)).join('') + '</ul>';
+
+/* B — one list, delta chips */
+const bRow = (b, deep) => '<li class="b-row">'
+  + logo(b)
+  + '<span class="b-name">' + esc(b.n) + (deep ? '' : '<span class="b-tag">NEW</span>') + '</span>'
+  + '<span class="b-right">'
+  +   (deep
+        ? '<span class="b-chip"><span class="tri">▲</span>' + (b.was != null ? b.was + ' → ' : 'now ') + '<b>' + b.pct + '%</b></span>'
+        : '<span class="b-val"><span class="upto">up to</span><b>' + b.pct + '%</b></span>')
+  +   '<span class="b-age">' + b.days + ' days</span>'
+  + '</span></li>';
+document.getElementById('v-b').innerHTML = hero
+  + '<ul class="rows">'
+  + NEW_DEALS.map(b => bRow(b, false)).join('')
+  + DEEPER.map(b => bRow(b, true)).join('')
+  + '</ul>';
+
+/* C — ledger */
+const cRow = b => '<div class="c-row">'
+  + logo(b)
+  + '<span class="c-name">' + esc(b.n) + '</span>'
+  + '<span class="c-was">' + (b.was != null ? '<s>' + b.was + '%</s>' : '') + '</span>'
+  + '<span class="c-now">' + b.pct + '%</span>'
+  + '<span class="c-days">' + b.days + 'd</span>'
+  + '</div>';
+document.getElementById('v-c').innerHTML = hero
+  + '<div class="c-wrap">'
+  + '<div class="c-cols"><span></span><span></span><span>was</span><span>now</span><span>days</span></div>'
+  + '<div class="c-rule c-rule-new">New <span class="sec-n">' + NEW_DEALS.length + '</span></div>'
+  + NEW_DEALS.map(cRow).join('')
+  + '<div class="c-rule c-rule-deep">Went deeper <span class="sec-n">' + DEEPER.length + '</span></div>'
+  + DEEPER.map(cRow).join('')
+  + '<div class="c-foot">All figures are "up to" discounts.</div>'
+  + '</div>';
+</script>

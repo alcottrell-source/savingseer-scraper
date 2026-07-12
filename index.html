@@ -783,40 +783,37 @@
   .narrative-headline { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; color: var(--bark); letter-spacing: -0.025em; line-height: 1.05; margin: 0; }
   .narrative-headline-num { color: var(--green-bright); font-weight: 600; }
   .narrative-headline-num.muted { color: var(--stone); }
-  /* Group titles split the ranked list into "New sales" vs "Just got deeper"
-     (brands whose sale just started vs. an existing sale whose % just got
-     bumped) — mirrors the same split/wording in admin.html's Insights tab.
-     Colour carries the same signal the old per-row "UPDATED" badge used to
-     (amber = deepened), just consolidated to one place instead of repeated
-     on every row. */
-  .rank-group-title { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 8px 14px 4px; }
-  .rank-group-title-new { color: var(--leaf); }
-  .rank-group-title-deeper { color: var(--amber); }
+  /* One list, two markers: a leaf NEW tag on rows whose sale just started,
+     an amber ▲ delta chip ("50 → 70%") on rows whose discount just got
+     bumped — amber keeps the "deepened" meaning the old group title / the
+     older per-row UPDATED badge carried, and the chevron matches the centre
+     hero's weekly movement lines. */
   .rank-list { list-style: none; margin: 0; padding: 0; }
   .rank-row { padding: 8px 14px; border-bottom: 1px solid var(--border); }
   .rank-row:last-child { border-bottom: none; }
-  .rank-row-top { display: grid; grid-template-columns: 22px 24px minmax(0,1fr) auto; align-items: center; gap: 6px; }
+  .rank-row-top { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; align-items: center; gap: 8px; }
   /* Deal % and the day/NEW pill stack vertically (value over tag) instead of
      sitting side-by-side — side-by-side, the two ate enough width on common
      360-390px phones to squeeze the name column down to a few characters. */
   .rank-deal-col { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
-  /* Meta/description sit on their own full-width line below the compact top
+  /* The description sits on its own full-width line below the compact top
      row instead of squeezed into the narrow name column — that column is too
-     tight (competing with the deal % + pills) to wrap a sentence readably. */
-  .rank-row-extra { display: flex; flex-direction: column; gap: 2px; margin-top: 3px; padding-left: 58px; }
-  .rank-num { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: var(--stone); font-variant-numeric: tabular-nums; }
+     tight (competing with the deal figure) to wrap a sentence readably.
+     Indent lines up with the name column (logo 24px + grid gap 8px). */
+  .rank-row-extra { display: flex; flex-direction: column; gap: 2px; margin-top: 3px; padding-left: 32px; }
   .rank-logo { width: 24px; height: 24px; border-radius: 6px; background: #fff; border: 1px solid var(--border); flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   .rank-logo-img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
   .rank-logo.is-mono { background: var(--stone-lt); border-color: var(--stone-lt); }
   .rank-logo.is-mono .rank-logo-img { display: none; }
   .rank-logo.is-mono::after { content: attr(data-mono); font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; color: var(--stone); text-transform: uppercase; }
   .rank-name { font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .rank-meta { font-size: 11px; color: var(--stone); line-height: 1.35; }
+  .rank-tag { display: inline-block; vertical-align: 2px; margin-left: 7px; font-size: 8px; font-weight: 700; letter-spacing: 0.09em; color: #fff; background: var(--leaf); border-radius: 4px; padding: 2px 5px; }
   .rank-desc { font-size: 12px; color: var(--ink-mid); line-height: 1.45; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
   .rank-deal { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 700; color: var(--leaf); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
-  .rank-pill { font-size: 10px; letter-spacing: 0.08em; font-weight: 600; padding: 3px 8px; border-radius: 6px; border: 1px solid; text-transform: uppercase; }
-  .rank-pill-new { color: var(--leaf); border-color: var(--leaf); background: var(--leaf-lt); }
-  .rank-pill-old { color: var(--stone); border-color: var(--border); background: transparent; }
+  .rank-chip { display: inline-flex; align-items: baseline; gap: 3px; background: var(--amber-lt); color: var(--amber); border-radius: 6px; padding: 3px 7px; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rank-chip-tri { font-size: 9px; }
+  .rank-chip b { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+  .rank-age { font-size: 10.5px; color: var(--stone); font-variant-numeric: tabular-nums; }
   .rank-empty { font-size: 12px; color: var(--stone); font-style: italic; padding: 14px 20px; border-bottom: 1px solid var(--border); }
   .narrative-body { padding: 16px 20px; position: relative; }
   .narrative-insight { font-size: 14px; color: var(--ink-mid); line-height: 1.65; margin: 0; position: relative; }
@@ -3634,20 +3631,23 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
       + '</h2>'
     + '</div>';
 
-  // Ranked deals list, split into two labeled groups — brands whose sale
-  // just started ("New sales") and brands whose discount just got bumped on
-  // an already-listed sale ("Just got deeper", mirroring admin.html's
-  // Insights panel of the same name). Previously these were merged into one
-  // list distinguished only by a small inline badge, which read as
-  // confusing — a several-day-old sale sitting at the top of "Newest Sales"
-  // next to a genuinely brand-new one, with no clear separation.
-  const fmtRankDate = s => s ? new Date(s + 'T12:00:00').toLocaleDateString('en-GB', {day:'numeric', month:'short'}) : '';
+  // One recency-sorted deals list. Each row self-describes with exactly one
+  // marker: a leaf NEW tag (sale just started) or an amber ▲ delta chip
+  // ("50 → 70%" — discount raised on an already-running sale). This
+  // replaced the Jul 2026 two-labelled-groups layout (small uppercase
+  // "New sales" / "Just got deeper" titles over identical-looking rows,
+  // per-group rank numbers, and a full-sentence "Was 50%, now up to 70% ·
+  // started 20 Jun" meta line): the split didn't register, the numbers
+  // ranked nothing, and the sentence duplicated the headline figure. The
+  // chip carries the was→now in stock-ticker form — the same chevron
+  // vocabulary the centre hero's weekly movement lines already use, with
+  // amber staying the "updated/deeper" signal it has always been here.
   // A brand surfaces here either because the sale just started or because
   // its discount just changed (pct_changed_date more recent than
-  // start_date, admin-driven via Edit/Increase) — this flag is what splits
-  // it into one group or the other.
+  // start_date, admin-driven via Edit/Increase) — this flag decides which
+  // marker the row gets.
   const isDeepened = b => isDeepenedBrand(b, FRESH_WINDOW_DAYS);
-  const renderRankRow = (b, i) => {
+  const renderRankRow = (b) => {
     const pct = (typeof MAX_DISCOUNT_PCT !== 'undefined') ? MAX_DISCOUNT_PCT[b.name] : null;
     const typeKey = SALE_TYPE[b.name];
     const hasPct = (typeof pct === 'number' && pct > 0);
@@ -3660,22 +3660,26 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
     } else {
       dealTxt = hasPct ? ('Up to ' + pct + '%') : '—';
     }
-    const pillClass = (b.days <= 1) ? 'rank-pill rank-pill-new' : 'rank-pill rank-pill-old';
-    const pillTxt = (b.days <= 1) ? 'NEW' : (b.days + (b.days === 1 ? ' day' : ' days'));
-    // Deepened-group meta line. Prefer the actual before/after — "Was 50%,
-    // now up to 70%" — over the generic "% updated {relative}" wording,
-    // since that's the number shoppers actually want. This lives here (the
-    // full-width extra line), not in the compact .rank-deal figure, which
-    // stays "Up to 70%" for every row — a "Was X%, now up to Y%" string is
-    // roughly double the width and would reintroduce the name-column squeeze
-    // that grid was tuned to avoid on 360-390px phones. Falls back to the
-    // old date-only wording when there's no prior value (legacy rows from
-    // before prior_discount_pct existed, or a non-percent_off sale type).
-    const metaTxt = isDeepened(b)
-      ? (hasPct && b.priorPct != null && b.priorPct !== pct
-          ? 'Was ' + b.priorPct + '%, now up to ' + pct + '% · started ' + fmtRankDate(b.startDate)
-          : 'Started ' + fmtRankDate(b.startDate) + ' · % updated ' + (b.pctChangeDays <= 1 ? 'today' : b.pctChangeDays + 'd ago'))
-      : '';
+    const deep = isDeepened(b);
+    // Value line for the right column. Deepened rows swap the plain figure
+    // for the amber delta chip — "▲ 50 → 70%" with the new value bold, the
+    // struck-sentence's fact in stock-ticker form. No usable prior (legacy
+    // cycles from before prior_discount_pct) reads "▲ now 70%"; a deepened
+    // non-percent sale type (rare) keeps its label with a bare "▲ updated"
+    // chip so the raise is still marked.
+    let valueHTML;
+    if (deep && hasPct) {
+      const lead = (b.priorPct != null && b.priorPct !== pct) ? (b.priorPct + ' → ') : 'now ';
+      valueHTML = '<span class="rank-chip"><span class="rank-chip-tri">▲</span>' + lead + '<b>' + pct + '%</b></span>';
+    } else if (deep) {
+      valueHTML = '<span class="rank-deal">' + escapeHtml(dealTxt) + '</span>'
+        + '<span class="rank-chip"><span class="rank-chip-tri">▲</span>updated</span>';
+    } else {
+      valueHTML = '<span class="rank-deal">' + escapeHtml(dealTxt) + '</span>';
+    }
+    // Quiet age line under the value — replaces the old bordered DAYS pill
+    // (which fought the discount figure for attention on every row).
+    const ageTxt = (b.days <= 1) ? 'today' : (b.days + ' days');
     // Admin-written sale description (brand_sale_cycles.description, set
     // via the Start/Edit/Increase forms in admin.html). Optional — most
     // rows have none, so it only takes up space when actually used.
@@ -3688,38 +3692,34 @@ function renderCentreNarrativeCard(centreIdx, onSale, history) {
     const logoHTML = '<span class="rank-logo' + (logoSrc ? '' : ' is-mono') + '" data-mono="' + escapeHtml(mono) + '">'
          + (logoSrc ? '<img class="rank-logo-img" alt="" loading="lazy" src="' + logoSrc + '" onerror="this.closest(\'.rank-logo\').classList.add(\'is-mono\')">' : '')
          + '</span>';
-    const extraHTML = (metaTxt || descTxt)
+    const extraHTML = descTxt
          ? '<div class="rank-row-extra">'
-         +   (metaTxt ? '<span class="rank-meta">' + escapeHtml(metaTxt) + '</span>' : '')
-         +   (descTxt ? '<span class="rank-desc">' + escapeHtml(descTxt) + '</span>' : '')
+         +   '<span class="rank-desc">' + escapeHtml(descTxt) + '</span>'
          + '</div>'
          : '';
     return '<li class="rank-row">'
          +   '<div class="rank-row-top">'
-         +     '<span class="rank-num">' + (i + 1) + '</span>'
          +     logoHTML
-         +     '<span class="rank-name">' + escapeHtml(b.name) + '</span>'
+         +     '<span class="rank-name">' + escapeHtml(b.name)
+         +       (deep ? '' : '<span class="rank-tag">NEW</span>')
+         +     '</span>'
          +     '<span class="rank-deal-col">'
-         +       '<span class="rank-deal">' + escapeHtml(dealTxt) + '</span>'
-         +       '<span class="' + pillClass + '">' + pillTxt + '</span>'
+         +       valueHTML
+         +       '<span class="rank-age">' + ageTxt + '</span>'
          +     '</span>'
          +   '</div>'
          +   extraHTML
          + '</li>';
   };
-  const newRows = freshDeals.filter(b => !isDeepened(b))
-    .sort((a, b) => (a.days||0) - (b.days||0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)));
-  const deeperRows = freshDeals.filter(isDeepened)
-    .sort((a, b) => (a.pctChangeDays||0) - (b.pctChangeDays||0) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)));
-  // A group's title+list is omitted entirely when it has zero rows, rather
-  // than showing an empty/half-empty section.
-  const renderRankGroup = (title, cls, rows) => rows.length
-    ? '<div class="rank-group-title ' + cls + '">' + title + '</div>'
-      + '<ul class="rank-list">' + rows.map(renderRankRow).join('') + '</ul>'
-    : '';
-  const rankList = freshDeals.length
-    ? renderRankGroup('New sales', 'rank-group-title-new', newRows)
-      + renderRankGroup('Just got deeper', 'rank-group-title-deeper', deeperRows)
+  // Sorted by the event that put the row here — the raise date for deepened
+  // rows, the start date otherwise — so a just-bumped old sale can outrank
+  // a several-day-old new one (the freshRank intent). Ties break to the
+  // deeper discount.
+  const eventDays = b => isDeepened(b) ? b.pctChangeDays : (b.days || 0);
+  const sortedDeals = freshDeals.slice()
+    .sort((a, b) => eventDays(a) - eventDays(b) || ((MAX_DISCOUNT_PCT[b.name]||0) - (MAX_DISCOUNT_PCT[a.name]||0)));
+  const rankList = sortedDeals.length
+    ? '<ul class="rank-list">' + sortedDeals.map(renderRankRow).join('') + '</ul>'
     : '<div class="rank-empty">' + (onSaleCount > 0
         ? 'No new sales in the last ' + FRESH_WINDOW_DAYS + ' days.'
         : 'No sales today.') + '</div>';

@@ -59,10 +59,31 @@ test('getTideStage — score 0 maps to Quiet (fresh) or Over (post-peak)', () =>
   assert.equal(getTideStage(0, 'Falling', 'FLAT', null).verdict, 'Over');
 });
 
-test('getTideStage — High Tide hysteresis: enter 40, hold to 30, then ease', () => {
+test('getTideStage — High Tide hold: enter 40, hold 30+ only while not falling', () => {
   assert.equal(getTideStage(45, null, 'RISING', null).verdict, 'Peak', 'enter at ≥40');
-  assert.equal(getTideStage(35, 'High Tide', 'FALLING', null).verdict, 'Peak', 'hold in 30–40 band');
+  assert.equal(getTideStage(35, 'High Tide', 'RISING', null).verdict, 'Peak', 'hold in 30–40 band while rising');
+  assert.equal(getTideStage(35, 'High Tide', 'FLAT', null).verdict, 'Peak', 'hold in 30–40 band on the plateau (crest)');
+  assert.equal(getTideStage(35, 'High Tide', 'FALLING', null).verdict, 'Easing', 'confirmed decline exits the hold band');
   assert.equal(getTideStage(25, 'High Tide', 'FALLING', null).verdict, 'Easing', 'exit below 30');
+});
+
+test('getTideStage — confirmed decline exits Peak at ANY score (the stale GO-NOW fix)', () => {
+  // The first full recorded cycle: centres crested ~70% then declined for
+  // ~2 weeks still reading "Go now" because the old hold was score-only.
+  const r = getTideStage(50, 'High Tide', 'FALLING', 'FALLING');
+  assert.equal(r.verdict, 'Easing');
+  assert.equal(r.stage, 'Falling');
+  // Even on the roll-over day itself (prevTraj RISING): once the stage is
+  // High Tide, localPeak can't rescue the hold — descent takes over.
+  assert.equal(getTideStage(60, 'High Tide', 'FALLING', 'RISING').verdict, 'Easing');
+});
+
+test('getTideStage — no Peak re-entry from descent without a sustained RISING', () => {
+  // An Easing bounce back over 40 must not flap to Peak (and re-fire the
+  // peak-alert email); only a genuine RISING resurgence re-enters.
+  assert.equal(getTideStage(45, 'Falling', 'FLAT', 'FALLING').verdict, 'Easing');
+  assert.equal(getTideStage(45, 'Falling', 'FALLING', 'FALLING').verdict, 'Easing');
+  assert.equal(getTideStage(45, 'Falling', 'RISING', 'FALLING').verdict, 'Peak');
 });
 
 test('getTideStage — descent path distinguishes Easing (≥8) from Over (<8)', () => {

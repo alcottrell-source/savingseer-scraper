@@ -220,6 +220,24 @@ of each section.
   hardcoded C-code list (like the `#centre-select` options) must stay in
   CENTRE_NAMES order.
 
+- **D18 (2026-07-17, owner — "the main page says go now when the sales are
+  easing; identify the top of the tide accurately so the calls to action are
+  always correct"):** **Peak = rising to / sitting at the crest only; a
+  confirmed decline reads Easing.** The first full recorded cycle (climb to
+  ~60–78%, crest early July, then decline) exposed that the High Tide hold
+  was score-only (enter 40 / hold to 30), so 47 of 48 scored centres read
+  "Go now" with a FALLING trajectory — 504 stale Peak days in the 73-day
+  replay. Fix: the hold is now trajectory-gated (ADR-002 §5.2 T3a/T3b/T3c) —
+  FALLING exits to Easing at any score; re-entry from descent needs ≥40 +
+  sustained RISING (no flap, no duplicate peak alerts). Owner also decided:
+  **five states stay** (no new top-of-cycle state); discount-deepening
+  (60%→70% off) remains an orthogonal depth signal, never a state-machine
+  input. Numeric thresholds unchanged — the replay
+  (`scripts/analyze-tide-cycles.mjs`) validated them: crest→Easing lag ≈2.7
+  days, Peak-entry events 102→138 (all genuine ≥40 resurgences at small
+  volatile centres), zero real slow-drip episodes (episode-max guard
+  deliberately not built — see ADR-002 §6 E13).
+
 ## Phase 2/3 record (2026-07-08)
 
 - ADRs written: `docs/architecture/gravity-engine.md` (ADR-001),

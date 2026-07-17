@@ -1,6 +1,11 @@
 # ADR-002 — Tide Score lifecycle: a formal, explicitly-persisted state machine
 
-- **Status:** Accepted (2026-07-08)
+- **Status:** Accepted (2026-07-08). **Amended 2026-07-17 (D18):** the High
+  Tide hold is trajectory-gated (T3 → T3a/T3b/T3c). The first full recorded
+  cycle showed the score-only 40/30 hold kept 47 of 48 centres reading
+  "Go now" for up to two weeks down the far side of the tide (504 stale Peak
+  days in the 73-day replay). Applied to `lib/tide-machine.js` and `score.js`
+  simultaneously — parity holds.
 - **Deciders:** Site owner (interview answers D2, D3, D7, D10 in `DECISIONS.md`)
 - **Reference implementation:** `lib/tide-machine.js` + `test/tide-machine.test.mjs`
   (proven behaviour-compatible with `score.js` by parity tests)
@@ -153,7 +158,13 @@ regression documented in `score.js`).
 |---|---|---|---|---|
 | T1 | `score == 0 && (wasHigh \|\| wasDescent)` | Low | Over | cycle ended to zero |
 | T2 | `score == 0` | Turning | Quiet | dormant, no cycle behind it |
-| T3 | `score ≥ 40 \|\| (wasHigh && score ≥ 30)` | High Tide | Peak | enter 40 / hold-to-30 hysteresis |
+| T3a | `holdHigh && !wasHigh && !wasDescent` | High Tide | Peak | fresh climb entry at ≥40, any trajectory (a cross-and-roll-over day still Peaks) |
+| T3b | `holdHigh && wasHigh && traj != FALLING` | High Tide | Peak | **crest hold** — rising to / sitting at the crest (FLAT plateau = the crest); a confirmed FALLING falls through to T5/T6 → Easing at ANY score |
+| T3c | `holdHigh && wasDescent && traj == RISING` | High Tide | Peak | re-entry from descent needs ≥40 (holdHigh reduces to that when wasDescent) AND sustained RISING — an Easing bounce can't flap back to Peak / re-fire the peak alert |
+
+where `holdHigh = score ≥ 40 \|\| (wasHigh && score ≥ 30)` (the enter-40 /
+hold-to-30 band, unchanged — but since the 2026-07-17 amendment the band only
+holds while the trajectory is RISING or FLAT).
 | T4 | `(wasHigh \|\| wasDescent) && prevStage=='Low' && traj=='RISING' && score ≥ 15` | Rising | Rising | new-cycle escape (only from Low, never mid-Easing) |
 | T5 | `(wasHigh \|\| wasDescent) && score < 8` | Low | Over | descent floor |
 | T6 | `wasHigh \|\| wasDescent` | Falling | Easing | descent, still meaningful (8 ≤ score < 30/40) |
@@ -205,8 +216,30 @@ as `STAGE_FROM_VERDICT` in `score.js`.
   but worth knowing when onboarding a batch.
 - **E3 one-shot Peak resolution:** local peak at 25 → next day score 25,
   prevStage High Tide → T3 fails (25 < 30) → T6 Easing. Automatic.
-- **E4 hysteresis hold:** 45 → Peak; 35 next day → still Peak (hold ≥ 30);
-  29 → Easing; then 41 → Peak again (re-enter at 40 only).
+- **E4 hysteresis hold (amended D18):** 45 → Peak; 35 next day → still Peak
+  (hold ≥ 30 **while not confirmed FALLING**); 29 → Easing; then 41 → Peak
+  again (re-enter at 40 only, and only with RISING).
+- **E10 confirmed decline exits Peak above the hold band (D18 — the stale
+  GO-NOW fix):** climb to 55, soften to 48 (still RISING vs the window),
+  then 42 flips the trajectory FALLING → Easing at score 42. Pre-amendment
+  the score-only hold kept this centre at "Go now" until it crossed 30.
+- **E11 no bounce flap (D18):** Easing at 42→40, a bounce to 44 (sticky
+  FALLING) stays Easing despite ≥40; a genuine +8 surge to 50 flips RISING →
+  one clean Peak re-entry (one new alert, by design — see notify-high-tide's
+  send-once gate).
+- **E12 deploy-day correction (D18):** a stored row `verdict=Peak,
+  trajectory=FALLING, score 52` steps to Easing on the first post-amendment
+  observation — this is exactly the state 47 of 48 centres were in when the
+  fix landed.
+- **E13 high plateau holds Peak (D18, documented limitation):** a score
+  parked at 45 stall-decays to FLAT and **stays Peak** — sitting at the crest
+  is not a decline; only a score decline (FALLING confirm, or dropping out of
+  the band) ends a Peak. Corollary: a decline too slow to ever confirm
+  FALLING (<~1.5pts vs the 3-day average from a FLAT prior) would also hold —
+  the 73-day replay found zero real episodes like that (the only flag was a
+  junk 1-brand centre on the pre-rewrite >100 score scale), so the extra
+  episode-max exit guard was deliberately NOT built. Revisit if a real
+  slow-drip cycle ever shows up in `scripts/analyze-tide-cycles.mjs` output.
 - **E5 new-cycle escape needs all three:** Low + RISING + score ≥ 15. From
   Falling (not Low) with RISING → still Easing (T4 guard), preventing
   post-peak wobbles from re-reading as a fresh cycle.
@@ -233,7 +266,9 @@ as `STAGE_FROM_VERDICT` in `score.js`.
 
 Note: the **stall decay** (§5.1, E2) is *not* a divergence — it was applied to
 `lib/tide-machine.js` and shipped `score.js` simultaneously (owner-approved
-behaviour change, D16), so the parity suite still holds across both.
+behaviour change, D16), so the parity suite still holds across both. The
+**trajectory-gated High Tide hold** (§5.2 T3a–c, D18) landed the same way —
+both machines, one change, parity intact.
 
 ## 8. Failure modes
 

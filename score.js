@@ -59,10 +59,15 @@ const PHASE_NUMBER = { Turning: 1, Rising: 2, 'High Tide': 2, Falling: 2, Low: 1
 // (still computed and stored for the dashboard's forward-guidance copy, but
 // no longer gates the stage decision).
 //
-// Hysteresis on High Tide: enter at 40, hold until score drops below 30.
-// Once the score falls out of the hold band the centre transitions into the
-// descent path (Falling -> Low). yesterdayStage is the source of truth for
-// where we are in the cycle.
+// High Tide hold (amended 2026-07 after the first full recorded cycle):
+// enter at 40; hold in the 30+ band only while the trajectory is RISING or
+// FLAT (the crest — a plateau is the peak, picks are freshest). A confirmed
+// FALLING trajectory exits to the descent path at ANY score: the replay of
+// the recorded summer cycle showed the old score-only hold (40 enter /
+// hold-to-30) kept 47 of 48 centres at "Go now" for up to two weeks down
+// the far side of the tide (504 stale Peak days). Re-entry from descent
+// requires ≥40 AND a sustained RISING trajectory, so a bounce during Easing
+// can't flap back to Peak (and re-fire the peak-alert email).
 //
 // Score is now plain % of brands on sale (brandsOnSale / totalBrands × 100),
 // so 40% sale density is the "exceptional, GO NOW" threshold and 15% is
@@ -160,8 +165,19 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
     return { stage: 'Turning', verdict: 'Quiet', bluf: 'Nothing major on right now.' };
   }
 
-  // Hysteresis: enter High Tide at 40, hold until score drops below 30
-  if (score >= HIGH_TIDE_ENTER || (wasHighTide && score >= HIGH_TIDE_EXIT)) {
+  // High Tide: enter at 40, hold in the 30+ band only while not confirmed
+  // falling. freshEntry = climb path crossing 40 (any trajectory — a
+  // cross-and-roll-over day still Peaks); crestHold = rising to / sitting at
+  // the crest (FLAT plateau included); reEntry = from descent, needs ≥40
+  // (holdHigh reduces to that when wasDescent) AND sustained RISING. A
+  // FALLING day in High Tide falls through to the descent branch below —
+  // Easing at any score — which is what ends "Go now" at the crest instead
+  // of weeks later at the 30 line.
+  const holdHigh   = score >= HIGH_TIDE_ENTER || (wasHighTide && score >= HIGH_TIDE_EXIT);
+  const freshEntry = !wasHighTide && !wasDescent;
+  const crestHold  = wasHighTide && !falling;
+  const reEntry    = wasDescent && trajectory === 'RISING';
+  if (holdHigh && (freshEntry || crestHold || reEntry)) {
     return { stage: 'High Tide', verdict: 'Peak', bluf: PEAK_BLUF_GENERIC };
   }
 

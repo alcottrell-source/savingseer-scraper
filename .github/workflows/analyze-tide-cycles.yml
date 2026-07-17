@@ -1,0 +1,48 @@
+name: Analyze Tide Cycles
+
+# Read-only diagnostic: replays the stored centre_seer_scores history through
+# the current and proposed verdict rules and prints per-centre timelines +
+# metrics to the job log (see scripts/analyze-tide-cycles.mjs). Manual only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      centre:
+        description: 'Optional centre-name substring filter (empty = all active centres)'
+        required: false
+        default: ''
+  # workflow_dispatch alone is not registered by GitHub until the file reaches
+  # the default branch, so the analysis branch also runs it on push — scoped to
+  # the files whose changes alter the replay's result.
+  push:
+    branches: [claude/sales-cycle-data-analysis-2py6ni]
+    paths:
+      - scripts/analyze-tide-cycles.mjs
+      - .github/workflows/analyze-tide-cycles.yml
+      - lib/tide-machine.js
+      - score.js
+
+jobs:
+  analyze:
+    name: Replay stored cycles
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run cycle analysis
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node scripts/analyze-tide-cycles.mjs "${{ inputs.centre }}"

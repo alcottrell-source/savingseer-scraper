@@ -890,6 +890,44 @@
     text-decoration: underline; cursor: pointer;
   }
 
+  /* One-field peak-alert opt-in (logged-out centre page + brand sheet).
+     Writes to seo_alert_signups — same audience the SEO pages capture,
+     delivered by notify-high-tide pass 4. No account, no magic link. */
+  .tide-optin {
+    background: white; border: 1px solid rgba(61,107,53,0.28);
+    border-radius: 14px; padding: 16px 18px; margin: 14px 0 6px;
+  }
+  .tide-optin-title { font-size: 14px; font-weight: 600; color: var(--bark); margin-bottom: 3px; }
+  .tide-optin-sub { font-size: 12.5px; color: var(--stone); line-height: 1.5; margin-bottom: 10px; }
+  .tide-optin form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tide-optin input[type="email"] {
+    flex: 1; min-width: 170px; font: inherit; font-size: 14px;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--cream); color: var(--bark);
+  }
+  .tide-optin input[type="email"]:focus { outline: none; border-color: var(--leaf); }
+  .tide-optin button {
+    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    padding: 10px 16px; border: 0; border-radius: 10px;
+    background: var(--leaf); color: white;
+  }
+  .tide-optin button:disabled { opacity: 0.6; cursor: default; }
+  .tide-optin-status { font-size: 12.5px; color: var(--leaf); margin-top: 8px; display: none; width: 100%; }
+  .tide-optin-status.error { color: var(--red); }
+  .tide-optin.is-done form { display: none; }
+  .tide-optin.is-done .tide-optin-status { display: block; }
+  /* Compact variant inside the shop-detail sheet's CTA note slot */
+  .ts-optin { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .ts-optin input[type="email"] {
+    flex: 1; min-width: 150px; font: inherit; font-size: 13px;
+    padding: 8px 10px; border: 1px solid rgba(28,42,69,0.25); border-radius: 8px;
+  }
+  .ts-optin button {
+    font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    padding: 8px 12px; border: 0; border-radius: 8px;
+    background: #1C2A45; color: white;
+  }
+
   .report-overlay {
     position: fixed; inset: 0; background: rgba(44,24,16,0.45);
     display: flex; align-items: flex-end; justify-content: center;
@@ -1961,6 +1999,74 @@ async function submitNotifySignup() {
   msg.textContent = "Check your email — we've sent you a link to activate your alerts.";
   msg.style.display = 'block';
   emailEl.disabled = true;
+}
+
+// ── One-field alert opt-in (no account, no magic link) ──
+// Writes to seo_alert_signups — the same accountless audience the static SEO
+// pages capture — and notify-high-tide's pass 4 delivers: centre rows the day
+// the centre enters Peak, brand rows the day that brand's sale starts. This
+// is the lowest-commitment conversion on the site; full sign-up stays the
+// upsell inside the alert emails themselves.
+const TIDE_OPTIN_KEY = 'tide_optin_centres';
+function tideOptinDone(slug) {
+  try { return (JSON.parse(localStorage.getItem(TIDE_OPTIN_KEY) || '[]')).includes(slug); } catch(e) { return false; }
+}
+function tideOptinMarkDone(slug) {
+  try {
+    const s = JSON.parse(localStorage.getItem(TIDE_OPTIN_KEY) || '[]');
+    if (!s.includes(slug)) s.push(slug);
+    localStorage.setItem(TIDE_OPTIN_KEY, JSON.stringify(s));
+  } catch(e) {}
+}
+// Mirror of seo/render.mjs's slugify — brand_slug rows must match what the
+// SEO pages write and what notify-high-tide pass 4 derives from brand names.
+function tideSlugify(name) {
+  return String(name).toLowerCase().trim()
+    .replace(/&/g, ' and ').replace(/['’.]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+// Shared submit for both variants (centre page .tide-optin, brand sheet
+// .ts-optin). The status element is a sibling of the form inside the same
+// container. A repeat submit violates the table's unique index (409) — that
+// means "already on the list", which is success, not an error.
+// ASYNC — inline handlers must be `onsubmit="tideAlertOptInSubmit(this);return false"`:
+// `return tideAlertOptInSubmit(this)` would return a truthy Promise and let
+// the form navigate the page.
+async function tideAlertOptInSubmit(form) {
+  const email = (form.email.value || '').trim();
+  if (!email) return false;
+  const slug  = form.getAttribute('data-centre-slug');
+  const brand = form.getAttribute('data-brand-slug') || null;
+  const label = form.getAttribute('data-label') || 'this centre';
+  const container = form.parentElement;
+  const status = container ? container.querySelector('[data-optin-status]') : null;
+  const btn = form.querySelector('button');
+  const setStatus = (txt, isError) => {
+    if (!status) return;
+    status.textContent = txt;
+    status.classList.toggle('error', !!isError);
+    status.style.display = 'block';
+  };
+  if (btn) btn.disabled = true;
+  const { error } = await pgUpsert('seo_alert_signups', {
+    email,
+    centre_slug: slug,
+    brand_slug: brand,
+    source_url: 'app:' + (brand ? slug + '/' + brand : slug),
+  });
+  if (btn) btn.disabled = false;
+  const duplicate = error && (error.status === 409 || /23505|duplicate key/i.test(String(error.message || '')));
+  if (error && !duplicate) {
+    setStatus('Something went wrong — please try again.', true);
+    return false;
+  }
+  trackEvent('alert_optin', { source: brand ? 'brand_sheet_email' : 'centre_inline', centre: slug || '', brand: brand || '' });
+  setStatus(brand
+    ? 'Done — we’ll email you the day ' + label + '’s sale starts. One tap to unsubscribe.'
+    : 'Done — we’ll email you when ' + label + ' peaks. One tap to unsubscribe.');
+  if (!brand && slug) tideOptinMarkDone(slug);
+  if (container && container.classList.contains('tide-optin')) container.classList.add('is-done');
+  return false;
 }
 
 // ── Non-UK expansion waitlist (geo-gated email capture) ──
@@ -6409,7 +6515,24 @@ async function renderCentre(centreId) {
     ? '<a class="seo-hub-link" href="/centre/'+supabaseCentreId+'">Full sale history &amp; FAQ for '+safeCentreName+' &rarr;</a>'
     : '';
 
-  content.innerHTML = heroHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
+  // One-field peak-alert opt-in for logged-out visitors — the lowest-
+  // commitment conversion on the page: an email, no account, no magic-link
+  // round-trip. Writes to seo_alert_signups; notify-high-tide pass 4 emails
+  // it the day this centre enters Peak. Hidden once this device has opted in
+  // for this centre; signed-in users have the save-centre path instead.
+  const alertOptinHTML = (!currentUser && supabaseCentreId && !tideOptinDone(supabaseCentreId))
+    ? '<div class="tide-optin">'
+      + '<div class="tide-optin-title">Get the peak alert for '+safeCentreName+'</div>'
+      + '<div class="tide-optin-sub">One email the day the Tide Score says it\'s the moment to go. No account needed.</div>'
+      + '<form data-centre-slug="'+supabaseCentreId+'" data-label="'+safeCentreName+'" onsubmit="tideAlertOptInSubmit(this);return false">'
+      +   '<input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">'
+      +   '<button type="submit">Alert me</button>'
+      + '</form>'
+      + '<div class="tide-optin-status" data-optin-status role="status"></div>'
+      + '</div>'
+    : '';
+
+  content.innerHTML = heroHTML + alertOptinHTML + centreNudgeHTML + savedChipsHTML + scoreCardHTML + narrativeHTML
     + '<div class="brands-section" id="brands-section"><div class="section-heading">'+brandsHeading+' <span class="on-sale-count">'+visibleOnSaleCount+' on sale today</span></div>'+contribIntro+filterTabs+'<div class="brand-grid">'+brandHTML+'</div></div>'
     + seoHubLinkHTML;
 
@@ -7127,7 +7250,21 @@ document.addEventListener('visibilitychange', () => {
       addWatch(name);
       btn.setAttribute('data-watching','1');
       btn.textContent = '✓ We’ll watch '+name+' for you';
-      setNote('Saved on this device. <a href="#" data-ts-signin style="color:#1C2A45;text-decoration:underline">Sign in</a> to get it by email.', true);
+      // Offer the accountless email capture (seo_alert_signups, delivered by
+      // notify-high-tide pass 4 the day this brand's sale starts) — far lower
+      // commitment than the sign-in round-trip, which stays as the fallback
+      // when we can't resolve this centre's slug.
+      const slug = (window._tideShareCtx && window._tideShareCtx.slug) || null;
+      if(slug && typeof tideSlugify === 'function' && typeof tideAlertOptInSubmit === 'function'){
+        setNote('Saved on this device. Get it by email — no account needed:'
+          + '<form class="ts-optin" data-centre-slug="'+esc(slug)+'" data-brand-slug="'+esc(tideSlugify(name))+'" data-label="'+esc(name)+'" onsubmit="tideAlertOptInSubmit(this);return false">'
+          +   '<input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">'
+          +   '<button type="submit">Email me</button>'
+          + '</form>'
+          + '<div class="tide-optin-status" data-optin-status role="status"></div>', true);
+      } else {
+        setNote('Saved on this device. <a href="#" data-ts-signin style="color:#1C2A45;text-decoration:underline">Sign in</a> to get it by email.', true);
+      }
     }
   });
 

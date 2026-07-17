@@ -119,18 +119,79 @@ test('E3 — one-shot local peak resolves to Easing the next day', () => {
   assert.equal(s.lastPeakDate, peak.date, 'lastPeakDate survives past the peak');
 });
 
-test('E4 — High Tide hysteresis: hold to 30, exit below, re-enter at 40 only', () => {
+test('E4 — High Tide hold: 30+ band survives while not falling, re-enter at 40 only', () => {
+  // The hold is trajectory-conditional since the 2026-07 amendment: the
+  // 35-score day below still computes RISING (diff +3.3 vs the window, span
+  // well over the stall range), so the 30–40 band holds it at Peak.
   let s = run([20, 30, 45]);                       // enter at 45
   assert.equal(s.verdict, 'Peak');
-  s = nextTideState(s, { date: d(3), score: 35 }); // hold band
+  s = nextTideState(s, { date: d(3), score: 35 }); // hold band, still RISING
+  assert.equal(s.trajectory, 'RISING');
   assert.equal(s.verdict, 'Peak');
   assert.equal(s.daysInStage, 1, 'still the same High Tide stint');
   s = nextTideState(s, { date: d(4), score: 29 }); // exit
   assert.equal(s.verdict, 'Easing');
   s = nextTideState(s, { date: d(5), score: 35 }); // 35 < 40: no re-entry from Falling
   assert.equal(s.verdict, 'Easing');
-  s = nextTideState(s, { date: d(6), score: 41 }); // genuine re-entry
+  s = nextTideState(s, { date: d(6), score: 41 }); // genuine re-entry (RISING + ≥40)
+  assert.equal(s.trajectory, 'RISING');
   assert.equal(s.verdict, 'Peak');
+});
+
+test('E10 — confirmed decline exits Peak ABOVE the hold band (stale GO-NOW fix)', () => {
+  // The first recorded full cycle: crest ~55, then a clear decline. The old
+  // score-only hold kept "Go now" until <30; now the FALLING confirm ends it
+  // while the score is still 42.
+  let s = run([10, 30, 45, 55]);
+  assert.equal(s.verdict, 'Peak');
+  s = nextTideState(s, { date: d(4), score: 48 }); // +4.7 vs window: a steep climb
+  assert.equal(s.trajectory, 'RISING');            // reads RISING briefly past the crest
+  assert.equal(s.verdict, 'Peak', 'first soft day still reads Peak');
+  s = nextTideState(s, { date: d(5), score: 42 }); // -7.3 vs window: FALLING confirms
+  assert.equal(s.trajectory, 'FALLING');
+  assert.equal(s.verdict, 'Easing', 'decline confirmed → Easing at score 42');
+  assert.equal(s.stage, 'Falling');
+});
+
+test('E11 — no bounce flap during Easing; a sustained RISING re-enters (one new peak)', () => {
+  let s = run([10, 30, 45, 55, 48, 42]);           // E10 series, now Easing
+  assert.equal(s.verdict, 'Easing');
+  const firstPeakDate = s.lastPeakDate;
+  s = nextTideState(s, { date: d(6), score: 40 }); // sticky FALLING
+  assert.equal(s.verdict, 'Easing');
+  s = nextTideState(s, { date: d(7), score: 44 }); // +0.7 vs window: still FALLING
+  assert.equal(s.trajectory, 'FALLING');
+  assert.equal(s.verdict, 'Easing', 'a ≥40 bounce alone must not flap back to Peak');
+  assert.equal(s.lastPeakDate, firstPeakDate);
+  s = nextTideState(s, { date: d(8), score: 50 }); // +8 vs window: RISING → re-entry
+  assert.equal(s.trajectory, 'RISING');
+  assert.equal(s.verdict, 'Peak', 'genuine second wave re-enters');
+  assert.equal(s.lastPeakDate, d(8), 'new peak recorded');
+});
+
+test('E12 — deploy-day correction: a stored stale Peak with FALLING flips to Easing', () => {
+  // 47 of 48 centres sat in exactly this state when the fix landed: stored
+  // verdict Peak, stored trajectory FALLING, score still high. The first
+  // post-deploy run must correct them immediately. (score.js supplies the
+  // real 3-day window from SQL; recentScores mirrors that here — an empty
+  // window would rebuild FLAT and hold one extra day by design.)
+  const s = stateFromRow({
+    date: d(0), score: 52, verdict: 'Peak', trajectory: 'FALLING',
+    recentScores: [54, 55, 56],
+  });
+  const next = nextTideState(s, { date: d(1), score: 50 });
+  assert.equal(next.verdict, 'Easing');
+  assert.equal(next.stage, 'Falling');
+});
+
+test('E13 — a high plateau HOLDS Peak (sitting at the crest is not a decline)', () => {
+  // Stall decay lands the trajectory on FLAT; crestHold keeps the verdict.
+  // Only a score decline (FALLING confirm, or dropping out of the band)
+  // ends a Peak — documented behaviour, not a bug.
+  const s = run([20, 35, 45, 45, 45, 45, 45]);
+  assert.equal(s.trajectory, 'FLAT');
+  assert.equal(s.verdict, 'Peak');
+  assert.equal(s.stage, 'High Tide');
 });
 
 test('E5 — new-cycle escape only from Low, with RISING, at ≥15', () => {
@@ -235,9 +296,11 @@ test('full cycle: Quiet → Rising → Peak → hold → Easing → Over → esc
     { score: 18, verdict: 'Rising' },
     { score: 30, verdict: 'Rising' },
     { score: 44, verdict: 'Peak' },     // global entry
-    { score: 38, verdict: 'Peak' },     // hold band
-    { score: 32, verdict: 'Peak' },     // hold band
-    { score: 24, verdict: 'Easing' },   // exit
+    { score: 38, verdict: 'Peak' },     // hold band, trajectory still RISING
+    { score: 32, verdict: 'Easing' },   // −5.3 vs window: FALLING confirms → exit
+                                        // (pre-2026-07 the score-only hold kept
+                                        // this day at Peak — the stale GO-NOW bug)
+    { score: 24, verdict: 'Easing' },
     { score: 12, verdict: 'Easing' },
     { score: 5, verdict: 'Over' },
     { score: 6, verdict: 'Over' },
@@ -248,7 +311,7 @@ test('full cycle: Quiet → Rising → Peak → hold → Easing → Over → esc
     s = nextTideState(s, { date: d(i), score });
     assert.equal(s.verdict, verdict, `day ${i} (score ${score}): expected ${verdict}, got ${s.verdict} [traj ${s.trajectory}]`);
   });
-  assert.equal(s.lastPeakDate, d(6), 'last day the verdict was Peak');
+  assert.equal(s.lastPeakDate, d(5), 'last day the verdict was Peak');
 });
 
 // ── Legacy loader (ADR-002 §4) ──────────────────────────────────────────────

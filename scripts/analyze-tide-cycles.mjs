@@ -1,24 +1,27 @@
 #!/usr/bin/env node
 // Read-only sale-cycle analysis over the recorded Tide Score history.
 //
-// The app has now stored full real sale cycles (climb → crest → decline) in
+// The app stores full real sale cycles (climb → crest → decline) in
 // centre_seer_scores. This script replays every centre's day-by-day scores
-// through the CURRENT stage rules (lib/tide-machine.js stageStep — parity
-// twin of score.js getTideStage) and through the PROPOSED trajectory-gated
-// High Tide hold, then reports where the stored "Peak" (GO NOW) verdict
-// outlived the crest — the owner-reported bug where a centre reads "Go now"
-// all the way down the far side of the tide.
+// through the COMMITTED stage rules (lib/tide-machine.js stageStep — parity
+// twin of score.js getTideStage; trajectory-gated High Tide hold since D18)
+// and through the LEGACY pre-D18 score-only hold, then reports where the
+// stored "Peak" (GO NOW) verdict outlived the crest — the owner-reported bug
+// (fixed by D18) where a centre read "Go now" all the way down the far side
+// of the tide. Diagnostic evidence for that fix and a permanent sanity check
+// for future verdict-rule changes.
 //
 // Per centre it prints the full timeline (date, score, stored trajectory /
-// verdict, replay-current, replay-proposed, divergence marker) plus:
+// verdict, replay-old (pre-D18 rule), replay-new (committed rules),
+// divergence marker) plus:
 //   M1  stored-Peak days past the crest while the score was declining
-//   M2  total Peak days: stored vs replay-current vs replay-proposed
-//   M3  Peak-ENTRY events (≈ peak-alert emails) current vs proposed
-//   M4  crest → first-Easing lag per High-Tide episode, current vs proposed
+//   M2  total Peak days: stored vs replay-old vs replay-new
+//   M3  Peak-ENTRY events (≈ peak-alert emails) old vs new
+//   M4  crest → first-Easing lag per High-Tide episode, old vs new
 //   M5  slow-drip episodes: score fell ≥5pts from crest with no FALLING day
 //       (decides whether an episode-max exit guard is needed)
 //   M6  deploy-day preview: centres whose LATEST stored verdict is Peak and
-//       what the proposed rule emits for that same day
+//       what the committed rules emit for that same day
 //
 // Usage: SUPABASE_URL=… SUPABASE_SERVICE_KEY=… node scripts/analyze-tide-cycles.mjs ["centre name filter"]
 // Needs outbound network + the service key — won't run in the dev sandbox
@@ -56,14 +59,11 @@ async function selectAllRows(buildQuery, pageSize = 1000) {
   return { data: out, error: null };
 }
 
-// ── Proposed rule: trajectory-gated High Tide hold ──────────────────────────
-// Identical to stageStep except T3 splits into three named predicates:
-//   T3a freshEntry — climb path crossing ENTER, any trajectory
-//   T3b crestHold  — in High Tide and NOT confirmed falling (plateau = crest)
-//   T3c reEntry    — from descent, needs ≥ENTER AND sustained RISING
-// A confirmed FALLING day in High Tide falls through to the descent branch
-// → Easing at any score. (Prototype; Phase 1 lands this in both machines.)
-function proposedStageStep(score, prevStage, traj, prevTraj, C = TIDE) {
+// ── Legacy (pre-D18) rule: score-only High Tide hold ────────────────────────
+// The committed rules (imported stageStep) are trajectory-gated since D18;
+// this inline copy keeps the OLD unconditional 40/30 hold so every run shows
+// the before/after — how many "Go now" days the amendment removes.
+function legacyStageStep(score, prevStage, traj, prevTraj, C = TIDE) {
   const wasHigh = prevStage === 'High Tide';
   const wasDescent = prevStage === 'Falling' || prevStage === 'Low';
   const localPeak = prevTraj === 'RISING' && traj !== 'RISING';
@@ -72,11 +72,7 @@ function proposedStageStep(score, prevStage, traj, prevTraj, C = TIDE) {
     if (wasHigh || wasDescent) return { stage: 'Low', verdict: 'Over' };
     return { stage: 'Turning', verdict: 'Quiet' };
   }
-  const holdHigh = score >= C.HIGH_TIDE_ENTER || (wasHigh && score >= C.HIGH_TIDE_EXIT);
-  const freshEntry = !wasHigh && !wasDescent;
-  const crestHold = wasHigh && traj !== 'FALLING';
-  const reEntry = wasDescent && traj === 'RISING';
-  if (holdHigh && (freshEntry || crestHold || reEntry)) {
+  if (score >= C.HIGH_TIDE_ENTER || (wasHigh && score >= C.HIGH_TIDE_EXIT)) {
     return { stage: 'High Tide', verdict: 'Peak' };
   }
   if (wasHigh || wasDescent) {
@@ -156,7 +152,7 @@ function pad(v, n) { return String(v ?? '—').padEnd(n); }
 
 // Pure helpers exported for the unit smoke test (the CLI entry below is
 // guarded, matching score.js's pattern, so importing never touches the DB).
-export { proposedStageStep, replay, findEpisodes, normVerdict, isPeakVerdict };
+export { legacyStageStep, replay, findEpisodes, normVerdict, isPeakVerdict };
 
 const isCliEntry = (() => {
   try { return import.meta.url === `file://${process.argv[1]}`; } catch { return false; }
@@ -189,14 +185,14 @@ if (isCliEntry) (async () => {
 
   const totals = {
     m1: 0,
-    peakDaysStored: 0, peakDaysCurrent: 0, peakDaysProposed: 0,
-    entriesCurrent: 0, entriesProposed: 0,
-    lagsCurrent: [], lagsProposed: [],
+    peakDaysStored: 0, peakDaysOld: 0, peakDaysNew: 0,
+    entriesOld: 0, entriesNew: 0,
+    lagsOld: [], lagsNew: [],
     m5: [], m6: [],
   };
 
   console.log(`Tide sale-cycle analysis — ${centres.length} centre(s), scores since ${SINCE} (today ${dateStr(0)})`);
-  console.log(`Rules: current = lib/tide-machine.js stageStep; proposed = trajectory-gated High Tide hold\n`);
+  console.log(`Rules: new = lib/tide-machine.js stageStep (trajectory-gated hold, D18); old = pre-D18 score-only hold\n`);
 
   for (const centre of centres) {
     const rows = rowsByCentre.get(centre.id) || [];
@@ -204,8 +200,8 @@ if (isCliEntry) (async () => {
       console.log(`── ${centre.name} (${centre.id}): only ${rows.length} scored day(s) — skipped\n`);
       continue;
     }
-    const cur = replay(rows, stageStep);
-    const prop = replay(rows, proposedStageStep);
+    const oldR = replay(rows, legacyStageStep);
+    const newR = replay(rows, stageStep);
     const eps = findEpisodes(rows);
 
     // M1: stored-Peak days past the crest — in-episode after the crest with a
@@ -232,15 +228,15 @@ if (isCliEntry) (async () => {
         }
         return null; // never exited within the window (or window ends)
       };
-      ep.lagCurrent = lagOf(cur);
-      ep.lagProposed = lagOf(prop);
-      if (ep.lagCurrent != null) totals.lagsCurrent.push(ep.lagCurrent);
-      if (ep.lagProposed != null) totals.lagsProposed.push(ep.lagProposed);
+      ep.lagOld = lagOf(oldR);
+      ep.lagNew = lagOf(newR);
+      if (ep.lagOld != null) totals.lagsOld.push(ep.lagOld);
+      if (ep.lagNew != null) totals.lagsNew.push(ep.lagNew);
       // M5: slow-drip — fell ≥5pts from crest, yet no replayed FALLING day in the span
       let minAfter = ep.crestScore, sawFalling = false;
       for (let i = ep.crestIdx + 1; i <= tailEnd; i++) {
         minAfter = Math.min(minAfter, rows[i].tide_score);
-        if (prop[i].traj === 'FALLING') sawFalling = true;
+        if (newR[i].traj === 'FALLING') sawFalling = true;
       }
       if (ep.crestScore - minAfter >= 5 && !sawFalling) {
         totals.m5.push({ centre: centre.name, crestDate: ep.crestDate, crestScore: ep.crestScore, minAfter });
@@ -253,16 +249,16 @@ if (isCliEntry) (async () => {
 
     totals.m1 += m1;
     totals.peakDaysStored += storedPeakDays;
-    totals.peakDaysCurrent += peakDays(cur);
-    totals.peakDaysProposed += peakDays(prop);
-    totals.entriesCurrent += entries(cur);
-    totals.entriesProposed += entries(prop);
+    totals.peakDaysOld += peakDays(oldR);
+    totals.peakDaysNew += peakDays(newR);
+    totals.entriesOld += entries(oldR);
+    totals.entriesNew += entries(newR);
 
     console.log(`── ${centre.name} (${centre.id}) — ${rows.length} days ──────────────────────────`);
-    console.log(pad('date', 12) + pad('score', 7) + pad('N/M', 8) + pad('traj*', 9) + pad('stored', 9) + pad('current', 9) + pad('proposed', 10) + 'flags');
+    console.log(pad('date', 12) + pad('score', 7) + pad('N/M', 8) + pad('traj*', 9) + pad('stored', 9) + pad('old', 9) + pad('new', 10) + 'flags');
     rows.forEach((r, i) => {
       const flags = [
-        prop[i].verdict !== normVerdict(r.verdict) ? 'CHANGED' : '',
+        newR[i].verdict !== normVerdict(r.verdict) ? 'CHANGED' : '',
         pastCrest.has(i) ? 'STALE-PEAK' : '',
         eps.some(e => e.crestIdx === i) ? '◆CREST' : '',
       ].filter(Boolean).join(' ');
@@ -270,19 +266,19 @@ if (isCliEntry) (async () => {
       console.log(
         pad(r.score_date, 12) + pad(r.tide_score, 7) +
         pad(`${r.brands_on_sale ?? '—'}/${r.total_brands ?? '—'}`, 8) +
-        pad(prop[i].traj + storedT, 9) +
-        pad(r.verdict, 9) + pad(cur[i].verdict, 9) + pad(prop[i].verdict, 10) + flags);
+        pad(newR[i].traj + storedT, 9) +
+        pad(r.verdict, 9) + pad(oldR[i].verdict, 9) + pad(newR[i].verdict, 10) + flags);
     });
     console.log(`  episodes(≥${TIDE.HIGH_TIDE_ENTER}): ${eps.length ? eps.map(e =>
-      `crest ${e.crestDate}@${e.crestScore}% (Peak→Easing lag current=${e.lagCurrent ?? '∞'}d proposed=${e.lagProposed ?? '∞'}d)`).join('; ') : 'none'}`);
-    console.log(`  M1 stale GO-NOW days (stored): ${m1}   M2 Peak days stored/current/proposed: ${storedPeakDays}/${peakDays(cur)}/${peakDays(prop)}   M3 Peak entries current/proposed: ${entries(cur)}/${entries(prop)}\n`);
+      `crest ${e.crestDate}@${e.crestScore}% (Peak→Easing lag old=${e.lagOld ?? '∞'}d new=${e.lagNew ?? '∞'}d)`).join('; ') : 'none'}`);
+    console.log(`  M1 stale GO-NOW days (stored): ${m1}   M2 Peak days stored/old/new: ${storedPeakDays}/${peakDays(oldR)}/${peakDays(newR)}   M3 Peak entries old/new: ${entries(oldR)}/${entries(newR)}\n`);
 
     // M6: deploy-day preview
     const last = rows[rows.length - 1], lastIdx = rows.length - 1;
     if (isPeakVerdict(last.verdict)) {
       totals.m6.push({
         centre: centre.name, date: last.score_date, score: last.tide_score,
-        storedTraj: last.trajectory, replayTraj: prop[lastIdx].traj, proposed: prop[lastIdx].verdict,
+        storedTraj: last.trajectory, replayTraj: newR[lastIdx].traj, committed: newR[lastIdx].verdict,
       });
     }
   }
@@ -290,14 +286,14 @@ if (isCliEntry) (async () => {
   const avg = a => a.length ? (a.reduce((x, y) => x + y, 0) / a.length).toFixed(1) : '—';
   console.log('════════ SUMMARY ════════');
   console.log(`M1 stored "Go now" days past a crest while declining: ${totals.m1}`);
-  console.log(`M2 Peak days — stored: ${totals.peakDaysStored}   replay-current: ${totals.peakDaysCurrent}   replay-proposed: ${totals.peakDaysProposed}`);
-  console.log(`M3 Peak-entry events (≈ alert emails) — current: ${totals.entriesCurrent}   proposed: ${totals.entriesProposed}`);
-  console.log(`M4 crest → first-Easing lag — current avg: ${avg(totals.lagsCurrent)}d (n=${totals.lagsCurrent.length})   proposed avg: ${avg(totals.lagsProposed)}d (n=${totals.lagsProposed.length})`);
+  console.log(`M2 Peak days — stored: ${totals.peakDaysStored}   replay-old: ${totals.peakDaysOld}   replay-new: ${totals.peakDaysNew}`);
+  console.log(`M3 Peak-entry events (≈ alert emails) — old: ${totals.entriesOld}   new: ${totals.entriesNew}`);
+  console.log(`M4 crest → first-Easing lag — old avg: ${avg(totals.lagsOld)}d (n=${totals.lagsOld.length})   new avg: ${avg(totals.lagsNew)}d (n=${totals.lagsNew.length})`);
   console.log(`M5 slow-drip episodes (fell ≥5pts from crest, no FALLING day): ${totals.m5.length}`);
   for (const e of totals.m5) console.log(`    ⚠ ${e.centre}: crest ${e.crestDate}@${e.crestScore}% → min ${e.minAfter}% with trajectory never FALLING`);
   console.log(`M6 centres whose LATEST stored verdict is Peak: ${totals.m6.length}`);
   for (const e of totals.m6) {
-    console.log(`    ${e.centre}: ${e.date} score ${e.score}% storedTraj=${e.storedTraj ?? '—'} replayTraj=${e.replayTraj} → proposed reads ${e.proposed}${e.proposed !== 'Peak' ? '  (corrects on first post-deploy run)' : ''}`);
+    console.log(`    ${e.centre}: ${e.date} score ${e.score}% storedTraj=${e.storedTraj ?? '—'} replayTraj=${e.replayTraj} → committed rules read ${e.committed}${e.committed !== 'Peak' ? '  (corrects on first post-deploy run)' : ''}`);
   }
   console.log('');
 })().catch(err => { console.error(err); process.exit(1); });

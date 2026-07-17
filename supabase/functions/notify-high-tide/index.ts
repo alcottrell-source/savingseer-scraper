@@ -14,9 +14,11 @@
 //      cycle's first day, and pct_changed_date only moves on a genuine %
 //      change — so a user gets at most one email per brand per event.
 //
-//   3. WEEKEND DIGEST — for every user with saved_centres, list each saved
-//      centre with its current stage. Only sent if at least one of their
-//      saved centres is at Rising or above (stages: Rising, High Tide).
+//   3. WEEKEND DIGEST — for every opted-in user: their saved centres with
+//      each one's stage. A week with ≥1 centre Rising+ gets the classic
+//      digest; an all-quiet week gets a light "quiet weekend" variant (was
+//      a silent skip); a user with no saved centres gets the national top-3
+//      with a save-your-own nudge (was silently skipped forever).
 //
 //   4. SEO-SIGNUP ALERTS — the accountless audience: emails captured by the
 //      opt-in forms on the static SEO pages (seo_alert_signups). Centre rows
@@ -25,8 +27,12 @@
 //      fire when any centre peaks. Every email carries a one-click
 //      /api/unsubscribe link (these people have no account or preferences).
 //
+//   5. SETUP NUDGE — one-time reminder for accounts 3-30 days old that never
+//      personalised (no follows, no saved centres): they're unreachable by
+//      every other pass. Sent once, marked by setup_nudged_at.
+//
 // Invocation modes (POST body):
-//   {}                   → daily run: passes 1 + 2 + 4, no digest
+//   {}                   → daily run: passes 1 + 2 + 4 + 5, no digest
 //   {"digestOnly":true}  → Friday 19:00 run: pass 3 only
 //   add "dryRun":true to either to preview without sending
 //
@@ -496,10 +502,35 @@ export function renderDigestEmail(opts: {
   dateLabel: string;
   highTideCount: number;
   centres: { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string; avgDiscount?: number | null; deepenedCount?: number }[];
+  // 'standard' = the user's saved centres with ≥1 at Rising or above (the
+  // original digest). 'quiet' = same centres, nothing Rising — a light
+  // touchpoint instead of the old silent skip. 'national' = the user saved
+  // no centres, so they get the country's strongest tides + a save nudge.
+  variant?: 'standard' | 'quiet' | 'national';
 }): { subject: string; html: string; text: string } {
   const { dateLabel, highTideCount, centres } = opts;
-  const subject = 'Your Tide briefing — this weekend';
-  const previewText = `${highTideCount} of your saved centres at High Tide or Rising. Here's the full picture.`;
+  const variant = opts.variant || 'standard';
+  const subject = variant === 'national'
+    ? 'Your Tide briefing — the national picture'
+    : variant === 'quiet'
+    ? 'Your Tide briefing — a quiet weekend'
+    : 'Your Tide briefing — this weekend';
+  const previewText = variant === 'national'
+    ? "You haven't saved a centre yet — here's how the country's tide looks this weekend."
+    : variant === 'quiet'
+    ? "Nothing peaking at your centres this weekend — here's where each one stands."
+    : `${highTideCount} of your saved centres at High Tide or Rising. Here's the full picture.`;
+  const heading = variant === 'national'
+    ? 'The national picture this weekend.'
+    : variant === 'quiet'
+    ? 'A quiet weekend on the tide.'
+    : "Here's how your centres are looking this weekend.";
+  // Trend-only copy — no recommendation language outside the high/peak lines.
+  const introLine = variant === 'national'
+    ? "You haven't saved a centre yet, so here are the strongest tides in the country right now. Save your own centres in Tide and this briefing becomes personal."
+    : variant === 'quiet'
+    ? "None of your centres are peaking right now. Here's where each one stands."
+    : '';
 
   // Depth fact line, only when the centre has a known average discount. The
   // deepened clause is omitted at zero so quiet cards stay quiet.
@@ -521,7 +552,8 @@ export function renderDigestEmail(opts: {
 
   const bodyHtml = `
     <div style="font-family:Georgia,serif;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:${STONE};margin:0 0 20px;font-style:italic">Friday, ${escapeHtml(dateLabel)}</div>
-    <div style="font-family:Georgia,serif;font-size:22px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">Here's how your centres are looking this weekend.</div>
+    <div style="font-family:Georgia,serif;font-size:22px;font-weight:600;color:${BARK};margin:0 0 12px;line-height:1.25">${escapeHtml(heading)}</div>
+    ${introLine ? `<p style="font-family:'DM Sans',Arial,sans-serif;font-size:14px;color:${STONE};line-height:1.6;margin:0 0 8px;max-width:440px">${escapeHtml(introLine)}</p>` : ''}
     <hr style="border:none;border-top:1px solid ${CREAM_DARK};margin:28px 0">
     ${cards}
     <a href="${APP_URL}" style="display:block;background:${BARK};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">Open Tide &rarr;</a>`;
@@ -529,13 +561,17 @@ export function renderDigestEmail(opts: {
   const html = baseEmailWrap({
     previewText,
     bodyHtml,
-    footerReason: "You're receiving this every Friday evening because you opted in to Tide's Weekend Digest. We only send it when at least one of your saved centres is Rising or above — so if it's in your inbox, it's worth a look. You can turn it off any time.",
+    // The old copy claimed "we only send it when at least one of your saved
+    // centres is Rising or above" — no longer true now quiet weeks send a
+    // light touchpoint, so the footer must not say it.
+    footerReason: "You're receiving this every Friday evening because you opted in to Tide's Weekend Digest. You can turn it off any time — it takes one tap.",
     unsubLabel: 'Weekend Digest',
   });
 
   const textLines = [
     `Friday, ${dateLabel}`,
-    "Here's how your centres are looking this weekend.",
+    heading,
+    ...(introLine ? [introLine] : []),
     '',
     ...centres.map(c => `${c.name} — ${c.stageLabel}\n  ${c.verdict}${depthLine(c, false) ? `\n  ${depthLine(c, false)}` : ''}${c.narrative ? `\n  ${c.narrative}` : ''}`),
     '',
@@ -543,6 +579,33 @@ export function renderDigestEmail(opts: {
   ];
 
   return { subject, html, text: textLines.join('\n') };
+}
+
+// One-time "finish setting up" reminder for users who signed up but never
+// personalised — every alert pass gates on saved centres / followed brands,
+// so without this they'd simply never hear from Tide again. Sent once (pass 5
+// stamps user_preferences.setup_nudged_at). LEAF hero — it's an invitation,
+// not a Peak signal; trend-only rules kept (no "go" language).
+export function renderSetupNudgeEmail(): { subject: string; html: string; text: string } {
+  const subject = 'Your Tide isn’t personal yet';
+  const previewText = 'Two minutes: pick the shops you actually buy and we’ll watch their sales for you.';
+
+  const bodyHtml = `
+    <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:${LEAF};margin:0 0 16px;line-height:1.25">Your Tide isn't personal yet.</div>
+    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 16px;max-width:420px">You created an account, but haven't picked the shops you actually buy. That's the whole trick: once Tide knows your shops and your centres, it emails you the day a sale starts, the day a discount cuts deeper, and the day your centre peaks.</p>
+    <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:${BARK};line-height:1.65;margin:0 0 32px;max-width:420px">It takes about two minutes.</p>
+    <a href="${APP_URL}" style="display:block;background:${LEAF};color:#FFFFFF;text-align:center;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;border-radius:2px;margin-top:32px;font-weight:500">Finish setting up &rarr;</a>`;
+
+  const html = baseEmailWrap({
+    previewText,
+    bodyHtml,
+    footerReason: "You're receiving this one-time reminder because you created a Tide account and haven't finished setting it up. We won't send it again.",
+    unsubLabel: 'account reminders',
+  });
+
+  const text = `Your Tide isn't personal yet.\n\nYou created an account, but haven't picked the shops you actually buy. Once Tide knows your shops and your centres, it emails you the day a sale starts, the day a discount cuts deeper, and the day your centre peaks. It takes about two minutes.\n\nFinish setting up: ${APP_URL}`;
+
+  return { subject, html, text };
 }
 
 function baseEmailWrap(opts: { previewText: string; bodyHtml: string; footerReason: string; unsubLabel: string; unsubUrl?: string }): string {
@@ -683,7 +746,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const log: { type: string; to?: string; centre?: string; brand?: string; brands?: string[]; kinds?: string[]; count?: number; status?: number; ok?: boolean; skipped?: string }[] = [];
-  let alertsSent = 0, brandAlertsSent = 0, digestsSent = 0, seoAlertsSent = 0;
+  let alertsSent = 0, brandAlertsSent = 0, digestsSent = 0, seoAlertsSent = 0, nudgesSent = 0;
   // email|centre_id pairs pass 1 addressed, so pass 4 never double-emails an
   // address that also has an account with the same centre saved.
   const peakEmailed = new Set<string>();
@@ -958,40 +1021,115 @@ Deno.serve(async (req: Request) => {
       }).length);
     }
   }
+  type DigestCard = { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string; avgDiscount: number | null; deepenedCount: number; score: number };
+  const buildDigestCard = (cid: string): DigestCard | null => {
+    const s = scoreByCentre.get(cid);
+    const name = centres.get(cid);
+    if (!s || !name) return null;
+    const bucket: DigestStage = stageBucket(stageFromVerdict(s.verdict));
+    const deepenedCount = deepenedAtCentre.get(cid) || 0;
+    // != null guard BEFORE coercion: +null is 0 (finite), which would
+    // render a no-percentages centre as a fake "Average discount 0%".
+    const avgDiscount = s.avg_discount_pct != null && Number.isFinite(+s.avg_discount_pct)
+      ? Math.round(+s.avg_discount_pct) : null;
+    return {
+      name,
+      stage: bucket,
+      stageLabel: stageLabelFor(bucket),
+      verdict: digestVerdictFor(bucket, deepenedCount > 0),
+      narrative: s.bluf || undefined,
+      avgDiscount,
+      deepenedCount,
+      score: Number(s.tide_score) || 0,
+    };
+  };
+  const byStageThenScore = (a: DigestCard, b: DigestCard) =>
+    stagePriority[a.stage] - stagePriority[b.stage] || b.score - a.score;
+  // The country's three strongest tides — the digest for users who opted in
+  // but saved no centres (they used to be silently skipped forever).
+  const nationalCards: DigestCard[] = digestOnly
+    ? scores.map(s => buildDigestCard(s.centre_id))
+        .filter((c): c is DigestCard => c !== null)
+        .sort(byStageThenScore)
+        .slice(0, 3)
+    : [];
   for (const p of (digestOnly ? allPrefs : [])) {
     if (p.daily_digest !== true) { log.push({ type: "digest", to: emailById.get(p.user_id), skipped: "daily_digest opt-out" }); continue; }
     const to = emailById.get(p.user_id);
     if (!to) continue;
-    const cards = p.saved_centres
-      .map(cid => {
-        const s = scoreByCentre.get(cid);
-        const name = centres.get(cid);
-        if (!s || !name) return null;
-        const bucket: DigestStage = stageBucket(stageFromVerdict(s.verdict));
-        const deepenedCount = deepenedAtCentre.get(cid) || 0;
-        // != null guard BEFORE coercion: +null is 0 (finite), which would
-        // render a no-percentages centre as a fake "Average discount 0%".
-        const avgDiscount = s.avg_discount_pct != null && Number.isFinite(+s.avg_discount_pct)
-          ? Math.round(+s.avg_discount_pct) : null;
-        return {
-          name,
-          stage: bucket,
-          stageLabel: stageLabelFor(bucket),
-          verdict: digestVerdictFor(bucket, deepenedCount > 0),
-          narrative: s.bluf || undefined,
-          avgDiscount,
-          deepenedCount,
-        };
-      })
-      .filter((r): r is { name: string; stage: DigestStage; stageLabel: string; verdict: string; narrative?: string; avgDiscount: number | null; deepenedCount: number } => r !== null)
-      .sort((a, b) => stagePriority[a.stage] - stagePriority[b.stage]);
+    let cards = p.saved_centres
+      .map(buildDigestCard)
+      .filter((r): r is DigestCard => r !== null)
+      .sort(byStageThenScore);
+    // Variant pick: saved centres with ≥1 Rising+ → the classic digest;
+    // saved centres all quiet → the light quiet-week touchpoint (this used
+    // to be a silent skip, which made a quiet week indistinguishable from a
+    // broken pipeline and left the user with zero contact); no saved centres
+    // at all → the national top-3 with a save-your-own nudge.
+    let variant: 'standard' | 'quiet' | 'national' = 'standard';
+    if (cards.length === 0) { variant = 'national'; cards = nationalCards; }
+    else if (!cards.some(c => c.stage === "high" || c.stage === "rising")) variant = 'quiet';
+    if (cards.length === 0) { log.push({ type: "digest", to, skipped: "no scored centres at all" }); continue; }
     const highTideCount = cards.filter(c => c.stage === "high" || c.stage === "rising").length;
-    if (highTideCount === 0) { log.push({ type: "digest", to, skipped: "no centre at Rising or above" }); continue; }
-    const { subject, html, text } = renderDigestEmail({ dateLabel, highTideCount, centres: cards });
-    if (dryRun) { log.push({ type: "digest", to, ok: true, skipped: "dryRun", brands: cards.map(c => `${c.name}: avg ${c.avgDiscount ?? '—'}, deepened ${c.deepenedCount}`) }); continue; }
+    const { subject, html, text } = renderDigestEmail({ dateLabel, highTideCount, centres: cards, variant });
+    if (dryRun) { log.push({ type: "digest", to, ok: true, skipped: `dryRun (${variant})`, brands: cards.map(c => `${c.name}: avg ${c.avgDiscount ?? '—'}, deepened ${c.deepenedCount}`) }); continue; }
     const result = await sendEmail(to, subject, html, text, RESEND_KEY!);
-    log.push({ type: "digest", to, ok: result.ok, status: result.status });
+    log.push({ type: "digest", to, centre: variant, ok: result.ok, status: result.status });
     if (result.ok) digestsSent++;
+  }
+
+  // 5. SETUP NUDGE. (daily run only) Users who signed up 3+ days ago but
+  //    never personalised are unreachable by every pass above (all gate on
+  //    saved_centres / brand_ids) — the sign-up was the last contact they'd
+  //    ever get. One reminder, once: setup_nudged_at is the sent marker,
+  //    upserted even for users with no user_preferences row. Window capped
+  //    at 30 days so the first deploy doesn't blast long-dormant accounts.
+  //    setup_nudged_at is read in its own query so a missing 20260717b
+  //    migration degrades to a logged skip, not a broken daily run.
+  const NUDGE_MIN_DAYS = 3, NUDGE_MAX_DAYS = 30;
+  if (!digestOnly) {
+    const nudgeMarksRes = await sb.from("user_preferences").select("user_id, setup_nudged_at");
+    if (nudgeMarksRes.error) {
+      log.push({ type: "nudge", skipped: `setup_nudged_at read failed (migration applied?): ${nudgeMarksRes.error.message}` });
+    } else {
+      const nudgedAt = new Map<string, string | null>(
+        (nudgeMarksRes.data || []).map((r: { user_id: string; setup_nudged_at: string | null }) => [r.user_id, r.setup_nudged_at]));
+      const prefsByUser = new Map<string, PrefsRow>(allPrefs.map(p => [p.user_id, p]));
+      // Page through all auth users — user_preferences only has rows for
+      // users who saved something, and the never-personalised are exactly
+      // the ones likely to have no row at all.
+      const authUsers: { id: string; email?: string; created_at?: string }[] = [];
+      for (let pageN = 1; pageN <= 5; pageN++) {
+        const { data, error } = await sb.auth.admin.listUsers({ page: pageN, perPage: 1000 });
+        if (error) { log.push({ type: "nudge", skipped: `listUsers failed: ${error.message}` }); break; }
+        const batch = data?.users || [];
+        authUsers.push(...batch);
+        if (batch.length < 1000) break;
+      }
+      for (const u of authUsers) {
+        if (!u.email || !u.created_at) continue;
+        const ageDays = (Date.now() - new Date(u.created_at).getTime()) / 86400000;
+        if (!isFinite(ageDays) || ageDays < NUDGE_MIN_DAYS || ageDays > NUDGE_MAX_DAYS) continue;
+        if (nudgedAt.get(u.id)) continue; // already reminded once
+        const p = prefsByUser.get(u.id);
+        const personalised = !!p && (
+          (p.brand_ids || []).length > 0 ||
+          (p.saved_centres || []).length > 0 ||
+          p.womenswear || p.menswear || p.childrenswear
+        );
+        if (personalised) continue;
+        const { subject, html, text } = renderSetupNudgeEmail();
+        if (dryRun) { log.push({ type: "nudge", to: u.email, ok: true, skipped: "dryRun" }); continue; }
+        const result = await sendEmail(u.email, subject, html, text, RESEND_KEY!);
+        log.push({ type: "nudge", to: u.email, ok: result.ok, status: result.status });
+        if (result.ok) {
+          nudgesSent++;
+          const upd = await sb.from("user_preferences")
+            .upsert({ user_id: u.id, setup_nudged_at: new Date().toISOString() }, { onConflict: "user_id" });
+          if (upd.error) log.push({ type: "nudge", to: u.email, skipped: `setup_nudged_at stamp failed: ${upd.error.message}` });
+        }
+      }
+    }
   }
 
   return new Response(JSON.stringify({
@@ -1003,6 +1141,7 @@ Deno.serve(async (req: Request) => {
     brandAlertsSent,
     digestsSent,
     seoAlertsSent,
+    nudgesSent,
     highTideCentres: highTideCentres.length,
     brandsStartedToday: alertBrands.filter(x => x.kind === 'started').length,
     brandsDeepenedToday: alertBrands.filter(x => x.kind === 'deepened').length,

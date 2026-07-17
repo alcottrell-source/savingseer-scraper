@@ -8,6 +8,13 @@
 <meta name="description" content="Tide tracks the brands you actually buy across UK shopping centres and tells you the day sales peak — so you never make a wasted trip to the shops.">
 <link rel="canonical" href="https://tidego.co/">
 <link rel="icon" href="/favicon.png" type="image/png">
+<!-- PWA manifest: makes the landing copy's "Add to Home Screen / Install App"
+     instruction actually true (installable, standalone, branded icon). No
+     service worker by design — offline caching is maintenance this project
+     doesn't need; installability doesn't require one. -->
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<meta name="theme-color" content="#FAF7F2">
 <!-- Open Graph / social preview. The SPA can't vary these per centre (crawlers
      don't run the JS that would swap them), so the homepage ships one static
      branded card; per-centre previews come from the static /centre/<slug> SEO
@@ -1391,6 +1398,20 @@ function openCookieSettings() {
   }
 })();
 
+// Consent-gated GA event — the single funnel-instrumentation helper. No-ops
+// without consent (never loads GA itself), so callers can fire-and-forget at
+// every funnel step: centre_selected → save_attempt_logged_out /
+// auth_modal_open → magic_link_sent → magic_link_return → onboarding_step /
+// onboarding_complete, plus alert_optin and report_submitted. Absolute counts
+// are biased by consent opt-in, but step-to-step drop-off ratios survive it.
+function trackEvent(name, params) {
+  try {
+    if (getConsent() === 'granted' && typeof window.gtag === 'function') {
+      window.gtag('event', name, params || {});
+    }
+  } catch (e) {}
+}
+
 // Some browser/extension combos hang on supabase-js's PostgREST calls while
 // raw fetch to the same endpoint works. Use raw fetch for table reads/writes
 // and keep supabase-js for auth + realtime where it's reliable.
@@ -1460,6 +1481,13 @@ sb.auth.onAuthStateChange(async (event, session) => {
   currentUser = session?.user ?? null;
   CURRENT_TOKEN = session?.access_token ?? null;
   if (currentUser) {
+    // The magic-link round-trip completed — the funnel step between
+    // magic_link_sent and here is the suspected biggest drop-off cliff.
+    // Once per page-load; consent persists in localStorage across the trip.
+    if (_tideFromAuthCallback && !window._tideMagicReturnTracked) {
+      window._tideMagicReturnTracked = true;
+      trackEvent('magic_link_return');
+    }
     await loadUserPrefs();
     document.getElementById('auth-btn').textContent = 'My Tide';
     hideNotifyBanner();
@@ -1473,6 +1501,13 @@ sb.auth.onAuthStateChange(async (event, session) => {
       const sel = document.getElementById('centre-select');
       if (sel && !sel.value) sel.value = pendingCentre;
       await saveCentreToUserPrefs(pendingCentre);
+    }
+    // Consume any logged-out "Alert me when {brand} goes on sale" taps —
+    // localStorage-only stubs until now, they become real followed-brand
+    // alerts the daily email pass delivers on. Defined in the shop-detail
+    // sheet IIFE; no-ops when nothing is pending.
+    if (typeof window.tideConsumePendingAlerts === 'function') {
+      try { await window.tideConsumePendingAlerts(); } catch(e) {}
     }
     // Consume a pending referral (?ref=<referrer-uid> stashed at page load).
     // Credit only on a genuine fresh sign-in this page-load (a real sign-up /
@@ -1650,6 +1685,7 @@ function authShowStep(step) {
 
 function openAuthModal() {
   clearAuthError(); clearAuthSuccess();
+  trackEvent('auth_modal_open');
   document.getElementById('auth-modal').style.display = 'flex';
   authShowStep('email');
 }
@@ -1732,6 +1768,7 @@ async function authMagicLink() {
     }
     return;
   }
+  trackEvent('magic_link_sent', { source: 'auth_modal' });
   authShowStep('magic');
 }
 
@@ -1920,6 +1957,7 @@ async function submitNotifySignup() {
     msg.style.display = 'block';
     return;
   }
+  trackEvent('magic_link_sent', { source: 'notify_banner' });
   msg.textContent = "Check your email — we've sent you a link to activate your alerts.";
   msg.style.display = 'block';
   emailEl.disabled = true;
@@ -2130,6 +2168,7 @@ function openOnboarding() {
     onb.email_alerts = true; onb.brand_sale_alerts = true; onb.daily_digest = false;
   }
   document.getElementById('ob').classList.add('visible');
+  window._tideObStepTracked = null; // re-arm the per-step funnel event
   obRender();
 }
 
@@ -2139,6 +2178,7 @@ function closeOnboarding() {
 
 function obSkip() {
   if (confirm('Skip personalisation? You can set this up any time from the My Tide menu.')) {
+    trackEvent('onboarding_skip', { step: onb.step });
     closeOnboarding();
   }
 }
@@ -2154,6 +2194,12 @@ function obSetProgress() {
 
 function obRender() {
   obSetProgress();
+  // Fire once per step ENTRY — obRender also re-runs on every pill toggle
+  // within a step, which must not inflate the step funnel.
+  if (window._tideObStepTracked !== onb.step) {
+    window._tideObStepTracked = onb.step;
+    trackEvent('onboarding_step', { step: onb.step });
+  }
   if (onb.step === 1) obRenderStep1();
   else if (onb.step === 2) obRenderStep2();
   else if (onb.step === 3) obRenderStep3();
@@ -2471,6 +2517,7 @@ async function obSave() {
   };
   const { error } = await pgUpsert('user_preferences', dbPayload, 'user_id');
   if (error) { alert('Could not save preferences: ' + error.message); return; }
+  trackEvent('onboarding_complete', { brands: brandIdsArr.length, centres: centresArr.length });
   userPrefs = { ...(userPrefs || {}), ...payload };
   closeOnboarding();
   // Payoff: if the user only picked one centre, take them straight there
@@ -3865,6 +3912,7 @@ function renderCentrePrefsNudge() {
 // Single entry point for navigating to a centre — keeps the picker, search
 // box, and renderCentre all in sync. Used by saved-centre cards and chips.
 function goToCentre(centreId) {
+  trackEvent('centre_selected', { centre: centreId });
   const sel = document.getElementById('centre-select');
   const search = document.getElementById('centre-search');
   if (sel) sel.value = centreId;
@@ -5457,7 +5505,17 @@ async function removeSavedCentre(cid) {
 // button flips without leaving the page.
 async function toggleSaveCentre(cid) {
   if (!cid) return;
-  if (!currentUser) { openAuthModal(); return; }
+  if (!currentUser) {
+    // Stash the centre so onAuthStateChange completes the save after the
+    // sign-in round-trip — same pending-save path submitNotifySignup uses.
+    try { localStorage.setItem('tide_pending_save_centre', cid); } catch(e) {}
+    trackEvent('save_attempt_logged_out', { centre: cid });
+    openAuthModal();
+    const idx = parseInt(String(cid).replace('C',''), 10) - 1;
+    const name = (typeof CENTRE_NAMES !== 'undefined' && CENTRE_NAMES[idx]) ? CENTRE_NAMES[idx] : 'this centre';
+    showAuthSuccess('Sign in and ' + name + ' is saved — we\'ll email you the day its tide peaks.');
+    return;
+  }
   if (!userPrefs) await loadUserPrefs();
   const existing = (userPrefs && Array.isArray(userPrefs.saved_centres)) ? userPrefs.saved_centres : [];
   if (existing.includes(cid)) {
@@ -6150,9 +6208,11 @@ async function renderCentre(centreId) {
     ? '<span class="centre-meta-dot"></span><span class="centre-location">'+location.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span>'
     : '';
   const isCentreSaved = !!(currentUser && userPrefs && Array.isArray(userPrefs.saved_centres) && userPrefs.saved_centres.includes(centreId));
-  const saveBtnHTML = currentUser
-    ? '<button class="save-centre-btn'+(isCentreSaved?' is-saved':'')+'" onclick="toggleSaveCentre(\''+centreId+'\')" aria-pressed="'+(isCentreSaved?'true':'false')+'">'+(isCentreSaved?'Saved &#10003;':'Save this centre')+'</button>'
-    : '';
+  // Rendered for EVERYONE. For logged-out visitors "Save this centre" is the
+  // most natural first commitment — hiding it left them no reason to sign up.
+  // toggleSaveCentre stashes the centre and opens the auth modal when there's
+  // no session, and the pending-save path completes the save after sign-in.
+  const saveBtnHTML = '<button class="save-centre-btn'+(isCentreSaved?' is-saved':'')+'" onclick="toggleSaveCentre(\''+centreId+'\')" aria-pressed="'+(isCentreSaved?'true':'false')+'">'+(isCentreSaved?'Saved &#10003;':'Save this centre')+'</button>';
   // Share button — for everyone (signed-in or not), it's the word-of-mouth loop.
   // Pre-resolve the share text + deep link here (slug == supabaseCentreId) and
   // stash on window so the click handler stays synchronous — iOS requires
@@ -6184,7 +6244,11 @@ async function renderCentre(centreId) {
     total: shareTotalN,
     location: location || '',
     verifiedLabel: verifiedLabelForCentre(centreIdx),
-    url: supabaseCentreId ? 'https://tidego.co/?centre=' + encodeURIComponent(supabaseCentreId) : 'https://tidego.co/',
+    // Share the static /centre/<slug> page, not the ?centre= SPA form: crawlers
+    // don't run the SPA's JS, so a shared ?centre= link previews as the generic
+    // homepage card, while the pre-rendered page carries this centre's own
+    // title/description. The static page links straight back into the app.
+    url: supabaseCentreId ? 'https://tidego.co/centre/' + encodeURIComponent(supabaseCentreId) : 'https://tidego.co/',
     slug: supabaseCentreId || null,
   };
   const shareBtnHTML = '<button class="share-centre-btn" onclick="shareCentre()" aria-label="Share this centre">'
@@ -6725,6 +6789,21 @@ document.addEventListener('visibilitychange', () => {
     return true;
   }
 
+  // Consume logged-out "Alert me" intents on sign-in: each name saved to
+  // localStorage while anonymous becomes a real followed brand, so the daily
+  // brand-sale email pass actually delivers what the button promised. Called
+  // from onAuthStateChange; names that fail (unknown brand, network) stay in
+  // the set and retry on the next signed-in event.
+  window.tideConsumePendingAlerts = async function(){
+    if(!(typeof currentUser !== 'undefined' && currentUser)) return;
+    const s = watchSet();
+    if(!s.size) return;
+    for(const name of [...s]){
+      try { if(await followBrandForAlerts(name)) s.delete(name); } catch {}
+    }
+    try { localStorage.setItem(ALERT_KEY, JSON.stringify([...s])); } catch {}
+  };
+
   // ── Chart window: a fixed trailing 6 months (current month + the previous
   //    five), so the axis always shows six equal, named month columns. Sales
   //    that end before the window are clipped (the caption flags it). Returns
@@ -7028,6 +7107,7 @@ document.addEventListener('visibilitychange', () => {
     const btn = e.target.closest('[data-ts-alert]');
     if(!btn || btn.hasAttribute('data-watching')) return;
     const name = btn.getAttribute('data-ts-alert');
+    trackEvent('alert_optin', { brand: name, signed_in: !!(typeof currentUser !== 'undefined' && currentUser) });
     const note = btn.nextElementSibling;
     const setNote = (txt, html) => { if(note && note.classList.contains('ts-cta-note')){ if(html) note.innerHTML = txt; else note.textContent = txt; } };
     if((typeof currentUser !== 'undefined') && currentUser){
@@ -7164,6 +7244,7 @@ document.addEventListener('visibilitychange', () => {
       }
       return { ok: false, reason: 'unknown', error };
     }
+    trackEvent('report_submitted', { brand: ctx.brandName || '', type: reportType });
     return { ok: true };
   }
 

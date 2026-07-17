@@ -11,6 +11,16 @@ on:
         description: 'Optional centre-name substring filter (empty = all active centres)'
         required: false
         default: ''
+  # workflow_dispatch alone is not registered by GitHub until the file reaches
+  # the default branch, so the analysis branch also runs it on push — scoped to
+  # the files whose changes alter the replay's result.
+  push:
+    branches: [claude/sales-cycle-data-analysis-2py6ni]
+    paths:
+      - scripts/analyze-tide-cycles.mjs
+      - .github/workflows/analyze-tide-cycles.yml
+      - lib/tide-machine.js
+      - score.js
 
 jobs:
   analyze:

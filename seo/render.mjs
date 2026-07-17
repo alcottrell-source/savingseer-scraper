@@ -271,6 +271,11 @@ window.__tideOptIn = async function(form, ctx){
 </script>
 </body></html>`;
 
+// Signups are DELIVERED by notify-high-tide's pass 4 (centre rows fire the
+// day the centre enters Peak; brand rows the day the brand's sale starts;
+// ctx.centre 'blog' rows when any centre peaks) and every email carries a
+// one-click /api/unsubscribe link — so this promise is kept, keep it honest.
+// ctx.centre must never be null: centre_slug is NOT NULL, the insert 400s.
 function optInBlock(label, ctx) {
   return `<div class="optin">
 <h2>Alert me when ${escapeHtml(label)} hits peak</h2>
@@ -469,7 +474,7 @@ export function renderBlogIndex(posts, { origin, supabase }) {
 <p class="muted">When UK shopping centres go on sale, what the Tide Score means, and how to catch the peak, not the start.</p>
 ${list}
 
-${optInBlock('the Tide blog', { centre: null, brand: null, label: 'the Tide blog' })}
+${optInBlock('the tide', { centre: 'blog', brand: null, label: 'the tide' })}
 
 <h2>Track a centre live</h2>
 <p class="muted">Every guide here is backed by Tide's live, admin-verified sale tracker. <a href="${origin}/">See today's scores →</a></p>
@@ -526,7 +531,7 @@ ${post.hero ? `<img class="post-hero" src="${escapeHtml(post.hero)}" alt="${esca
 </article>
 ${relatedBlock}
 
-${optInBlock('the Tide blog', { centre: null, brand: null, label: 'the Tide blog' })}
+${optInBlock('the tide', { centre: 'blog', brand: null, label: 'the tide' })}
 ${moreBlock}
 <script type="application/ld+json">${JSON.stringify(blogPostingLd)}</script>
 <script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>

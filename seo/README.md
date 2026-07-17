@@ -50,7 +50,12 @@ npm run seo:sample      # writes pages to .seo-sample/ from fixtures
 Open `.seo-sample/centre/westquay-southampton/index.html` in a browser.
 
 ## Go-live checklist (production)
-1. Run the signup-table migration: `supabase/migrations/20260603_add_seo_alert_signups.sql`.
+1. Run the signup-table migration: `supabase/migrations/20260603_add_seo_alert_signups.sql`,
+   then the delivery migration `supabase/migrations/20260717_seo_alert_delivery.sql`
+   (adds `last_notified_at` + `unsub_token`). Signups are DELIVERED by
+   `notify-high-tide` pass 4 — centre rows the day the centre enters Peak, brand
+   rows the day the brand's sale starts, blog rows when any centre peaks — with a
+   one-click unsubscribe served by `api/unsubscribe.js`.
 2. In the Vercel project, ensure env vars exist: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
    (already used by `api/rescore.js`) **and add `SUPABASE_ANON_KEY`** (needed by the
    in-page opt-in). Optionally `SEO_ORIGIN` (defaults to `https://tidego.co`).

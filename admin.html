@@ -304,6 +304,63 @@
     line-height: 1.5; max-height: 220px; overflow-y: auto;
   }
   .caption-box:empty::before { content: 'Loading…'; color: var(--stone); font-style: italic; }
+
+  /* ── Sale history tab ───────────────────────────────────────────────────
+     Deliberately mirrors the customer shop-detail sheet in index.html
+     (ts-* classes): same navy/gold/cream palette, same rhythm chart and
+     "Every sale on record" row anatomy — plus the admin-only merge control
+     that sits on the divider between two adjacent entries. */
+  .th-pickwrap { padding: 0 20px 14px; }
+  .th-pick { max-width: 340px; margin-bottom: 0; }
+  .th-card {
+    background: white; border: 1px solid var(--border); border-radius: 16px;
+    margin: 0 20px 24px; padding: 20px 18px; color: #1C2A45;
+  }
+  .th-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 18px; }
+  .th-name { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; }
+  .th-stage { font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .th-stage i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: currentColor; }
+  .th-seclabel { font-size: 10.5px; font-weight: 600; letter-spacing: 1.4px; color: #9A9CA3; text-transform: uppercase; margin: 0 0 14px; }
+  .th-svg { width: 100%; height: auto; display: block; }
+  .th-legend { display: flex; gap: 16px; margin-top: 13px; flex-wrap: wrap; }
+  .th-legend i { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #5A6175; font-style: normal; }
+  .th-legend i b { width: 13px; height: 9px; border-radius: 3px; display: inline-block; }
+  .th-foot { font-size: 11.5px; color: #9A9CA3; margin-top: 11px; }
+  .th-receipts { margin-top: 26px; }
+  .th-hint { font-size: 11.5px; color: #9A9CA3; margin: -8px 0 6px; }
+  .th-sale { padding: 15px 10px; margin: 0 -10px; border-bottom: 1px solid #ECE4D6; cursor: pointer; border-radius: 12px; }
+  .th-sale:last-child { border-bottom: 0; }
+  .th-sale.selected { background: var(--amber-lt); box-shadow: inset 0 0 0 1.5px rgba(188,138,46,0.5); border-bottom-color: transparent; }
+  .th-check {
+    width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+    border: 1.5px solid #C9CBD0; display: inline-block; vertical-align: -2px;
+    margin-right: 10px; transition: border 0.12s, background 0.12s;
+  }
+  .th-sale.selected .th-check { border-color: #BC8A2E; background: #BC8A2E; box-shadow: inset 0 0 0 3px var(--amber-lt); }
+  .th-saletop { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .th-dates { font-size: 15px; font-weight: 500; }
+  .th-livetag { font-size: 10px; font-weight: 700; letter-spacing: .6px; color: #fff; background: #BC8A2E; padding: 2px 7px; border-radius: 5px; margin-left: 8px; vertical-align: middle; }
+  .th-pct { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; white-space: nowrap; }
+  .th-bar { height: 7px; border-radius: 99px; background: #EDE6D9; margin-top: 11px; overflow: hidden; }
+  .th-bar span { display: block; height: 100%; border-radius: 99px; background: #C9CBD0; }
+  .th-sale.live .th-bar span { background: #BC8A2E; }
+  .th-len { font-size: 12px; color: #5A6175; margin-top: 8px; display: flex; justify-content: space-between; gap: 10px; }
+  .th-len em { font-style: normal; color: #9A9CA3; }
+  .th-empty { padding: 18px 0; font-size: 13px; color: #9A9CA3; font-style: italic; }
+
+  /* Merge bar: appears once two entries are selected, above the list. */
+  .th-mergebar {
+    background: var(--amber-lt); border: 1px solid rgba(188,138,46,0.30);
+    border-radius: 10px; padding: 12px; margin: 0 0 14px;
+    font-size: 12.5px; color: #1C2A45; line-height: 1.5;
+  }
+  .th-mergebar b { color: #BC8A2E; }
+  .th-mergebar.blocked { background: var(--stone-lt); border-color: var(--border); color: #5A6175; }
+  .th-merge-warn { margin-top: 6px; font-size: 12px; color: #B84C3A; }
+  .th-merge-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .th-merge-actions .btn { width: auto; flex: 1; margin-top: 0; padding: 9px; font-size: 13px; }
+  .th-merge-actions .btn-gold { background: #BC8A2E; color: white; }
+  .th-merge-actions .btn-gold:hover:not(:disabled) { background: #a8791f; }
 </style>
 </head>
 <body>
@@ -342,6 +399,7 @@
   <div class="tab-nav" id="tab-nav">
     <button class="tab-btn active" data-tab="queue" id="tabbtn-queue" type="button">Review queue</button>
     <button class="tab-btn" data-tab="insights" id="tabbtn-insights" type="button">Insights</button>
+    <button class="tab-btn" data-tab="history" id="tabbtn-history" type="button">Sale history</button>
   </div>
 
   <div id="panel-queue">
@@ -411,6 +469,14 @@
     </div>
     <div class="caption-box" id="caption-box"></div>
   </div>
+
+  <div id="panel-history" style="display:none">
+    <div class="insight-intro">Every verified sale for one shop, exactly as shoppers see it. If you mistakenly ended a sale one day and re-confirmed it as a new one the next, select the two entries and merge them into a single continuous sale — the rhythm chart and dates then read true.</div>
+    <div class="th-pickwrap">
+      <select id="history-brand" class="input th-pick"><option value="">Choose a shop…</option></select>
+    </div>
+    <div id="history-mount"></div>
+  </div>
 </main>
 
 <div id="toast" class="toast"></div>
@@ -418,6 +484,7 @@
 <script type="module">
 import { createClient } from '@supabase/supabase-js';
 import { brands as BRAND_DEFS } from './brands.js';
+import { computeMergedCycle, mergeGapDays } from './lib/merge-cycles.js';
 
 // ── Supabase client (anon key — RLS does the gating) ───────────────────────
 const SUPABASE_URL = 'https://vrezzwadwzrmumjpdgge.supabase.co';
@@ -1041,6 +1108,7 @@ function renderConfirmedNote(review, cycle) {
     edited:          'Edited',
     deleted:         'Cycle deleted',
     increased:       'Sale increased' + (review.notes ? ' (' + review.notes + ')' : ''),
+    merged:          'Merged sale cycles' + (review.notes ? ' (' + review.notes + ')' : ''),
   }[review.action] || review.action;
   const time = new Date(review.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   // Every confirmed shop gets an Edit affordance. With a live cycle, Edit opens
@@ -1196,7 +1264,9 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   $('panel-queue').style.display = tab === 'queue' ? '' : 'none';
   $('panel-insights').style.display = tab === 'insights' ? '' : 'none';
+  $('panel-history').style.display = tab === 'history' ? '' : 'none';
   if (tab === 'insights') renderInsights();
+  if (tab === 'history') initHistoryTab();
 }
 
 // ── Insights tab — marketing snapshot for social posts ──────────────────────
@@ -1879,6 +1949,321 @@ async function logReview(brandId, action, cycleId, notes) {
     'brand_id,reviewed_date'
   );
   if (error) throw error;
+}
+
+// ── Sale history tab — customer-look per-shop view + cycle merge ──────────
+// Mirrors the shopper-facing shop detail sheet (index.html's ts-* sheet:
+// rhythm chart + "Every sale on record"), with one admin-only power: select
+// two back-to-back entries and merge them into a single continuous sale.
+// That fixes the operator mistake of ending a sale one day and re-confirming
+// it as a "new" one the next — two rows for what was really one sale, which
+// made the rhythm chart dip-and-recover and the dates read wrong.
+let HISTORY_BRAND = null;        // brand id currently shown
+let HISTORY_CYCLES = [];         // that brand's cycles (raw rows), newest-first
+let HISTORY_ACTIVE_CYCLE = null; // brand_sale_events.active_cycle_id
+const HISTORY_SELECTED = [];     // selected cycle ids, oldest selection first (max 2)
+
+function initHistoryTab() {
+  const sel = $('history-brand');
+  if (!sel.dataset.filled) {
+    sel.dataset.filled = '1';
+    sel.insertAdjacentHTML('beforeend',
+      BRAND_DEFS.slice().sort((a, b) => a.name.localeCompare(b.name))
+        .map(b => '<option value="' + esc(b.id) + '">' + esc(b.name) + '</option>').join(''));
+    sel.addEventListener('change', () => {
+      HISTORY_SELECTED.length = 0;
+      loadHistory(sel.value || null);
+    });
+    $('history-mount').addEventListener('click', onHistoryClick);
+  }
+  if (HISTORY_BRAND) loadHistory(HISTORY_BRAND);  // refresh stale data on re-visit
+}
+
+async function loadHistory(brandId) {
+  HISTORY_BRAND = brandId;
+  const mount = $('history-mount');
+  if (!brandId) { mount.innerHTML = ''; return; }
+  mount.innerHTML = '<div class="empty-section">Loading…</div>';
+  const [cyclesRes, evRes] = await Promise.all([
+    pg.read('brand_sale_cycles?select=id,brand_id,start_date,end_date,max_discount_pct,sale_type,description,pct_changed_date,prior_discount_pct'
+      + '&brand_id=eq.' + encodeURIComponent(brandId) + '&order=start_date.desc'),
+    pg.read('brand_sale_events?select=active_cycle_id&brand_id=eq.' + encodeURIComponent(brandId)),
+  ]);
+  if (cyclesRes.error) {
+    mount.innerHTML = '<div class="empty-section">Could not load sale history: ' + esc(cyclesRes.error.message) + '</div>';
+    return;
+  }
+  HISTORY_CYCLES = cyclesRes.data || [];
+  HISTORY_ACTIVE_CYCLE = ((evRes.data || [])[0] || {}).active_cycle_id || null;
+  // Drop selections that no longer exist (post-merge reload).
+  for (let i = HISTORY_SELECTED.length - 1; i >= 0; i--) {
+    if (!HISTORY_CYCLES.some(c => c.id === HISTORY_SELECTED[i])) HISTORY_SELECTED.splice(i, 1);
+  }
+  renderHistory();
+}
+
+function historyEpisodes() {
+  return HISTORY_CYCLES.map(c => {
+    const live = c.end_date == null;
+    const len = live
+      ? daysSince(c.start_date)
+      : Math.floor((new Date(c.end_date) - new Date(c.start_date)) / 86400000) + 1;
+    return { id: c.id, start: c.start_date, end: c.end_date, live, pct: c.max_discount_pct, lengthDays: len, cycle: c };
+  });
+}
+
+function fmtDay(s) {
+  if (!s) return '';
+  return new Date(s + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+function epRange(ep) {
+  if (ep.live) return fmtDay(ep.start) + ' – today';
+  const a = new Date(ep.start + 'T12:00:00'), b = new Date(ep.end + 'T12:00:00');
+  if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) {
+    return a.getDate() + ' – ' + fmtDay(ep.end);
+  }
+  return fmtDay(ep.start) + ' – ' + fmtDay(ep.end);
+}
+function epLen(ep) {
+  const u = ep.lengthDays === 1 ? 'day' : 'days';
+  return ep.live ? (ep.lengthDays + ' ' + u + ' so far') : (ep.lengthDays + ' ' + u);
+}
+
+function renderHistory() {
+  const mount = $('history-mount');
+  const def = BRAND_BY_ID[HISTORY_BRAND];
+  if (!def) { mount.innerHTML = ''; return; }
+  const eps = historyEpisodes();
+  const liveEp = eps.find(e => e.live) || null;
+  const pcts = eps.map(e => e.pct).filter(p => p != null);
+  const deepest = pcts.length ? Math.max.apply(null, pcts) : null;
+
+  const stageLabel = liveEp ? 'On sale' : (eps.length ? 'Resting' : 'Watching');
+  const stageColor = liveEp ? '#6E8E63' : '#9A9CA3';
+
+  let html = '<div class="th-card">'
+    + '<div class="th-head"><div class="th-name">' + esc(def.name) + '</div>'
+    + '<div class="th-stage" style="color:' + stageColor + '"><i></i>' + stageLabel + '</div></div>';
+
+  if (eps.length) {
+    html += '<div class="th-rhythm"><div class="th-seclabel">Sale rhythm</div>'
+      + thRhythmSVG(eps, deepest)
+      + '<div class="th-legend"><i><b style="background:#BC8A2E;opacity:.45"></b>Earlier sales</i>'
+      + (liveEp ? '<i><b style="background:#BC8A2E"></b>On now</i>' : '') + '</div>'
+      + '<div class="th-foot">Each block is a sale — its width is how long it ran, its height how deep.</div></div>';
+  }
+
+  html += '<div class="th-receipts"><div class="th-seclabel">Every sale on record</div>';
+  if (eps.length >= 2) {
+    html += '<div class="th-hint">Select two back-to-back sales to merge them into one.</div>';
+  }
+  html += renderMergeBar(eps);
+  if (!eps.length) {
+    html += '<div class="th-empty">No sales recorded yet.</div>';
+  } else {
+    html += eps.map(ep => {
+      const selected = HISTORY_SELECTED.includes(ep.id);
+      const pctDisp = ep.pct != null ? ep.pct + '%' : (ep.live ? 'On sale' : '&mdash;');
+      const barW = (ep.pct != null && deepest) ? Math.round(ep.pct / deepest * 100) : 0;
+      const footRight = ep.pct != null ? 'up to ' + ep.pct + '% off' : (ep.live ? 'live now' : 'no % recorded');
+      return '<div class="th-sale' + (ep.live ? ' live' : '') + (selected ? ' selected' : '') + '" data-cycle-id="' + esc(ep.id) + '">'
+        + '<div class="th-saletop"><div class="th-dates"><span class="th-check"></span>' + epRange(ep)
+        + (ep.live ? '<span class="th-livetag">LIVE</span>' : '') + '</div>'
+        + '<div class="th-pct">' + pctDisp + '</div></div>'
+        + '<div class="th-bar"><span style="width:' + barW + '%"></span></div>'
+        + '<div class="th-len"><span>' + epLen(ep) + '</span><em>' + footRight + '</em></div>'
+        + '</div>';
+    }).join('');
+  }
+  html += '</div></div>';
+  mount.innerHTML = html;
+}
+
+// The merge bar sits above the list once two entries are selected. Adjacent
+// pair → preview of the single sale they become (+ a warning when the two
+// discounts differ — the merge keeps the deeper one). Non-adjacent → blocked.
+function renderMergeBar(eps) {
+  if (HISTORY_SELECTED.length !== 2) return '<div id="th-mergebar-mount"></div>';
+  const iA = eps.findIndex(e => e.id === HISTORY_SELECTED[0]);
+  const iB = eps.findIndex(e => e.id === HISTORY_SELECTED[1]);
+  if (iA < 0 || iB < 0) return '<div id="th-mergebar-mount"></div>';
+  if (Math.abs(iA - iB) !== 1) {
+    return '<div class="th-mergebar blocked" id="th-mergebar-mount">Only two back-to-back sales can be merged — there’s another sale between these two.'
+      + '<div class="th-merge-actions"><button class="btn" id="th-merge-clear" style="background:var(--stone-lt);color:var(--bark)">Clear selection</button></div></div>';
+  }
+  const a = eps[iA].cycle, b = eps[iB].cycle;
+  const { earlier, later, live, update } = computeMergedCycle(a, b);
+  const merged = { start: earlier.start_date, end: update.end_date, live };
+  const gap = mergeGapDays(earlier, later);
+  const gapPhrase = gap == null || gap <= 0 ? 'The two entries overlap.'
+    : gap === 1 ? 'The sale restarted the very next day.'
+    : 'There’s a ' + (gap - 1) + '-day gap between them.';
+  const pctA = earlier.max_discount_pct, pctB = later.max_discount_pct;
+  const pctWarn = (pctA != null && pctB != null && pctA !== pctB)
+    ? '<div class="th-merge-warn">These sales have different discounts (' + pctA + '% and ' + pctB + '%) — the merged sale keeps the deeper ' + update.max_discount_pct + '%.</div>'
+    : '';
+  return '<div class="th-mergebar" id="th-mergebar-mount">' + gapPhrase
+    + ' Merging makes them one sale: <b>' + epRange(merged) + (update.max_discount_pct != null ? ' · up to ' + update.max_discount_pct + '% off' : '') + '</b>.'
+    + pctWarn
+    + '<div class="th-merge-actions">'
+    + '<button class="btn btn-gold" id="th-merge-go">Merge into one sale</button>'
+    + '<button class="btn" id="th-merge-clear" style="background:var(--stone-lt);color:var(--bark)">Cancel</button>'
+    + '</div></div>';
+}
+
+function onHistoryClick(e) {
+  if (e.target.closest('#th-merge-clear')) {
+    HISTORY_SELECTED.length = 0;
+    renderHistory();
+    return;
+  }
+  if (e.target.closest('#th-merge-go')) {
+    runMerge();
+    return;
+  }
+  const row = e.target.closest('.th-sale[data-cycle-id]');
+  if (!row) return;
+  const id = row.dataset.cycleId;
+  const at = HISTORY_SELECTED.indexOf(id);
+  if (at >= 0) HISTORY_SELECTED.splice(at, 1);
+  else {
+    HISTORY_SELECTED.push(id);
+    if (HISTORY_SELECTED.length > 2) HISTORY_SELECTED.shift();  // replace the oldest pick
+  }
+  renderHistory();
+}
+
+async function runMerge() {
+  const a = HISTORY_CYCLES.find(c => c.id === HISTORY_SELECTED[0]);
+  const b = HISTORY_CYCLES.find(c => c.id === HISTORY_SELECTED[1]);
+  if (!a || !b) return;
+  const brandId = HISTORY_BRAND;
+  const def = BRAND_BY_ID[brandId];
+  $('history-mount').querySelectorAll('button').forEach(btn => btn.disabled = true);
+  try {
+    await mergeCycles(brandId, a, b);
+    triggerRescore();
+    HISTORY_SELECTED.length = 0;
+    toast('Merged into one sale · ' + def.name);
+    await loadHistory(brandId);
+    // The queue card + insights read the open cycle — refresh them too.
+    loadAndRender().catch(err => console.warn('queue refresh after merge failed:', err));
+  } catch (err) {
+    showStatus('Merge failed: ' + err.message, true);
+    await loadHistory(brandId);
+  }
+}
+
+// The DB sequence matters:
+//   1. Repoint brand_sale_events.active_cycle_id away from the row being
+//      deleted (its FK is ON DELETE SET NULL — deleting first would leave the
+//      brand momentarily "not on sale" and lose the pointer).
+//   2. Delete the later row BEFORE re-opening the survivor, so the
+//      one-open-cycle-per-brand unique index never sees two open cycles.
+//   3. Rewrite the surviving (earlier) cycle with the merged span. Its id and
+//      start_date are untouched — the sale's true origin — so the one-shot
+//      brand-sale "started today" alert cannot re-arm.
+async function mergeCycles(brandId, rowA, rowB) {
+  const { earlier, later, live, update } = computeMergedCycle(rowA, rowB);
+  if (live) {
+    const { error } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, {
+      active_cycle_id: earlier.id,
+      max_discount_pct: update.max_discount_pct,
+      sale_type: update.sale_type,
+      last_verified_status: true,
+      last_verified_date: TODAY,
+    });
+    if (error) throw error;
+  } else if (HISTORY_ACTIVE_CYCLE === later.id) {
+    // Shouldn't happen (a closed cycle as active), but never let the delete
+    // silently null the pointer — keep it on the surviving row.
+    const { error } = await pg.update('brand_sale_events', 'brand_id=eq.' + brandId, { active_cycle_id: earlier.id });
+    if (error) throw error;
+  }
+  const { error: dErr } = await pg.delete('brand_sale_cycles', 'id=eq.' + later.id);
+  if (dErr) throw dErr;
+  const { error: uErr } = await pg.update('brand_sale_cycles', 'id=eq.' + earlier.id, update);
+  if (uErr) throw uErr;
+  const mergedLabel = epRange({ start: earlier.start_date, end: update.end_date, live });
+  const note = epRange({ start: earlier.start_date, end: earlier.end_date, live: earlier.end_date == null })
+    + ' + ' + epRange({ start: later.start_date, end: later.end_date, live: later.end_date == null })
+    + ' → ' + mergedLabel;
+  await logReview(brandId, 'merged', earlier.id, note);
+}
+
+// ── Tide-rhythm SVG — ported from the customer sheet (index.html rhythmSVG):
+//    six equal-width month columns, gold blocks whose width spans the sale's
+//    real dates and whose height encodes discount depth, "now" marker.
+function thRhythmSVG(eps, deepest) {
+  const W = 350, padX = 14, minW = 10;
+  const GOLD = '#BC8A2E';
+  const trackTop = 22, trackH = 36, cy = trackTop + trackH / 2, trackBot = trackTop + trackH, minBH = 14, maxBH = 30;
+  const MONTHS = 6;
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const start = new Date(end.getFullYear(), end.getMonth() - (MONTHS - 1), 1);
+  const startMs = start.getTime();
+  const endMs = e => (e.live ? end.getTime() : new Date(e.end + 'T12:00:00').getTime());
+  const shown = eps.filter(e => endMs(e) >= startMs);
+  const denom = deepest || 50;
+
+  const firstY = start.getFullYear(), firstM = start.getMonth();
+  const months = []; let yy = firstY, mm = firstM, g = 0;
+  while ((yy < end.getFullYear() || (yy === end.getFullYear() && mm <= end.getMonth())) && g++ < 24) {
+    months.push({ y: yy, m: mm }); mm++; if (mm > 11) { mm = 0; yy++; }
+  }
+  const n = months.length || 1;
+  const x0 = padX, drawW = W - 2 * padX, colW = drawW / n;
+  const dim = (y, m) => new Date(y, m + 1, 0).getDate();
+  const mIdx = d => (d.getFullYear() - firstY) * 12 + (d.getMonth() - firstM);
+  const Xd = d => {
+    let x = x0 + (mIdx(d) + (d.getDate() - 1) / dim(d.getFullYear(), d.getMonth())) * colW;
+    if (x < x0) x = x0; if (x > x0 + drawW) x = x0 + drawW; return x;
+  };
+
+  const track = '<rect x="' + x0 + '" y="' + trackTop + '" width="' + drawW.toFixed(1) + '" height="' + trackH + '" rx="10" fill="#F1EAD9"/>';
+  let grid = '';
+  for (let i = 1; i < n; i++) {
+    const cx = x0 + i * colW;
+    grid += '<line x1="' + cx.toFixed(1) + '" y1="' + trackTop + '" x2="' + cx.toFixed(1) + '" y2="' + trackBot + '" stroke="#E7DDC8" stroke-width="1"/>';
+  }
+  for (let i = 0; i < n; i++) {
+    for (const day of [8, 15, 22]) {
+      const tx = x0 + (i + (day - 1) / dim(months[i].y, months[i].m)) * colW;
+      grid += '<line x1="' + tx.toFixed(1) + '" y1="' + (trackBot - 4) + '" x2="' + tx.toFixed(1) + '" y2="' + trackBot + '" stroke="#E0D4BB" stroke-width="0.7"/>';
+    }
+  }
+
+  const curIdx = (end.getFullYear() - firstY) * 12 + (end.getMonth() - firstM);
+  let labels = '';
+  for (let i = 0; i < n; i++) {
+    const lx = x0 + (i + 0.5) * colW;
+    const lbl = new Date(months[i].y, months[i].m, 1).toLocaleDateString('en-GB', { month: 'short' });
+    const isCur = i === curIdx;
+    labels += '<text x="' + lx.toFixed(1) + '" y="74" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="9" '
+      + 'fill="' + (isCur ? '#1C2A45' : '#9A9CA3') + '"' + (isCur ? ' font-weight="600"' : '') + '>' + lbl + '</text>';
+  }
+
+  const blocks = shown.map(ep => {
+    const sd = new Date(ep.start + 'T12:00:00');
+    const ed = ep.live ? end : new Date(ep.end + 'T12:00:00');
+    let x1 = Xd(sd), x2 = Xd(ed);
+    if (x2 < x1) x2 = x1;
+    if (x2 - x1 < minW) {
+      const c = (x1 + x2) / 2; x1 = c - minW / 2; x2 = c + minW / 2;
+      if (x1 < x0) { x1 = x0; x2 = x0 + minW; }
+      if (x2 > x0 + drawW) { x2 = x0 + drawW; x1 = x0 + drawW - minW; }
+    }
+    let bh = ep.pct != null ? minBH + (ep.pct / denom) * (maxBH - minBH) : minBH;
+    if (bh < minBH) bh = minBH; if (bh > maxBH) bh = maxBH;
+    const w = x2 - x1, rx = Math.min(5, bh / 2, w / 2), yTop = cy - bh / 2;
+    return '<rect x="' + x1.toFixed(1) + '" y="' + yTop.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="' + rx.toFixed(1) + '" fill="' + GOLD + '" fill-opacity="' + (ep.live ? '1' : '0.45') + '"/>';
+  }).join('');
+
+  const todayX = Xd(end);
+  const marker = '<line x1="' + todayX.toFixed(1) + '" y1="14" x2="' + todayX.toFixed(1) + '" y2="' + (trackBot + 2) + '" stroke="#1C2A45" stroke-width="1.3"/>'
+    + '<text x="' + todayX.toFixed(1) + '" y="10" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="7" font-weight="600" fill="#1C2A45">now</text>';
+  return '<svg class="th-svg" viewBox="0 0 350 84" aria-hidden="true">' + track + grid + blocks + marker + labels + '</svg>';
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────

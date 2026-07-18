@@ -1,0 +1,651 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<title>Peak alert email — design prototypes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+
+/* ── Tokens: identical to index.html production palette; pg-* shell tokens
+   are the only prototype-page additions (dark desk in dark mode while the
+   email canvases stay their own colour — they ARE the product surface). ── */
+:root {
+  --cream: #FAF7F2; --bark: #2C1810; --leaf: #3D6B35; --leaf-lt: #EEF4EC;
+  --amber: #C17A2B; --amber-lt: #FBF2E4; --red: #B84C3A; --red-lt: #FAEAE7;
+  --stone: #6B5F52; --stone-lt: #F2EFE9; --border: rgba(44,24,16,0.10);
+  --ink: #14110E; --ink-mid: #2E2823;
+  --neon: #5EFFB0; --neon-soft: rgba(94,255,176,0.55);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1); --dur-1: 150ms; --dur-2: 240ms;
+
+  --pg-bg: linear-gradient(180deg, #FCFBF7 0%, var(--cream) 32%);
+  --pg-bg-solid: #FAF7F2;
+  --pg-ink: var(--ink);
+  --pg-sub: var(--stone);
+  --pg-rule: var(--border);
+  --frame-shadow: 0 2px 6px rgba(44,24,16,0.08), 0 24px 60px rgba(44,24,16,0.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --pg-bg: linear-gradient(180deg, #1D1714 0%, #171210 40%);
+    --pg-bg-solid: #171210;
+    --pg-ink: #EDE6DC;
+    --pg-sub: #A6988A;
+    --pg-rule: rgba(237,230,220,0.14);
+    --frame-shadow: 0 2px 6px rgba(0,0,0,0.4), 0 28px 70px rgba(0,0,0,0.55);
+  }
+}
+:root[data-theme="dark"] {
+  --pg-bg: linear-gradient(180deg, #1D1714 0%, #171210 40%);
+  --pg-bg-solid: #171210;
+  --pg-ink: #EDE6DC;
+  --pg-sub: #A6988A;
+  --pg-rule: rgba(237,230,220,0.14);
+  --frame-shadow: 0 2px 6px rgba(0,0,0,0.4), 0 28px 70px rgba(0,0,0,0.55);
+}
+:root[data-theme="light"] {
+  --pg-bg: linear-gradient(180deg, #FCFBF7 0%, #FAF7F2 32%);
+  --pg-bg-solid: #FAF7F2;
+  --pg-ink: #14110E;
+  --pg-sub: #6B5F52;
+  --pg-rule: rgba(44,24,16,0.10);
+  --frame-shadow: 0 2px 6px rgba(44,24,16,0.08), 0 24px 60px rgba(44,24,16,0.14);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--pg-bg) var(--pg-bg-solid); background-repeat: no-repeat;
+  color: var(--pg-ink);
+  font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  font-size: 16px; line-height: 1.5; letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased; min-height: 100vh;
+}
+
+/* ── Page shell ── */
+.pg { max-width: 2000px; margin: 0 auto; padding: 48px 28px 72px; }
+.pg-head { max-width: 640px; margin-bottom: 44px; }
+.pg-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--pg-sub); margin-bottom: 14px; }
+.pg-head h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 34px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; margin: 0 0 14px; text-wrap: balance; }
+.pg-sub { font-size: 14.5px; line-height: 1.65; color: var(--pg-sub); margin: 0; }
+.pg-sub b { color: var(--pg-ink); font-weight: 600; }
+
+.frames { display: flex; flex-wrap: wrap; gap: 48px 40px; align-items: flex-start; }
+.variant { width: 600px; max-width: 100%; }
+.cap { padding: 16px 6px 0; }
+.cap-name { font-size: 13px; font-weight: 700; letter-spacing: 0.01em; color: var(--pg-ink); margin: 0 0 5px; }
+.cap-name .cap-key { display: inline-block; width: 20px; height: 20px; border-radius: 6px; background: var(--pg-ink); color: var(--pg-bg-solid); font-size: 11px; font-weight: 700; text-align: center; line-height: 20px; margin-right: 8px; letter-spacing: 0; }
+.cap p { font-size: 13px; line-height: 1.6; color: var(--pg-sub); margin: 0; }
+.pg-foot { margin-top: 52px; padding-top: 18px; border-top: 1px solid var(--pg-rule); font-size: 12.5px; color: var(--pg-sub); max-width: 640px; line-height: 1.6; }
+
+/* ── Mail-client frame: a slice of an inbox, so each variant reads as an
+   email, not a web page. Always light chrome (it's the client, not us). ── */
+.mail {
+  background: #FFFFFF; border: 1px solid rgba(44,24,16,0.16);
+  border-radius: 14px; overflow: hidden; box-shadow: var(--frame-shadow);
+}
+.mail-chrome { padding: 14px 20px 12px; border-bottom: 1px solid rgba(44,24,16,0.09); background: #FBFAF8; }
+.mail-subject { font-size: 15px; font-weight: 700; color: #1A1611; letter-spacing: -0.01em; margin: 0 0 6px; }
+.mail-meta { display: flex; align-items: center; gap: 9px; font-size: 12px; color: #8C8377; }
+.mail-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--bark); color: var(--cream); font-family: 'Playfair Display', Georgia, serif; font-size: 13px; font-weight: 700; text-align: center; line-height: 26px; flex-shrink: 0; }
+.mail-meta b { color: #3A342C; font-weight: 600; }
+.mail-body { max-width: 560px; margin: 0 auto; }
+
+/* ════════════════════════════════════════════════════════════════════
+   A · THE COVER — editorial magazine front. Cream canvas, masthead,
+   gallery-framed picture, directory board of brand tiles.
+   ════════════════════════════════════════════════════════════════════ */
+.cov { background: var(--cream); padding: 34px 36px 30px; }
+.cov-masthead { text-align: center; padding-bottom: 14px; border-bottom: 3px double rgba(44,24,16,0.35); }
+.cov-wordmark { font-family: 'Playfair Display', Georgia, serif; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; color: var(--bark); }
+.cov-wordmark span { color: var(--leaf); }
+.cov-dateline { display: flex; justify-content: space-between; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--stone); margin-top: 8px; }
+.cov-eyebrow { text-align: center; margin: 26px 0 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--amber); }
+.cov-eyebrow::before, .cov-eyebrow::after { content: "—"; color: rgba(193,122,43,0.45); margin: 0 10px; }
+.cov-headline { font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-weight: 600; font-size: 40px; line-height: 1.08; letter-spacing: -0.02em; text-align: center; color: var(--bark); margin: 0 0 24px; }
+.cov-headline em { font-style: italic; color: var(--amber); }
+
+.cov-frame { background: #FFFFFF; border: 1px solid rgba(44,24,16,0.28); padding: 10px; box-shadow: 0 1px 0 rgba(44,24,16,0.10), 0 14px 30px rgba(44,24,16,0.12); }
+.cov-frame-inner { border: 1px solid rgba(44,24,16,0.16); display: block; }
+.cov-frame svg { display: block; width: 100%; height: auto; }
+.cov-caption { font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-size: 13.5px; color: var(--stone); text-align: center; margin: 10px 0 0; }
+
+.cov-scorerow { display: flex; align-items: center; gap: 22px; margin: 28px 0 6px; }
+.cov-score { font-family: 'Playfair Display', Georgia, serif; font-weight: 700; font-size: 76px; line-height: 0.9; color: var(--amber); letter-spacing: -0.03em; white-space: nowrap; }
+.cov-score sup { font-size: 30px; font-weight: 600; vertical-align: 26px; letter-spacing: 0; }
+.cov-scoretext { font-size: 14.5px; line-height: 1.6; color: var(--ink-mid); }
+.cov-scoretext b { color: var(--bark); }
+.cov-scoretext .gonow { display: inline-block; margin-top: 7px; background: var(--amber); color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; padding: 5px 11px 4px; border-radius: 3px; }
+
+.cov-dirhead { display: flex; align-items: center; gap: 12px; margin: 26px 0 12px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--stone); }
+.cov-dirhead::before, .cov-dirhead::after { content: ""; flex: 1; height: 1px; background: rgba(44,24,16,0.22); }
+.cov-dir { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.cov-tile { background: #FFFFFF; border: 1px solid rgba(44,24,16,0.13); padding: 13px 8px 11px; text-align: center; }
+.cov-tile-name { color: var(--bark); line-height: 1.1; min-height: 20px; display: flex; align-items: center; justify-content: center; }
+.cov-tile-off { margin-top: 6px; font-size: 10.5px; font-weight: 600; color: var(--amber); letter-spacing: 0.04em; }
+.cov-tile-off .to { color: var(--stone); font-weight: 400; }
+.cov-tile--more { background: var(--stone-lt); border-style: dashed; }
+.cov-tile--more .cov-tile-name { font-size: 12.5px; font-weight: 600; color: var(--stone); }
+.cov-tile--more .cov-tile-off { color: var(--stone); font-weight: 400; }
+
+/* each brand set in its own typographic voice — the directory-board feel */
+.bt-zara    { font-family: 'Playfair Display', Georgia, serif; font-weight: 700; font-size: 17px; letter-spacing: 0.30em; margin-right: -0.30em; }
+.bt-hm      { font-family: 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 15px; color: var(--red) !important; letter-spacing: 0.02em; }
+.bt-boden   { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 15px; letter-spacing: -0.02em; text-transform: uppercase; }
+.bt-ws      { font-family: 'Inter', sans-serif; font-weight: 500; font-size: 11px; letter-spacing: 0.20em; margin-right: -0.20em; text-transform: uppercase; }
+.bt-fatface { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 15px; letter-spacing: -0.03em; text-transform: lowercase; }
+.bt-hobbs   { font-family: 'Playfair Display', Georgia, serif; font-weight: 600; font-size: 14px; letter-spacing: 0.16em; margin-right: -0.16em; text-transform: uppercase; }
+.bt-seasalt { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 11.5px; letter-spacing: 0.14em; margin-right: -0.14em; text-transform: uppercase; color: var(--leaf) !important; }
+.bt-river   { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 0.01em; text-transform: uppercase; transform: scaleY(1.25); }
+.bt-mango   { font-family: 'Playfair Display', Georgia, serif; font-weight: 400; font-size: 15px; letter-spacing: 0.10em; margin-right: -0.10em; text-transform: uppercase; }
+.bt-barbour { font-family: 'Playfair Display', Georgia, serif; font-weight: 600; font-size: 13.5px; letter-spacing: 0.08em; text-transform: uppercase; }
+.bt-next    { font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; letter-spacing: 0.28em; margin-right: -0.28em; text-transform: lowercase; }
+
+.cov-cta { display: block; background: var(--amber); color: #FFFFFF; text-align: center; text-decoration: none; font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 17px 24px; margin-top: 26px; border-radius: 2px; }
+.cov-foot { margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(44,24,16,0.14); font-size: 11px; color: var(--stone); text-align: center; line-height: 1.7; }
+.cov-foot a { color: var(--stone); }
+
+/* ════════════════════════════════════════════════════════════════════
+   B · THE POSTCARD — a day-out invitation. Tilted postcard with stamp
+   and postmark, luggage-label brand tags, perforated ticket CTA.
+   ════════════════════════════════════════════════════════════════════ */
+.pc { background: linear-gradient(180deg, #F3EEE4 0%, var(--cream) 55%); padding: 30px 36px 30px; }
+.pc-top { text-align: center; margin-bottom: 20px; }
+.pc-wordmark { font-family: 'Playfair Display', Georgia, serif; font-size: 21px; font-weight: 700; letter-spacing: -0.02em; color: var(--bark); }
+.pc-wordmark span { color: var(--leaf); }
+.pc-kicker { font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--stone); margin-top: 4px; }
+
+.pc-cardwrap { position: relative; padding: 6px 2px 10px; }
+.pc-card { position: relative; background: #FFFDF8; border: 1px solid rgba(44,24,16,0.20); padding: 12px 12px 14px; transform: rotate(-1.4deg); box-shadow: 0 2px 4px rgba(44,24,16,0.08), 0 18px 36px rgba(44,24,16,0.16); }
+.pc-card svg { display: block; width: 100%; height: auto; border: 1px solid rgba(44,24,16,0.12); }
+.pc-card-title { display: flex; align-items: baseline; justify-content: space-between; padding: 10px 4px 0; }
+.pc-greeting { font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-size: 17px; color: var(--bark); }
+.pc-greeting b { font-style: normal; font-weight: 700; letter-spacing: 0.06em; }
+.pc-cardno { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--stone); }
+
+/* stamp: amber picture stamp with punched perforation edge */
+.pc-stamp { position: absolute; top: -8px; right: 14px; width: 74px; padding: 6px; transform: rotate(3.5deg); background: #FFFFFF;
+  background-image: radial-gradient(circle at 3px 3px, transparent 2.6px, #FFFFFF 2.8px); background-size: 10px 10px; background-position: -2px -2px;
+  box-shadow: 0 3px 10px rgba(44,24,16,0.22); z-index: 3; }
+.pc-stamp-inner { background: var(--amber); color: #FFF7EA; text-align: center; padding: 8px 4px 7px; }
+.pc-stamp-pct { font-family: 'Playfair Display', Georgia, serif; font-weight: 700; font-size: 21px; line-height: 1; }
+.pc-stamp-word { font-size: 6.5px; font-weight: 700; letter-spacing: 0.22em; margin-top: 4px; text-transform: uppercase; }
+.pc-postmark { position: absolute; top: 6px; right: 66px; width: 66px; height: 66px; border: 1.6px solid rgba(107,95,82,0.55); border-radius: 50%; transform: rotate(-8deg); z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; color: rgba(107,95,82,0.85); pointer-events: none; }
+.pc-postmark b { font-size: 8px; letter-spacing: 0.18em; font-weight: 700; }
+.pc-postmark span { font-size: 7px; letter-spacing: 0.10em; }
+.pc-postmark::after { content: ""; position: absolute; left: -34px; top: 50%; width: 30px; border-top: 1.4px solid rgba(107,95,82,0.45); box-shadow: 0 -5px 0 rgba(107,95,82,0.35), 0 5px 0 rgba(107,95,82,0.35); }
+
+.pc-note { margin: 22px 4px 6px; text-align: center; }
+.pc-note-line1 { font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-size: 26px; line-height: 1.25; color: var(--bark); }
+.pc-note-line1 b { color: var(--leaf); font-weight: 700; }
+.pc-note-line2 { margin-top: 10px; font-size: 13.5px; line-height: 1.6; color: var(--ink-mid); }
+.pc-note-line2 b { color: var(--bark); }
+
+.pc-tagshead { text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--stone); margin: 20px 0 14px; }
+.pc-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 8px; padding: 0 6px; }
+.pc-tag { position: relative; background: #FFFDF6; border: 1px solid rgba(44,24,16,0.22); border-radius: 4px 10px 10px 4px; padding: 7px 13px 7px 22px; font-size: 12.5px; font-weight: 600; color: var(--bark); box-shadow: 0 2px 5px rgba(44,24,16,0.10); }
+.pc-tag::before { content: ""; position: absolute; left: 8px; top: 50%; margin-top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--cream); border: 1.4px solid rgba(44,24,16,0.35); }
+.pc-tag small { font-weight: 700; font-size: 11px; color: var(--amber); margin-left: 6px; }
+.pc-tag--leaf  { transform: rotate(-2deg); border-color: rgba(61,107,53,0.5); }
+.pc-tag--amber { transform: rotate(1.6deg); border-color: rgba(193,122,43,0.55); }
+.pc-tag--plain { transform: rotate(-1deg); }
+.pc-tag--more  { transform: rotate(1.2deg); background: var(--stone-lt); color: var(--stone); font-weight: 500; }
+
+/* perforated ticket CTA */
+.pc-ticket { position: relative; margin: 26px 2px 0; background: var(--leaf); border-radius: 6px; color: #F4F9F1; display: flex; align-items: stretch; text-decoration: none; box-shadow: 0 10px 24px rgba(61,107,53,0.35); overflow: hidden; }
+.pc-ticket::before, .pc-ticket::after { content: ""; position: absolute; top: 50%; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%; background: var(--cream); border: 1px solid rgba(44,24,16,0.12); }
+.pc-ticket::before { left: -10px; }
+.pc-ticket::after { right: -10px; }
+.pc-ticket-stub { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14px 16px; border-right: 2px dashed rgba(250,247,242,0.55); }
+.pc-ticket-stub b { font-family: 'Playfair Display', Georgia, serif; font-size: 24px; font-weight: 700; line-height: 1; }
+.pc-ticket-stub span { font-size: 7.5px; font-weight: 700; letter-spacing: 0.2em; margin-top: 3px; text-transform: uppercase; opacity: 0.85; }
+.pc-ticket-main { flex: 1; padding: 13px 18px; display: flex; flex-direction: column; justify-content: center; }
+.pc-ticket-main b { font-size: 14px; font-weight: 700; letter-spacing: 0.02em; }
+.pc-ticket-main span { font-size: 11px; opacity: 0.85; margin-top: 2px; }
+.pc-ticket-arrow { display: flex; align-items: center; padding: 0 18px 0 4px; font-size: 18px; }
+.pc-foot { margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(44,24,16,0.14); font-size: 11px; color: var(--stone); text-align: center; line-height: 1.7; }
+.pc-foot a { color: var(--stone); }
+
+/* ════════════════════════════════════════════════════════════════════
+   C · THE NIGHT TIDE — dark drama. Bark canvas, neon signal green,
+   glowing shopfront scene, GO NOW energy.
+   ════════════════════════════════════════════════════════════════════ */
+.nt { background: linear-gradient(180deg, #191009 0%, #241710 45%, #1C120B 100%); padding: 32px 36px 30px; }
+.nt-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 26px; }
+.nt-wordmark { font-family: 'Playfair Display', Georgia, serif; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--cream); }
+.nt-wordmark span { color: var(--neon); }
+.nt-badge { font-size: 9.5px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--neon); border: 1px solid rgba(94,255,176,0.5); border-radius: 20px; padding: 6px 12px 5px; box-shadow: 0 0 12px rgba(94,255,176,0.25), inset 0 0 10px rgba(94,255,176,0.08); }
+
+.nt-scorewrap { text-align: center; margin-bottom: 8px; }
+.nt-score { font-family: 'Playfair Display', Georgia, serif; font-weight: 700; font-size: 96px; line-height: 0.95; color: var(--neon); letter-spacing: -0.03em; text-shadow: 0 0 14px rgba(94,255,176,0.55), 0 0 40px rgba(94,255,176,0.28); }
+.nt-score sup { font-size: 36px; font-weight: 600; vertical-align: 34px; }
+.nt-verdict { margin-top: 10px; }
+.nt-verdict b { display: inline-block; background: var(--amber); color: #FFF7EA; font-size: 12px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; padding: 8px 18px 7px; border-radius: 3px; box-shadow: 0 6px 18px rgba(193,122,43,0.45); }
+.nt-sub { margin: 16px auto 24px; max-width: 400px; text-align: center; font-size: 14.5px; line-height: 1.65; color: rgba(250,247,242,0.82); }
+.nt-sub b { color: #FFFFFF; }
+.nt-sub .n { color: var(--neon); font-weight: 700; }
+
+.nt-frame { border: 1px solid rgba(94,255,176,0.35); border-radius: 10px; padding: 8px; box-shadow: 0 0 0 1px rgba(94,255,176,0.08), 0 0 26px rgba(94,255,176,0.14), inset 0 0 18px rgba(94,255,176,0.05); }
+.nt-frame svg { display: block; width: 100%; height: auto; border-radius: 5px; }
+.nt-caption { text-align: center; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(250,247,242,0.5); margin-top: 12px; }
+
+.nt-chipshead { display: flex; align-items: center; gap: 12px; margin: 24px 0 14px; font-size: 10px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(250,247,242,0.55); }
+.nt-chipshead::before, .nt-chipshead::after { content: ""; flex: 1; height: 1px; background: rgba(250,247,242,0.16); }
+.nt-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.nt-chip { font-size: 12.5px; font-weight: 600; color: var(--cream); border: 1px solid rgba(250,247,242,0.28); border-radius: 20px; padding: 8px 14px 7px; }
+.nt-chip b { color: var(--neon); font-weight: 700; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.nt-chip--hot { border-color: rgba(94,255,176,0.55); box-shadow: 0 0 10px rgba(94,255,176,0.18), inset 0 0 8px rgba(94,255,176,0.06); }
+.nt-chip--more { color: rgba(250,247,242,0.55); border-style: dashed; font-weight: 500; }
+
+.nt-cta { display: block; background: var(--neon); color: #10251A; text-align: center; text-decoration: none; font-size: 13.5px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; padding: 17px 24px; margin-top: 26px; border-radius: 6px; box-shadow: 0 0 22px rgba(94,255,176,0.4), 0 10px 28px rgba(0,0,0,0.4); }
+.nt-foot { margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(250,247,242,0.14); font-size: 11px; color: rgba(250,247,242,0.45); text-align: center; line-height: 1.7; }
+.nt-foot a { color: rgba(250,247,242,0.55); }
+
+@media (max-width: 480px) {
+  .pg { padding: 32px 12px 56px; }
+  .pg-head h1 { font-size: 28px; }
+  .frames { gap: 36px; justify-content: center; }
+  .cov, .pc, .nt { padding-left: 20px; padding-right: 20px; }
+  .cov-headline { font-size: 32px; }
+  .cov-score { font-size: 60px; }
+  .nt-score { font-size: 76px; }
+  .cov-dir { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+
+<div class="pg">
+  <header class="pg-head">
+    <div class="pg-eyebrow">Tide · Peak alert email · design prototypes</div>
+    <h1>Three ways to make sale day feel like an occasion</h1>
+    <p class="pg-sub">The current emails are cream-on-cream text with system fonts. All three of these load the <b>real brand type</b> (Playfair&nbsp;Display + Inter, Georgia/Arial fallbacks), use the <b>true site palette</b>, and put a <b>picture in a frame</b> — the shopping-centre scene is hand-drawn in the brand colours, and a real photo of each centre drops into the same frame the moment we source one. Same Peak-day data in all three; what differs is the mood: <b>gallery</b>, <b>day-trip</b>, or <b>night-out</b>.</p>
+  </header>
+
+  <main class="frames">
+
+    <!-- ═══════════════ A · THE COVER ═══════════════ -->
+    <section class="variant">
+      <div class="mail">
+        <div class="mail-chrome">
+          <p class="mail-subject">The tide is in at Bluewater — 23 shops on sale at once</p>
+          <div class="mail-meta"><span class="mail-avatar">T</span><span><b>Tide</b> &lt;hello@tidego.co&gt; · to you · 09:00</span></div>
+        </div>
+        <div class="mail-body">
+          <div class="cov">
+            <div class="cov-masthead">
+              <div class="cov-wordmark">Tide<span>.</span></div>
+              <div class="cov-dateline"><span>Peak edition</span><span>Saturday 18 July</span></div>
+            </div>
+
+            <div class="cov-eyebrow">Peak sale alert</div>
+            <h2 class="cov-headline">The tide is in<br>at <em>Bluewater</em>.</h2>
+
+            <div class="cov-frame">
+              <span class="cov-frame-inner">
+              <!-- Day scene: hand-drawn in brand palette; swap for a real centre photo when sourced -->
+              <svg viewBox="0 0 520 290" role="img" aria-label="Illustration of a busy shopping centre on sale day">
+                <defs>
+                  <linearGradient id="covSky" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#FFF4DF"/><stop offset="1" stop-color="#F7EEDD"/>
+                  </linearGradient>
+                  <linearGradient id="covGlass" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#E9F1E4"/><stop offset="1" stop-color="#D7E5D0"/>
+                  </linearGradient>
+                </defs>
+                <rect width="520" height="290" fill="url(#covSky)"/>
+                <circle cx="438" cy="54" r="40" fill="#E9B96A" opacity="0.22"/>
+                <circle cx="438" cy="54" r="24" fill="#E9B96A" opacity="0.85"/>
+                <ellipse cx="105" cy="48" rx="42" ry="11" fill="#FFFFFF" opacity="0.8"/>
+                <ellipse cx="140" cy="56" rx="30" ry="9" fill="#FFFFFF" opacity="0.6"/>
+                <ellipse cx="330" cy="34" rx="36" ry="10" fill="#FFFFFF" opacity="0.7"/>
+
+                <!-- building -->
+                <rect x="26" y="128" width="468" height="122" fill="#F2E9DA" stroke="#2C1810" stroke-opacity="0.35" stroke-width="1.5"/>
+                <rect x="26" y="120" width="468" height="10" fill="#E4D6C0" stroke="#2C1810" stroke-opacity="0.35" stroke-width="1.5"/>
+                <!-- central atrium -->
+                <rect x="192" y="86" width="136" height="164" fill="#EFE4D0" stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.5"/>
+                <path d="M192 86 L260 52 L328 86 Z" fill="#E4D6C0" stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.5"/>
+                <path d="M212 250 L212 150 A48 48 0 0 1 308 150 L308 250 Z" fill="url(#covGlass)" stroke="#2C1810" stroke-opacity="0.45" stroke-width="1.5"/>
+                <path d="M260 250 L260 104 M228 250 L228 128 M292 250 L292 128 M213 166 L307 166 M212 200 L308 200" stroke="#2C1810" stroke-opacity="0.3" stroke-width="1.2" fill="none"/>
+                <!-- flag on atrium -->
+                <path d="M260 52 L260 30 L286 37 L260 44 Z" fill="#C17A2B" stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.2"/>
+
+                <!-- left shopfronts -->
+                <g stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.3">
+                  <rect x="44"  y="172" width="42" height="52" fill="#E7EFE3"/>
+                  <rect x="100" y="172" width="42" height="52" fill="#E7EFE3"/>
+                  <rect x="156" y="172" width="24" height="52" fill="#E7EFE3"/>
+                </g>
+                <!-- awnings: amber stripes -->
+                <g>
+                  <g transform="translate(40,160)"><rect width="10" height="14" fill="#C17A2B"/><rect x="10" width="10" height="14" fill="#FBF2E4"/><rect x="20" width="10" height="14" fill="#C17A2B"/><rect x="30" width="10" height="14" fill="#FBF2E4"/><rect x="40" width="10" height="14" fill="#C17A2B"/><rect width="50" height="14" fill="none" stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.3"/></g>
+                  <g transform="translate(96,160)"><rect width="10" height="14" fill="#3D6B35"/><rect x="10" width="10" height="14" fill="#EEF4EC"/><rect x="20" width="10" height="14" fill="#3D6B35"/><rect x="30" width="10" height="14" fill="#EEF4EC"/><rect x="40" width="10" height="14" fill="#3D6B35"/><rect width="50" height="14" fill="none" stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.3"/></g>
+                </g>
+                <!-- right shopfronts -->
+                <g stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.3">
+                  <rect x="340" y="172" width="24" height="52" fill="#E7EFE3"/>
+                  <rect x="378" y="172" width="42" height="52" fill="#E7EFE3"/>
+                  <rect x="434" y="172" width="42" height="52" fill="#E7EFE3"/>
+                </g>
+                <g>
+                  <g transform="translate(374,160)"><rect width="10" height="14" fill="#B84C3A"/><rect x="10" width="10" height="14" fill="#FAEAE7"/><rect x="20" width="10" height="14" fill="#B84C3A"/><rect x="30" width="10" height="14" fill="#FAEAE7"/><rect x="40" width="10" height="14" fill="#B84C3A"/><rect width="50" height="14" fill="none" stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.3"/></g>
+                  <g transform="translate(430,160)"><rect width="10" height="14" fill="#C17A2B"/><rect x="10" width="10" height="14" fill="#FBF2E4"/><rect x="20" width="10" height="14" fill="#C17A2B"/><rect x="30" width="10" height="14" fill="#FBF2E4"/><rect x="40" width="10" height="14" fill="#C17A2B"/><rect width="50" height="14" fill="none" stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.3"/></g>
+                </g>
+                <!-- sale tags in windows -->
+                <g font-family="Inter, sans-serif" font-weight="700" font-size="9" text-anchor="middle">
+                  <rect x="53" y="182" width="24" height="14" rx="2" fill="#C17A2B"/><text x="65" y="192" fill="#FFF">−60%</text>
+                  <rect x="109" y="182" width="24" height="14" rx="2" fill="#3D6B35"/><text x="121" y="192" fill="#FFF">−50%</text>
+                  <rect x="387" y="182" width="24" height="14" rx="2" fill="#B84C3A"/><text x="399" y="192" fill="#FFF">−70%</text>
+                  <rect x="443" y="182" width="24" height="14" rx="2" fill="#C17A2B"/><text x="455" y="192" fill="#FFF">SALE</text>
+                </g>
+
+                <!-- bunting -->
+                <path d="M30 96 Q 140 130 260 112 Q 380 96 492 122" fill="none" stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.2"/>
+                <g stroke="#2C1810" stroke-opacity="0.35" stroke-width="0.8">
+                  <path d="M60 105 l5 12 l5 -10 Z" fill="#C17A2B"/><path d="M100 114 l5 12 l5 -10 Z" fill="#3D6B35"/>
+                  <path d="M145 118 l5 12 l5 -10 Z" fill="#B84C3A"/><path d="M195 116 l5 12 l5 -10 Z" fill="#C17A2B"/>
+                  <path d="M310 106 l5 12 l5 -10 Z" fill="#3D6B35"/><path d="M360 102 l5 12 l5 -10 Z" fill="#C17A2B"/>
+                  <path d="M410 105 l5 12 l5 -10 Z" fill="#B84C3A"/><path d="M455 112 l5 12 l5 -10 Z" fill="#3D6B35"/>
+                </g>
+
+                <!-- pavement + shopping bags -->
+                <rect x="0" y="250" width="520" height="40" fill="#EADFC9"/>
+                <line x1="0" y1="250" x2="520" y2="250" stroke="#2C1810" stroke-opacity="0.3" stroke-width="1.5"/>
+                <g stroke="#2C1810" stroke-opacity="0.5" stroke-width="1.4">
+                  <path d="M118 240 a10 10 0 0 1 20 0" fill="none"/>
+                  <rect x="110" y="240" width="36" height="34" rx="2" fill="#C17A2B"/>
+                  <path d="M382 236 a9 9 0 0 1 18 0" fill="none"/>
+                  <rect x="375" y="236" width="32" height="30" rx="2" fill="#3D6B35"/>
+                  <path d="M416 244 a8 8 0 0 1 16 0" fill="none"/>
+                  <rect x="410" y="244" width="28" height="26" rx="2" fill="#FBF2E4"/>
+                </g>
+                <text x="128" y="262" font-family="Playfair Display, Georgia, serif" font-style="italic" font-size="11" fill="#FFF7EA" text-anchor="middle">Sale</text>
+              </svg>
+              </span>
+              <p class="cov-caption">Bluewater, Kent — sale flags out on the upper mall, Saturday morning.</p>
+            </div>
+
+            <div class="cov-scorerow">
+              <div class="cov-score">68<sup>%</sup></div>
+              <div class="cov-scoretext">
+                <b>23 of 34 tracked shops</b> are on sale at the same time — the highest this cycle has reached.
+                <br><span class="gonow">Go now — this is the day</span>
+              </div>
+            </div>
+
+            <div class="cov-dirhead">On sale today · the directory</div>
+            <div class="cov-dir">
+              <div class="cov-tile"><div class="cov-tile-name bt-zara">Zara</div><div class="cov-tile-off"><span class="to">up to</span> 50%</div></div>
+              <div class="cov-tile"><div class="cov-tile-name bt-hm">H&amp;M</div><div class="cov-tile-off"><span class="to">up to</span> 70%</div></div>
+              <div class="cov-tile"><div class="cov-tile-name bt-boden">Boden</div><div class="cov-tile-off"><span class="to">up to</span> 60%</div></div>
+              <div class="cov-tile"><div class="cov-tile-name bt-ws">White Stuff</div><div class="cov-tile-off"><span class="to">up to</span> 60%</div></div>
+              <div class="cov-tile"><div class="cov-tile-name bt-fatface">Fat Face</div><div class="cov-tile-off"><span class="to">up to</span> 50%</div></div>
+              <div class="cov-tile"><div class="cov-tile-name bt-hobbs">Hobbs</div><div class="cov-tile-off"><span class="to">up to</span> 60%</div></div>
+              <div class="cov-tile"><div class="cov-tile-name bt-seasalt">Seasalt</div><div class="cov-tile-off"><span class="to">up to</span> 40%</div></div>
+              <div class="cov-tile"><div class="cov-tile-name bt-mango">Mango</div><div class="cov-tile-off"><span class="to">up to</span> 70%</div></div>
+              <div class="cov-tile cov-tile--more"><div class="cov-tile-name">+ 15 more</div><div class="cov-tile-off">all on sale</div></div>
+            </div>
+
+            <a class="cov-cta" href="#">See today's full score →</a>
+
+            <p class="cov-foot">You saved Bluewater, so we watch it for you. · <a href="#">Manage preferences</a> · <a href="#">Unsubscribe from peak alerts</a></p>
+          </div>
+        </div>
+      </div>
+      <div class="cap">
+        <p class="cap-name"><span class="cap-key">A</span>The Cover — editorial gallery</p>
+        <p>The email as a magazine front: Playfair masthead + double rule, an italic cover line, the centre picture in a proper <b>gallery frame with a caption</b>, then the brands as a mall <b>directory board</b> — every name set in its own typographic voice, like the real signs. Calmest of the three; amber carries the peak.</p>
+      </div>
+    </section>
+
+    <!-- ═══════════════ B · THE POSTCARD ═══════════════ -->
+    <section class="variant">
+      <div class="mail">
+        <div class="mail-chrome">
+          <p class="mail-subject">A day out at Bluewater? 23 shops say yes</p>
+          <div class="mail-meta"><span class="mail-avatar">T</span><span><b>Tide</b> &lt;hello@tidego.co&gt; · to you · 09:00</span></div>
+        </div>
+        <div class="mail-body">
+          <div class="pc">
+            <div class="pc-top">
+              <div class="pc-wordmark">Tide<span>.</span></div>
+              <div class="pc-kicker">Peak sale alert · Saturday 18 July</div>
+            </div>
+
+            <div class="pc-cardwrap">
+              <div class="pc-stamp"><div class="pc-stamp-inner"><div class="pc-stamp-pct">68%</div><div class="pc-stamp-word">Peak day</div></div></div>
+              <div class="pc-postmark"><b>TIDE</b><span>· PEAK ·</span><span>18 JUL 26</span></div>
+              <div class="pc-card">
+                <!-- Postcard scene: Bluewater's chalk quarry + lake, drawn in brand palette -->
+                <svg viewBox="0 0 520 270" role="img" aria-label="Postcard illustration of Bluewater shopping centre">
+                  <defs>
+                    <linearGradient id="pcSky" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#FDF3DC"/><stop offset="1" stop-color="#F6ECD8"/>
+                    </linearGradient>
+                    <linearGradient id="pcLake" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#DCE9D6"/><stop offset="1" stop-color="#CBDEC3"/>
+                    </linearGradient>
+                  </defs>
+                  <rect width="520" height="270" fill="url(#pcSky)"/>
+                  <circle cx="88" cy="52" r="34" fill="#E9B96A" opacity="0.25"/>
+                  <circle cx="88" cy="52" r="20" fill="#E9B96A" opacity="0.9"/>
+                  <ellipse cx="300" cy="42" rx="44" ry="11" fill="#FFFFFF" opacity="0.8"/>
+                  <ellipse cx="410" cy="60" rx="34" ry="9" fill="#FFFFFF" opacity="0.65"/>
+
+                  <!-- chalk cliffs behind (Bluewater sits in a quarry) -->
+                  <path d="M0 132 L60 96 L120 128 L180 100 L240 126 L300 98 L360 124 L420 96 L480 126 L520 108 L520 180 L0 180 Z" fill="#F4EFE3" stroke="#2C1810" stroke-opacity="0.25" stroke-width="1.3"/>
+                  <path d="M0 150 L520 150 L520 180 L0 180 Z" fill="#E9E1CE" opacity="0.7"/>
+
+                  <!-- centre: tent-peaked roofline (Bluewater's spires) -->
+                  <rect x="90" y="150" width="340" height="60" fill="#F1E7D4" stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.5"/>
+                  <g fill="#E4D6C0" stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.5">
+                    <path d="M100 150 L135 112 L170 150 Z"/>
+                    <path d="M170 150 L215 100 L260 150 Z"/>
+                    <path d="M260 150 L305 100 L350 150 Z"/>
+                    <path d="M350 150 L385 112 L420 150 Z"/>
+                  </g>
+                  <g stroke="#2C1810" stroke-opacity="0.5" stroke-width="1.2">
+                    <line x1="135" y1="112" x2="135" y2="96"/><line x1="215" y1="100" x2="215" y2="82"/>
+                    <line x1="305" y1="100" x2="305" y2="82"/><line x1="385" y1="112" x2="385" y2="96"/>
+                  </g>
+                  <g stroke="#2C1810" stroke-opacity="0.4" stroke-width="1">
+                    <path d="M135 96 L152 101 L135 106 Z" fill="#C17A2B"/>
+                    <path d="M215 82 L232 87 L215 92 Z" fill="#3D6B35"/>
+                    <path d="M305 82 L322 87 L305 92 Z" fill="#B84C3A"/>
+                    <path d="M385 96 L402 101 L385 106 Z" fill="#C17A2B"/>
+                  </g>
+                  <!-- entrance + windows -->
+                  <g stroke="#2C1810" stroke-opacity="0.4" stroke-width="1.2">
+                    <rect x="235" y="168" width="50" height="42" fill="#DFE9DB"/>
+                    <rect x="120" y="168" width="30" height="26" fill="#E7EFE3"/>
+                    <rect x="165" y="168" width="30" height="26" fill="#E7EFE3"/>
+                    <rect x="325" y="168" width="30" height="26" fill="#E7EFE3"/>
+                    <rect x="370" y="168" width="30" height="26" fill="#E7EFE3"/>
+                  </g>
+                  <line x1="260" y1="168" x2="260" y2="210" stroke="#2C1810" stroke-opacity="0.35" stroke-width="1"/>
+                  <rect x="238" y="158" width="44" height="12" rx="2" fill="#C17A2B" stroke="#2C1810" stroke-opacity="0.4" stroke-width="1"/>
+                  <text x="260" y="167" font-family="Inter, sans-serif" font-weight="700" font-size="8" fill="#FFF" text-anchor="middle" letter-spacing="1.5">SALE</text>
+
+                  <!-- lake + reflections -->
+                  <path d="M0 210 L520 210 L520 270 L0 270 Z" fill="url(#pcLake)"/>
+                  <line x1="0" y1="210" x2="520" y2="210" stroke="#2C1810" stroke-opacity="0.3" stroke-width="1.4"/>
+                  <g stroke="#3D6B35" stroke-opacity="0.4" stroke-width="1.6" fill="none">
+                    <path d="M60 228 q10 -5 20 0 t20 0"/>
+                    <path d="M180 244 q10 -5 20 0 t20 0"/>
+                    <path d="M320 232 q10 -5 20 0 t20 0"/>
+                    <path d="M430 250 q10 -5 20 0 t20 0"/>
+                    <path d="M110 256 q10 -5 20 0 t20 0"/>
+                  </g>
+                  <!-- swan-ish -->
+                  <path d="M262 236 q0 -8 6 -8 q5 0 5 5 l8 0 q-2 8 -12 8 q-7 0 -7 -5" fill="#FFFFFF" stroke="#2C1810" stroke-opacity="0.4" stroke-width="1"/>
+                </svg>
+                <div class="pc-card-title">
+                  <span class="pc-greeting">Greetings from <b>BLUEWATER</b></span>
+                  <span class="pc-cardno">No. 7 · Kent</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pc-note">
+              <div class="pc-note-line1">Wish you were here —<br><b>23 shops</b> are on sale at once.</div>
+              <div class="pc-note-line2">That's <b>68% of everything we track</b> at Bluewater, the highest this cycle has reached. Days like this don't hang around.</div>
+            </div>
+
+            <div class="pc-tagshead">Pack your bags for</div>
+            <div class="pc-tags">
+              <span class="pc-tag pc-tag--leaf">Zara<small>−50%</small></span>
+              <span class="pc-tag pc-tag--amber">H&amp;M<small>−70%</small></span>
+              <span class="pc-tag pc-tag--plain">Boden<small>−60%</small></span>
+              <span class="pc-tag pc-tag--amber">White Stuff<small>−60%</small></span>
+              <span class="pc-tag pc-tag--leaf">Fat Face<small>−50%</small></span>
+              <span class="pc-tag pc-tag--plain">Hobbs<small>−60%</small></span>
+              <span class="pc-tag pc-tag--leaf">Mango<small>−70%</small></span>
+              <span class="pc-tag pc-tag--more">+ 16 more</span>
+            </div>
+
+            <a class="pc-ticket" href="#">
+              <span class="pc-ticket-stub"><b>68%</b><span>Peak</span></span>
+              <span class="pc-ticket-main"><b>Plan your day out</b><span>Bluewater · open until 9pm tonight</span></span>
+              <span class="pc-ticket-arrow">→</span>
+            </a>
+
+            <p class="pc-foot">You saved Bluewater, so we watch it for you. · <a href="#">Manage preferences</a> · <a href="#">Unsubscribe from peak alerts</a></p>
+          </div>
+        </div>
+      </div>
+      <div class="cap">
+        <p class="cap-name"><span class="cap-key">B</span>The Postcard — a day-trip invitation</p>
+        <p>Peak day as an outing, not a notification: a tilted <b>postcard</b> of the centre (chalk cliffs and lake — each centre gets its own scene) with a 68% <b>stamp</b> and postmark, brands as <b>luggage labels</b>, and the CTA as a perforated <b>admission ticket</b>. The warmest and most human of the three.</p>
+      </div>
+    </section>
+
+    <!-- ═══════════════ C · THE NIGHT TIDE ═══════════════ -->
+    <section class="variant">
+      <div class="mail">
+        <div class="mail-chrome">
+          <p class="mail-subject">68% — Bluewater just hit peak. Go now</p>
+          <div class="mail-meta"><span class="mail-avatar">T</span><span><b>Tide</b> &lt;hello@tidego.co&gt; · to you · 09:00</span></div>
+        </div>
+        <div class="mail-body">
+          <div class="nt">
+            <div class="nt-top">
+              <div class="nt-wordmark">Tide<span>.</span></div>
+              <div class="nt-badge">Peak alert</div>
+            </div>
+
+            <div class="nt-scorewrap">
+              <div class="nt-score">68<sup>%</sup></div>
+              <div class="nt-verdict"><b>Go now</b></div>
+            </div>
+            <p class="nt-sub"><span class="n">23 of 34 shops</span> on sale at once at <b>Bluewater</b> — the top of this cycle. The dashboard has been climbing for nine days; today it crested.</p>
+
+            <div class="nt-frame">
+              <!-- Night scene: lit shopfronts, neon sale sign -->
+              <svg viewBox="0 0 520 260" role="img" aria-label="Illustration of the shopping centre lit up at night">
+                <defs>
+                  <linearGradient id="ntSky" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#150D07"/><stop offset="1" stop-color="#2A1B10"/>
+                  </linearGradient>
+                  <linearGradient id="ntGlow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#FFD9A0"/><stop offset="1" stop-color="#E8A85C"/>
+                  </linearGradient>
+                  <filter id="ntBlur" x="-60%" y="-60%" width="220%" height="220%">
+                    <feGaussianBlur stdDeviation="5"/>
+                  </filter>
+                </defs>
+                <rect width="520" height="260" fill="url(#ntSky)"/>
+                <g fill="#FFF7EA">
+                  <circle cx="60" cy="34" r="1.4" opacity="0.8"/><circle cx="120" cy="58" r="1.1" opacity="0.6"/>
+                  <circle cx="200" cy="30" r="1.3" opacity="0.7"/><circle cx="300" cy="48" r="1.1" opacity="0.5"/>
+                  <circle cx="380" cy="26" r="1.4" opacity="0.8"/><circle cx="460" cy="52" r="1.2" opacity="0.6"/>
+                  <circle cx="490" cy="24" r="1" opacity="0.5"/><circle cx="160" cy="72" r="1" opacity="0.45"/>
+                </g>
+                <path d="M448 40 a17 17 0 1 1 -14 -26 a14 14 0 1 0 14 26" fill="#F6E7CF" opacity="0.9"/>
+
+                <!-- building silhouette -->
+                <rect x="26" y="112" width="468" height="112" fill="#241812" stroke="#5EFFB0" stroke-opacity="0.22" stroke-width="1.4"/>
+                <rect x="192" y="72" width="136" height="152" fill="#2A1C13" stroke="#5EFFB0" stroke-opacity="0.28" stroke-width="1.4"/>
+                <path d="M192 72 L260 40 L328 72 Z" fill="#241812" stroke="#5EFFB0" stroke-opacity="0.28" stroke-width="1.4"/>
+
+                <!-- glowing atrium arch -->
+                <path d="M214 224 L214 138 A46 46 0 0 1 306 138 L306 224 Z" fill="url(#ntGlow)" opacity="0.28" filter="url(#ntBlur)"/>
+                <path d="M214 224 L214 138 A46 46 0 0 1 306 138 L306 224 Z" fill="url(#ntGlow)" opacity="0.85"/>
+                <path d="M260 224 L260 96 M230 224 L230 118 M290 224 L290 118 M215 156 L305 156 M214 190 L306 190" stroke="#2C1810" stroke-opacity="0.5" stroke-width="1.2" fill="none"/>
+                <!-- tiny shoppers in the doorway -->
+                <g fill="#241812">
+                  <circle cx="247" cy="200" r="3.4"/><rect x="243.5" y="203" width="7" height="15" rx="3"/>
+                  <circle cx="271" cy="202" r="3"/><rect x="268" y="205" width="6" height="13" rx="3"/>
+                  <rect x="277" y="211" width="6" height="7" rx="1"/>
+                </g>
+
+                <!-- neon SALE sign -->
+                <g font-family="Inter, sans-serif" font-weight="800" font-size="15" text-anchor="middle">
+                  <text x="260" y="66" fill="#5EFFB0" opacity="0.5" filter="url(#ntBlur)" letter-spacing="6">SALE</text>
+                  <text x="260" y="66" fill="#5EFFB0" letter-spacing="6">SALE</text>
+                </g>
+
+                <!-- lit shop windows -->
+                <g>
+                  <g stroke="#5EFFB0" stroke-opacity="0.18" stroke-width="1.2">
+                    <rect x="46"  y="152" width="40" height="48" fill="#FFCE8A" opacity="0.9"/>
+                    <rect x="102" y="152" width="40" height="48" fill="#FFC272" opacity="0.85"/>
+                    <rect x="152" y="152" width="26" height="48" fill="#FFD9A0" opacity="0.8"/>
+                    <rect x="342" y="152" width="26" height="48" fill="#FFD9A0" opacity="0.8"/>
+                    <rect x="380" y="152" width="40" height="48" fill="#FFC272" opacity="0.85"/>
+                    <rect x="436" y="152" width="40" height="48" fill="#FFCE8A" opacity="0.9"/>
+                  </g>
+                  <!-- mannequin silhouettes -->
+                  <g fill="#2C1810" opacity="0.85">
+                    <circle cx="60" cy="166" r="3.5"/><rect x="56.5" y="169" width="7" height="18" rx="3"/>
+                    <circle cx="122" cy="166" r="3.5"/><rect x="118.5" y="169" width="7" height="18" rx="3"/>
+                    <circle cx="400" cy="166" r="3.5"/><rect x="396.5" y="169" width="7" height="18" rx="3"/>
+                    <circle cx="456" cy="166" r="3.5"/><rect x="452.5" y="169" width="7" height="18" rx="3"/>
+                  </g>
+                  <!-- % tags -->
+                  <g font-family="Inter, sans-serif" font-weight="700" font-size="8.5" text-anchor="middle">
+                    <rect x="66" y="184" width="16" height="11" rx="2" fill="#B84C3A"/><text x="74" y="192" fill="#FFF">70</text>
+                    <rect x="128" y="184" width="16" height="11" rx="2" fill="#B84C3A"/><text x="136" y="192" fill="#FFF">50</text>
+                    <rect x="406" y="184" width="16" height="11" rx="2" fill="#B84C3A"/><text x="414" y="192" fill="#FFF">60</text>
+                    <rect x="462" y="184" width="16" height="11" rx="2" fill="#B84C3A"/><text x="470" y="192" fill="#FFF">60</text>
+                  </g>
+                </g>
+
+                <!-- pavement with light pools -->
+                <rect x="0" y="224" width="520" height="36" fill="#1A100A"/>
+                <line x1="0" y1="224" x2="520" y2="224" stroke="#5EFFB0" stroke-opacity="0.25" stroke-width="1.2"/>
+                <ellipse cx="66" cy="236" rx="30" ry="5" fill="#FFCE8A" opacity="0.18"/>
+                <ellipse cx="122" cy="236" rx="30" ry="5" fill="#FFCE8A" opacity="0.16"/>
+                <ellipse cx="260" cy="240" rx="52" ry="7" fill="#FFD9A0" opacity="0.2"/>
+                <ellipse cx="400" cy="236" rx="30" ry="5" fill="#FFCE8A" opacity="0.16"/>
+                <ellipse cx="456" cy="236" rx="30" ry="5" fill="#FFCE8A" opacity="0.18"/>
+              </svg>
+            </div>
+            <p class="nt-caption">Bluewater · late opening tonight</p>
+
+            <div class="nt-chipshead">What's on</div>
+            <div class="nt-chips">
+              <span class="nt-chip nt-chip--hot">H&amp;M<b>−70%</b></span>
+              <span class="nt-chip nt-chip--hot">Mango<b>−70%</b></span>
+              <span class="nt-chip">Zara<b>−50%</b></span>
+              <span class="nt-chip">Boden<b>−60%</b></span>
+              <span class="nt-chip">White Stuff<b>−60%</b></span>
+              <span class="nt-chip">Hobbs<b>−60%</b></span>
+              <span class="nt-chip">Fat Face<b>−50%</b></span>
+              <span class="nt-chip nt-chip--more">+ 16 more on sale</span>
+            </div>
+
+            <a class="nt-cta" href="#">See the full tide →</a>
+
+            <p class="nt-foot">You saved Bluewater, so we watch it for you. · <a href="#">Manage preferences</a> · <a href="#">Unsubscribe from peak alerts</a></p>
+          </div>
+        </div>
+      </div>
+      <div class="cap">
+        <p class="cap-name"><span class="cap-key">C</span>The Night Tide — signal-green drama</p>
+        <p>The app's dark-surface language, finally in an email: bark canvas, the <b>neon tide green</b> the site uses for the live line, a huge glowing score, and the centre <b>lit up at night</b> inside a neon frame. Loudest and most urgent — peak day as an event you don't miss.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="pg-foot">
+    Prototype only — no production change; <code>notify-high-tide</code> is untouched until a direction wins. Palette + type are verbatim from <code>index.html</code> tokens (cream / bark / leaf / amber / tide-neon, Playfair&nbsp;Display + Inter with Georgia/Arial fallbacks — Google-font loading works in Apple&nbsp;Mail and falls back cleanly elsewhere). The scenes are hand-drawn SVG in the brand palette; for the real send each gets exported to PNG and hosted from the repo (Vercel serves the root), and a genuine centre photograph can drop into the same frame per centre. Porting the winner means table-safe markup + inlined styles in <code>renderHighTideEmail</code> — a follow-up ticket.
+  </footer>
+</div>

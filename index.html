@@ -1317,7 +1317,7 @@
       <div class="pref-toggle-row">
         <div class="pref-toggle-text">
           <div class="pref-toggle-label">Weekend Digest</div>
-          <div class="pref-toggle-sub">Sent every Friday at 7pm — only when at least one of your saved centres is Rising or above.</div>
+          <div class="pref-toggle-sub">Sent every Friday at 7pm — how each of your centres is looking going into the weekend.</div>
         </div>
         <label class="pref-switch">
           <input type="checkbox" id="account-toggle-digest" onchange="quickSavePref('daily_digest', this.checked)">
@@ -1325,6 +1325,14 @@
           <span class="pref-switch-thumb"></span>
         </label>
       </div>
+    </div>
+    <!-- Crowd-report feedback: hidden until this user has submitted at least
+         one swipe-report; then shows their tally + how many the admin's
+         verification agreed with. Closes the loop that used to end at a
+         thank-you toast. -->
+    <div class="account-section" id="account-reports-section" style="display:none">
+      <div class="account-section-title">Your sale reports</div>
+      <div class="pref-toggle-sub" id="account-reports-line"></div>
     </div>
     <div class="account-section">
       <div class="account-section-title">Invite a friend</div>
@@ -1915,7 +1923,36 @@ function openAccountPanel() {
   const copyBtn = document.getElementById('account-invite-copy');
   if (copyBtn) copyBtn.textContent = 'Copy';
 
+  loadAccountReportStats();
   document.getElementById('account-panel').style.display = 'flex';
+}
+
+// Crowd-report feedback: RLS scopes user_reports reads to the caller's own
+// rows, so a plain select is this user's contribution history. `status` is
+// flipped to 'confirmed' by admin.html when a verification agrees with the
+// report (migration 20260717d); if that migration isn't applied yet the
+// status select 400s and we quietly fall back to the plain count.
+async function loadAccountReportStats() {
+  const section = document.getElementById('account-reports-section');
+  const line = document.getElementById('account-reports-line');
+  if (!section || !line || !currentUser) return;
+  section.style.display = 'none';
+  let rows = null;
+  let hasStatus = true;
+  ({ data: rows } = await pgRead('user_reports?select=status&user_id=eq.' + encodeURIComponent(currentUser.id)));
+  if (!Array.isArray(rows)) {
+    hasStatus = false;
+    ({ data: rows } = await pgRead('user_reports?select=id&user_id=eq.' + encodeURIComponent(currentUser.id)));
+  }
+  if (!Array.isArray(rows) || rows.length === 0) return;
+  const total = rows.length;
+  const confirmed = hasStatus ? rows.filter(r => r.status === 'confirmed').length : 0;
+  line.innerHTML = '<strong>' + total + '</strong> report' + (total === 1 ? '' : 's') + ' submitted'
+    + (confirmed > 0 ? ' &middot; <strong>' + confirmed + '</strong> confirmed by verification' : '')
+    + '. ' + (confirmed > 0
+        ? 'Your reports are keeping the Tide honest — thank you.'
+        : 'Every report helps keep the Tide honest for other shoppers.');
+  section.style.display = '';
 }
 
 // Copy the invite link — same clipboard + consent-gated GA pattern as

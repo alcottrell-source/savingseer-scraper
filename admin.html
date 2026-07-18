@@ -1638,6 +1638,31 @@ async function triggerRescore() {
   });
 }
 
+// Crowd-report feedback (migration 20260717d): when a verification AGREES
+// with open reports on this brand, mark them confirmed so each reporter's
+// account panel can show "confirmed by verification". D6 stays intact —
+// reports remain advisory; this runs AFTER the admin's decision and never
+// influences it. Non-fatal by design: a missing migration or RLS hiccup
+// must never break the verification action itself. 7-day window matches
+// the queue's freshness horizon.
+async function confirmMatchingReports(brandId, agreeTypes) {
+  if (!agreeTypes || !agreeTypes.length) return;
+  try {
+    const since = new Date(Date.now() - 7 * 86400000).toISOString();
+    const filter = 'brand_id=eq.' + encodeURIComponent(brandId)
+      + '&status=eq.open'
+      + '&report_type=in.(' + agreeTypes.join(',') + ')'
+      + '&created_at=gte.' + encodeURIComponent(since);
+    const { error } = await pg.update('user_reports', filter, {
+      status: 'confirmed',
+      resolved_at: new Date().toISOString(),
+    });
+    if (error) console.warn('confirmMatchingReports failed (non-fatal):', error.message || error);
+  } catch (e) {
+    console.warn('confirmMatchingReports failed (non-fatal):', e);
+  }
+}
+
 async function applyAction(brandId, action, opts) {
   if (action === 'confirm_start') {
     // Reuse an already-open cycle instead of inserting a duplicate. A brand
@@ -1656,6 +1681,7 @@ async function applyAction(brandId, action, opts) {
     if (lookupErr) throw lookupErr;
     const existing = (openCycles || [])[0];
     let cycleId;
+    let pctMoved = false;
     if (existing) {
       // Only include description in the update when the caller actually
       // supplied one — the crowd-report quick actions call this path with no
@@ -1675,6 +1701,7 @@ async function applyAction(brandId, action, opts) {
       if ((existing.max_discount_pct ?? null) !== (opts.max_discount_pct ?? null)) {
         cycleUpdate.pct_changed_date = TODAY;
         cycleUpdate.prior_discount_pct = existing.max_discount_pct ?? null;
+        pctMoved = true;
       }
       const { error: cErr } = await pg.update('brand_sale_cycles', 'id=eq.' + existing.id, cycleUpdate);
       if (cErr) throw cErr;
@@ -1702,6 +1729,8 @@ async function applyAction(brandId, action, opts) {
     });
     if (uErr) throw uErr;
     await logReview(brandId, 'confirmed_start', cycleId);
+    await confirmMatchingReports(brandId,
+      ['sale_started', 'sale_active_confirmed'].concat(pctMoved ? ['discount_different'] : []));
     return;
   }
 
@@ -1724,6 +1753,7 @@ async function applyAction(brandId, action, opts) {
     });
     if (uErr) throw uErr;
     await logReview(brandId, 'confirmed_end', openCycle ? openCycle.id : null);
+    await confirmMatchingReports(brandId, ['sale_ended', 'no_sale_confirmed']);
     return;
   }
 
@@ -1734,6 +1764,7 @@ async function applyAction(brandId, action, opts) {
     });
     if (error) throw error;
     await logReview(brandId, 'confirmed_on', null);
+    await confirmMatchingReports(brandId, ['sale_started', 'sale_active_confirmed']);
     return;
   }
 
@@ -1743,6 +1774,7 @@ async function applyAction(brandId, action, opts) {
     });
     if (error) throw error;
     await logReview(brandId, 'confirmed_off', null);
+    await confirmMatchingReports(brandId, ['sale_ended', 'no_sale_confirmed']);
     return;
   }
 
@@ -1785,6 +1817,9 @@ async function applyEdit(brandId, cycleId, opts, prevPct) {
   });
   if (uErr) throw uErr;
   await logReview(brandId, 'edited', cycleId);
+  if ((prevPct ?? null) !== (opts.max_discount_pct ?? null)) {
+    await confirmMatchingReports(brandId, ['discount_different']);
+  }
 }
 
 // "Sale increased" — moves an already-open cycle's discount % up in place.
@@ -1811,6 +1846,7 @@ async function applyIncrease(brandId, cycleId, opts, prevPct) {
   if (uErr) throw uErr;
   const note = (prevPct != null ? prevPct + '%' : '—') + ' → ' + opts.max_discount_pct + '%';
   await logReview(brandId, 'increased', cycleId, note);
+  await confirmMatchingReports(brandId, ['discount_different']);
 }
 
 // Hard-delete a cycle the admin created by mistake. Clears the FK on

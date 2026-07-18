@@ -395,6 +395,9 @@ export function renderBrandDeepenedEmail(opts: {
 // messages. The single-brand paths above still handle the one-item case.
 export function renderBrandSaleDigestEmail(opts: {
   brands: { brandName: string; centre1: string; centre2?: string; centreId?: string; discount?: string; wasDiscount?: string; kind?: 'started' | 'deepened' }[];
+  // Pass-4 (SEO signup) overrides — see renderHighTideEmail.
+  footerReason?: string;
+  unsubUrl?: string;
 }): { subject: string; html: string; text: string } {
   const { brands } = opts;
   const n = brands.length;
@@ -459,8 +462,10 @@ export function renderBrandSaleDigestEmail(opts: {
   const html = baseEmailWrap({
     previewText,
     bodyHtml,
-    footerReason: `You're receiving this because you follow these brands on Tide and Brand Sale Alerts are switched on. Unsubscribing here turns off alerts for all followed brands.`,
+    footerReason: opts.footerReason
+      || `You're receiving this because you follow these brands on Tide and Brand Sale Alerts are switched on. Unsubscribing here turns off alerts for all followed brands.`,
     unsubLabel: 'Brand Sale Alerts',
+    unsubUrl: opts.unsubUrl,
   });
 
   const textLines = [
@@ -470,6 +475,7 @@ export function renderBrandSaleDigestEmail(opts: {
     '',
     `See your shops: ${APP_URL}`,
   ];
+  if (opts.unsubUrl) { textLines.push(''); textLines.push(`Unsubscribe: ${opts.unsubUrl}`); }
 
   return { subject, html, text: textLines.join('\n') };
 }
@@ -750,6 +756,14 @@ Deno.serve(async (req: Request) => {
   // email|centre_id pairs pass 1 addressed, so pass 4 never double-emails an
   // address that also has an account with the same centre saved.
   const peakEmailed = new Set<string>();
+  // Addresses pass 1 sent a peak alert to this run — hard cap of ONE peak
+  // email per address per day, even when several of their saved centres (or
+  // signup rows) enter Peak on the same morning.
+  const peakAlertedAddrs = new Set<string>();
+  // email|brand_slug pairs pass 2b addressed, so pass 4 never re-sends a
+  // brand's sale-start news to an address whose account summary already
+  // carried it today.
+  const brandEmailed = new Set<string>();
 
   // 2. HIGH-TIDE ALERTS. (daily run only — skipped on the Friday digest call)
   //
@@ -769,8 +783,11 @@ Deno.serve(async (req: Request) => {
       .filter((s: { verdict: string | null }) => stageFromVerdict(s.verdict) === "High Tide")
       .map((s: { centre_id: string }) => s.centre_id));
   }
+  // Strongest centre first: with the one-peak-email-per-address cap below, a
+  // user whose saved centres enter Peak together hears about the best one.
   const highTideCentres = digestOnly ? [] : scores.filter(s =>
-    stageFromVerdict(s.verdict) === "High Tide" && !peakYesterday.has(s.centre_id));
+    stageFromVerdict(s.verdict) === "High Tide" && !peakYesterday.has(s.centre_id))
+    .sort((a, b) => (Number(b.tide_score) || 0) - (Number(a.tide_score) || 0));
   for (const score of highTideCentres) {
     const centreName = centres.get(score.centre_id);
     if (!centreName) continue;
@@ -791,6 +808,8 @@ Deno.serve(async (req: Request) => {
     for (const p of recipients) {
       const to = emailById.get(p.user_id);
       if (!to) { log.push({ type: "alert", centre: centreName, skipped: `no email for user ${p.user_id}` }); continue; }
+      if (peakAlertedAddrs.has(to.toLowerCase())) { log.push({ type: "alert", to, centre: centreName, skipped: "already sent a peak alert today (one per address per day)" }); continue; }
+      peakAlertedAddrs.add(to.toLowerCase());
       peakEmailed.add(to.toLowerCase() + "|" + score.centre_id);
       // "Followed" = brands the user explicitly opted into. Fall back to
       // category-matching when brand_ids isn't populated (legacy accounts).
@@ -885,6 +904,7 @@ Deno.serve(async (req: Request) => {
   for (const { p, items } of perUser.values()) {
     const to = emailById.get(p.user_id);
     if (!to) { log.push({ type: "brand", skipped: `no email for user ${p.user_id}`, brands: items.map(i => i.brandName) }); continue; }
+    for (const it of items) brandEmailed.add(to.toLowerCase() + "|" + slugify(it.brandName));
     const { subject, html, text } = items.length === 1
       ? (items[0].kind === 'started' ? renderBrandSaleEmail(items[0]) : renderBrandDeepenedEmail(items[0]))
       : renderBrandSaleDigestEmail({ brands: items });
@@ -910,10 +930,19 @@ Deno.serve(async (req: Request) => {
   //         row's centre. Start-only, matching the page's promise ("the
   //         moment a {brand} sale starts") — deepens don't fire these.
   //     Belt-and-braces: rows notified within SEO_RENOTIFY_DAYS are skipped
-  //     (guards against peak flapping / cycle churn), and addresses pass 1
-  //     already emailed for the same centre are skipped (account wins).
-  //     Every send stamps last_notified_at; every email footer carries the
-  //     row's one-click /api/unsubscribe?token= link (PECR).
+  //     (guards against peak flapping / cycle churn), and addresses the
+  //     account passes already emailed for the same centre (pass 1) or the
+  //     same brand (pass 2b) are skipped (account wins).
+  //     HARD RULE — AT MOST ONE EMAIL PER ADDRESS PER RUN. Rows are grouped
+  //     by address before sending: several brand hits become one summary
+  //     email (renderBrandSaleDigestEmail), the same brand at two centres
+  //     collapses to one item, and brand news wins over a same-day peak hit.
+  //     Never revert to per-row sends — an address signed up for N brands
+  //     would get N separate emails the day a national event starts them all.
+  //     Every send stamps last_notified_at on every row it covered; the
+  //     footer carries a one-click /api/unsubscribe?token= link (PECR) —
+  //     with &all=1 when the email spans multiple signup rows, clearing
+  //     every alert for the address in one click.
   const SEO_RENOTIFY_DAYS = 14;
   if (!digestOnly) {
     const seoRes = await sb.from("seo_alert_signups")
@@ -941,12 +970,21 @@ Deno.serve(async (req: Request) => {
       const topPeak = highTideCentres.slice()
         .sort((a, b) => (Number(b.tide_score) || 0) - (Number(a.tide_score) || 0))[0] || null;
 
+      // Phase 1 — collect every row that fires today, grouped by address.
+      type SeoBrandHit = { rows: SeoSignupRow[]; brandName: string; centreIds: string[]; discount?: string };
+      type SeoAddrPlan = { email: string; brandHits: Map<string, SeoBrandHit>; peak: { row: SeoSignupRow; score: ScoreRow } | null };
+      const byAddr = new Map<string, SeoAddrPlan>();
+      const planFor = (email: string): SeoAddrPlan => {
+        const key = email.toLowerCase();
+        let plan = byAddr.get(key);
+        if (!plan) { plan = { email, brandHits: new Map(), peak: null }; byAddr.set(key, plan); }
+        return plan;
+      };
+
       for (const row of signups) {
         const email = (row.email || "").trim();
         if (!email || !row.unsub_token) continue;
-        const unsubUrl = `${APP_URL}/api/unsubscribe?token=${row.unsub_token}`;
-        let send: { subject: string; html: string; text: string } | null = null;
-        let label = "";
+        const key = email.toLowerCase();
 
         if (row.brand_slug) {
           const hit = startedBySlug.get(row.brand_slug);
@@ -954,26 +992,65 @@ Deno.serve(async (req: Request) => {
           const centreName = centres.get(row.centre_slug);
           const stocked = (brandsAtCentre.get(row.centre_slug) || []).includes(hit.brand.id);
           if (!centreName || !stocked) continue;
+          if (brandEmailed.has(key + "|" + row.brand_slug)) { log.push({ type: "seo", to: email, brand: hit.brand.name, skipped: "already emailed via account alert" }); continue; }
           if (notifiedRecently(row)) { log.push({ type: "seo", to: email, brand: hit.brand.name, skipped: "notified recently" }); continue; }
-          const pct = (hit.sale.active_cycle_id && hit.sale.cycle?.max_discount_pct != null)
-            ? hit.sale.cycle!.max_discount_pct
-            : (hit.sale.max_discount_pct ?? null);
-          send = renderBrandSaleEmail({
-            brandName: hit.brand.name,
-            centre1: centreName,
-            centreId: row.centre_slug,
-            discount: pct ? `${pct}%` : undefined,
-            footerReason: `You asked Tide (tidego.co) to email you when a ${hit.brand.name} sale starts at ${centreName}. Unsubscribing removes this alert instantly — no account needed.`,
-            unsubUrl,
-          });
-          label = hit.brand.name;
+          const plan = planFor(email);
+          const existing = plan.brandHits.get(row.brand_slug);
+          if (existing) {
+            // Same brand signed up at another centre — one sale, one mention.
+            existing.rows.push(row);
+            if (!existing.centreIds.includes(row.centre_slug)) existing.centreIds.push(row.centre_slug);
+          } else {
+            const pct = (hit.sale.active_cycle_id && hit.sale.cycle?.max_discount_pct != null)
+              ? hit.sale.cycle!.max_discount_pct
+              : (hit.sale.max_discount_pct ?? null);
+            plan.brandHits.set(row.brand_slug, { rows: [row], brandName: hit.brand.name, centreIds: [row.centre_slug], discount: pct ? `${pct}%` : undefined });
+          }
         } else {
           const score = row.centre_slug === "blog" ? topPeak : (peakByCentre.get(row.centre_slug) || null);
           if (!score) continue;
           const centreName = centres.get(score.centre_id);
           if (!centreName) continue;
-          if (peakEmailed.has(email.toLowerCase() + "|" + score.centre_id)) { log.push({ type: "seo", to: email, centre: centreName, skipped: "already emailed via account alert" }); continue; }
+          if (peakEmailed.has(key + "|" + score.centre_id)) { log.push({ type: "seo", to: email, centre: centreName, skipped: "already emailed via account alert" }); continue; }
+          if (peakAlertedAddrs.has(key)) { log.push({ type: "seo", to: email, centre: centreName, skipped: "already sent a peak alert today" }); continue; }
           if (notifiedRecently(row)) { log.push({ type: "seo", to: email, centre: centreName, skipped: "notified recently" }); continue; }
+          const plan = planFor(email);
+          // Keep the strongest peak — the email names one centre only.
+          if (!plan.peak || (Number(score.tide_score) || 0) > (Number(plan.peak.score.tide_score) || 0)) plan.peak = { row, score };
+        }
+      }
+
+      // Phase 2 — send AT MOST ONE email per address, covering everything.
+      for (const plan of byAddr.values()) {
+        const email = plan.email;
+        const brandItems = Array.from(plan.brandHits.values());
+        let send: { subject: string; html: string; text: string };
+        let label: string;
+        let sentRows: SeoSignupRow[];
+
+        if (brandItems.length > 0) {
+          if (plan.peak) log.push({ type: "seo", to: email, centre: centres.get(plan.peak.score.centre_id), skipped: "consolidated — today's brand email covers this address" });
+          const items = brandItems.map(h => ({
+            brandName: h.brandName,
+            centre1: centres.get(h.centreIds[0])!,
+            centre2: h.centreIds[1] ? centres.get(h.centreIds[1]) : undefined,
+            centreId: h.centreIds[0],
+            discount: h.discount,
+            kind: 'started' as const,
+          }));
+          sentRows = brandItems.flatMap(h => h.rows);
+          const multiRow = sentRows.length > 1;
+          const unsubUrl = `${APP_URL}/api/unsubscribe?token=${sentRows[0].unsub_token}${multiRow ? "&all=1" : ""}`;
+          const footerReason = multiRow
+            ? `You asked Tide (tidego.co) to email you when these sales start. Unsubscribing removes every sale alert for this address instantly — no account needed.`
+            : `You asked Tide (tidego.co) to email you when a ${items[0].brandName} sale starts at ${items[0].centre1}. Unsubscribing removes this alert instantly — no account needed.`;
+          send = items.length === 1
+            ? renderBrandSaleEmail({ ...items[0], footerReason, unsubUrl })
+            : renderBrandSaleDigestEmail({ brands: items, footerReason, unsubUrl });
+          label = items.map(i => i.brandName).join(", ");
+        } else if (plan.peak) {
+          const { row, score } = plan.peak;
+          const centreName = centres.get(score.centre_id)!;
           const names = onSaleNamesAt(score.centre_id);
           send = renderHighTideEmail({
             centreName,
@@ -984,20 +1061,20 @@ Deno.serve(async (req: Request) => {
             narrative: score.bluf || undefined,
             ctaUrl: `${APP_URL}?centre=${encodeURIComponent(score.centre_id)}`,
             footerReason: `You asked Tide (tidego.co) to email you when ${row.centre_slug === "blog" ? "the tide peaks" : centreName + " hits peak"}. Unsubscribing removes this alert instantly — no account needed.`,
-            unsubUrl,
+            unsubUrl: `${APP_URL}/api/unsubscribe?token=${row.unsub_token}`,
           });
           label = centreName;
-        }
+          sentRows = [row];
+        } else continue;
 
-        if (!send) continue;
-        if (dryRun) { log.push({ type: "seo", to: email, centre: label, ok: true, skipped: "dryRun" }); continue; }
+        if (dryRun) { log.push({ type: "seo", to: email, centre: label, count: sentRows.length, ok: true, skipped: "dryRun" }); continue; }
         const result = await sendEmail(email, send.subject, send.html, send.text, RESEND_KEY!);
-        log.push({ type: "seo", to: email, centre: label, ok: result.ok, status: result.status });
+        log.push({ type: "seo", to: email, centre: label, count: sentRows.length, ok: result.ok, status: result.status });
         if (result.ok) {
           seoAlertsSent++;
           const upd = await sb.from("seo_alert_signups")
             .update({ last_notified_at: new Date().toISOString() })
-            .eq("id", row.id);
+            .in("id", sentRows.map(r => r.id));
           if (upd.error) log.push({ type: "seo", to: email, skipped: `last_notified_at update failed: ${upd.error.message}` });
         }
       }

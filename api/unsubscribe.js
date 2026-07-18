@@ -1,11 +1,14 @@
 // /api/unsubscribe — one-click unsubscribe for seo_alert_signups emails.
 //
-// GET /api/unsubscribe?token=<uuid>
+// GET /api/unsubscribe?token=<uuid>[&all=1]
 //
 // SEO-page alert signups have no account, so email footers link here with the
-// row's unsub_token; we delete the row and confirm. Idempotent and quiet: an
-// unknown or already-used token shows the same confirmation, so the endpoint
-// can't be probed to learn which tokens exist.
+// row's unsub_token; we delete the row and confirm. With all=1 (linked from
+// consolidated emails that cover several signup rows at once) the token is
+// resolved to its address first and EVERY signup for that address is deleted —
+// one email, one link, one promise. Idempotent and quiet: an unknown or
+// already-used token shows the same confirmation, so the endpoint can't be
+// probed to learn which tokens exist.
 //
 // Required Vercel env vars (already set for /api/rescore):
 //   SUPABASE_URL
@@ -46,12 +49,27 @@ export default async function handler(req, res) {
       'We couldn’t process that just now. Please try again shortly.'));
   }
 
+  const all = String(req.query?.all || '') === '1';
+  const base = url.replace(/\/$/, '') + '/rest/v1/seo_alert_signups';
+  const headers = { apikey: serviceKey, Authorization: 'Bearer ' + serviceKey };
+
   try {
-    const r = await fetch(
-      url.replace(/\/$/, '') + '/rest/v1/seo_alert_signups?unsub_token=eq.' + encodeURIComponent(token),
-      { method: 'DELETE', headers: { apikey: serviceKey, Authorization: 'Bearer ' + serviceKey } }
-    );
-    if (!r.ok) throw new Error('delete failed: ' + r.status);
+    if (all) {
+      // Resolve the token to its address, then clear every signup for it. A
+      // token whose row is already gone falls through to the same idempotent
+      // confirmation as the single-row path.
+      const q = await fetch(base + '?unsub_token=eq.' + encodeURIComponent(token) + '&select=email', { headers });
+      if (!q.ok) throw new Error('lookup failed: ' + q.status);
+      const rows = await q.json();
+      const email = rows && rows[0] && rows[0].email;
+      if (email) {
+        const r = await fetch(base + '?email=eq.' + encodeURIComponent(email), { method: 'DELETE', headers });
+        if (!r.ok) throw new Error('delete-all failed: ' + r.status);
+      }
+    } else {
+      const r = await fetch(base + '?unsub_token=eq.' + encodeURIComponent(token), { method: 'DELETE', headers });
+      if (!r.ok) throw new Error('delete failed: ' + r.status);
+    }
   } catch (err) {
     console.error('Unsubscribe failed:', err);
     return res.status(502).send(page('Something went wrong',
@@ -59,5 +77,7 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).send(page("You're unsubscribed",
-    'That email address won’t get any more sale alerts from this signup. Changed your mind? Any centre page on Tide has the alert box.'));
+    all
+      ? 'That email address won’t get any more sale alerts from Tide. Changed your mind? Any centre page on Tide has the alert box.'
+      : 'That email address won’t get any more sale alerts from this signup. Changed your mind? Any centre page on Tide has the alert box.'));
 }

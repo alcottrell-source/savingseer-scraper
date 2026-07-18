@@ -24,7 +24,7 @@
 // admin allow-list. An unauthenticated or non-admin POST is rejected 401/403
 // before any scoring work runs — closing the open compute endpoint.
 
-import { runScoring } from '../score.js';
+import { runScoring, healMergedGap } from '../score.js';
 
 const ADMIN_EMAIL = (process.env.RESCORE_ADMIN_EMAIL || 'alcottrell@gmail.com').toLowerCase();
 
@@ -87,17 +87,51 @@ export default async function handler(req, res) {
 
   // centre_ids may arrive in the body (preferred) or as a CSV query param.
   let centreIds = null;
+  let healGap = null;
   try {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     if (Array.isArray(body.centre_ids)) centreIds = body.centre_ids;
+    // Optional stored-history heal after a cycle merge (admin.html Sale
+    // history tab): put the merged brand back on sale in the stored per-day
+    // scores for the gap the merge closed, BEFORE rescoring so the
+    // tide_history rebuild picks the healed rows up in this same call.
+    // Strictly validated — this runs with the service key.
+    const hg = body.heal_gap;
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    if (hg && typeof hg === 'object'
+        && typeof hg.brand_id === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(hg.brand_id)
+        && DATE_RE.test(String(hg.from_date)) && DATE_RE.test(String(hg.to_date))) {
+      healGap = { brandId: hg.brand_id, fromDate: hg.from_date, toDate: hg.to_date };
+    }
   } catch { /* no body */ }
   if (!centreIds && typeof req.query?.centre_ids === 'string') {
     centreIds = req.query.centre_ids.split(',').map(s => s.trim()).filter(Boolean);
   }
 
   const startMs = Date.now();
+  let healedRows = null;
+  let healError = null;
+  if (healGap) {
+    try {
+      healedRows = (await healMergedGap(healGap)).healedRows;
+    } catch (err) {
+      // Don't abort the rescore — today's scores should still refresh. The
+      // partial outcome is surfaced as a 502 below so the admin banner can
+      // say the chart history may still show the dip.
+      console.error('History heal failed:', err);
+      healError = String(err?.message || err);
+    }
+  }
   try {
     const summary = await runScoring({ filterCentreIds: centreIds });
+    if (healError) {
+      return res.status(502).json({
+        ok: false,
+        error: `Scores updated, but the merged sale's stored history could not be healed — the chart may still show the dip. (${healError})`,
+        took_ms: Date.now() - startMs,
+        centre_ids: centreIds,
+      });
+    }
     // The scores (centre_seer_scores) are written first and would have thrown
     // above on failure. A tide_history write/fetch failure does NOT throw — it
     // means the headline updated but the 60-day chart didn't. Surface that as a
@@ -118,6 +152,7 @@ export default async function handler(req, res) {
       ok: true,
       took_ms: Date.now() - startMs,
       centre_ids: centreIds,
+      healed_rows: healedRows,
     });
   } catch (err) {
     console.error('Rescore failed:', err);

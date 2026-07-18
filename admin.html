@@ -1670,7 +1670,7 @@ function showRescoreWarn(msg) {
   rescoreWarnActive = true;
   showStatus(msg, true);
 }
-async function triggerRescore() {
+async function triggerRescore(extraBody) {
   // Refresh the token first so an hour-old admin tab doesn't post a dead JWT
   // and trip the false "session may have expired" banner.
   const token = await getFreshToken();
@@ -1680,7 +1680,7 @@ async function triggerRescore() {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: 'Bearer ' + token } : {}),
     },
-    body: '{}',
+    body: JSON.stringify(extraBody && typeof extraBody === 'object' ? extraBody : {}),
   }).then(async r => {
     if (r.ok) { clearRescoreWarn(); return; }
     let detail = '', reason = '';
@@ -2141,8 +2141,14 @@ async function runMerge() {
   const def = BRAND_BY_ID[brandId];
   $('history-mount').querySelectorAll('button').forEach(btn => btn.disabled = true);
   try {
-    await mergeCycles(brandId, a, b);
-    triggerRescore();
+    const { earlier, later } = await mergeCycles(brandId, a, b);
+    // Heal the stored per-day scores for the gap the merge closed (the fake
+    // dip in the history curve), then rescore — the endpoint runs the heal
+    // first so the tide_history rebuild picks the healed rows up.
+    const hasGap = earlier.end_date && earlier.end_date < later.start_date;
+    triggerRescore(hasGap
+      ? { heal_gap: { brand_id: brandId, from_date: earlier.end_date, to_date: later.start_date } }
+      : undefined);
     HISTORY_SELECTED.length = 0;
     toast('Merged into one sale · ' + def.name);
     await loadHistory(brandId);
@@ -2202,6 +2208,9 @@ async function mergeCycles(brandId, rowA, rowB) {
       console.warn('merge review-log failed (the merge itself succeeded):', err.message || err, err2.message || err2);
     }
   }
+  // The caller heals the stored history gap via the rescore call — it needs
+  // the pre-merge boundary dates, which only exist on this ordered pair.
+  return { earlier, later, live, update };
 }
 
 // ── Tide-rhythm SVG — ported from the customer sheet (index.html rhythmSVG):

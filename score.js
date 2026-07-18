@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { brands } from './brands.js';
+import { healGapDates, healedScoreRow } from './lib/merge-cycles.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -744,6 +745,49 @@ async function calculatePersonalScores(opts = {}) {
   if (error) throw new Error(`Personal score write failed: ${error.message}`);
 
   console.log(`  ✓ ${scoreRows.length} personal scores written for ${prefsRes.data.length} user(s)`);
+}
+
+// ── Merged-cycle history heal ────────────────────────────────────────────────
+// When the admin merges two sale cycles that were really one sale (admin.html
+// "Sale history" tab), the stored per-day scores for the gap between them
+// still carry a fake dip: on those days the brand was counted off-sale, but
+// the merged cycle now says it was on. This puts the brand back into
+// brands_on_sale / tide_score for every stored row in the gap, across every
+// centre carrying the brand. Runs BEFORE the rescore in /api/rescore so the
+// tide_history rebuild (wholesale from centre_seer_scores) picks the healed
+// rows up in the same call. Only ever updates existing rows — days with no
+// stored score stay absent. Safe against re-runs at the same-UI level: the
+// merge deletes one of the pair, so the same gap can't be submitted twice.
+export async function healMergedGap({ brandId, fromDate, toDate }, client) {
+  const supabase = client || getSupabase();
+  const dates = healGapDates(fromDate, toDate);
+  if (!dates.length) return { healedRows: 0 };
+  const { data: cb, error: cbErr } = await supabase
+    .from('centre_brands').select('centre_id')
+    .eq('brand_id', brandId).eq('present', true);
+  if (cbErr) throw new Error(`heal: centre lookup failed: ${cbErr.message}`);
+  const centreIds = [...new Set((cb || []).map(r => r.centre_id))];
+  if (!centreIds.length) return { healedRows: 0 };
+  const { data: rows, error: rErr } = await supabase
+    .from('centre_seer_scores')
+    .select('centre_id, score_date, brands_on_sale, total_brands')
+    .in('centre_id', centreIds)
+    .in('score_date', dates);
+  if (rErr) throw new Error(`heal: score read failed: ${rErr.message}`);
+  const updates = (rows || [])
+    .map(row => ({ row, healed: healedScoreRow(row) }))
+    .filter(u => u.healed);
+  if (!updates.length) return { healedRows: 0 };
+  const results = await Promise.all(updates.map(({ row, healed }) =>
+    supabase.from('centre_seer_scores').update(healed)
+      .eq('centre_id', row.centre_id).eq('score_date', row.score_date)
+  ));
+  const failed = results.filter(r => r.error);
+  if (failed.length) {
+    throw new Error(`heal: ${failed.length} of ${updates.length} row updates failed: ${failed[0].error.message}`);
+  }
+  console.log(`  ✓ healed ${updates.length} stored score row(s) for ${brandId} over ${dates[0]}..${dates[dates.length - 1]}`);
+  return { healedRows: updates.length };
 }
 
 // ── Public entry point ─────────────────────────────────────────────────────────

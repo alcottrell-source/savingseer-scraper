@@ -2188,7 +2188,20 @@ async function mergeCycles(brandId, rowA, rowB) {
   const note = epRange({ start: earlier.start_date, end: earlier.end_date, live: earlier.end_date == null })
     + ' + ' + epRange({ start: later.start_date, end: later.end_date, live: later.end_date == null })
     + ' → ' + mergedLabel;
-  await logReview(brandId, 'merged', earlier.id, note);
+  // The data writes above are already committed — a failed review-log row must
+  // never surface as "Merge failed". On a DB that predates the 20260718
+  // migration (no 'merged' in the action CHECK), fall back to the original
+  // 'edited' verb with the same note; if even that fails, warn and move on.
+  try {
+    await logReview(brandId, 'merged', earlier.id, note);
+  } catch (err) {
+    try {
+      await logReview(brandId, 'edited', earlier.id, 'Merged: ' + note);
+      console.warn('admin_review_log rejected the merged verb (run migration 20260718_add_merged_action.sql) — logged as edited instead:', err.message || err);
+    } catch (err2) {
+      console.warn('merge review-log failed (the merge itself succeeded):', err.message || err, err2.message || err2);
+    }
+  }
 }
 
 // ── Tide-rhythm SVG — ported from the customer sheet (index.html rhythmSVG):

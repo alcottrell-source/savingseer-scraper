@@ -87,33 +87,31 @@ Deploy notes: apply the migration in Supabase; the edge function redeploys via
 `deploy-functions.yml` on merge; `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` are
 already Vercel env vars (used by `/api/rescore`, now also `/api/unsubscribe`).
 
-## Phase 2 — next 2–4 weeks
+## Phase 2 — SHIPPED (Jul 2026, items 6–9)
 
-6. **One-field alert form inside the SPA.** The SEO pages' "email me when
-   {centre} peaks" single-field form, mounted under the centre hero and as
-   the logged-out brand-sheet action (writing `brand_slug` too). Reuses
-   `seo_alert_signups` verbatim — this converts anonymous traffic into an
-   emailable audience *without* the magic-link wall, and full sign-up becomes
-   the upsell inside the alert emails.
-7. **Reachability fallback.** (a) Quiet-week Friday digest sends a light
-   version ("nothing peaking — here's what's building") instead of skipping;
-   (b) digest-opted users with no saved centres get a national top-3 card;
-   (c) a one-time "finish setting up" nudge email 3 days after signup for
-   users with no prefs (needs a `nudged_at` marker). No separate monthly
-   broadcast — the digest fallback covers it with less machinery.
-8. **First-party cookieless funnel counter.** ~30-line `api/event.js`
-   incrementing `(day, event_name)` aggregate rows — no user IDs, no cookies,
-   so it sits outside consent and de-biases the GA4 picture. Call it from
-   `trackEvent` for the funnel steps only.
-9. **Crowd-report feedback v1.** `status`/`resolved_at` on `user_reports`;
-   admin confirm marks reports confirmed; account panel shows "Your reports:
-   N · M confirmed". No streaks/leaderboards (reputation weighting is
-   deferred — DECISIONS OQ2). Also chips away at the admin-verification
-   bottleneck by making crowd triage credible.
-10. **Referral surfacing.** "Invite a friend" row in the account panel reuses
-    the existing invite-link code; consider appending `?ref=` to shares for
-    signed-in users. Do this only after the alert loop demonstrably delivers
-    — referrals amplify a working loop, they can't create one.
+6. **One-field alert form inside the SPA — shipped.** Centre page shows a
+   "Get the peak alert for {centre}" card for logged-out visitors (hidden
+   per-device once opted in); the brand sheet's logged-out Alert-me offers an
+   email field writing `brand_slug` rows. Both reuse `seo_alert_signups` and
+   pass-4 delivery; duplicate submits (unique-index 409) read as "already on
+   the list".
+7. **Reachability fallback — shipped.** Quiet-week Friday digest sends a
+   light "quiet weekend" variant instead of skipping; digest users with no
+   saved centres get the national top-3 with a save-your-own nudge; accounts
+   3–30 days old that never personalised get ONE "finish setting up" email
+   (`setup_nudged_at` marker, migration `20260717b`).
+8. **First-party cookieless funnel counter — shipped.** `api/event.js` +
+   `funnel_events` table (migration `20260717c`), fed by `trackEvent`'s
+   sendBeacon for funnel steps only; `onboarding_step` carries its step
+   number in the event name. Admin-readable via `is_admin()` RLS.
+9. **Crowd-report feedback v1 — shipped.** `status`/`resolved_at` on
+   `user_reports` (migration `20260717d`); admin verifications mark agreeing
+   open reports confirmed; account panel shows "Your sale reports: N
+   submitted · M confirmed by verification". Reports stay advisory (D6).
+10. **Referral surfacing — deliberately deferred.** "Invite a friend" already
+    exists in the account panel; hold further referral pushes until the alert
+    loop demonstrably delivers — referrals amplify a working loop, they can't
+    create one.
 
 ## Phase 3 / later
 

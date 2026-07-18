@@ -1442,10 +1442,27 @@ function openCookieSettings() {
 // auth_modal_open → magic_link_sent → magic_link_return → onboarding_step /
 // onboarding_complete, plus alert_optin and report_submitted. Absolute counts
 // are biased by consent opt-in, but step-to-step drop-off ratios survive it.
+const TIDE_FUNNEL_EVENTS = ['centre_selected','save_attempt_logged_out','auth_modal_open','magic_link_sent','magic_link_return','onboarding_step','onboarding_skip','onboarding_complete','alert_optin','report_submitted'];
 function trackEvent(name, params) {
   try {
     if (getConsent() === 'granted' && typeof window.gtag === 'function') {
       window.gtag('event', name, params || {});
+    }
+  } catch (e) {}
+  // First-party aggregate counter (/api/event → funnel_events): (day, event)
+  // += 1, no ids/cookies/params, so it's outside consent like a server log
+  // and de-biases the consent-gated GA numbers. Funnel steps only;
+  // onboarding_step carries its step number in the name so per-step
+  // drop-off survives aggregation. Fire-and-forget.
+  try {
+    if (TIDE_FUNNEL_EVENTS.indexOf(name) !== -1) {
+      const ev = (name === 'onboarding_step' && params && params.step) ? name + '_' + params.step : name;
+      const payload = JSON.stringify({ event: ev });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/event', new Blob([payload], { type: 'application/json' }));
+      } else {
+        fetch('/api/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(function(){});
+      }
     }
   } catch (e) {}
 }

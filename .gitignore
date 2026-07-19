@@ -9,4 +9,7 @@ node_modules/
 # SEO pages are generated at build time (vercel buildCommand), not committed
 .seo-sample/
 /centre/
+/brand/
+/blog/
+/sitemap.xml
 /sitemap-seo.xml

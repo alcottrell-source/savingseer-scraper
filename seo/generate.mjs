@@ -17,7 +17,8 @@
 
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { renderBrandPage, renderCentreHub, renderBlogIndex, renderBlogPost, slugify, isOnSale } from './render.mjs';
+import { renderBrandPage, renderBrandHub, renderCentreHub, renderBlogIndex, renderBlogPost, slugify, isOnSale } from './render.mjs';
+import { buildBrandIndex, brandHasNationalPage } from './brand-index.mjs';
 import { loadPosts } from './blog.mjs';
 import { nextSaleWindow } from './next-sale-window.mjs';
 
@@ -195,9 +196,22 @@ async function main() {
     urls.push({ loc: `${ORIGIN}/${relPath}`, lastmod: lastmod || buildDay });
   }
 
-  for (const raw of rawList) {
-    const { centre, brands, hasScore } = shape(raw, today);
+  // Shape everything first so the national brand index (below) sees the same
+  // per-centre data — including the per-centre child slugs — the pages use.
+  const shapedAll = rawList.map(raw => shape(raw, today));
+  const generatedShaped = []; // centres that passed the no-data gate
 
+  // The national brand index must exist BEFORE the centre loop so child pages
+  // can link up to their /brand/ parent. Built from gate-passing centres only,
+  // so every centre link on a /brand/ page points at an emitted child page.
+  for (const s of shapedAll) {
+    if (s.hasScore && s.brands.length) generatedShaped.push(s);
+  }
+  const brandIndex = buildBrandIndex(generatedShaped);
+  const nationalBrands = brandIndex.filter(brandHasNationalPage);
+  const hubSlugByBrandId = new Map(nationalBrands.map(b => [b.id, b.slug]));
+
+  for (const { centre, brands, hasScore } of shapedAll) {
     // NO DATA, NO PAGE: a centre with no current Tide Score, or no tracked
     // brands, can't answer the question — skip it rather than ship thin pages.
     if (!hasScore || !brands.length) {
@@ -224,7 +238,8 @@ async function main() {
     for (const b of pageBrands) {
       const siblings = pageBrands.filter(x => x.slug !== b.slug).map(x => ({ slug: x.slug, name: x.name, onSale: x.onSale }));
       await emit(`centre/${centre.slug}/${b.slug}`,
-        renderBrandPage({ centre, brand: b, sale: b.sale, cycle: b.cycle, hours, siblings, supabase, origin: ORIGIN, today }),
+        renderBrandPage({ centre, brand: b, sale: b.sale, cycle: b.cycle, hours, siblings, supabase, origin: ORIGIN, today,
+          brandHubSlug: hubSlugByBrandId.get(b.id) || null }),
         lastmodFrom(centre.scoreDate, b.sale && b.sale.last_verified_date));
     }
     centresBySlug[centre.slug] = { name: centre.name };
@@ -232,6 +247,16 @@ async function main() {
     brandPagesSkipped += thinSkipped;
     console.log(`[seo] ${centre.slug}: ${1 + pageBrands.length} pages (Tide Score ${centre.tideScore}, ${centre.verdict})${thinSkipped ? `, ${thinSkipped} thin brand page${thinSkipped === 1 ? '' : 's'} skipped` : ''}.`);
   }
+
+  // National /brand/ pages — the brand-only head query ("when does {brand} go
+  // on sale?"). Same thin-page rule as the children; freshness = newest of the
+  // brand's last-verified date and its latest cycle activity.
+  for (const b of nationalBrands) {
+    const newest = (b.cyclesRaw && b.cyclesRaw[0]) || null;
+    await emit(`brand/${b.slug}`, renderBrandHub({ brand: b, supabase, origin: ORIGIN, today }),
+      lastmodFrom(b.sale && b.sale.last_verified_date, newest && newest.end_date, newest && newest.start_date));
+  }
+  if (nationalBrands.length) console.log(`[seo] brand: ${nationalBrands.length} national brand page(s).`);
 
   // Guard: 0 pages means the data load succeeded but every centre was skipped
   // (no score / no present brands), or RLS silently returned nothing. Writing

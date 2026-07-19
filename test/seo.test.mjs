@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { nextSaleWindow } from '../seo/next-sale-window.mjs';
-import { isOnSale, slugify, verdictCopy, renderBrandPage, renderCentreHub } from '../seo/render.mjs';
+import { isOnSale, slugify, verdictCopy, renderBrandPage, renderBrandHub, renderCentreHub } from '../seo/render.mjs';
+import { buildBrandIndex, brandHasNationalPage, primaryCentreSlug } from '../seo/brand-index.mjs';
 
 test('nextSaleWindow returns the soonest future window', () => {
   // Early June → next notable window is the summer sale (8 July).
@@ -53,6 +54,62 @@ test('renderBrandPage embeds FAQ JSON-LD and the question H1', () => {
   assert.match(html, /"@type":"BreadcrumbList"/);
   assert.match(html, /\/rest\/v1\//, 'opt-in must post to raw PostgREST');
   assert.ok(!/@supabase\/supabase-js|createClient\(/.test(html), 'must not load supabase-js in the browser');
+});
+
+test('buildBrandIndex aggregates a brand across centres with a stable national slug', () => {
+  const shaped = (centreSlug, centreName, brands) => ({ centre: { slug: centreSlug, name: centreName }, brands });
+  const next = { id: 'B001', name: 'Next', slug: 'next', cluster: 'High Street', saleUrl: 'https://x',
+    sale: { active_cycle_id: 'c1' }, cycle: { startDate: '2026-06-20', maxDiscountPct: 50 },
+    cyclesRaw: [{ brand_id: 'B001', start_date: '2026-06-20', end_date: null, max_discount_pct: 50 }],
+    onSale: true, hasPage: true };
+  const thin = { id: 'B099', name: 'Quietco', slug: 'quietco', cluster: null, saleUrl: null,
+    sale: null, cycle: null, cyclesRaw: [], onSale: false, hasPage: false };
+  const idx = buildBrandIndex([
+    shaped('westquay-southampton', 'Westquay', [next, thin]),
+    shaped('bluewater', 'Bluewater', [{ ...next }]),
+  ]);
+  const n = idx.find(b => b.id === 'B001');
+  assert.equal(n.slug, 'next');
+  assert.equal(n.centres.length, 2);
+  // Centres sort alphabetically; the primary (opt-in) centre is stable.
+  assert.equal(primaryCentreSlug(n), 'bluewater');
+  assert.equal(brandHasNationalPage(n), true);
+  // Thin brands (off-sale, no history) get no national page, same as children.
+  assert.equal(brandHasNationalPage(idx.find(b => b.id === 'B099')), false);
+});
+
+test('renderBrandHub answers the brand-only head query with FAQ LD and centre links', () => {
+  const idx = buildBrandIndex([{
+    centre: { slug: 'westquay-southampton', name: 'Westquay' },
+    brands: [{ id: 'B001', name: 'Next', slug: 'next', cluster: null, saleUrl: 'https://x',
+      sale: { active_cycle_id: 'c1' }, cycle: { startDate: '2026-06-20', maxDiscountPct: 50 },
+      cyclesRaw: [{ brand_id: 'B001', start_date: '2026-06-20', end_date: null, max_discount_pct: 50 }],
+      onSale: true, hasPage: true }],
+  }]);
+  const html = renderBrandHub({ brand: idx[0], supabase: { url: 'u', anonKey: 'k' },
+    origin: 'https://tidego.co', today: new Date(Date.UTC(2026, 5, 25)) });
+  assert.match(html, /<h1>When does Next go on sale\?<\/h1>/);
+  assert.match(html, /Yes — Next is on sale now, up to 50% off\./);
+  assert.match(html, /"@type":"FAQPage"/);
+  assert.match(html, /"@type":"BreadcrumbList"/);
+  assert.match(html, /rel="canonical" href="https:\/\/tidego\.co\/brand\/next"/);
+  // Links down to the emitted child page — the anti-cannibalisation hierarchy.
+  assert.match(html, /href="https:\/\/tidego\.co\/centre\/westquay-southampton\/next"/);
+  // Opt-in centre_slug must be a REAL stocked centre (NOT NULL + pass-4 rule).
+  assert.match(html, /westquay-southampton/);
+  assert.ok(!/@supabase\/supabase-js|createClient\(/.test(html), 'must not load supabase-js in the browser');
+});
+
+test('renderBrandPage links up to its national /brand/ parent when given', () => {
+  const html = renderBrandPage({
+    centre: { slug: 'westquay-southampton', name: 'Westquay', tideScore: 34, verdict: 'Rising', trajectory: 'RISING' },
+    brand: { id: 'B001', name: 'Next', slug: 'next', saleUrl: 'https://x' },
+    sale: { last_verified_date: '2026-06-02', last_verified_status: true },
+    cycle: null, hours: null, siblings: [],
+    supabase: { url: 'u', anonKey: 'k' }, origin: 'https://tidego.co',
+    today: new Date(Date.UTC(2026, 5, 3)), brandHubSlug: 'next',
+  });
+  assert.match(html, /href="https:\/\/tidego\.co\/brand\/next"/);
 });
 
 test('centre hub links page-worthy brands but renders thin ones as plain text', () => {

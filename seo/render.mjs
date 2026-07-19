@@ -5,7 +5,7 @@
 // fetch to PostgREST (the pgUpsert pattern), never supabase-js (which hangs in
 // the browser — see index.html).
 
-import { nextSaleWindowSentence } from './next-sale-window.mjs';
+import { nextSaleWindowSentence, nextSaleWindowSentenceNational } from './next-sale-window.mjs';
 
 export function escapeHtml(s) {
   return String(s ?? '')
@@ -76,6 +76,29 @@ export function episodeStats(episodes) {
 }
 
 function saleTypeLabel(t) { return t === 'percent_off' ? 'Sale on' : (t ? String(t).replace(/_/g, ' ') : 'Sale on'); }
+
+// Sale-history section — descriptive past episodes (no predictions). Shared by
+// the brand×centre page and the national /brand/ page so both tell one story.
+export function brandHistorySection(brandName, episodes, stats) {
+  if (!stats.onRecord) return '';
+  const SHOWN = 8;
+  const histRows = episodes.slice(0, SHOWN).map(e => {
+    const period = e.live
+      ? `${escapeHtml(fmtDate(e.start))} – <span class="tag">live now</span>`
+      : `${escapeHtml(fmtDate(e.start))} – ${escapeHtml(fmtDate(e.end))}`;
+    const disc = e.pct != null ? `Up to ${e.pct}% off` : escapeHtml(saleTypeLabel(e.saleType));
+    return `<tr><td>${period}</td><td>${disc}</td><td>${e.lengthDays} day${e.lengthDays === 1 ? '' : 's'}</td></tr>`;
+  }).join('');
+  const moreNote = stats.onRecord > SHOWN
+    ? `<p class="muted">Showing the ${SHOWN} most recent. ${stats.onRecord - SHOWN} earlier sale${stats.onRecord - SHOWN === 1 ? '' : 's'} also on record.</p>` : '';
+  const histIntro = `Tide has tracked <strong>${stats.onRecord}</strong> ${escapeHtml(brandName)} sale${stats.onRecord === 1 ? '' : 's'} since ${escapeHtml(fmtMonth(stats.oldestStart))}.${stats.avgLength != null ? ` They've typically run for about ${stats.avgLength} days.` : ''}${stats.deepest != null ? ` The deepest discount we've recorded was up to ${stats.deepest}% off.` : ''}`;
+  return `
+<h2>${escapeHtml(brandName)} sale history</h2>
+<p>${histIntro}</p>
+<table><thead><tr><th>Sale period</th><th>Discount</th><th>Length</th></tr></thead><tbody>${histRows}</tbody></table>
+${moreNote}
+<p class="muted">Based on Tide's tracked, admin-verified sale episodes — descriptive history only, not a forecast of future sales.</p>`;
+}
 
 // Short centre-context phrase for the supporting line on a brand page.
 export function centreContext(verdict) {
@@ -293,7 +316,7 @@ function configScript(supabase) {
 
 // ── Brand × centre page (the workhorse) ─────────────────────────────────────
 export function renderBrandPage(d) {
-  const { centre, brand, sale, cycle, hours, siblings, supabase, origin, today } = d;
+  const { centre, brand, sale, cycle, hours, siblings, supabase, origin, today, brandHubSlug } = d;
   const onSale = isOnSale(sale);
   const ans = brandAnswer(onSale, cycle, brand.name, centre.name);
   const ctx = centreContext(centre.verdict);
@@ -350,24 +373,7 @@ export function renderBrandPage(d) {
     ? `<div class="muted" style="margin-top:8px">Last sale ended ${escapeHtml(fmtDate(stats.lastCompleted.end))}${stats.lastCompleted.pct != null ? `, up to ${stats.lastCompleted.pct}% off` : ''}.</div>`
     : '';
 
-  // Sale-history section — descriptive past episodes (no predictions).
-  const SHOWN = 8;
-  const histRows = episodes.slice(0, SHOWN).map(e => {
-    const period = e.live
-      ? `${escapeHtml(fmtDate(e.start))} – <span class="tag">live now</span>`
-      : `${escapeHtml(fmtDate(e.start))} – ${escapeHtml(fmtDate(e.end))}`;
-    const disc = e.pct != null ? `Up to ${e.pct}% off` : escapeHtml(saleTypeLabel(e.saleType));
-    return `<tr><td>${period}</td><td>${disc}</td><td>${e.lengthDays} day${e.lengthDays === 1 ? '' : 's'}</td></tr>`;
-  }).join('');
-  const moreNote = stats.onRecord > SHOWN
-    ? `<p class="muted">Showing the ${SHOWN} most recent. ${stats.onRecord - SHOWN} earlier sale${stats.onRecord - SHOWN === 1 ? '' : 's'} also on record.</p>` : '';
-  const histIntro = `Tide has tracked <strong>${stats.onRecord}</strong> ${escapeHtml(brand.name)} sale${stats.onRecord === 1 ? '' : 's'} since ${escapeHtml(fmtMonth(stats.oldestStart))}.${stats.avgLength != null ? ` They've typically run for about ${stats.avgLength} days.` : ''}${stats.deepest != null ? ` The deepest discount we've recorded was up to ${stats.deepest}% off.` : ''}`;
-  const historySection = stats.onRecord ? `
-<h2>${escapeHtml(brand.name)} sale history</h2>
-<p>${histIntro}</p>
-<table><thead><tr><th>Sale period</th><th>Discount</th><th>Length</th></tr></thead><tbody>${histRows}</tbody></table>
-${moreNote}
-<p class="muted">Based on Tide's tracked, admin-verified sale episodes — descriptive history only, not a forecast of future sales.</p>` : '';
+  const historySection = brandHistorySection(brand.name, episodes, stats);
 
   return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `
 <div class="crumbs"><a href="${origin}/">Tide</a> › <a href="${origin}/centre/${centre.slug}">${escapeHtml(centre.name)}</a> › ${escapeHtml(brand.name)}</div>
@@ -383,6 +389,7 @@ ${moreNote}
 <h2>${escapeHtml(brand.name)} sales at ${escapeHtml(centre.name)}</h2>
 <table><thead><tr><th>Brand</th><th>Status</th><th>Offer</th><th>Started</th></tr></thead><tbody>${saleRow}</tbody></table>
 ${brand.saleUrl ? `<p class="muted">Official ${escapeHtml(brand.name)} sale page: <a href="${escapeHtml(brand.saleUrl)}" rel="nofollow noopener" target="_blank">${escapeHtml(brand.name)}</a></p>` : ''}
+${brandHubSlug ? `<p class="muted">Not near ${escapeHtml(centre.name)}? <a href="${origin}/brand/${brandHubSlug}">When does ${escapeHtml(brand.name)} go on sale? — the national guide →</a></p>` : ''}
 ${historySection}
 
 ${optInBlock(`${brand.name} at ${centre.name}`, { centre: centre.slug, brand: brand.slug, label: brand.name })}
@@ -391,6 +398,97 @@ ${hours ? `<h2>Visiting ${escapeHtml(centre.name)}</h2><p>Opening hours: ${escap
 
 <h2>Other shops at ${escapeHtml(centre.name)}</h2>
 <ul class="links">${sibLinks}<li><a href="${origin}/centre/${centre.slug}">All of ${escapeHtml(centre.name)} →</a></li></ul>
+
+<h2>FAQ</h2>
+${faq.map(f => `<details><summary>${escapeHtml(f.q)}</summary><p>${escapeHtml(f.a)}</p></details>`).join('')}
+<script type="application/ld+json">${JSON.stringify(faqLd)}</script>
+<script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
+` + FOOT(origin);
+}
+
+// ── National brand page (/brand/<slug>) ─────────────────────────────────────
+// Targets the brand-only head query — "when does {brand} go on sale?" — which
+// the centre-scoped pages can't own (up to 24 of them competed for it). This
+// page is the canonical brand answer; child pages link up to it, it links down
+// to every centre child, so the hierarchy resolves the cannibalisation.
+export function renderBrandHub(d) {
+  const { brand, supabase, origin, today } = d; // brand = a buildBrandIndex record with .slug
+  const episodes = buildEpisodes(brand.cyclesRaw, today);
+  const stats = episodeStats(episodes);
+  const title = `When does ${brand.name} go on sale? | Tide`;
+  const histBit = stats.onRecord
+    ? ` Tide has tracked ${stats.onRecord} ${brand.name} sale${stats.onRecord === 1 ? '' : 's'} since ${fmtMonth(stats.oldestStart)}${stats.deepest != null ? `, up to ${stats.deepest}% off` : ''}.`
+    : '';
+  const desc = `Is ${brand.name} on sale right now? Live admin-verified UK status, every ${brand.name} sale on record, and the next likely sale window.${histBit}`.slice(0, 320);
+  const canonical = `${origin}/brand/${brand.slug}`;
+  const winSentence = nextSaleWindowSentenceNational(today);
+
+  const pct = brand.cycle && brand.cycle.maxDiscountPct ? `, up to ${brand.cycle.maxDiscountPct}% off` : '';
+  const ans = brand.onSale
+    ? { tone: 'go', headline: `Yes — ${brand.name} is on sale now${pct}.`,
+        sub: brand.cycle && brand.cycle.startDate ? `Sale tracked and admin-verified by Tide, started ${brand.cycle.startDate}.` : 'Sale tracked and admin-verified by Tide.' }
+    : { tone: 'wait', headline: `Not right now — there's no verified ${brand.name} sale today.`,
+        sub: `Set an alert below and we'll email you the moment the next ${brand.name} sale starts.` };
+  const lastSaleLine = (!brand.onSale && stats.lastCompleted)
+    ? `<div class="muted" style="margin-top:8px">Last sale ended ${escapeHtml(fmtDate(stats.lastCompleted.end))}${stats.lastCompleted.pct != null ? `, up to ${stats.lastCompleted.pct}% off` : ''}.</div>`
+    : '';
+
+  const linkedCentres = brand.centres.filter(c => c.hasChildPage);
+  const centreLinks = linkedCentres
+    .map(c => `<li><a href="${origin}/centre/${c.slug}/${c.childSlug}">${escapeHtml(c.name)}${brand.onSale ? ' • on sale' : ''}</a></li>`).join('');
+  const centresSection = linkedCentres.length ? `
+<h2>${escapeHtml(brand.name)} ${brand.onSale ? 'sale near you' : 'at your centre'}</h2>
+<p class="muted">Tide tracks ${escapeHtml(brand.name)} at ${brand.centres.length} UK shopping centre${brand.centres.length === 1 ? '' : 's'}. See the live status where you shop:</p>
+<ul class="links">${centreLinks}</ul>` : '';
+
+  const faq = [
+    { q: `Is ${brand.name} on sale right now?`,
+      a: brand.onSale
+        ? `Yes — ${brand.name} has a sale confirmed today${brand.cycle && brand.cycle.maxDiscountPct ? `, up to ${brand.cycle.maxDiscountPct}% off` : ''}. ${brand.name} sales are national, so you'll find it at any centre that stocks them.`
+        : `Not right now — there's no verified ${brand.name} sale today. Set an alert on this page and we'll email you when one starts.` },
+    { q: `When is the next ${brand.name} sale?`,
+      a: winSentence || `Sales tend to follow the UK retail calendar — Boxing Day, summer, and Black Friday are the biggest windows.` },
+    { q: `Where can I shop the ${brand.name} sale?`,
+      a: linkedCentres.length
+        ? `Tide tracks ${brand.name} at ${brand.centres.length} UK shopping centres, including ${brand.centres.slice(0, 3).map(c => c.name).join(', ')}.`
+        : `Check ${brand.name}'s own site, or track a centre on Tide to see live sale status.` },
+  ];
+  if (stats.onRecord) {
+    faq.splice(1, 0, {
+      q: `How often does ${brand.name} go on sale?`,
+      a: `Tide has tracked ${stats.onRecord} ${brand.name} sale${stats.onRecord === 1 ? '' : 's'} since ${fmtMonth(stats.oldestStart)}${stats.avgLength != null ? `, typically lasting about ${stats.avgLength} days` : ''}${stats.deepest != null ? `, with discounts up to ${stats.deepest}% off` : ''}.`,
+    });
+  }
+  const faqLd = {
+    '@context': 'https://schema.org', '@type': 'FAQPage',
+    mainEntity: faq.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+  };
+  const breadcrumbLd = {
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Tide', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: brand.name, item: canonical },
+    ],
+  };
+
+  // centre_slug for the opt-in must be a real, stocked centre (NOT NULL column;
+  // pass 4 drops rows whose centre doesn't stock the brand).
+  const optCentre = brand.centres.length ? brand.centres[0].slug : 'blog';
+
+  return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `
+<div class="crumbs"><a href="${origin}/">Tide</a> › ${escapeHtml(brand.name)}</div>
+<h1>When does ${escapeHtml(brand.name)} go on sale?</h1>
+<div class="answer">
+  <div class="verdict ${ans.tone === 'go' ? 'go' : ''}">${escapeHtml(ans.headline)}</div>
+  <div>${escapeHtml(ans.sub)}</div>
+  ${lastSaleLine}
+  ${winSentence ? `<div class="win">${escapeHtml(winSentence)}</div>` : ''}
+</div>
+${brand.saleUrl ? `<p class="muted">Official ${escapeHtml(brand.name)} sale page: <a href="${escapeHtml(brand.saleUrl)}" rel="nofollow noopener" target="_blank">${escapeHtml(brand.name)}</a></p>` : ''}
+${brandHistorySection(brand.name, episodes, stats)}
+
+${optInBlock(`the next ${brand.name} sale`, { centre: optCentre, brand: brand.slug, label: brand.name })}
+${centresSection}
 
 <h2>FAQ</h2>
 ${faq.map(f => `<details><summary>${escapeHtml(f.q)}</summary><p>${escapeHtml(f.a)}</p></details>`).join('')}

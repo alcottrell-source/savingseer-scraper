@@ -368,7 +368,12 @@ export function renderBrandPage(d) {
   const histBit = stats.onRecord
     ? ` Tide has tracked ${stats.onRecord} ${brand.name} sale${stats.onRecord === 1 ? '' : 's'} since ${fmtMonth(stats.oldestStart)}${stats.deepest != null ? `, up to ${stats.deepest}% off` : ''}.`
     : '';
-  const desc = `Is ${brand.name} on sale at ${centre.name} right now? Live status, past sale history, and the next likely UK sale window.${histBit}`.slice(0, 320);
+  // Centre-specific live data (today's Tide Score) differentiates this
+  // description from the same brand's ~23 sibling pages at other centres,
+  // which otherwise differ only by centre name — the near-duplication the
+  // acquisition audit flagged as diluting the brand-head query.
+  const scoreBit = centre.tideScore != null && Number.isFinite(+centre.tideScore) ? ` — Tide Score ${centre.tideScore}/100 at ${centre.name} today` : '';
+  const desc = `Is ${brand.name} on sale at ${centre.name} right now? Live status${scoreBit}, past sale history, and the next likely UK sale window.${histBit}`.slice(0, 320);
   const canonical = `${origin}/centre/${centre.slug}/${brand.slug}`;
   const winSentence = nextSaleWindowSentence(today, centre.name);
 

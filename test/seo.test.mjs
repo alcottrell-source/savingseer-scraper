@@ -59,6 +59,28 @@ test('renderBrandPage embeds FAQ JSON-LD and the question H1', () => {
   assert.ok(!/@supabase\/supabase-js|createClient\(/.test(html), 'must not load supabase-js in the browser');
 });
 
+test('renderBrandPage meta description carries the centre\'s live Tide Score, differentiating sibling pages', () => {
+  const common = {
+    brand: { id: 'B001', name: 'Next', slug: 'next', saleUrl: 'https://x' },
+    sale: null, cycle: null, hours: null, siblings: [],
+    supabase: { url: 'u', anonKey: 'k' }, origin: 'https://tidego.co',
+    today: new Date(Date.UTC(2026, 5, 3)),
+  };
+  const westquay = renderBrandPage({ ...common,
+    centre: { slug: 'westquay-southampton', name: 'Westquay', tideScore: 34, verdict: 'Rising', trajectory: 'RISING' } });
+  const bluewater = renderBrandPage({ ...common,
+    centre: { slug: 'bluewater', name: 'Bluewater', tideScore: 61, verdict: 'Peak', trajectory: 'RISING' } });
+  const descOf = (html) => (html.match(/<meta name="description" content="([^"]*)"/) || [])[1];
+  assert.match(descOf(westquay), /Tide Score 34\/100 at Westquay today/);
+  assert.match(descOf(bluewater), /Tide Score 61\/100 at Bluewater today/);
+  assert.notEqual(descOf(westquay).replace(/Westquay/g, 'X'), descOf(bluewater).replace(/Bluewater/g, 'X'),
+    'two centres with different scores must yield genuinely different descriptions, not name-swaps');
+  // A centre with no score (null) must omit the clause, never render "null/100".
+  const noScore = renderBrandPage({ ...common,
+    centre: { slug: 'x', name: 'X', tideScore: null, verdict: 'Quiet', trajectory: 'FLAT' } });
+  assert.ok(!/null\/100|Tide Score/.test(descOf(noScore)), 'null score must drop the score clause');
+});
+
 test('buildBrandIndex aggregates a brand across centres with a stable national slug', () => {
   const shaped = (centreSlug, centreName, brands) => ({ centre: { slug: centreSlug, name: centreName }, brands });
   const next = { id: 'B001', name: 'Next', slug: 'next', cluster: 'High Street', saleUrl: 'https://x',

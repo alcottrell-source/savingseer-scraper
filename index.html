@@ -745,6 +745,8 @@
 
   footer .footer-links { margin-top: 8px; }
   footer .footer-links a { color: var(--stone); text-decoration: underline; margin: 0 6px; font-size: 11px; }
+  footer .footer-centres { margin: 14px auto 6px; max-width: 720px; line-height: 2; }
+  footer .footer-centres a { color: var(--stone); text-decoration: underline; margin: 0 6px; font-size: 11px; white-space: nowrap; }
 
   /* ── Survey card ── */
   .survey-card { margin: 32px 24px; background: var(--amber-lt); border: 1px solid rgba(193,122,43,0.2); border-radius: 16px; padding: 24px 20px 20px; position: relative; display: block; }
@@ -1161,7 +1163,18 @@
     Live sale data &middot; <span id="today-date"></span>
     <span id="scoring-status" class="scoring-status" aria-live="polite"></span>
   </div>
+  <!-- Crawlable centre-hub links, injected at build time by seo/generate.mjs
+       (injectHomepageCentreLinks) from the same live centre data the /centre/
+       pages are built from. The homepage is the domain's highest-authority URL
+       and previously contained ZERO crawlable links to the /centre/ pages (the
+       24-way <select> options aren't anchors). Keep the markers intact; the
+       block between them is overwritten on every Vercel build. -->
+  <!-- SEO:CENTRE_LINKS:START -->
+  <nav class="footer-centres" aria-label="Centres we track"></nav>
+  <!-- SEO:CENTRE_LINKS:END -->
   <div class="footer-links">
+    <a href="/guides/uk-sale-calendar">UK sale calendar</a>
+    &middot;
     <a href="/blog">Blog</a>
     &middot;
     <a href="privacy.html">Privacy Policy</a>
@@ -1376,8 +1389,12 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // While it stays the placeholder, the banner + loader no-op so nothing
 // breaks and no cookies are ever set.
 const GA_MEASUREMENT_ID = 'G-4P73L0ZE9X';
+// Same Clarity project as the static SEO pages (seo/render.mjs) — the cookie
+// banner has always promised Clarity, but only the static pages loaded it.
+const CLARITY_PROJECT_ID = 'wo2ya32cp6';
 const GA_CONSENT_KEY    = 'tide_cookie_consent'; // 'granted' | 'denied'
 let _gaLoaded = false;
+let _clarityLoaded = false;
 
 function gaConfigured() {
   return typeof GA_MEASUREMENT_ID === 'string'
@@ -1401,6 +1418,18 @@ function loadGA() {
   document.head.appendChild(s);
 }
 
+// Clarity records sessions, so the consent gate matters even more than for
+// GA. Mirrors the loader on the static SEO pages (seo/render.mjs). Idempotent.
+function loadClarity() {
+  if (_clarityLoaded || !CLARITY_PROJECT_ID || CLARITY_PROJECT_ID === 'XXXXXXXX') return;
+  _clarityLoaded = true;
+  (function (c, l, a, r, i, t, y) {
+    c[a] = c[a] || function () { (c[a].q = c[a].q || []).push(arguments); };
+    t = l.createElement(r); t.async = 1; t.src = 'https://www.clarity.ms/tag/' + i;
+    y = l.getElementsByTagName(r)[0]; y.parentNode.insertBefore(t, y);
+  })(window, document, 'clarity', 'script', CLARITY_PROJECT_ID);
+}
+
 function getConsent() {
   try { return localStorage.getItem(GA_CONSENT_KEY); } catch (e) { return null; }
 }
@@ -1420,6 +1449,7 @@ function acceptCookies() {
   setConsent('granted');
   hideCookieBanner();
   loadGA();
+  loadClarity();
 }
 function declineCookies() {
   setConsent('denied');
@@ -1439,6 +1469,7 @@ function openCookieSettings() {
   const consent = getConsent();
   if (consent === 'granted') {
     loadGA();
+    loadClarity();
   } else if (consent !== 'denied' && gaConfigured()) {
     showCookieBanner();
   }
@@ -1450,22 +1481,64 @@ function openCookieSettings() {
 // auth_modal_open → magic_link_sent → magic_link_return → onboarding_step /
 // onboarding_complete, plus alert_optin and report_submitted. Absolute counts
 // are biased by consent opt-in, but step-to-step drop-off ratios survive it.
-const TIDE_FUNNEL_EVENTS = ['centre_selected','save_attempt_logged_out','auth_modal_open','magic_link_sent','magic_link_return','onboarding_step','onboarding_skip','onboarding_complete','alert_optin','report_submitted'];
+const TIDE_FUNNEL_EVENTS = ['visit','centre_selected','save_attempt_logged_out','auth_modal_open','magic_link_sent','magic_link_return','onboarding_step','onboarding_skip','onboarding_complete','alert_optin','report_submitted','share','invite_share'];
+
+// Session source/landing for the first-party counter (closed vocabularies —
+// docs/architecture/funnel-events.md). Computed once per session and carried
+// in sessionStorage so a static-page landing that clicks into the app keeps
+// its original source (the same-origin hop would otherwise read 'internal').
+// Aggregate dimension values only — no ids, no cookies, consent posture
+// unchanged.
+function tideSessionAttribution() {
+  try {
+    var cached = sessionStorage.getItem('tide_attr');
+    if (cached) return JSON.parse(cached);
+  } catch (e) {}
+  var src = 'direct', land = 'other';
+  try {
+    var p = location.pathname;
+    if (p === '/' || p === '/index.html') land = /[?&]centre=/.test(location.search) ? 'deeplink' : 'home';
+    else if (p.indexOf('/centre/') === 0) land = 'centre';
+    else if (p.indexOf('/brand/') === 0) land = 'brand';
+    else if (p.indexOf('/guides/') === 0) land = 'guide';
+    else if (p.indexOf('/blog') === 0) land = 'blog';
+    if (/[?&]ref=/.test(location.search)) src = 'referral';
+    else {
+      var ref = document.referrer || '';
+      if (!ref) src = 'direct';
+      else {
+        var h = '';
+        try { h = new URL(ref).hostname.toLowerCase(); } catch (e) { h = ''; }
+        if (h === location.hostname) src = 'internal';
+        else if (/(^|\.)((google|bing|duckduckgo|yahoo|ecosia|startpage)\.[a-z.]+)$/.test(h)) src = 'search';
+        else if (/(^|\.)(facebook\.com|instagram\.com|twitter\.com|x\.com|t\.co|reddit\.com|linkedin\.com|pinterest\.[a-z.]+|tiktok\.com|youtube\.com)$/.test(h)) src = 'social';
+        else if (/(^|\.)(mail\.google\.com|outlook\.(live|office)\.com|mail\.yahoo\.com)$/.test(h)) src = 'email';
+        else src = 'other';
+      }
+    }
+  } catch (e) {}
+  var attr = { source: src, landing: land };
+  try { sessionStorage.setItem('tide_attr', JSON.stringify(attr)); } catch (e) {}
+  return attr;
+}
+
 function trackEvent(name, params) {
   try {
     if (getConsent() === 'granted' && typeof window.gtag === 'function') {
       window.gtag('event', name, params || {});
     }
   } catch (e) {}
-  // First-party aggregate counter (/api/event → funnel_events): (day, event)
-  // += 1, no ids/cookies/params, so it's outside consent like a server log
-  // and de-biases the consent-gated GA numbers. Funnel steps only;
-  // onboarding_step carries its step number in the name so per-step
-  // drop-off survives aggregation. Fire-and-forget.
+  // First-party aggregate counter (/api/event → funnel_events): per-day
+  // (event, source, landing) += 1, no ids/cookies/params beyond the closed
+  // dimension sets, so it's outside consent like a server log and de-biases
+  // the consent-gated GA numbers. Funnel steps only; onboarding_step carries
+  // its step number in the name so per-step drop-off survives aggregation.
+  // Fire-and-forget.
   try {
     if (TIDE_FUNNEL_EVENTS.indexOf(name) !== -1) {
       const ev = (name === 'onboarding_step' && params && params.step) ? name + '_' + params.step : name;
-      const payload = JSON.stringify({ event: ev });
+      const attr = tideSessionAttribution();
+      const payload = JSON.stringify({ event: ev, source: attr.source, landing: attr.landing });
       if (navigator.sendBeacon) {
         navigator.sendBeacon('/api/event', new Blob([payload], { type: 'application/json' }));
       } else {
@@ -1474,6 +1547,16 @@ function trackEvent(name, params) {
     }
   } catch (e) {}
 }
+
+// Traffic denominator: one 'visit' per session, so channel mix and per-channel
+// conversion are computable first-party (visit vs alert_optin by source).
+(function () {
+  try {
+    if (sessionStorage.getItem('tide_visit_sent')) return;
+    sessionStorage.setItem('tide_visit_sent', '1');
+  } catch (e) {}
+  trackEvent('visit');
+})();
 
 // Some browser/extension combos hang on supabase-js's PostgREST calls while
 // raw fetch to the same endpoint works. Use raw fetch for table reads/writes
@@ -1963,11 +2046,10 @@ function copyInviteLink() {
   if (!inviteEl) return;
   const link = inviteEl.value;
   function track() {
-    try {
-      if (getConsent() === 'granted' && typeof window.gtag === 'function') {
-        window.gtag('event', 'invite_share', { method: 'clipboard' });
-      }
-    } catch (e) {}
+    // trackEvent = consent-gated GA + the first-party counter (share events
+    // were GA-only before funnel_events v2, so invite volume was invisible
+    // for non-consenting users).
+    trackEvent('invite_share', { method: 'clipboard' });
   }
   function flash(msg) { if (btn) { const r = 'Copy'; btn.textContent = msg; setTimeout(function () { btn.textContent = r; }, 1800); } }
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -2114,7 +2196,7 @@ async function tideAlertOptInSubmit(form) {
     setStatus('Something went wrong — please try again.', true);
     return false;
   }
-  trackEvent('alert_optin', { source: brand ? 'brand_sheet_email' : 'centre_inline', centre: slug || '', brand: brand || '' });
+  trackEvent('alert_optin', { source: form.getAttribute('data-optin-source') || (brand ? 'brand_sheet_email' : 'centre_inline'), centre: slug || '', brand: brand || '' });
   setStatus(brand
     ? 'Done — we’ll email you the day ' + label + '’s sale starts. One tap to unsubscribe.'
     : 'Done — we’ll email you when ' + label + ' peaks. One tap to unsubscribe.');
@@ -4251,11 +4333,9 @@ function shareCentre() {
   // Consent-gated GA — only if the user accepted cookies AND gtag is loaded.
   // Never call loadGA() here (that would load analytics without consent).
   function track(method) {
-    try {
-      if (getConsent() === 'granted' && typeof window.gtag === 'function') {
-        window.gtag('event', 'share', { method: method, centre_slug: ctx.slug || '' });
-      }
-    } catch (e) {}
+    // trackEvent = consent-gated GA + the first-party counter (share events
+    // were GA-only before funnel_events v2).
+    trackEvent('share', { method: method, centre_slug: ctx.slug || '' });
   }
 
   // 1) Best path — share the branded image as a file (the screenshot loop).
@@ -6042,6 +6122,23 @@ function renderLandingHotSections(excludeIds) {
 // sample card was removed Jun 2026 — it read as live data but wasn't.)
 function renderLandingHero() {
   const hotHTML = renderLandingHotSections([]);
+  // Landing one-field alert opt-in — the highest-traffic page previously
+  // captured nothing until a centre was picked (the notify-banner is a full
+  // magic-link ACCOUNT path). centre_slug 'blog' = the national list:
+  // notify-high-tide pass 4 emails these rows when ANY centre enters Peak,
+  // naming the strongest — the right promise for a visitor who hasn't chosen
+  // a centre yet. Logged-out only; hidden per-device once opted in.
+  const landingOptinHTML = (!currentUser && !tideOptinDone('blog'))
+    ? '<div class="tide-optin">'
+      + '<div class="tide-optin-title">Get the next peak alert</div>'
+      + '<div class="tide-optin-sub">One email when a UK centre hits its sale peak. No account needed.</div>'
+      + '<form data-centre-slug="blog" data-label="the tide" data-optin-source="landing" onsubmit="tideAlertOptInSubmit(this);return false">'
+      +   '<input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">'
+      +   '<button type="submit">Alert me</button>'
+      + '</form>'
+      + '<div class="tide-optin-status" data-optin-status role="status"></div>'
+      + '</div>'
+    : '';
   // Bridge card: logged-out only. renderLandingHero also serves signed-in
   // users with no saved centres, so gate on the session, not the funnel stage.
   const bridgeHTML = currentUser ? '' :
@@ -6054,6 +6151,7 @@ function renderLandingHero() {
   // steps. (The hardcoded "Go now" sample card was removed Jun 2026.)
   return renderTide60Light()
        + hotHTML
+       + landingOptinHTML
        + '<section class="how-it-works is-static" aria-label="What you get">'
        +   '<div class="how-it-works-title">What you get</div>'
        +   '<div class="landing-steps">'

@@ -17,7 +17,10 @@
 
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { renderBrandPage, renderCentreHub, renderBlogIndex, renderBlogPost, slugify, isOnSale } from './render.mjs';
+import { renderBrandPage, renderBrandHub, renderCentreHub, renderGuidePage, renderGuideCalendar, renderBlogIndex, renderBlogPost, slugify, isOnSale } from './render.mjs';
+import { buildBrandIndex, brandHasNationalPage } from './brand-index.mjs';
+import { GUIDES, guideOccurrences, calendarRows } from './guides.mjs';
+import { buildWeeklyPosts } from './weekly-post.mjs';
 import { loadPosts } from './blog.mjs';
 import { nextSaleWindow } from './next-sale-window.mjs';
 
@@ -62,6 +65,14 @@ async function loadCentreData(sb, centreRow) {
     .eq('centre_id', centreId).order('score_date', { ascending: false }).limit(1);
   const score = scoreRows && scoreRows[0];
 
+  // Recent score history for the auto-generated weekly blog posts
+  // (seo/weekly-post.mjs). 90 days comfortably covers the 12-week archive.
+  const histCutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const { data: historyRows } = await sb.from('centre_seer_scores')
+    .select('tide_score,verdict,score_date')
+    .eq('centre_id', centreId).gte('score_date', histCutoff)
+    .order('score_date', { ascending: true });
+
   const { data: cb } = await sb.from('centre_brands')
     .select('brand_id,present').eq('centre_id', centreId).eq('present', true);
   const brandIds = (cb || []).map(r => r.brand_id);
@@ -85,6 +96,7 @@ async function loadCentreData(sb, centreRow) {
   return {
     centre: { slug: centreRow.id, name: centreRow.name },
     score,
+    scoreHistory: historyRows || [],
     brands: brandRows || [],
     sales: saleRows || [],
     cycles: cycleRows || [],
@@ -144,7 +156,7 @@ function shape(raw, today) {
     tideScore: s.tide_score ?? 0, verdict: s.verdict || 'Quiet', trajectory: s.trajectory || 'FLAT',
     bluf: s.bluf || '', scoreDate: s.score_date || null,
   };
-  return { centre, brands, hasScore: !!raw.score };
+  return { centre, brands, hasScore: !!raw.score, scoreHistory: raw.scoreHistory || [] };
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
@@ -188,6 +200,25 @@ async function main() {
     return days.length ? days.sort().at(-1) : buildDay;
   }
 
+  // Replace the marker block in index.html with real centre-hub anchors so the
+  // homepage's static HTML links every generated /centre/ page. Escapes names,
+  // sorts alphabetically, and leaves the file untouched if markers are missing.
+  async function injectHomepageCentreLinks(dir, centres) {
+    const START = '<!-- SEO:CENTRE_LINKS:START -->';
+    const END = '<!-- SEO:CENTRE_LINKS:END -->';
+    const file = join(dir, 'index.html');
+    let html;
+    try { html = await readFile(file, 'utf8'); } catch { return; } // sample builds have no homepage
+    const a = html.indexOf(START), b = html.indexOf(END);
+    if (a < 0 || b < 0 || b < a) { console.error('[seo] WARNING: CENTRE_LINKS markers missing in index.html — homepage keeps no centre links.'); return; }
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const links = centres.slice().sort((x, y) => x.name.localeCompare(y.name))
+      .map(c => `<a href="/centre/${c.slug}">${esc(c.name)} sales</a>`).join('\n    ');
+    const block = `${START}\n  <nav class="footer-centres" aria-label="Centres we track">\n    ${links}\n  </nav>\n  ${END}`;
+    await writeFile(file, html.slice(0, a) + block + html.slice(b + END.length), 'utf8');
+    console.log(`[seo] homepage: injected ${centres.length} centre-hub links into index.html.`);
+  }
+
   async function emit(relPath, html, lastmod) {
     const full = join(outDir, relPath, 'index.html');
     await mkdir(dirname(full), { recursive: true });
@@ -195,9 +226,22 @@ async function main() {
     urls.push({ loc: `${ORIGIN}/${relPath}`, lastmod: lastmod || buildDay });
   }
 
-  for (const raw of rawList) {
-    const { centre, brands, hasScore } = shape(raw, today);
+  // Shape everything first so the national brand index (below) sees the same
+  // per-centre data — including the per-centre child slugs — the pages use.
+  const shapedAll = rawList.map(raw => shape(raw, today));
+  const generatedShaped = []; // centres that passed the no-data gate
 
+  // The national brand index must exist BEFORE the centre loop so child pages
+  // can link up to their /brand/ parent. Built from gate-passing centres only,
+  // so every centre link on a /brand/ page points at an emitted child page.
+  for (const s of shapedAll) {
+    if (s.hasScore && s.brands.length) generatedShaped.push(s);
+  }
+  const brandIndex = buildBrandIndex(generatedShaped);
+  const nationalBrands = brandIndex.filter(brandHasNationalPage);
+  const hubSlugByBrandId = new Map(nationalBrands.map(b => [b.id, b.slug]));
+
+  for (const { centre, brands, hasScore } of shapedAll) {
     // NO DATA, NO PAGE: a centre with no current Tide Score, or no tracked
     // brands, can't answer the question — skip it rather than ship thin pages.
     if (!hasScore || !brands.length) {
@@ -224,7 +268,8 @@ async function main() {
     for (const b of pageBrands) {
       const siblings = pageBrands.filter(x => x.slug !== b.slug).map(x => ({ slug: x.slug, name: x.name, onSale: x.onSale }));
       await emit(`centre/${centre.slug}/${b.slug}`,
-        renderBrandPage({ centre, brand: b, sale: b.sale, cycle: b.cycle, hours, siblings, supabase, origin: ORIGIN, today }),
+        renderBrandPage({ centre, brand: b, sale: b.sale, cycle: b.cycle, hours, siblings, supabase, origin: ORIGIN, today,
+          brandHubSlug: hubSlugByBrandId.get(b.id) || null }),
         lastmodFrom(centre.scoreDate, b.sale && b.sale.last_verified_date));
     }
     centresBySlug[centre.slug] = { name: centre.name };
@@ -232,6 +277,26 @@ async function main() {
     brandPagesSkipped += thinSkipped;
     console.log(`[seo] ${centre.slug}: ${1 + pageBrands.length} pages (Tide Score ${centre.tideScore}, ${centre.verdict})${thinSkipped ? `, ${thinSkipped} thin brand page${thinSkipped === 1 ? '' : 's'} skipped` : ''}.`);
   }
+
+  // Homepage internal links: inject crawlable <a href="/centre/<slug>"> links
+  // into index.html's static footer (between the SEO:CENTRE_LINKS markers).
+  // The homepage is the domain's highest-authority URL and its centre <select>
+  // options are not anchors — without this, the /centre/ hubs are reachable
+  // only via the sitemap and a couple of blog posts. Runs on the build copy of
+  // index.html (Vercel), so the repo file itself keeps an empty marker block;
+  // skipped harmlessly when index.html isn't in outDir (fixture/sample builds).
+  await injectHomepageCentreLinks(outDir,
+    Object.entries(centresBySlug).map(([slug, { name }]) => ({ slug, name })));
+
+  // National /brand/ pages — the brand-only head query ("when does {brand} go
+  // on sale?"). Same thin-page rule as the children; freshness = newest of the
+  // brand's last-verified date and its latest cycle activity.
+  for (const b of nationalBrands) {
+    const newest = (b.cyclesRaw && b.cyclesRaw[0]) || null;
+    await emit(`brand/${b.slug}`, renderBrandHub({ brand: b, supabase, origin: ORIGIN, today }),
+      lastmodFrom(b.sale && b.sale.last_verified_date, newest && newest.end_date, newest && newest.start_date));
+  }
+  if (nationalBrands.length) console.log(`[seo] brand: ${nationalBrands.length} national brand page(s).`);
 
   // Guard: 0 pages means the data load succeeded but every centre was skipped
   // (no score / no present brands), or RLS silently returned nothing. Writing
@@ -245,6 +310,27 @@ async function main() {
     process.exit(1);
   }
 
+  // Seasonal guides (/guides/*) — evergreen year-free URLs targeting the
+  // seasonal head queries ("boxing day sales", "when do summer sales start
+  // uk"). Titles and dates recompute per build, so the pages never carry a
+  // stale year (unlike the hand-written uk-sale-calendar-2026 post). Emitted
+  // after the 0-pages guard, like the blog, so the guard stays keyed on
+  // centre output. The live-snapshot line self-omits when no centres built.
+  const guideNational = generatedShaped.length ? {
+    centreCount: generatedShaped.length,
+    avgPct: generatedShaped.reduce((a, s) => a + (Number(s.centre.tideScore) || 0), 0) / generatedShaped.length,
+  } : null;
+  const guideTopCentres = generatedShaped.slice()
+    .sort((a, b) => (Number(b.centre.tideScore) || 0) - (Number(a.centre.tideScore) || 0))
+    .slice(0, 3).map(s => ({ slug: s.centre.slug, name: s.centre.name, tideScore: s.centre.tideScore }));
+  await emit('guides/uk-sale-calendar',
+    renderGuideCalendar({ rows: calendarRows(today), national: guideNational, topCentres: guideTopCentres, supabase, origin: ORIGIN, today }));
+  for (const g of GUIDES) {
+    await emit(`guides/${g.slug}`,
+      renderGuidePage({ guide: g, occurrences: guideOccurrences(g, today), national: guideNational, topCentres: guideTopCentres, supabase, origin: ORIGIN, today }));
+  }
+  console.log(`[seo] guides: ${GUIDES.length} guide(s) + calendar.`);
+
   // Blog (hand-written Markdown posts). Emitted AFTER the 0-pages guard above so
   // that guard stays keyed on CENTRE output — the blog index always emits (even
   // empty), which would otherwise mask a Supabase outage and de-index every
@@ -252,12 +338,18 @@ async function main() {
   // sitemap automatically. relatedCentres resolve only against centres actually
   // generated this run (centresBySlug).
   const posts = await loadPosts(join('seo', 'blog'), { centresBySlug });
-  await emit('blog', renderBlogIndex(posts, { origin: ORIGIN, supabase }));
-  for (const post of posts) {
-    const siblings = posts.filter(p => p.slug !== post.slug);
+  // Auto-generated weekly digests ("This week's tide") from the centres' score
+  // history — a new dated post lands every Monday via the daily rebuild, with
+  // zero hand-writing (seo/weekly-post.mjs). Merged into the same blog index.
+  const weeklyPosts = buildWeeklyPosts(generatedShaped, today, { origin: ORIGIN });
+  const allPosts = [...posts, ...weeklyPosts]
+    .sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : -1));
+  await emit('blog', renderBlogIndex(allPosts, { origin: ORIGIN, supabase }));
+  for (const post of allPosts) {
+    const siblings = allPosts.filter(p => p.slug !== post.slug);
     await emit(`blog/${post.slug}`, renderBlogPost(post, { origin: ORIGIN, supabase, siblings }));
   }
-  console.log(`[seo] blog: ${posts.length} post(s) + index.`);
+  console.log(`[seo] blog: ${posts.length} post(s) + ${weeklyPosts.length} weekly digest(s) + index.`);
 
   // Sitemap (every generated page, across all centres). Ensure outDir exists
   // even if every centre was skipped, so the sitemap write never ENOENTs.

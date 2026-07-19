@@ -16,8 +16,11 @@ segmented (centre + brand) audience member.
 - It writes `centre/<slug>/index.html`, `centre/<slug>/<brand>/index.html`, and
   `sitemap.xml` into the repo root, which Vercel serves statically.
 - Generated files are **git-ignored** — they're rebuilt fresh on every deploy.
-- "Daily refresh" (ISR equivalent) = trigger a Vercel **Deploy Hook** once a day from the
-  existing scoring cron, so the Tide Score on each page stays current.
+- "Daily refresh" (ISR equivalent): `daily-scrape.yml` POSTs the Vercel **Deploy Hook**
+  after the scorer + summariser finish, so the Tide Score on each page stays current.
+  Needs the `VERCEL_DEPLOY_HOOK_URL` repo secret (create the hook in Vercel:
+  Project Settings → Git → Deploy Hooks, branch `main`). Without the secret the
+  step warns and skips — pages then freeze at the last git push.
 
 ### Files
 | File | Role |
@@ -60,6 +63,9 @@ Open `.seo-sample/centre/westquay-southampton/index.html` in a browser.
    (already used by `api/rescore.js`) **and add `SUPABASE_ANON_KEY`** (needed by the
    in-page opt-in). Optionally `SEO_ORIGIN` (defaults to `https://tidego.co`).
 3. Deploy. Verify `https://tidego.co/centre/westquay-southampton` renders with real data.
-4. Add a daily **Deploy Hook** call to the scoring cron so scores stay fresh.
+4. ~~Add a daily **Deploy Hook** call to the scoring cron so scores stay fresh.~~
+   **Done** — `daily-scrape.yml` fires the hook after each scoring run. One-time
+   setup remains: create the Deploy Hook in Vercel and add its URL as the
+   `VERCEL_DEPLOY_HOOK_URL` repo secret.
 5. Submit `https://tidego.co/sitemap.xml` once in Google Search Console.
 6. Wait 4–8 weeks; watch which pages rank before scaling to more centres (v2).

@@ -85,6 +85,20 @@ Run after every visual change. Anything that was working before must still work.
 - [ ] **F3** No layout-shift after data loads (the merged tide card paints once, no second fade-in from a separate history section).
 - [ ] **F4** Merged card animates in once via the existing score-section transition; no orphan `#history-section` element triggers a second visibility flip.
 
+## G. Acquisition surfaces (Jul 2026 — audit rows 1–9; run after the first post-merge deploy)
+
+- [ ] **G1** Vercel build log prints `[seo] Generated N pages` with N far above the pre-merge count (new `/brand/` + `/guides/` types), and `[seo] homepage: injected 24 centre-hub links`.
+- [ ] **G2** `tidego.co/sitemap.xml` lists `/brand/<slug>` and `/guides/*` URLs; `<lastmod>` advances the day after the 10:00 UTC scorer runs (Deploy Hook working — requires the `VERCEL_DEPLOY_HOOK_URL` secret).
+- [ ] **G3** A `/brand/<slug>` page (e.g. `/brand/next`) renders: question H1, live status, sale history, centre links; its opt-in submits successfully (row lands in `seo_alert_signups` with a REAL centre_slug + the brand_slug).
+- [ ] **G4** `/guides/uk-sale-calendar` shows the current year in titles and a "next up" window date in the future.
+- [ ] **G5** Homepage footer shows the 24 crawlable "{Centre} sales" links (view-source, not just DOM).
+- [ ] **G6** Landing (logged-out): the "Get the next peak alert" card shows; submitting hides it on reload; row lands with `centre_slug='blog'`.
+- [ ] **G7** A centre hub's "Open {centre} live in the Tide app" link opens the app WITH that centre selected (`/?centre=<slug>`).
+- [ ] **G8** `tidego.co/api/og?centre=<slug>` returns a PNG with the centre's name + today's score; an unknown slug returns the generic branded card (never a 404/500).
+- [ ] **G9** `funnel_events` (admin SQL) shows `visit` rows with non-empty `source`/`landing` after the `20260719_funnel_source_dims.sql` migration; the day's counts keep accruing (v1 wrapper intact).
+- [ ] **G10** **Email pipeline unchanged**: the next 11:00 UTC notify run completes normally (function logs), and no new-signup shape errors appear — the branch touches nothing under `supabase/functions/`.
+- [ ] **G11** Blog index shows the auto-generated "This week's tide — w/c …" post(s) alongside the four hand-written posts; a new one appears the Monday after deploy.
+
 ## How to use
 
 After each merge step in stage 2, walk this list. Mark a box only after eyeballing in the browser.

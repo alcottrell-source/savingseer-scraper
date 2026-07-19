@@ -57,3 +57,11 @@ export function nextSaleWindowSentence(today, centreName) {
   const lead = /^[a-z]/.test(w.label) ? w.label[0].toUpperCase() + w.label.slice(1) : w.label;
   return `Next big sale window at ${centreName}: ${lead}, from ${w.approx} (based on the UK retail sale calendar).`;
 }
+
+// National variant for pages with no centre context (the /brand/ pages).
+export function nextSaleWindowSentenceNational(today) {
+  const w = nextSaleWindow(today);
+  if (!w) return null;
+  const lead = /^[a-z]/.test(w.label) ? w.label[0].toUpperCase() + w.label.slice(1) : w.label;
+  return `Next big UK sale window: ${lead}, from ${w.approx} (based on the UK retail sale calendar).`;
+}

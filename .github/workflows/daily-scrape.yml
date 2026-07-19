@@ -40,3 +40,21 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node summarise.js
+
+      # Rebuild the static SEO pages with today's fresh scores. Vercel only
+      # rebuilds on git push, so without this every /centre/ page (and the
+      # sitemap's <lastmod>) freezes at the last deploy — pages titled
+      # "sales today" decay from the moment they ship (seo/README.md item 4).
+      # VERCEL_DEPLOY_HOOK_URL is a repo secret holding a Vercel Deploy Hook
+      # (Project Settings → Git → Deploy Hooks). Soft-skips with a warning if
+      # the secret isn't set, so the scorer itself never fails on this.
+      - name: Trigger Vercel rebuild of SEO pages
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "::warning::VERCEL_DEPLOY_HOOK_URL secret not set — static SEO pages stay frozen at the last git push."
+            exit 0
+          fi
+          curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL" -o /dev/null
+          echo "Vercel rebuild triggered — SEO pages refresh with today's scores."

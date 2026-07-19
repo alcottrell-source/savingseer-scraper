@@ -102,9 +102,10 @@ test('api/event: non-POST is rejected with 405', async () => {
 test('seo build emits brand + guide pages, sitemap, and injects homepage links', () => {
   const out = mkdtempSync(join(tmpdir(), 'tide-seo-test-'));
   try {
-    // A homepage with the marker block, so injection is exercised.
+    // A homepage with both marker blocks, so injection is exercised.
     writeFileSync(join(out, 'index.html'),
-      '<html><body><footer><!-- SEO:CENTRE_LINKS:START --><nav class="footer-centres"></nav><!-- SEO:CENTRE_LINKS:END --></footer></body></html>');
+      '<html><body><footer><!-- SEO:CENTRE_LINKS:START --><nav class="footer-centres"></nav><!-- SEO:CENTRE_LINKS:END -->' +
+      '<!-- SEO:BRAND_LINKS:START --><nav class="footer-centres"></nav><!-- SEO:BRAND_LINKS:END --></footer></body></html>');
     const r = spawnSync(process.execPath, ['seo/generate.mjs', '--fixtures', 'seo/fixtures.westquay.json', '--out', out],
       { encoding: 'utf8' });
     assert.equal(r.status, 0, `build must exit 0\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
@@ -132,10 +133,12 @@ test('seo build emits brand + guide pages, sitemap, and injects homepage links',
     const parent = readFileSync(join(out, 'brand/next/index.html'), 'utf8');
     assert.ok(parent.includes('https://tidego.co/centre/westquay-southampton/next'), 'parent links down to the child page');
 
-    // Homepage injection replaced the marker block with a real anchor.
+    // Homepage injection replaced both marker blocks with real anchors.
     const home = readFileSync(join(out, 'index.html'), 'utf8');
     assert.ok(home.includes('<a href="/centre/westquay-southampton">Westquay sales</a>'),
       'homepage must gain a crawlable centre-hub link');
+    assert.ok(home.includes('<a href="/brand/next">Next sales</a>'),
+      'homepage must gain a crawlable brand-hub link');
   } finally {
     rmSync(out, { recursive: true, force: true });
   }

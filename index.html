@@ -1172,6 +1172,14 @@
   <!-- SEO:CENTRE_LINKS:START -->
   <nav class="footer-centres" aria-label="Centres we track"></nav>
   <!-- SEO:CENTRE_LINKS:END -->
+  <!-- Crawlable /brand/ hub links, injected at build time alongside the centre
+       links above (seo/generate.mjs). Without these the national brand pages
+       are 3 hops from the homepage with JS off (centre link → centre hub →
+       brand-at-centre page → up-link). Keep the markers intact; the block
+       between them is overwritten on every Vercel build. -->
+  <!-- SEO:BRAND_LINKS:START -->
+  <nav class="footer-centres" aria-label="Brands we track"></nav>
+  <!-- SEO:BRAND_LINKS:END -->
   <div class="footer-links">
     <a href="/guides/uk-sale-calendar">UK sale calendar</a>
     &middot;

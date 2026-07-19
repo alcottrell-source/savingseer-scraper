@@ -417,7 +417,7 @@ export function renderBrandPage(d) {
 
   const historySection = brandHistorySection(brand.name, episodes, stats);
 
-  return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `
+  return HEAD(title, desc, canonical, `${origin}/api/og?centre=${centre.slug}`) + configScript(supabase) + `
 <div class="crumbs"><a href="${origin}/">Tide</a> › <a href="${origin}/centre/${centre.slug}">${escapeHtml(centre.name)}</a> › ${escapeHtml(brand.name)}</div>
 <h1>When does ${escapeHtml(brand.name)} go on sale at ${escapeHtml(centre.name)}?</h1>
 <div class="answer">
@@ -562,7 +562,7 @@ export function renderCentreHub(d) {
     return `<tr><td>${nameCell}</td><td>${b.onSale ? '<span class="tag">On sale</span>' : '<span class="tag off">—</span>'}</td><td>${recCell}</td></tr>`;
   }).join('');
 
-  return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `
+  return HEAD(title, desc, canonical, `${origin}/api/og?centre=${centre.slug}`) + configScript(supabase) + `
 <div class="crumbs"><a href="${origin}/">Tide</a> › ${escapeHtml(centre.name)}</div>
 <h1>${escapeHtml(centre.name)} sales today</h1>
 <div class="answer">

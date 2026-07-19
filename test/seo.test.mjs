@@ -170,3 +170,14 @@ test('centre hub links page-worthy brands but renders thin ones as plain text', 
   assert.ok(!/centre\/westquay-southampton\/quietco/.test(html), 'thin brand must not be linked');
   assert.match(html, /3 tracked shops/, 'roster denominator still counts all tracked brands');
 });
+
+test('static pages hand off into the app with the centre context intact', () => {
+  const common = {
+    centre: { slug: 'westquay-southampton', name: 'Westquay', tideScore: 20, verdict: 'Rising', trajectory: 'RISING' },
+    supabase: { url: 'u', anonKey: 'k' }, origin: 'https://tidego.co', today: new Date(Date.UTC(2026, 5, 3)),
+  };
+  const hub = renderCentreHub({ ...common, brands: [], hours: null });
+  const brandPage = renderBrandPage({ ...common, brand: { id: 'B001', name: 'Next', slug: 'next' }, sale: null, cycle: null, hours: null, siblings: [] });
+  assert.match(hub, /href="https:\/\/tidego\.co\/\?centre=westquay-southampton"/);
+  assert.match(brandPage, /href="https:\/\/tidego\.co\/\?centre=westquay-southampton"/);
+});

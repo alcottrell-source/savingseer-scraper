@@ -315,6 +315,13 @@ function configScript(supabase) {
   return `<script>const SUPABASE_URL=${JSON.stringify(supabase.url)};const SUPABASE_ANON_KEY=${JSON.stringify(supabase.anonKey)};</script>`;
 }
 
+// Context-preserving handoff into the SPA. The app deep-links via ?centre=
+// (index.html reads it on load); a bare "/" link dropped the visitor on the
+// generic picker and made them re-find their centre.
+function appLink(origin, centreSlug, centreName) {
+  return `<p class="muted"><a href="${origin}/?centre=${centreSlug}">Open ${escapeHtml(centreName)} live in the Tide app — score history, every shop, alerts →</a></p>`;
+}
+
 // ── Brand × centre page (the workhorse) ─────────────────────────────────────
 export function renderBrandPage(d) {
   const { centre, brand, sale, cycle, hours, siblings, supabase, origin, today, brandHubSlug } = d;
@@ -386,6 +393,7 @@ export function renderBrandPage(d) {
   <div class="score" style="margin-top:14px"><b>${escapeHtml(String(centre.tideScore))}</b><span>/100 — ${escapeHtml(centre.name)}'s Tide Score today, ${escapeHtml(ctx)}</span></div>
   ${winSentence ? `<div class="win">${escapeHtml(winSentence)}</div>` : ''}
 </div>
+${appLink(origin, centre.slug, centre.name)}
 
 <h2>${escapeHtml(brand.name)} sales at ${escapeHtml(centre.name)}</h2>
 <table><thead><tr><th>Brand</th><th>Status</th><th>Offer</th><th>Started</th></tr></thead><tbody>${saleRow}</tbody></table>
@@ -529,6 +537,7 @@ export function renderCentreHub(d) {
   <div>${escapeHtml(v.line)}</div>
   ${winSentence ? `<div class="win">${escapeHtml(winSentence)}</div>` : ''}
 </div>
+${appLink(origin, centre.slug, centre.name)}
 
 ${optInBlock(centre.name, { centre: centre.slug, brand: null, label: centre.name })}
 

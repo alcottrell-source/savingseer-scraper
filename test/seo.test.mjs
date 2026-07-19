@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { nextSaleWindow } from '../seo/next-sale-window.mjs';
 import { isOnSale, slugify, verdictCopy, renderBrandPage, renderBrandHub, renderCentreHub } from '../seo/render.mjs';
 import { buildBrandIndex, brandHasNationalPage, primaryCentreSlug } from '../seo/brand-index.mjs';
+import { GUIDES, guideOccurrences, calendarRows, nextOccurrence } from '../seo/guides.mjs';
+import { renderGuidePage, renderGuideCalendar } from '../seo/render.mjs';
 
 test('nextSaleWindow returns the soonest future window', () => {
   // Early June → next notable window is the summer sale (8 July).
@@ -110,6 +112,41 @@ test('renderBrandPage links up to its national /brand/ parent when given', () =>
     today: new Date(Date.UTC(2026, 5, 3)), brandHubSlug: 'next',
   });
   assert.match(html, /href="https:\/\/tidego\.co\/brand\/next"/);
+});
+
+test('guide dates roll into next year and titles carry the computed year', () => {
+  // Two days after Boxing Day, the boxing-day guide's next occurrence is NEXT year.
+  const after = new Date(Date.UTC(2026, 11, 28));
+  const bd = GUIDES.find(g => g.slug === 'boxing-day-sales');
+  const occ = guideOccurrences(bd, after);
+  assert.equal(occ[0].year, 2027);
+  assert.equal(bd.title(occ[0].year), 'Boxing Day sales 2027 — dates and what to expect');
+  // Before it, same year.
+  assert.equal(nextOccurrence({ m: 12, d: 26 }, new Date(Date.UTC(2026, 10, 1))).getUTCFullYear(), 2026);
+});
+
+test('calendarRows covers every guide anchor, soonest first', () => {
+  const rows = calendarRows(new Date(Date.UTC(2026, 0, 2)));
+  const anchorCount = GUIDES.reduce((a, g) => a + g.anchors.length, 0);
+  assert.equal(rows.length, anchorCount);
+  for (let i = 1; i < rows.length; i++) assert.ok(rows[i - 1].date <= rows[i].date, 'rows must be date-sorted');
+  assert.ok(rows.every(r => r.guideSlug), 'every row links a guide');
+});
+
+test('renderGuidePage and renderGuideCalendar emit LD, canonical, and live snapshot', () => {
+  const today = new Date(Date.UTC(2026, 6, 19));
+  const g = GUIDES.find(x => x.slug === 'summer-sales');
+  const common = { national: { centreCount: 24, avgPct: 41.2 }, topCentres: [{ slug: 'bluewater', name: 'Bluewater', tideScore: 62 }], supabase: { url: 'u', anonKey: 'k' }, origin: 'https://tidego.co', today };
+  const page = renderGuidePage({ guide: g, occurrences: guideOccurrences(g, today), ...common });
+  assert.match(page, /<h1>UK summer sales 2026<\/h1>/);
+  assert.match(page, /"@type":"FAQPage"/);
+  assert.match(page, /rel="canonical" href="https:\/\/tidego\.co\/guides\/summer-sales"/);
+  assert.match(page, /an average of 41% of shops are on sale/);
+  assert.match(page, /href="https:\/\/tidego\.co\/centre\/bluewater"/);
+  const cal = renderGuideCalendar({ rows: calendarRows(today), ...common });
+  assert.match(cal, /rel="canonical" href="https:\/\/tidego\.co\/guides\/uk-sale-calendar"/);
+  assert.match(cal, /href="https:\/\/tidego\.co\/guides\/black-friday"/);
+  assert.match(cal, /"@type":"BreadcrumbList"/);
 });
 
 test('centre hub links page-worthy brands but renders thin ones as plain text', () => {

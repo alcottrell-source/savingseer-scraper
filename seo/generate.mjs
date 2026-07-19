@@ -17,8 +17,9 @@
 
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { renderBrandPage, renderBrandHub, renderCentreHub, renderBlogIndex, renderBlogPost, slugify, isOnSale } from './render.mjs';
+import { renderBrandPage, renderBrandHub, renderCentreHub, renderGuidePage, renderGuideCalendar, renderBlogIndex, renderBlogPost, slugify, isOnSale } from './render.mjs';
 import { buildBrandIndex, brandHasNationalPage } from './brand-index.mjs';
+import { GUIDES, guideOccurrences, calendarRows } from './guides.mjs';
 import { loadPosts } from './blog.mjs';
 import { nextSaleWindow } from './next-sale-window.mjs';
 
@@ -298,6 +299,27 @@ async function main() {
     console.error('[seo] (Set SEO_ALLOW_EMPTY=1 if a genuinely empty site is intended.)');
     process.exit(1);
   }
+
+  // Seasonal guides (/guides/*) — evergreen year-free URLs targeting the
+  // seasonal head queries ("boxing day sales", "when do summer sales start
+  // uk"). Titles and dates recompute per build, so the pages never carry a
+  // stale year (unlike the hand-written uk-sale-calendar-2026 post). Emitted
+  // after the 0-pages guard, like the blog, so the guard stays keyed on
+  // centre output. The live-snapshot line self-omits when no centres built.
+  const guideNational = generatedShaped.length ? {
+    centreCount: generatedShaped.length,
+    avgPct: generatedShaped.reduce((a, s) => a + (Number(s.centre.tideScore) || 0), 0) / generatedShaped.length,
+  } : null;
+  const guideTopCentres = generatedShaped.slice()
+    .sort((a, b) => (Number(b.centre.tideScore) || 0) - (Number(a.centre.tideScore) || 0))
+    .slice(0, 3).map(s => ({ slug: s.centre.slug, name: s.centre.name, tideScore: s.centre.tideScore }));
+  await emit('guides/uk-sale-calendar',
+    renderGuideCalendar({ rows: calendarRows(today), national: guideNational, topCentres: guideTopCentres, supabase, origin: ORIGIN, today }));
+  for (const g of GUIDES) {
+    await emit(`guides/${g.slug}`,
+      renderGuidePage({ guide: g, occurrences: guideOccurrences(g, today), national: guideNational, topCentres: guideTopCentres, supabase, origin: ORIGIN, today }));
+  }
+  console.log(`[seo] guides: ${GUIDES.length} guide(s) + calendar.`);
 
   // Blog (hand-written Markdown posts). Emitted AFTER the 0-pages guard above so
   // that guard stays keyed on CENTRE output — the blog index always emits (even

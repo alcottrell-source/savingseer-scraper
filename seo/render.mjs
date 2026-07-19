@@ -6,6 +6,7 @@
 // the browser — see index.html).
 
 import { nextSaleWindowSentence, nextSaleWindowSentenceNational } from './next-sale-window.mjs';
+import { peakPhrase } from './guides.mjs';
 
 export function escapeHtml(s) {
   return String(s ?? '')
@@ -271,7 +272,7 @@ function analyticsAndConsent() {
 const FOOT = (origin) => `
 <footer>
 Sale timing is shown for guidance, based on Tide's tracked, admin-verified sale data and the UK retail sale calendar. Always check in store.
-<a href="${origin}/">Tide home</a> · <a href="${origin}/blog">Blog</a> · <a href="${origin}/privacy">Privacy</a> · <a href="#" onclick="event.preventDefault();tideCookieSettings()">Cookie settings</a>
+<a href="${origin}/">Tide home</a> · <a href="${origin}/guides/uk-sale-calendar">UK sale calendar</a> · <a href="${origin}/blog">Blog</a> · <a href="${origin}/privacy">Privacy</a> · <a href="#" onclick="event.preventDefault();tideCookieSettings()">Cookie settings</a>
 </footer>
 </div>
 ${analyticsAndConsent()}
@@ -536,6 +537,119 @@ ${optInBlock(centre.name, { centre: centre.slug, brand: null, label: centre.name
 ${hours ? `<p class="muted">Opening hours: ${escapeHtml(hours)}.</p>` : ''}
 ` + FOOT(origin);
 }
+
+// ── Seasonal guides (/guides/*) ─────────────────────────────────────────────
+// Evergreen year-free URLs whose titles/dates recompute each build (see
+// seo/guides.mjs). Copy rule: trend/plan language only — "go now" stays
+// reserved for the app's PEAK badge.
+
+const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+function fmtDateLong(d) { return `${d.getUTCDate()} ${MONTHS_FULL[d.getUTCMonth()]} ${d.getUTCFullYear()}`; }
+
+function liveSnapshotLine(national) {
+  if (!national || !Number.isFinite(national.avgPct)) return '';
+  return `<div class="win">Right now, across the ${national.centreCount} UK shopping centres Tide tracks live, an average of ${Math.round(national.avgPct)}% of shops are on sale.</div>`;
+}
+
+function topCentresBlock(topCentres, origin) {
+  if (!topCentres || !topCentres.length) return '';
+  return `
+<h2>Where the tide is highest today</h2>
+<ul class="links">${topCentres.map(c => `<li><a href="${origin}/centre/${c.slug}">${escapeHtml(c.name)} — ${escapeHtml(String(c.tideScore))}/100</a></li>`).join('')}</ul>`;
+}
+
+export function renderGuidePage(d) {
+  const { guide, occurrences, national, topCentres, supabase, origin } = d;
+  const first = occurrences[0];
+  const year = first.year;
+  const title = `${guide.title(year)} | Tide`;
+  const h1 = guide.h1(year);
+  const desc = `${guide.h1(year)}: from ~${fmtDateLong(first.date)} — ${peakPhraseText(first.peak)}. What to expect and when to go, from Tide's live UK sale tracking.`.slice(0, 320);
+  const canonical = `${origin}/guides/${guide.slug}`;
+
+  const occRows = occurrences.length > 1
+    ? `<table><thead><tr><th>Window</th><th>From (approx.)</th><th>How big</th></tr></thead><tbody>${occurrences.map(o =>
+        `<tr><td>${escapeHtml(capFirst(o.label))}</td><td>~${escapeHtml(fmtDateLong(o.date))}</td><td>${escapeHtml(peakPhraseText(o.peak))}</td></tr>`).join('')}</tbody></table>`
+    : '';
+
+  const faq = [
+    { q: `When do the ${h1.toLowerCase().startsWith('uk') ? h1.slice(3) : h1} start?`,
+      a: `From around ${fmtDateLong(first.date)}, based on the UK retail sale calendar. Exact start days vary by retailer.` },
+    ...guide.faqExtra(year),
+  ];
+  const faqLd = {
+    '@context': 'https://schema.org', '@type': 'FAQPage',
+    mainEntity: faq.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+  };
+  const breadcrumbLd = {
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Tide', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: 'UK sale calendar', item: `${origin}/guides/uk-sale-calendar` },
+      { '@type': 'ListItem', position: 3, name: h1, item: canonical },
+    ],
+  };
+
+  return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `
+<div class="crumbs"><a href="${origin}/">Tide</a> › <a href="${origin}/guides/uk-sale-calendar">UK sale calendar</a> › ${escapeHtml(h1)}</div>
+<h1>${escapeHtml(h1)}</h1>
+<div class="answer">
+  <div class="verdict">From ~${escapeHtml(fmtDateLong(first.date))}</div>
+  <div>${escapeHtml(capFirst(first.label))} — ${escapeHtml(peakPhraseText(first.peak))}, based on the UK retail sale calendar.</div>
+  ${liveSnapshotLine(national)}
+</div>
+${guide.intro.map(p => `<p>${escapeHtml(p)}</p>`).join('\n')}
+${occRows}
+${topCentresBlock(topCentres, origin)}
+
+${optInBlock('the tide', { centre: 'blog', brand: null, label: 'the tide' })}
+
+<h2>FAQ</h2>
+${faq.map(f => `<details><summary>${escapeHtml(f.q)}</summary><p>${escapeHtml(f.a)}</p></details>`).join('')}
+<p class="muted">All the year's windows: <a href="${origin}/guides/uk-sale-calendar">the UK sale calendar →</a></p>
+<script type="application/ld+json">${JSON.stringify(faqLd)}</script>
+<script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
+` + FOOT(origin);
+}
+
+export function renderGuideCalendar(d) {
+  const { rows, national, topCentres, supabase, origin, today } = d;
+  const year = today.getUTCFullYear();
+  const title = `UK sale calendar ${year} — every major sale window and when it starts | Tide`;
+  const desc = `When do the sales start in the UK? Every major sale window — Boxing Day, January, Easter, summer, Black Friday — with dates, how deep each one goes, and live tracking.`;
+  const canonical = `${origin}/guides/uk-sale-calendar`;
+
+  const tableRows = rows.map(r =>
+    `<tr><td><a href="${origin}/guides/${r.guideSlug}">${escapeHtml(capFirst(r.label))}</a></td><td>~${escapeHtml(fmtDateLong(r.date))}</td><td>${escapeHtml(peakPhraseText(r.peak))}</td></tr>`).join('');
+
+  const breadcrumbLd = {
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Tide', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: 'UK sale calendar', item: canonical },
+    ],
+  };
+
+  return HEAD(title, desc, canonical, `${origin}/og-default.png`) + configScript(supabase) + `
+<div class="crumbs"><a href="${origin}/">Tide</a> › UK sale calendar</div>
+<h1>The UK sale calendar</h1>
+<p>Every major UK sale window on one page, with its next start date and how deep it usually goes. Dates recompute daily from the UK retail sale calendar; the live numbers come from Tide's admin-verified sale tracking across UK shopping centres.</p>
+<div class="answer">
+  <div class="verdict">Next up: ${escapeHtml(capFirst(rows[0].label))}, from ~${escapeHtml(fmtDateLong(rows[0].date))}</div>
+  ${liveSnapshotLine(national)}
+</div>
+<table><thead><tr><th>Sale window</th><th>Next starts (approx.)</th><th>How big</th></tr></thead><tbody>${tableRows}</tbody></table>
+<p class="muted">Approximate anchors — exact start days vary by retailer and year. Each window links to its full guide.</p>
+${topCentresBlock(topCentres, origin)}
+
+${optInBlock('the tide', { centre: 'blog', brand: null, label: 'the tide' })}
+<script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
+` + FOOT(origin);
+}
+
+function capFirst(s) { return /^[a-z]/.test(s) ? s[0].toUpperCase() + s.slice(1) : s; }
+const peakPhraseText = peakPhrase; // single source of truth in guides.mjs
 
 // ── Blog ────────────────────────────────────────────────────────────────────
 // Hand-written Markdown posts (seo/blog/*.md), loaded by blog.mjs and rendered

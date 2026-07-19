@@ -745,6 +745,8 @@
 
   footer .footer-links { margin-top: 8px; }
   footer .footer-links a { color: var(--stone); text-decoration: underline; margin: 0 6px; font-size: 11px; }
+  footer .footer-centres { margin: 14px auto 6px; max-width: 720px; line-height: 2; }
+  footer .footer-centres a { color: var(--stone); text-decoration: underline; margin: 0 6px; font-size: 11px; white-space: nowrap; }
 
   /* ── Survey card ── */
   .survey-card { margin: 32px 24px; background: var(--amber-lt); border: 1px solid rgba(193,122,43,0.2); border-radius: 16px; padding: 24px 20px 20px; position: relative; display: block; }
@@ -1161,6 +1163,15 @@
     Live sale data &middot; <span id="today-date"></span>
     <span id="scoring-status" class="scoring-status" aria-live="polite"></span>
   </div>
+  <!-- Crawlable centre-hub links, injected at build time by seo/generate.mjs
+       (injectHomepageCentreLinks) from the same live centre data the /centre/
+       pages are built from. The homepage is the domain's highest-authority URL
+       and previously contained ZERO crawlable links to the /centre/ pages (the
+       24-way <select> options aren't anchors). Keep the markers intact; the
+       block between them is overwritten on every Vercel build. -->
+  <!-- SEO:CENTRE_LINKS:START -->
+  <nav class="footer-centres" aria-label="Centres we track"></nav>
+  <!-- SEO:CENTRE_LINKS:END -->
   <div class="footer-links">
     <a href="/blog">Blog</a>
     &middot;

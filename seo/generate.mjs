@@ -189,6 +189,25 @@ async function main() {
     return days.length ? days.sort().at(-1) : buildDay;
   }
 
+  // Replace the marker block in index.html with real centre-hub anchors so the
+  // homepage's static HTML links every generated /centre/ page. Escapes names,
+  // sorts alphabetically, and leaves the file untouched if markers are missing.
+  async function injectHomepageCentreLinks(dir, centres) {
+    const START = '<!-- SEO:CENTRE_LINKS:START -->';
+    const END = '<!-- SEO:CENTRE_LINKS:END -->';
+    const file = join(dir, 'index.html');
+    let html;
+    try { html = await readFile(file, 'utf8'); } catch { return; } // sample builds have no homepage
+    const a = html.indexOf(START), b = html.indexOf(END);
+    if (a < 0 || b < 0 || b < a) { console.error('[seo] WARNING: CENTRE_LINKS markers missing in index.html — homepage keeps no centre links.'); return; }
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const links = centres.slice().sort((x, y) => x.name.localeCompare(y.name))
+      .map(c => `<a href="/centre/${c.slug}">${esc(c.name)} sales</a>`).join('\n    ');
+    const block = `${START}\n  <nav class="footer-centres" aria-label="Centres we track">\n    ${links}\n  </nav>\n  ${END}`;
+    await writeFile(file, html.slice(0, a) + block + html.slice(b + END.length), 'utf8');
+    console.log(`[seo] homepage: injected ${centres.length} centre-hub links into index.html.`);
+  }
+
   async function emit(relPath, html, lastmod) {
     const full = join(outDir, relPath, 'index.html');
     await mkdir(dirname(full), { recursive: true });
@@ -247,6 +266,16 @@ async function main() {
     brandPagesSkipped += thinSkipped;
     console.log(`[seo] ${centre.slug}: ${1 + pageBrands.length} pages (Tide Score ${centre.tideScore}, ${centre.verdict})${thinSkipped ? `, ${thinSkipped} thin brand page${thinSkipped === 1 ? '' : 's'} skipped` : ''}.`);
   }
+
+  // Homepage internal links: inject crawlable <a href="/centre/<slug>"> links
+  // into index.html's static footer (between the SEO:CENTRE_LINKS markers).
+  // The homepage is the domain's highest-authority URL and its centre <select>
+  // options are not anchors — without this, the /centre/ hubs are reachable
+  // only via the sitemap and a couple of blog posts. Runs on the build copy of
+  // index.html (Vercel), so the repo file itself keeps an empty marker block;
+  // skipped harmlessly when index.html isn't in outDir (fixture/sample builds).
+  await injectHomepageCentreLinks(outDir,
+    Object.entries(centresBySlug).map(([slug, { name }]) => ({ slug, name })));
 
   // National /brand/ pages — the brand-only head query ("when does {brand} go
   // on sale?"). Same thin-page rule as the children; freshness = newest of the

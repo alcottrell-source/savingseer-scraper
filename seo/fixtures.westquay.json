@@ -4,6 +4,16 @@
   "supabaseAnonKey": "SAMPLE_ANON_KEY",
   "centre": { "slug": "westquay-southampton", "name": "Westquay" },
   "score": { "tide_score": 34, "verdict": "Rising", "trajectory": "RISING", "bluf": "Sale activity is building at Westquay.", "score_date": "2026-06-03" },
+  "scoreHistory": [
+    { "score_date": "2026-06-29", "tide_score": 18, "verdict": "Rising" },
+    { "score_date": "2026-07-01", "tide_score": 24, "verdict": "Rising" },
+    { "score_date": "2026-07-03", "tide_score": 29, "verdict": "Rising" },
+    { "score_date": "2026-07-05", "tide_score": 33, "verdict": "Rising" },
+    { "score_date": "2026-07-06", "tide_score": 41, "verdict": "Peak" },
+    { "score_date": "2026-07-08", "tide_score": 44, "verdict": "Peak" },
+    { "score_date": "2026-07-10", "tide_score": 39, "verdict": "Easing" },
+    { "score_date": "2026-07-12", "tide_score": 35, "verdict": "Easing" }
+  ],
   "brands": [
     { "id": "B001", "name": "Next", "cluster": "High Street", "sale_url": "https://www.next.co.uk/sale" },
     { "id": "B002", "name": "M&S", "cluster": "High Street", "sale_url": "https://www.marksandspencer.com/l/sale" },

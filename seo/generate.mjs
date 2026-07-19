@@ -20,6 +20,7 @@ import { dirname, join } from 'node:path';
 import { renderBrandPage, renderBrandHub, renderCentreHub, renderGuidePage, renderGuideCalendar, renderBlogIndex, renderBlogPost, slugify, isOnSale } from './render.mjs';
 import { buildBrandIndex, brandHasNationalPage } from './brand-index.mjs';
 import { GUIDES, guideOccurrences, calendarRows } from './guides.mjs';
+import { buildWeeklyPosts } from './weekly-post.mjs';
 import { loadPosts } from './blog.mjs';
 import { nextSaleWindow } from './next-sale-window.mjs';
 
@@ -64,6 +65,14 @@ async function loadCentreData(sb, centreRow) {
     .eq('centre_id', centreId).order('score_date', { ascending: false }).limit(1);
   const score = scoreRows && scoreRows[0];
 
+  // Recent score history for the auto-generated weekly blog posts
+  // (seo/weekly-post.mjs). 90 days comfortably covers the 12-week archive.
+  const histCutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const { data: historyRows } = await sb.from('centre_seer_scores')
+    .select('tide_score,verdict,score_date')
+    .eq('centre_id', centreId).gte('score_date', histCutoff)
+    .order('score_date', { ascending: true });
+
   const { data: cb } = await sb.from('centre_brands')
     .select('brand_id,present').eq('centre_id', centreId).eq('present', true);
   const brandIds = (cb || []).map(r => r.brand_id);
@@ -87,6 +96,7 @@ async function loadCentreData(sb, centreRow) {
   return {
     centre: { slug: centreRow.id, name: centreRow.name },
     score,
+    scoreHistory: historyRows || [],
     brands: brandRows || [],
     sales: saleRows || [],
     cycles: cycleRows || [],
@@ -146,7 +156,7 @@ function shape(raw, today) {
     tideScore: s.tide_score ?? 0, verdict: s.verdict || 'Quiet', trajectory: s.trajectory || 'FLAT',
     bluf: s.bluf || '', scoreDate: s.score_date || null,
   };
-  return { centre, brands, hasScore: !!raw.score };
+  return { centre, brands, hasScore: !!raw.score, scoreHistory: raw.scoreHistory || [] };
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
@@ -328,12 +338,18 @@ async function main() {
   // sitemap automatically. relatedCentres resolve only against centres actually
   // generated this run (centresBySlug).
   const posts = await loadPosts(join('seo', 'blog'), { centresBySlug });
-  await emit('blog', renderBlogIndex(posts, { origin: ORIGIN, supabase }));
-  for (const post of posts) {
-    const siblings = posts.filter(p => p.slug !== post.slug);
+  // Auto-generated weekly digests ("This week's tide") from the centres' score
+  // history — a new dated post lands every Monday via the daily rebuild, with
+  // zero hand-writing (seo/weekly-post.mjs). Merged into the same blog index.
+  const weeklyPosts = buildWeeklyPosts(generatedShaped, today, { origin: ORIGIN });
+  const allPosts = [...posts, ...weeklyPosts]
+    .sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : -1));
+  await emit('blog', renderBlogIndex(allPosts, { origin: ORIGIN, supabase }));
+  for (const post of allPosts) {
+    const siblings = allPosts.filter(p => p.slug !== post.slug);
     await emit(`blog/${post.slug}`, renderBlogPost(post, { origin: ORIGIN, supabase, siblings }));
   }
-  console.log(`[seo] blog: ${posts.length} post(s) + index.`);
+  console.log(`[seo] blog: ${posts.length} post(s) + ${weeklyPosts.length} weekly digest(s) + index.`);
 
   // Sitemap (every generated page, across all centres). Ensure outDir exists
   // even if every centre was skipped, so the sitemap write never ENOENTs.

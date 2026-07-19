@@ -5,6 +5,7 @@ import { isOnSale, slugify, verdictCopy, renderBrandPage, renderBrandHub, render
 import { buildBrandIndex, brandHasNationalPage, primaryCentreSlug } from '../seo/brand-index.mjs';
 import { GUIDES, guideOccurrences, calendarRows, nextOccurrence } from '../seo/guides.mjs';
 import { renderGuidePage, renderGuideCalendar } from '../seo/render.mjs';
+import { mondayOf, buildWeekDigest, buildWeeklyPosts } from '../seo/weekly-post.mjs';
 
 test('nextSaleWindow returns the soonest future window', () => {
   // Early June → next notable window is the summer sale (8 July).
@@ -169,6 +170,52 @@ test('centre hub links page-worthy brands but renders thin ones as plain text', 
   assert.match(html, /Quietco/);
   assert.ok(!/centre\/westquay-southampton\/quietco/.test(html), 'thin brand must not be linked');
   assert.match(html, /3 tracked shops/, 'roster denominator still counts all tracked brands');
+});
+
+test('weekly digest aggregates a completed week and flags peaks', () => {
+  const shaped = [{
+    centre: { slug: 'westquay-southampton', name: 'Westquay' },
+    scoreHistory: [
+      { score_date: '2026-07-06', tide_score: 20, verdict: 'Rising' },
+      { score_date: '2026-07-09', tide_score: 41, verdict: 'Peak' },
+      { score_date: '2026-07-12', tide_score: 38, verdict: 'Easing' },
+    ],
+  }, {
+    centre: { slug: 'bluewater', name: 'Bluewater' },
+    scoreHistory: [
+      { score_date: '2026-07-06', tide_score: 50, verdict: 'Peak' },
+      { score_date: '2026-07-12', tide_score: 40, verdict: 'Easing' },
+    ],
+  }];
+  // Monday 6 July 2026 → week 6–12 July.
+  const d = buildWeekDigest(shaped, new Date(Date.UTC(2026, 6, 6)));
+  assert.equal(d.centreCount, 2);
+  assert.equal(d.natStart, 35); // (20+50)/2
+  assert.equal(d.natEnd, 39);   // (38+40)/2
+  assert.equal(d.risers.length, 1);
+  assert.equal(d.risers[0].slug, 'westquay-southampton');
+  assert.equal(d.peaked.length, 2);
+  // No data in the week → null (week skipped).
+  assert.equal(buildWeekDigest(shaped, new Date(Date.UTC(2026, 4, 4))), null);
+});
+
+test('buildWeeklyPosts emits dated, trend-only posts for completed weeks', () => {
+  const shaped = [{
+    centre: { slug: 'westquay-southampton', name: 'Westquay' },
+    scoreHistory: [
+      { score_date: '2026-07-06', tide_score: 20, verdict: 'Rising' },
+      { score_date: '2026-07-12', tide_score: 38, verdict: 'Peak' },
+    ],
+  }];
+  // "Today" = Wed 15 July → most recent completed week is 6–12 July.
+  const posts = buildWeeklyPosts(shaped, new Date(Date.UTC(2026, 6, 15)), { origin: 'https://tidego.co' });
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].slug, 'this-weeks-tide-2026-07-06');
+  assert.equal(posts[0].date, '2026-07-12');
+  assert.match(posts[0].title, /w\/c 6 July 2026/);
+  assert.match(posts[0].html, /href="https:\/\/tidego\.co\/centre\/westquay-southampton"/);
+  assert.ok(!/go now/i.test(posts[0].html), 'recommendation language is forbidden outside the PEAK badge');
+  assert.equal(mondayOf(new Date(Date.UTC(2026, 6, 19))).toISOString().slice(0, 10), '2026-07-13'); // Sunday → its own week's Monday
 });
 
 test('static pages hand off into the app with the centre context intact', () => {

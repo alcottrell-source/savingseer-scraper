@@ -2196,7 +2196,7 @@ async function tideAlertOptInSubmit(form) {
     setStatus('Something went wrong — please try again.', true);
     return false;
   }
-  trackEvent('alert_optin', { source: brand ? 'brand_sheet_email' : 'centre_inline', centre: slug || '', brand: brand || '' });
+  trackEvent('alert_optin', { source: form.getAttribute('data-optin-source') || (brand ? 'brand_sheet_email' : 'centre_inline'), centre: slug || '', brand: brand || '' });
   setStatus(brand
     ? 'Done — we’ll email you the day ' + label + '’s sale starts. One tap to unsubscribe.'
     : 'Done — we’ll email you when ' + label + ' peaks. One tap to unsubscribe.');
@@ -6122,6 +6122,23 @@ function renderLandingHotSections(excludeIds) {
 // sample card was removed Jun 2026 — it read as live data but wasn't.)
 function renderLandingHero() {
   const hotHTML = renderLandingHotSections([]);
+  // Landing one-field alert opt-in — the highest-traffic page previously
+  // captured nothing until a centre was picked (the notify-banner is a full
+  // magic-link ACCOUNT path). centre_slug 'blog' = the national list:
+  // notify-high-tide pass 4 emails these rows when ANY centre enters Peak,
+  // naming the strongest — the right promise for a visitor who hasn't chosen
+  // a centre yet. Logged-out only; hidden per-device once opted in.
+  const landingOptinHTML = (!currentUser && !tideOptinDone('blog'))
+    ? '<div class="tide-optin">'
+      + '<div class="tide-optin-title">Get the next peak alert</div>'
+      + '<div class="tide-optin-sub">One email when a UK centre hits its sale peak. No account needed.</div>'
+      + '<form data-centre-slug="blog" data-label="the tide" data-optin-source="landing" onsubmit="tideAlertOptInSubmit(this);return false">'
+      +   '<input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">'
+      +   '<button type="submit">Alert me</button>'
+      + '</form>'
+      + '<div class="tide-optin-status" data-optin-status role="status"></div>'
+      + '</div>'
+    : '';
   // Bridge card: logged-out only. renderLandingHero also serves signed-in
   // users with no saved centres, so gate on the session, not the funnel stage.
   const bridgeHTML = currentUser ? '' :
@@ -6134,6 +6151,7 @@ function renderLandingHero() {
   // steps. (The hardcoded "Go now" sample card was removed Jun 2026.)
   return renderTide60Light()
        + hotHTML
+       + landingOptinHTML
        + '<section class="how-it-works is-static" aria-label="What you get">'
        +   '<div class="how-it-works-title">What you get</div>'
        +   '<div class="landing-steps">'

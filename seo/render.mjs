@@ -292,6 +292,40 @@ window.__tideOptIn = async function(form, ctx){
   }catch(e){ status.textContent = 'Something went wrong, please try again.'; }
   return false;
 };
+// First-party, cookieless visit counter (aggregate per-day counts only — see
+// docs/architecture/funnel-events.md; consent-free like a server log). Also
+// stores the session's source/landing under the app's sessionStorage key, so
+// a click from this page into the app keeps its original attribution instead
+// of reading 'internal'.
+(function(){
+  var src='direct', land='other';
+  try{
+    var p=location.pathname;
+    if(p.indexOf('/centre/')===0)land='centre';
+    else if(p.indexOf('/brand/')===0)land='brand';
+    else if(p.indexOf('/guides/')===0)land='guide';
+    else if(p.indexOf('/blog')===0)land='blog';
+    var ref=document.referrer||'', h='';
+    if(ref){ try{h=new URL(ref).hostname.toLowerCase();}catch(e){} }
+    if(/[?&]ref=/.test(location.search))src='referral';
+    else if(!h)src='direct';
+    else if(h===location.hostname)src='internal';
+    else if(/(^|\\.)((google|bing|duckduckgo|yahoo|ecosia|startpage)\\.[a-z.]+)$/.test(h))src='search';
+    else if(/(^|\\.)(facebook\\.com|instagram\\.com|twitter\\.com|x\\.com|t\\.co|reddit\\.com|linkedin\\.com|pinterest\\.[a-z.]+|tiktok\\.com|youtube\\.com)$/.test(h))src='social';
+    else if(/(^|\\.)(mail\\.google\\.com|outlook\\.(live|office)\\.com|mail\\.yahoo\\.com)$/.test(h))src='email';
+    else src='other';
+  }catch(e){}
+  try{ if(!sessionStorage.getItem('tide_attr')) sessionStorage.setItem('tide_attr', JSON.stringify({source:src,landing:land})); }catch(e){}
+  try{
+    if(sessionStorage.getItem('tide_visit_sent'))return;
+    sessionStorage.setItem('tide_visit_sent','1');
+  }catch(e){}
+  try{
+    var payload=JSON.stringify({event:'visit',source:src,landing:land});
+    if(navigator.sendBeacon)navigator.sendBeacon('/api/event',new Blob([payload],{type:'application/json'}));
+    else fetch('/api/event',{method:'POST',headers:{'Content-Type':'application/json'},body:payload,keepalive:true}).catch(function(){});
+  }catch(e){}
+})();
 </script>
 </body></html>`;
 

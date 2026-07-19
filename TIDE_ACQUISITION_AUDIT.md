@@ -34,7 +34,7 @@ A consent-free first-party counter exists (`api/event.js` + sendBeacon, `index.h
 
 **Not tracked anywhere:** UTM/source capture beyond GA defaults, landing page for non-consenting visitors, scroll depth, interaction with the landing search box (the declared primary action — comment `index.html:6038-6039` — has no event), a distinct email-capture-submit, return visits.
 
-**Microsoft Clarity does not exist.** It is promised in the cookie-banner copy (`index.html:1178`; repeated on every static page, `seo/render.mjs:202`) but no Clarity script, ID, or call is anywhere in the repo. You have no session recordings or heatmaps, and the consent copy over-claims.
+**Microsoft Clarity was app-absent.** (Correction, 19 Jul: the original audit said Clarity existed nowhere — in fact the static SEO pages do load it, consent-gated, project `wo2ya32cp6`, `seo/render.mjs:195,224-231`.) The app (`index.html`) promised Clarity in its cookie-banner copy (`index.html:1178`) without loading it, so app sessions had no recordings and the app's consent copy over-claimed. Fixed in the Stage 3 row-6 commit: the app now loads the same consent-gated Clarity project.
 
 ### A3. Minimum instrumentation to tell traffic sources apart
 

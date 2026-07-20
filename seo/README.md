@@ -21,6 +21,12 @@ segmented (centre + brand) audience member.
   Needs the `VERCEL_DEPLOY_HOOK_URL` repo secret (create the hook in Vercel:
   Project Settings → Git → Deploy Hooks, branch `main`). Without the secret the
   step warns and skips — pages then freeze at the last git push.
+- **IndexNow**: after writing the sitemap, production builds (`VERCEL_ENV`)
+  POST every generated URL to `api.indexnow.org`, so Bing/DuckDuckGo re-crawl
+  within hours instead of waiting for a sitemap poll. The key is public by
+  design and served from `/<key>.txt` at the repo root. Google ignores
+  IndexNow — Search Console + sitemap covers Google. Soft-fails; set
+  `INDEXNOW_DISABLE=1` to switch it off.
 
 ### Files
 | File | Role |

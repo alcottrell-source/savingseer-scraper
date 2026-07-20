@@ -26,6 +26,36 @@ import { nextSaleWindow } from './next-sale-window.mjs';
 
 const ORIGIN = process.env.SEO_ORIGIN || 'https://tidego.co';
 
+// IndexNow key — deliberately public (the protocol verifies site ownership by
+// serving the key at /<key>.txt, committed at the repo root). Bing/DuckDuckGo/
+// Seznam re-crawl submitted URLs within hours instead of whenever the sitemap
+// is next polled. Google ignores IndexNow; Search Console covers that engine.
+const INDEXNOW_KEY = 'd7196f4eb664077395017d2c8562bb8d';
+
+// Submit every generated URL to IndexNow. Production Vercel builds only
+// (VERCEL_ENV) — local runs, previews and fixture builds would submit URLs
+// whose content isn't what's being built. Never fails the build: the sitemap
+// remains the source of truth and engines still poll it without this.
+async function pingIndexNow(locs) {
+  if (process.env.VERCEL_ENV !== 'production') return;
+  if (/^(1|true|yes)$/i.test(process.env.INDEXNOW_DISABLE || '')) return;
+  try {
+    const res = await fetch('https://api.indexnow.org/indexnow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({
+        host: new URL(ORIGIN).host,
+        key: INDEXNOW_KEY,
+        keyLocation: `${ORIGIN}/${INDEXNOW_KEY}.txt`,
+        urlList: locs.slice(0, 10000),
+      }),
+    });
+    console.log(`[seo] IndexNow: submitted ${Math.min(locs.length, 10000)} URL(s) (HTTP ${res.status}).`);
+  } catch (e) {
+    console.error(`[seo] WARNING: IndexNow ping failed (${e.message}) — non-fatal, sitemap polling still applies.`);
+  }
+}
+
 // By default a build that can't produce any SEO pages FAILS (non-zero exit) so
 // Vercel keeps the last good deploy live instead of shipping an empty site that
 // 404s every already-indexed /centre/ page. Set SEO_ALLOW_EMPTY=1 to opt back
@@ -369,6 +399,8 @@ async function main() {
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
     urls.map(u => `  <url><loc>${u.loc}</loc><lastmod>${u.lastmod}</lastmod></url>`).join('\n') + `\n</urlset>\n`;
   await writeFile(join(outDir, 'sitemap.xml'), sitemap, 'utf8');
+
+  await pingIndexNow(urls.map(u => u.loc));
 
   const w = nextSaleWindow(today);
   console.log(`[seo] Generated ${urls.length} pages across ${centreCount} centre(s) (${skipped} centre(s) skipped, ${brandPagesSkipped} thin brand page(s) skipped).`);

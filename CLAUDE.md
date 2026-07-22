@@ -94,14 +94,14 @@ Legacy verdict strings (`Go now`, `Worth watching`, `Last chance — tide going 
 - Narrative copy (`summarise.js`) is forbidden from using recommendation language — see the system prompt in that file.
 - The weekend digest email (`notify-high-tide` `digestVerdictFor`) is trend-only too; action language ("go now") is reserved for the high/peak bucket, mirroring the PEAK badge.
 
-## Centre Intelligence narrative (May 2026)
-The card under each centre's score shows a 1–2 sentence trend narrative. It's generated daily by `summarise.js` (Gemini 2.0 Flash-Lite, free tier — 1500 RPD, 15 RPM) and stored in `centre_seer_scores.narrative` for that centre+date. The front-end reads the column and falls back to a template narrative when the column is null (first run on a new centre, summariser skipped, or `GEMINI_API_KEY` absent). Don't add live API calls from the browser — keep generation in the daily pipeline.
+## Centre Intelligence narrative (May 2026; backend migrated Jul 2026)
+The card under each centre's score shows a 1–2 sentence trend narrative. It's generated daily by `summarise.js` (**Claude Haiku 4.5** via `@anthropic-ai/sdk`) and stored in `centre_seer_scores.narrative` for that centre+date. The front-end reads the column and falls back to a template narrative when the column is null (first run on a new centre, summariser skipped, or `ANTHROPIC_API_KEY` absent). Don't add live API calls from the browser — keep generation in the daily pipeline.
 
-The Gemini prompt forbids numbers AND recommendation language — narratives describe what's happening (which brands just arrived, which are picked-over) but never tell the reader what to do. The headline + PEAK badge are the only places the dashboard prescribes action.
+The prompt forbids numbers AND recommendation language — narratives describe what's happening (which brands just arrived, which are picked-over) but never tell the reader what to do. The headline + PEAK badge are the only places the dashboard prescribes action.
 
-Don't switch the model to `gemini-2.5-flash-lite`: its free-tier daily cap is 20 RPD, close to our 24-centre count with no headroom, and the script risks dead-ending partway through. `gemini-2.0-flash-lite` is the only Gemini free-tier model with enough headroom for this workload as of May 2026.
+**Backend history:** originally Gemini 2.0 Flash-Lite on the free tier. Google **withdrew that model's free tier** (~Jul 2026 — `429 "limit: 0"`), which silently zeroed every narrative for days because a daily-quota 429 was treated as a benign transient hit. Migrated to Claude Haiku 4.5 (pay-as-you-go, ~pennies/day for 24 short narratives — no daily-cap cliff). `summarise.js` now emits a `::warning::` GitHub annotation whenever a run writes **0** narratives, so a total outage can't hide behind a green tick again. Don't reintroduce a free-tier model with a per-day cap near the centre count.
 
-Required env var on the GitHub Action's `score` job: `GEMINI_API_KEY` (repo secret).
+Required repo secret on the GitHub Action's `score` job: `ANTHROPIC_API_KEY`. (The old `GEMINI_API_KEY` is now only used by the one-off `extract-floors.js` audit script.)
 
 ## "Newest Sales" panel — start date vs. discount change (Jul 2026)
 The "Newest Sales" card (`renderCentreNarrativeCard` in `index.html`) surfaces a brand when EITHER its sale started in the last `FRESH_WINDOW_DAYS` (**7** — "this week", deliberately equal to the hero depth row's `DEEPEN_WEEK_DAYS` so the card and the hero count the same deepened brands; was 5 pre-Jul 2026) days OR its discount % last changed in that window — not start date alone. This matters because an admin routinely revisits an old, already-listed cycle (e.g. bumping White Stuff from 50% to 60% on day 18) via Edit/Increase in `admin.html`; without the second condition that update would never surface here, which read as a bug ("I updated the %, why isn't it showing?").

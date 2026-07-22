@@ -8,6 +8,12 @@
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/(index.html)?", "has": [{ "type": "host", "value": "admin.tidego.co" }], "destination": "/admin.html" }
   ],
+  "redirects": [
+    { "source": "/centre/westfield-london-shepherds", "destination": "/centre/westfield-london", "permanent": true },
+    { "source": "/centre/westfield-london-shepherds/:brand", "destination": "/centre/westfield-london/:brand", "permanent": true },
+    { "source": "/centre/bluewater-kent", "destination": "/centre/bluewater", "permanent": true },
+    { "source": "/centre/bluewater-kent/:brand", "destination": "/centre/bluewater/:brand", "permanent": true }
+  ],
   "headers": [
     {
       "source": "/(.*)",

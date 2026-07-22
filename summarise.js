@@ -2,7 +2,7 @@
 // Tide — daily Centre Intelligence narrative writer.
 //
 // Runs after score.js on the daily GitHub Action. For each centre with a
-// score row for today, asks Gemini 2.5 Flash for a 1-2 sentence factual
+// score row for today, asks Claude Haiku 4.5 for a 1-2 sentence factual
 // narrative summarising the current sale state (which brands just opened,
 // which are picked-over, whether the tide is rising/falling), and writes
 // it back to centre_seer_scores.narrative for today's row.
@@ -11,15 +11,19 @@
 // if it is null — so the dashboard degrades gracefully if this script is
 // skipped, fails, or the API key is absent.
 //
-// Cost: free. Gemini's free tier covers 1500 requests/day; we use 30.
+// Backend note (Jul 2026): migrated off Gemini 2.0 Flash-Lite. Google
+// withdrew that model's free tier (429 "limit: 0"), which silently zeroed
+// out every narrative for days. Claude Haiku 4.5 is pay-as-you-go — a few
+// pence a day for ~24 short narratives — with no daily-cap cliff to fall
+// off. Cost is trivial for this workload; reliability is the point.
 
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenAI } from '@google/genai';
+import Anthropic from '@anthropic-ai/sdk';
 import { brands } from './brands.js';
 
 const SUPABASE_URL    = process.env.SUPABASE_URL;
 const SUPABASE_KEY    = process.env.SUPABASE_SERVICE_KEY;
-const GEMINI_API_KEY  = process.env.GEMINI_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const TODAY           = new Date().toISOString().split('T')[0];
 const FOURTEEN_DAYS_AGO = new Date(Date.now() - 14 * 86400000).toISOString().split('T')[0];
 
@@ -27,27 +31,23 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars');
   process.exit(1);
 }
-if (!GEMINI_API_KEY) {
+if (!ANTHROPIC_API_KEY) {
   // Soft-fail: scoring already wrote the row; the front-end falls back to
   // its template narrative. Don't break the daily workflow over a missing
   // API key.
-  console.warn('GEMINI_API_KEY not set — skipping narrative generation');
+  console.warn('ANTHROPIC_API_KEY not set — skipping narrative generation');
   process.exit(0);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-const genai    = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+const supabase  = createClient(SUPABASE_URL, SUPABASE_KEY);
+const anthropic = new Anthropic(); // reads ANTHROPIC_API_KEY from the env
 
-const MODEL          = 'gemini-2.0-flash-lite';
+const MODEL          = 'claude-haiku-4-5';
 const MAX_OUTPUT_LEN = 220; // chars, hard cap on what we'll store
-// Gemini free tier on gemini-2.0-flash-lite: 15 requests/minute, 1500 per
-// day. A 5-second gap gives 12 RPM with comfortable headroom — pushes a
-// 37-centre run to roughly 3 minutes, well within a daily workflow's
-// budget and far inside the 1500 RPD cap.
-//
-// Don't switch to gemini-2.5-flash-lite — its free-tier daily cap is only
-// 20 RPD, which is below our 30+ centre count and the script will dead-end
-// halfway through the run.
+// Pace requests to stay comfortably inside Anthropic's per-minute rate
+// limits at any tier. A 5-second gap gives 12 RPM — a ~24-centre run takes
+// roughly two minutes. The SDK also auto-retries 429/5xx with exponential
+// backoff, so a brief limit blip self-heals without dropping a centre.
 const MIN_GAP_MS     = 5000;
 
 const SYSTEM_PROMPT = `You write Centre Intelligence narratives for the Tide dashboard — a UK shopping-sales tracker. One narrative per centre per day, shown in a small card under the score.
@@ -106,17 +106,21 @@ function buildUserMessage(centre) {
 }
 
 async function generateNarrative(centre) {
-  const resp = await genai.models.generateContent({
+  const resp = await anthropic.messages.create({
     model: MODEL,
-    contents: buildUserMessage(centre),
-    config: {
-      systemInstruction: SYSTEM_PROMPT,
-      maxOutputTokens: 200,
-      temperature: 0.4,
-    },
+    max_tokens: 200,
+    temperature: 0.4, // slight variation; Haiku 4.5 still accepts sampling params
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: buildUserMessage(centre) }],
   });
 
-  const text = (resp.text || '')
+  // content is a list of blocks; concatenate the text blocks (Haiku returns one).
+  const raw = (resp.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('');
+
+  const text = raw
     .trim()
     .replace(/^["']|["']$/g, '')
     .replace(/\s+/g, ' ');
@@ -127,43 +131,20 @@ async function generateNarrative(centre) {
   return text.length > MAX_OUTPUT_LEN ? text.slice(0, MAX_OUTPUT_LEN - 1).trimEnd() + '…' : text;
 }
 
-// A 429 with a "PerDay" quotaId means the daily free-tier cap is used up.
-// Retrying within the same workflow run is pointless — the counter only
-// resets at midnight Pacific. Distinguish from a per-minute 429.
-function isDailyQuotaExhausted(msg) {
-  return /"code":\s*429/.test(msg) && /PerDay/.test(msg);
+// A 401/403 is a permanent failure — a missing, invalid, or unscoped
+// ANTHROPIC_API_KEY hits every centre identically. Stop the run rather than
+// hammering the API two dozen times and burning the whole workflow budget on
+// certain-to-fail calls. Transient 429/5xx are NOT this — they clear on retry.
+function isAuthFailure(err) {
+  return !!err && (err.status === 401 || err.status === 403);
 }
 
-// Wrap generateNarrative with a single retry that respects the API's
-// suggested retryDelay for per-minute 429s and a fixed wait for 503s.
-// Daily-quota 429s rethrow immediately so the caller can stop the run.
+// The Anthropic SDK already retries 429 and 5xx with exponential backoff that
+// honours the Retry-After header (default max_retries = 2), so a per-minute
+// limit blip self-heals without dropping a centre. This thin wrapper keeps the
+// call site stable and is the seam for any future per-call handling.
 async function generateNarrativeResilient(centre) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      return await generateNarrative(centre);
-    } catch (err) {
-      const msg = String(err && err.message || err);
-      if (isDailyQuotaExhausted(msg)) throw err;
-
-      const is429 = /RESOURCE_EXHAUSTED|"code":\s*429|\b429\b/.test(msg);
-      const is503 = /UNAVAILABLE|"code":\s*503|\b503\b/.test(msg);
-      if (attempt === 0 && (is429 || is503)) {
-        // Prefer the API's retryDelay when present; otherwise default to
-        // a generous wait. +1s jitter to avoid landing exactly on the
-        // window boundary.
-        const m = msg.match(/"retryDelay":\s*"(\d+(?:\.\d+)?)s"/);
-        const waitMs = m
-          ? Math.ceil(parseFloat(m[1]) * 1000) + 1000
-          : (is429 ? 30000 : 12000);
-        console.log(`  ⏳ ${centre.name}: ${is429 ? '429' : '503'}, retrying in ${Math.round(waitMs / 1000)}s`);
-        await sleep(waitMs);
-        continue;
-      }
-      throw err;
-    }
-  }
-  // Unreachable but keeps the typechecker happy.
-  return null;
+  return generateNarrative(centre);
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -236,7 +217,7 @@ async function main() {
   let written = 0;
   let skipped = 0;
   let failed  = 0;
-  let dailyQuotaHit = false;
+  let authFailed = false;
 
   for (const centre of centresRes.data || []) {
     const score = scoreByCentre.get(centre.id);
@@ -319,12 +300,10 @@ async function main() {
       written++;
     } catch (err) {
       const msg = String(err && err.message || err);
-      if (isDailyQuotaExhausted(msg)) {
-        console.warn(`  ⚠ ${centre.name}: daily Gemini free-tier quota exhausted — stopping. Remaining centres will keep their template narrative until tomorrow's run.`);
-        // Log the underlying API error so we can see the actual quota
-        // numbers (model, RPD limit, retry window) without parsing.
+      if (isAuthFailure(err)) {
+        console.warn(`  ⚠ ${centre.name}: Anthropic auth failed (${err.status}) — stopping. Every centre would fail identically. Check the ANTHROPIC_API_KEY secret.`);
         console.warn(`     underlying API response: ${msg}`);
-        dailyQuotaHit = true;
+        authFailed = true;
         break;
       }
       console.error(`  ✗ ${centre.name}: ${msg}`);
@@ -334,13 +313,26 @@ async function main() {
     await sleep(MIN_GAP_MS);
   }
 
-  console.log(`\nNarratives: ${written} written, ${skipped} skipped, ${failed} failed${dailyQuotaHit ? ' (daily quota hit — non-fatal)' : ''}`);
+  console.log(`\nNarratives: ${written} written, ${skipped} skipped, ${failed} failed${authFailed ? ' (auth failed — run stopped early)' : ''}`);
 
-  // Exit 1 only on real failures — i.e. nothing was written AND something
-  // failed for a reason other than the daily quota being exhausted. A
-  // daily-quota hit just means we'll catch up on the next scheduled run;
-  // it shouldn't paint the workflow red.
-  if (failed > 0 && written === 0 && !dailyQuotaHit) process.exit(1);
+  // Surface a total wipe-out loudly. A run that writes ZERO narratives means
+  // every centre is serving fallback template copy — an auth failure, a bad
+  // model id, or the very first call dying. The `::warning::` annotation makes
+  // it visible in the Actions run summary so a silent, self-perpetuating outage
+  // can't hide behind a green tick again (as the withdrawn Gemini free tier did
+  // for days before this migration).
+  if (written === 0) {
+    const why = authFailed
+      ? "Anthropic auth failed — check the ANTHROPIC_API_KEY repo secret"
+      : "the summariser wrote no narratives this run — check the API key, model id, and rate limits";
+    console.log(`::warning::Centre Intelligence narratives: 0 written. ${why}. Every centre is serving fallback template copy until this is fixed.`);
+  }
+
+  // Exit 1 only on real failures — nothing written AND something failed for a
+  // reason other than auth. An auth failure already shouts via ::warning:: and
+  // is left non-fatal so the SEO-rebuild step still runs (narratives are
+  // cosmetic; the scores and static pages matter more).
+  if (failed > 0 && written === 0 && !authFailed) process.exit(1);
 }
 
 main().catch(err => {

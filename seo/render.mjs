@@ -756,7 +756,8 @@ export function renderBlogPost(post, { origin, supabase, siblings = [] }) {
   const relatedBlock = post.relatedCentres.length ? `
 <h2>From the Tide tracker</h2>
 <p class="muted">See live sale data for the centre${post.relatedCentres.length === 1 ? '' : 's'} mentioned here:</p>
-<ul class="links">${post.relatedCentres.map(c => `<li><a href="${origin}/centre/${c.slug}">${escapeHtml(c.name)} →</a></li>`).join('')}</ul>` : '';
+<ul class="links">${post.relatedCentres.map(c => `<li><a href="${origin}/centre/${c.slug}">${escapeHtml(c.name)} →</a></li>`).join('')}</ul>
+${post.relatedCentres.map(c => appLink(origin, c.slug, c.name)).join('')}` : '';
 
   const moreBlock = siblings.length ? `
 <h2>More from the blog</h2>

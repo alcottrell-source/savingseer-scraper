@@ -159,6 +159,39 @@ function shape(raw, today) {
   return { centre, brands, hasScore: !!raw.score, scoreHistory: raw.scoreHistory || [] };
 }
 
+// ── Redirect validation ──────────────────────────────────────────────────────
+// Read vercel.json's `redirects` and check each /centre/<slug> rule against the
+// authoritative set of current active centre slugs. Pure diagnostics: it logs
+// build-log warnings and NEVER throws or fails the build (a wrong redirect is a
+// soft-404, not a reason to drop the whole deploy). Resolves vercel.json
+// relative to this module so it works regardless of the build's cwd.
+async function validateRedirects(currentSlugs) {
+  let cfg;
+  try {
+    cfg = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
+  } catch (e) {
+    console.error(`[seo] redirect check skipped — could not read vercel.json (${e.message}).`);
+    return;
+  }
+  const centreSlug = (path) => {
+    const m = /^\/centre\/([^/]+)/.exec(path || '');
+    return m ? m[1] : null;
+  };
+  let checked = 0;
+  for (const r of (cfg.redirects || [])) {
+    const dest = centreSlug(r.destination);
+    const src = centreSlug(r.source);
+    if (dest && !currentSlugs.has(dest)) {
+      console.error(`[seo] WARNING: redirect ${r.source} → ${r.destination} points at a slug that is NOT a current active centre — it will 301 into a 404. Fix the destination in vercel.json.`);
+    }
+    if (src && currentSlugs.has(src)) {
+      console.error(`[seo] WARNING: redirect source ${r.source} matches a CURRENT active centre — it is shadowing a live page. Remove it from vercel.json.`);
+    }
+    if (dest || src) checked++;
+  }
+  if (checked) console.log(`[seo] redirect check: ${checked} centre redirect(s) validated against ${currentSlugs.size} active centres.`);
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────
 async function main() {
   const fixtures = arg('--fixtures');
@@ -295,6 +328,16 @@ async function main() {
   await injectHomepageLinks(outDir,
     Object.entries(centresBySlug).map(([slug, { name }]) => ({ slug, name })),
     nationalBrands);
+
+  // Redirect sanity-check (live builds only). vercel.json 301s retired centre
+  // slugs (the July 2026 audit renamed some centre ids; Google crawled the OLD
+  // /centre/<slug> URLs and they now 404). Those redirect targets were guessed
+  // from Search Console + repo hints and can't be verified without the live DB —
+  // so cross-check them here, where we DO hold the authoritative active-slug set.
+  // Warn (never fail) on a destination that isn't a current centre (a 301 → 404
+  // chain) or a source that IS one (shadowing a live page). Skipped for fixture
+  // builds, whose single-centre set would false-positive. See vercel.json.
+  if (!fixtures) await validateRedirects(new Set(Object.keys(centresBySlug)));
 
   // National /brand/ pages — the brand-only head query ("when does {brand} go
   // on sale?"). Same thin-page rule as the children; freshness = newest of the

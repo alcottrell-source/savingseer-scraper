@@ -132,11 +132,16 @@ already Vercel env vars (used by `/api/rescore`, now also `/api/unsubscribe`).
   (owner TODO 3), let confirmed crowd reports shrink the cold checks, and
   re-enter a scraper later through the ADR-001 evidence interface if volume
   justifies it.
-- **Content:** publish the Friday digest as a weekly "This week's tide" blog
-  post via the existing `seo/` generator — near-zero marginal effort, weekly
-  freshness signal, internal links to `/centre/` pages. Target "next {brand}
-  sale" / "{centre} sale dates" queries (`seo/next-sale-window.mjs` already
-  computes the substance). Weight admin verification toward centres that pull
+- **Content:** ~~publish the Friday digest as a weekly "This week's tide" blog
+  post via the existing `seo/` generator~~ **SHIPPED (Jul 2026, Row 7)** —
+  `seo/weekly-post.mjs` auto-emits a "This week's tide" post for each completed
+  week from `centre_seer_scores` history, merged into the blog index by
+  `generate.mjs`. One activation step remains: set the `VERCEL_DEPLOY_HOOK_URL`
+  repo secret so the daily scorer triggers a rebuild (Row 1,
+  `daily-scrape.yml` — until then new weeks only publish on git pushes).
+  Still open from the original item: target "next {brand} sale" /
+  "{centre} sale dates" queries (`seo/next-sale-window.mjs` already computes
+  the substance), and weight admin verification toward centres that pull
   Search Console queries.
 - **Marketing:** hold paid/referral pushes until the alert loop delivers;
   then the peak-alert email itself is the referral surface ("forward this to

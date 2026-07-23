@@ -78,6 +78,17 @@ test('getTideStage — confirmed decline exits Peak at ANY score (the stale GO-N
   assert.equal(getTideStage(60, 'High Tide', 'FALLING', 'RISING').verdict, 'Easing');
 });
 
+test('getTideStage — D19 crest-distance release: FLAT off the crest eases, at the crest holds', () => {
+  // WestQuay: crest 54, now FLAT at 49 (5 pts below) — including the frozen
+  // carry-forward case where today == yesterday so trajectory reads FLAT and
+  // no FALLING can confirm. A plateau AT the crest (distance < band) holds.
+  assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT', 54).verdict, 'Easing', '5pts below crest → Easing');
+  assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT', 52).verdict, 'Peak', '3pts below crest holds (<band)');
+  assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT', 49).verdict, 'Peak', 'plateau AT the crest holds');
+  assert.equal(getTideStage(49, 'High Tide', 'RISING', 'RISING', 54).verdict, 'Peak', 'RISING exempt — climb near crest holds');
+  assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT', null).verdict, 'Peak', 'no crest data → unchanged (holds)');
+});
+
 test('getTideStage — no Peak re-entry from descent without a sustained RISING', () => {
   // An Easing bounce back over 40 must not flap to Peak (and re-fire the
   // peak-alert email); only a genuine RISING resurgence re-enters.

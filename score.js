@@ -51,6 +51,12 @@ function dateStr(offsetDays = 0) {
 // leaving sale at a typical 70-80 brand centre — the same effective
 // sensitivity the freshness-weighted score had before the rewrite.
 const TRAJECTORY_FLAT_BAND = 1.5;  // ±1.5 defines the Flat (Peak) window
+// Crest-distance release (D19): a High-Tide centre whose trajectory has gone
+// FLAT still exits to Easing once its score sits this many points below its
+// recent 14-day crest. Matches TRAJECTORY_FLIP_BAND's "meaningful move" size.
+// Without it, a slow decline off the crest — or a carry-forward-frozen score —
+// reads FLAT forever and pins "Go now" down the whole far side of the tide.
+const CREST_DROP_BAND = 4.0;
 
 const PHASE_NUMBER = { Turning: 1, Rising: 2, 'High Tide': 2, Falling: 2, Low: 1 };
 
@@ -138,10 +144,18 @@ function deriveStageFromVerdict(verdict) {
 // lib/tide-machine.js nextTideState, and persist the explicit state columns
 // (stage, stage_entered_date, last_peak_date, observed_days). The parity
 // suite in test/tide-machine.test.mjs proves the swap is behaviour-safe.
-function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
+function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory, recentCrest = null) {
   const wasHighTide = yesterdayStage === 'High Tide';
   const wasDescent  = yesterdayStage === 'Falling' || yesterdayStage === 'Low';
   const falling     = trajectory === 'FALLING';
+  // Crest-distance release (D19): a genuine plateau AT the crest (distance ~0)
+  // holds Peak; a FLAT reading that sits CREST_DROP_BAND+ below the recent
+  // crest is a stalled/frozen decline down the far side — end "Go now" here.
+  // FLAT-only by design: a RISING day near the crest still holds (freshEntry/
+  // crestHold), and a FALLING day already exits below. Null crest (no history
+  // / legacy 4-arg callers) → never fires, so behaviour is unchanged.
+  const stalledDecline = trajectory === 'FLAT'
+    && Number.isFinite(recentCrest) && score <= recentCrest - CREST_DROP_BAND;
   // Local-peak detection: the centre was climbing (trajectory RISING) and
   // the climb has now ended — today's trajectory is anything other than
   // RISING. This is its natural high tide whether or not the score crossed
@@ -176,7 +190,7 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory) {
   // of weeks later at the 30 line.
   const holdHigh   = score >= HIGH_TIDE_ENTER || (wasHighTide && score >= HIGH_TIDE_EXIT);
   const freshEntry = !wasHighTide && !wasDescent;
-  const crestHold  = wasHighTide && !falling;
+  const crestHold  = wasHighTide && !falling && !stalledDecline;
   const reEntry    = wasDescent && trajectory === 'RISING';
   if (holdHigh && (freshEntry || crestHold || reEntry)) {
     return { stage: 'High Tide', verdict: 'Peak', bluf: PEAK_BLUF_GENERIC };
@@ -304,6 +318,12 @@ async function calculateAllCentreScores(opts = {}) {
   const YESTERDAY      = dateStr(-1);
   const THREE_DAYS_AGO = dateStr(-3);
   const SIXTY_DAYS_AGO = dateStr(-60);
+  // Crest-distance release window (D19): the recent crest a stalled High-Tide
+  // centre is measured against. 14 days is long enough to still hold the crest
+  // of a slow decline (and survive a drop that has aged past a week-over-week
+  // anchor), short enough that an old unrelated peak can't force a lower later
+  // cycle to exit early.
+  const CREST_WINDOW_START = dateStr(-14);
   // Rolling window of daily scores rebuilt into centres.tide_history each run.
   // Drives the centre-detail chart's MAX tab, so it must exceed the 60D tab to
   // stay meaningfully longer than it; 180 days is a few KB of JSON per centre
@@ -358,7 +378,7 @@ async function calculateAllCentreScores(opts = {}) {
     // own history, not itself. ~37×60 rows can exceed the cap — paginate, with
     // a deterministic (centre_id, score_date) order so no day is dropped.
     selectAllRows(() => supabase.from('centre_seer_scores')
-      .select('centre_id, tide_score')
+      .select('centre_id, tide_score, score_date')
       .gte('score_date', SIXTY_DAYS_AGO)
       .lt('score_date', TODAY)
       .not('tide_score', 'is', null)
@@ -373,10 +393,19 @@ async function calculateAllCentreScores(opts = {}) {
   const yesterdayRowMap = new Map((yesterdayRowsRes.data || []).map(r => [r.centre_id, r]));
 
   // Max prior-60-day tide_score per centre, for the 60-day-high Peak subtitle.
+  // crestMap reuses the same rows, windowed to the last 14 days, to give each
+  // centre its recent crest for the D19 stalled-decline release in getTideStage.
+  // Both windows exclude TODAY (query `.lt('score_date', TODAY)`), so a frozen
+  // carry-forward score is compared against a genuine PRIOR crest.
   const sixtyDayMaxMap = new Map();
+  const crestMap = new Map();
   for (const row of (sixtyDayScoresRes.data || [])) {
     const cur = sixtyDayMaxMap.get(row.centre_id);
     if (cur === undefined || row.tide_score > cur) sixtyDayMaxMap.set(row.centre_id, row.tide_score);
+    if (row.score_date >= CREST_WINDOW_START) {
+      const c = crestMap.get(row.centre_id);
+      if (c === undefined || row.tide_score > c) crestMap.set(row.centre_id, row.tide_score);
+    }
   }
 
   const brandSaleMap = new Map(brandSaleRes.data.map(b => [b.brand_id, b]));
@@ -443,7 +472,7 @@ async function calculateAllCentreScores(opts = {}) {
         const yTraj  = yesterdayTrajectoryMap.get(centre.id) ?? ystrdy.trajectory ?? null;
         const trajectory = getTrajectory(carriedScore, recent, yTraj);
         const yStage = yesterdayStageMap.get(centre.id) ?? deriveStageFromVerdict(ystrdy.verdict);
-        const { stage, verdict, bluf } = getTideStage(carriedScore, yStage, trajectory, yTraj);
+        const { stage, verdict, bluf } = getTideStage(carriedScore, yStage, trajectory, yTraj, crestMap.get(centre.id) ?? null);
         const carriedBluf = upgradePeakBluf(verdict, bluf, carriedScore, sixtyDayMaxMap.get(centre.id));
         scoreRows.push({
           centre_id: centre.id,
@@ -511,7 +540,7 @@ async function calculateAllCentreScores(opts = {}) {
     const yesterdayTrajectory = yesterdayTrajectoryMap.get(centre.id) ?? null;
     const trajectory = getTrajectory(tideScore, recent, yesterdayTrajectory);
     const yesterdayStage = yesterdayStageMap.get(centre.id) ?? null;
-    const { stage, verdict, bluf } = getTideStage(tideScore, yesterdayStage, trajectory, yesterdayTrajectory);
+    const { stage, verdict, bluf } = getTideStage(tideScore, yesterdayStage, trajectory, yesterdayTrajectory, crestMap.get(centre.id) ?? null);
     const finalBluf = upgradePeakBluf(verdict, bluf, tideScore, sixtyDayMaxMap.get(centre.id));
 
     // Most-recently-verified-first — admin's latest confirmations bubble up.

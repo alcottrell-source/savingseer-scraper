@@ -106,14 +106,18 @@ function normVerdict(v) {
 function replay(rows, stepFn) {
   const out = [];
   let prevStage = null, priorTraj = null, recent = [], observedDays = 0, prevDate = null;
+  let crestWin = []; // {date, score} within CREST_WINDOW_DAYS, excludes today (D19)
   for (const r of rows) {
     const gap = prevDate ? daysBetween(prevDate, r.score_date) : 1;
-    if (gap > TIDE.GAP_BREAK_DAYS) { recent = []; priorTraj = 'FLAT'; }
+    if (gap > TIDE.GAP_BREAK_DAYS) { recent = []; priorTraj = 'FLAT'; crestWin = []; }
     observedDays += 1;
+    crestWin = crestWin.filter(e => (daysBetween(e.date, r.score_date) ?? Infinity) <= TIDE.CREST_WINDOW_DAYS);
+    const recentCrest = crestWin.length ? Math.max(...crestWin.map(e => e.score)) : null;
     const traj = trajectoryStep(r.tide_score, recent, priorTraj, observedDays);
-    const { stage, verdict } = stepFn(r.tide_score, prevStage, traj, priorTraj);
+    const { stage, verdict } = stepFn(r.tide_score, prevStage, traj, priorTraj, recentCrest);
     out.push({ traj, stage, verdict });
     recent = [r.tide_score, ...recent].slice(0, 3);
+    crestWin = [{ date: r.score_date, score: r.tide_score }, ...crestWin];
     priorTraj = traj;
     prevStage = stage;
     prevDate = r.score_date;

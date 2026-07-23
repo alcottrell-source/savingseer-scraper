@@ -50,16 +50,20 @@ test('parity: stageStep ≡ getTideStage across the full grid', () => {
   const scores = [0, 5, 7.9, 8, 10, 14.9, 15, 16, 25, 29, 29.9, 30, 31, 35, 39, 39.9, 40, 41, 60, 100];
   const stages = [null, 'Turning', 'Rising', 'High Tide', 'Falling', 'Low'];
   const trajs = [null, 'RISING', 'FLAT', 'FALLING'];
+  // recentCrest dimension (D19): null (no data), well above score (stalled
+  // decline can fire), and below score (never fires) — asserts both engines
+  // mirror the crest-distance release.
+  const crests = [null, 100, 5];
   let checked = 0;
   for (const score of scores) for (const prev of stages)
-    for (const traj of ['RISING', 'FLAT', 'FALLING']) for (const prevTraj of trajs) {
-      const ours = stageStep(score, prev, traj, prevTraj);
-      const theirs = getTideStage(score, prev, traj, prevTraj);
-      assert.equal(ours.stage, theirs.stage, `stage @ s=${score} prev=${prev} t=${traj} pt=${prevTraj}`);
-      assert.equal(ours.verdict, theirs.verdict, `verdict @ s=${score} prev=${prev} t=${traj} pt=${prevTraj}`);
+    for (const traj of ['RISING', 'FLAT', 'FALLING']) for (const prevTraj of trajs) for (const crest of crests) {
+      const ours = stageStep(score, prev, traj, prevTraj, crest);
+      const theirs = getTideStage(score, prev, traj, prevTraj, crest);
+      assert.equal(ours.stage, theirs.stage, `stage @ s=${score} prev=${prev} t=${traj} pt=${prevTraj} crest=${crest}`);
+      assert.equal(ours.verdict, theirs.verdict, `verdict @ s=${score} prev=${prev} t=${traj} pt=${prevTraj} crest=${crest}`);
       checked++;
     }
-  assert.ok(checked >= 1400, `grid actually swept (${checked} combos)`);
+  assert.ok(checked >= 4200, `grid actually swept (${checked} combos)`);
 });
 
 test('parity: STAGE_FROM_VERDICT carries all 13 strings incl. legacy', () => {
@@ -184,14 +188,44 @@ test('E12 — deploy-day correction: a stored stale Peak with FALLING flips to E
   assert.equal(next.stage, 'Falling');
 });
 
-test('E13 — a high plateau HOLDS Peak (sitting at the crest is not a decline)', () => {
-  // Stall decay lands the trajectory on FLAT; crestHold keeps the verdict.
-  // Only a score decline (FALLING confirm, or dropping out of the band)
-  // ends a Peak — documented behaviour, not a bug.
+test('E13 — a high plateau AT the crest HOLDS Peak (distance 0 is not a decline)', () => {
+  // Stall decay lands the trajectory on FLAT; the score sits AT its recent
+  // crest (distance 0 < CREST_DROP_BAND), so crestHold keeps the verdict.
+  // A plateau at the top is the peak — documented behaviour, not a bug. The
+  // contrast is E13b: FLAT that has slid off the crest eases.
   const s = run([20, 35, 45, 45, 45, 45, 45]);
   assert.equal(s.trajectory, 'FLAT');
   assert.equal(s.verdict, 'Peak');
   assert.equal(s.stage, 'High Tide');
+});
+
+test('E13b — a FLAT decline OFF the crest eases (D19, the WestQuay bug)', () => {
+  // Crest 54, then a slow slide to 49. The first soft day still reads Peak
+  // (trajectory still RISING near the top); once it goes FLAT sitting ≥4 pts
+  // below the 54 crest, crestHold releases → Easing. The old rule held FLAT
+  // as Peak forever (and carry-forward froze it there), firing a false
+  // "tide is in" peak alert down the whole far side of the tide.
+  let s = run([10, 30, 50, 54, 49]);
+  assert.equal(s.verdict, 'Peak', 'first soft day off the crest still holds');
+  s = run([10, 30, 50, 54, 49, 49]);
+  assert.equal(s.trajectory, 'FLAT', 'stalled, not a sharp FALLING confirm');
+  assert.equal(s.verdict, 'Easing', 'FLAT ≥4pts below the crest exits Peak');
+  assert.equal(s.stage, 'Falling');
+});
+
+test('E13c — crest-distance release, direct stageStep calls (frozen carry-forward analog)', () => {
+  // A carry-forward centre re-steps with a FROZEN score: today == yesterday,
+  // trajectory FLAT. crestHold must still release when the score sits ≥4 pts
+  // below the recent crest — the movement-blind case a week-over-week rule
+  // can't catch. Verdict-parity checked in the sweep; these pin the intent.
+  assert.equal(stageStep(49, 'High Tide', 'FLAT', 'FLAT', 54).verdict, 'Easing', '5pts below crest eases');
+  assert.equal(stageStep(49, 'High Tide', 'FLAT', 'FLAT', 52).verdict, 'Peak', '3pts below crest holds (<band)');
+  assert.equal(stageStep(49, 'High Tide', 'RISING', 'RISING', 54).verdict, 'Peak', 'RISING near crest still holds');
+  assert.equal(stageStep(49, 'High Tide', 'FLAT', 'FLAT', null).verdict, 'Peak', 'no crest data → holds (unchanged)');
+  // getTideStage (score.js) mirrors it — the same four, four-vs-five args.
+  assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT', 54).verdict, 'Easing');
+  assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT', 52).verdict, 'Peak');
+  assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT').verdict, 'Peak', 'legacy 4-arg call unchanged');
 });
 
 test('E5 — new-cycle escape only from Low, with RISING, at ≥15', () => {

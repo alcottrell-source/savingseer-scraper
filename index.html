@@ -415,6 +415,17 @@
   .tide-metric-move.is-down { color: #FF9B7A; }
   .tide-metric-move.is-flat { color: rgba(245,241,235,0.5); }
   .tide-metric-divider { position: relative; z-index: 6; height: 1px; background: rgba(245,241,235,0.1); margin: 18px 0; }
+  /* Brand-logo strip under a breadth row — the little shop icons that make up
+     the "N of M on sale" count. White favicon tiles read as app icons on the
+     dark vessel; the "+N" overflow chip carries the row's identity colour
+     (neon = your shops, muted = whole centre). Depth row gets no strip. */
+  .tide-metric-strip { position: relative; z-index: 6; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .tide-metric-tile { position: relative; width: 24px; height: 24px; border-radius: 6px; background: #fff; border: 1px solid rgba(245,241,235,0.14); overflow: hidden; display: flex; align-items: center; justify-content: center; flex: none; }
+  .tide-metric-tile-mono { font-family: 'Inter', sans-serif; font-size: 8px; font-weight: 700; color: #4a4a4a; text-transform: uppercase; line-height: 1; }
+  .tide-metric-tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; background: #fff; }
+  .tide-metric-more { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; margin-left: 2px; line-height: 24px; }
+  .tide-metric-more--you { color: var(--tide-neon); }
+  .tide-metric-more--centre { color: rgba(245,241,235,0.5); }
   .tide-vessel-statement2 { position: relative; z-index: 6; font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 400; line-height: 1.4; color: rgba(245,241,235,0.7); margin-bottom: 22px; }
   .tide-vessel-statement2 strong { color: var(--tide-cream); font-weight: 700; }
   .tide-vessel-fact { font-family: 'Inter', sans-serif; font-weight: 500; font-size: 21px; line-height: 1.2; color: var(--tide-cream); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; margin-bottom: 8px; }
@@ -5099,8 +5110,35 @@ function renderTideVessel(v) {
       +   '<div class="tide-metric-pct">' + o.pct + '<span class="tide-metric-pct-sign">%</span></div>'
       + '</div>'
       + '<div class="tide-metric-side">' + count + move + '</div>'
-      + '</div>';
+      + '</div>'
+      + (o.strip || '');
   };
+  // Brand-logo strip for a breadth row — a little icon per on-sale shop (the
+  // shops behind the "N of M" count), newest-first as passed in. Each tile is
+  // the Google-favicon logo over a lettered monogram fallback (same source as
+  // the brand chips / "Today's tide" strip); onerror drops the img back to the
+  // monogram. Capped at STRIP_MAX with a row-tinted "+N" overflow anchored to
+  // the server on-sale total so tiles + "+N" never claim more than the count.
+  const STRIP_MAX = 6;
+  const stripTile = (name) => {
+    const src = (typeof hotTileLogoSrc === 'function') ? hotTileLogoSrc(name) : '';
+    const mono = (typeof hotTileLabel === 'function') ? hotTileLabel(name) : String(name || '').slice(0, 3);
+    return '<span class="tide-metric-tile" title="' + esc(name) + '">'
+      + '<span class="tide-metric-tile-mono">' + esc(mono) + '</span>'
+      + (src ? '<img class="tide-metric-tile-img" alt="" loading="lazy" src="' + esc(src) + '" onerror="this.remove()">' : '')
+      + '</span>';
+  };
+  const metricStrip = (names, kind, total) => {
+    const list = Array.isArray(names) ? names.filter(Boolean) : [];
+    if (!list.length) return '';
+    const shown = list.slice(0, STRIP_MAX);
+    const cap = Number.isFinite(+total) ? +total : list.length;
+    const more = Math.max(0, cap - shown.length);
+    const moreHTML = more > 0
+      ? '<span class="tide-metric-more tide-metric-more--' + kind + '">+' + more + '</span>' : '';
+    return '<div class="tide-metric-strip" aria-hidden="true">' + shown.map(stripTile).join('') + moreHTML + '</div>';
+  };
+  const centreOnSaleNames = Array.isArray(v.onSaleNames) ? v.onSaleNames : [];
   // Depth row — the orthogonal "how good are the discounts" signal (breadth =
   // the rows above). Hidden when no on-sale brand here has a known %. The
   // count slot carries the "N deepened this week" fact (admin-verified %
@@ -5120,12 +5158,15 @@ function renderTideVessel(v) {
   let metricsHTML;
   if (hasPersonalHeadline) {
     metricsHTML = metricRow({ kind: 'you', label: 'Your shops', pct: personalPct,
-        count: myPresent > 0 ? (myOn + ' of ' + myPresent + ' on sale') : '', series: personalSeries })
+        count: myPresent > 0 ? (myOn + ' of ' + myPresent + ' on sale') : '', series: personalSeries,
+        strip: metricStrip(myOnNames, 'you', myOn) })
       + '<div class="tide-metric-divider"></div>'
-      + metricRow({ kind: 'centre', label: 'Whole centre', pct, count: centreCount, series })
+      + metricRow({ kind: 'centre', label: 'Whole centre', pct, count: centreCount, series,
+          strip: metricStrip(centreOnSaleNames, 'centre', v.onSaleCount) })
       + depthRowHTML;
   } else {
-    metricsHTML = metricRow({ kind: 'you', label: 'Whole centre', pct, count: centreCount, series })
+    metricsHTML = metricRow({ kind: 'you', label: 'Whole centre', pct, count: centreCount, series,
+        strip: metricStrip(centreOnSaleNames, 'you', v.onSaleCount) })
       + depthRowHTML;
   }
 
@@ -6616,12 +6657,21 @@ async function renderCentre(centreId) {
           const clientAvg = localPcts.length
             ? Math.round(localPcts.reduce((s, p) => s + +p, 0) / localPcts.length) : null;
           const deepenedCount = onSale.filter(b => isDeepenedBrand(b, DEEPEN_WEEK_DAYS)).length;
+          // On-sale shop names for the hero brand-icon strips, newest-first
+          // (smallest DAYS_RUNNING first; undated brands last) — mirrors the
+          // "Today's tide" strip ordering.
+          const onSaleNames = onSale.map(b => b.name).sort((a, b) => {
+            const da = Number.isFinite(DAYS_RUNNING[a]) ? DAYS_RUNNING[a] : Infinity;
+            const db = Number.isFinite(DAYS_RUNNING[b]) ? DAYS_RUNNING[b] : Infinity;
+            return da - db;
+          });
           return renderTideVessel({
             pct: heroPct,
             stage,
             serverVerdict: sScore && sScore.verdict,
             onSaleCount: onSaleN,
             totalCount: totalN,
+            onSaleNames,
             avgDiscountPct: srvAvg != null ? srvAvg : clientAvg,
             deepenedCount,
             trajectory,

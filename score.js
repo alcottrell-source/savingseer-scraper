@@ -154,6 +154,12 @@ function getTideStage(score, yesterdayStage, trajectory, yesterdayTrajectory, re
   // FLAT-only by design: a RISING day near the crest still holds (freshEntry/
   // crestHold), and a FALLING day already exits below. Null crest (no history
   // / legacy 4-arg callers) → never fires, so behaviour is unchanged.
+  //
+  // The sustained-decline decay in getTrajectory (D20) is what makes FLAT-only
+  // sufficient: a slow ~0.5–0.7 pt/day slide used to read a sticky RISING all
+  // the way down (never FLAT), so this release could never fire and "Go now"
+  // pinned for weeks. getTrajectory now decays two consecutive down days to
+  // FLAT, so the slide reaches FLAT and this releases once it's below the crest.
   const stalledDecline = trajectory === 'FLAT'
     && Number.isFinite(recentCrest) && score <= recentCrest - CREST_DROP_BAND;
   // Local-peak detection: the centre was climbing (trajectory RISING) and
@@ -278,6 +284,20 @@ function getTrajectory(todayScore, recentScores, yesterdayTrajectory) {
     const w = recentScores.slice(0, 3);
     const span = Math.max(todayScore, ...w) - Math.min(todayScore, ...w);
     if (span < TRAJECTORY_STALL_RANGE) return 'FLAT';
+    // Sustained-decline decay (D20). The two FLAT exits above only catch a
+    // near-flat plateau (span < STALL_RANGE) or a per-step drop past the FLAT
+    // band (> ~1.5 pt/day). A steady slow slide of ~0.5–0.7 pt/day slips
+    // between them: each step is too small for the FLAT band, yet the 3-day
+    // span is too wide for the stall check — so it read a sticky RISING all
+    // the way down, and the FLAT-only crest release in getTideStage could
+    // never fire. Result: "Go now" pinned for weeks on centres that were
+    // visibly dropping (the recurring WestQuay / Festival Place bug). Two
+    // consecutive down days with today at a fresh low is not a climb — decay
+    // to FLAT so the crest-distance release can end Peak. A one-day dip off a
+    // plateau (only the newest day down) still holds RISING: the one-day grace
+    // the hysteresis exists for. RISING-only, stateless — parity with the
+    // machine's trajectoryStep holds.
+    if (todayScore < recentScores[0] && recentScores[0] < recentScores[1]) return 'FLAT';
     return 'RISING';
   }
   if (prior === 'FALLING') {

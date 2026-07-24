@@ -85,8 +85,26 @@ test('getTideStage — D19 crest-distance release: FLAT off the crest eases, at 
   assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT', 54).verdict, 'Easing', '5pts below crest → Easing');
   assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT', 52).verdict, 'Peak', '3pts below crest holds (<band)');
   assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT', 49).verdict, 'Peak', 'plateau AT the crest holds');
-  assert.equal(getTideStage(49, 'High Tide', 'RISING', 'RISING', 54).verdict, 'Peak', 'RISING exempt — climb near crest holds');
+  // The release stays FLAT-only. A single RISING day near the crest is the
+  // one-day grace (a genuine climb or a plateau's noise blip) — it must hold;
+  // the D20 trajectory decay is what turns a *sustained* slide FLAT so this
+  // then fires (see the getTrajectory dead-zone test).
+  assert.equal(getTideStage(49, 'High Tide', 'RISING', 'RISING', 54).verdict, 'Peak', 'RISING exempt — one-day grace near crest holds');
   assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT', null).verdict, 'Peak', 'no crest data → unchanged (holds)');
+});
+
+test('getTrajectory — D20 sustained-decline decay: two consecutive down days leave RISING (the dead-zone fix)', () => {
+  // The bug: a steady ~0.5–0.7 pt/day slide has a per-step drop too small for
+  // the FLAT band and a 3-day span too wide for the stall check, so sticky
+  // RISING never decayed and "Go now" pinned all the way down.
+  assert.equal(getTrajectory(50, [50.6, 51.2, 51.8], 'RISING'), 'FLAT', 'steady slow decline → FLAT, not RISING');
+  assert.equal(getTrajectory(49, [49.6, 50.2, 50.8], 'RISING'), 'FLAT', '0.6/day slide keeps decaying to FLAT');
+  // One soft day right after a fresh high (yesterday was still climbing) →
+  // NOT two consecutive down days, so it stays RISING: the one-day grace that
+  // stops a single noise blip dropping Peak (mirrors E13b's first-soft-day).
+  assert.equal(getTrajectory(52, [54, 50, 46], 'RISING'), 'RISING', 'single soft day after a climb still RISING');
+  // A genuine climb (today a fresh high) is never decayed.
+  assert.equal(getTrajectory(56, [54, 52, 50], 'RISING'), 'RISING', 'still climbing → RISING');
 });
 
 test('getTideStage — no Peak re-entry from descent without a sustained RISING', () => {

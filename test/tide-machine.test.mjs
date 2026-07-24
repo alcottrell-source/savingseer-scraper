@@ -220,12 +220,35 @@ test('E13c — crest-distance release, direct stageStep calls (frozen carry-forw
   // can't catch. Verdict-parity checked in the sweep; these pin the intent.
   assert.equal(stageStep(49, 'High Tide', 'FLAT', 'FLAT', 54).verdict, 'Easing', '5pts below crest eases');
   assert.equal(stageStep(49, 'High Tide', 'FLAT', 'FLAT', 52).verdict, 'Peak', '3pts below crest holds (<band)');
-  assert.equal(stageStep(49, 'High Tide', 'RISING', 'RISING', 54).verdict, 'Peak', 'RISING near crest still holds');
+  assert.equal(stageStep(49, 'High Tide', 'RISING', 'RISING', 54).verdict, 'Peak', 'RISING near crest still holds (one-day grace)');
   assert.equal(stageStep(49, 'High Tide', 'FLAT', 'FLAT', null).verdict, 'Peak', 'no crest data → holds (unchanged)');
   // getTideStage (score.js) mirrors it — the same four, four-vs-five args.
   assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT', 54).verdict, 'Easing');
   assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT', 52).verdict, 'Peak');
   assert.equal(getTideStage(49, 'High Tide', 'FLAT', 'FLAT').verdict, 'Peak', 'legacy 4-arg call unchanged');
+});
+
+test('E13d — the RISING dead-zone bug: a steady slow decline must not pin "Go now" (D20)', () => {
+  // The recurring WestQuay / Festival Place symptom. Before D20 a steady
+  // ~0.6 pt/day slide off a 60% crest kept the trajectory pinned at RISING
+  // for weeks — each per-step drop too small for the FLAT band, the 3-day
+  // span too wide for the stall check — so the FLAT-only crest release could
+  // never fire and the verdict held Peak the whole way down. The D20 decay
+  // (two consecutive down days → FLAT) lets the slide reach FLAT, and once
+  // it's ≥CREST_DROP_BAND below the crest the release finally eases it.
+  const scores = [];
+  for (let i = 0; i < 12; i++) scores.push(Math.round((40 + 20 * i / 12) * 10) / 10); // climb to ~60
+  let v = 60;
+  for (let i = 0; i < 20; i++) { scores.push(Math.round(v * 10) / 10); v -= 0.6; }     // slide to ~48
+  let s = null;
+  const verdicts = [];
+  scores.forEach((score, i) => { s = nextTideState(s, { date: d(i), score }); verdicts.push(s.verdict); });
+  const declineVerdicts = verdicts.slice(13);
+  assert.ok(declineVerdicts.includes('Easing'), 'the slow decline must reach Easing, not hold Peak forever');
+  assert.equal(s.verdict, 'Easing', 'and it ends Easing, well below its crest');
+  assert.ok(!declineVerdicts.slice(-5).includes('Peak'), 'no lingering "Go now" at the bottom of the slide');
+  // The decay is what unlocks it: the trajectory reaches FLAT on the slide.
+  assert.equal(s.trajectory, 'FLAT', 'sustained decline decays to FLAT (not a sticky RISING)');
 });
 
 test('E5 — new-cycle escape only from Low, with RISING, at ≥15', () => {
